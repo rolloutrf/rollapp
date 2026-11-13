@@ -51,12 +51,17 @@ export const assistantActionInputs = {
     durationMinutes: z.number().int().min(15).max(1440),
   }).strict().refine(event => !scheduleError(event)),
   draft_wish: z.object({
-    title: z.string().trim().min(1).max(160),
+    title: z.string().trim().max(160).default(''),
     description: z.string().trim().max(1000).default(''),
+    url: z.url({ protocol: /^https?$/ }).max(2000).refine(value => {
+      if (!URL.canParse(value)) return false;
+      const { username, password } = new URL(value);
+      return !username && !password;
+    }).or(z.literal('')).default(''),
     price: z.number().min(0).max(999999999).nullable().default(null),
     currency: z.enum(['RUB', 'USD', 'EUR', 'KZT', 'BYN']).default('RUB'),
     listName: z.string().trim().min(1).max(160).nullable().default(null),
-  }).strict(),
+  }).strict().refine(wish => Boolean(wish.title || wish.url)),
   draft_note: z.object({ title, content: z.string().trim().min(1).max(5000) }).strict(),
 };
 

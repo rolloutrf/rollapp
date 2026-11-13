@@ -230,7 +230,25 @@ test('assistant offers a wish draft and drops unsupported or invalid actions', a
     const response = await request(ask('Добавь кофемолку за 4 500 ₽ в список «Кухня»'));
     assert.equal(response.status, 200);
     assert.deepEqual((await response.json()).actions, [
-      { type: 'draft_wish', value: { ...wish, description: '' } },
+      { type: 'draft_wish', value: { ...wish, description: '', url: '' } },
     ]);
+  });
+});
+
+test('assistant keeps user-provided wish links and drops invented or unsafe links', async () => {
+  const url = 'https://example.invalid/coffee?variant=2';
+  await withAssistant({
+    resolveCredential: async () => ({ provider: 'yandex' }),
+    yandexRequest: async () => ({ choices: [{ message: { tool_calls: [
+      tool('draft_wish', { url, listName: 'Кухня' }),
+      tool('draft_wish', { title: 'Подмена', url: 'https://example.invalid/other' }),
+      tool('draft_wish', { title: 'Файл', url: 'file:///etc/hosts' }),
+    ] } }] }),
+  }, async request => {
+    const response = await request(ask(`Добавь в «Кухню» (${url}).`));
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).actions, [{ type: 'draft_wish', value: {
+      title: '', description: '', url, price: null, currency: 'RUB', listName: 'Кухня',
+    } }]);
   });
 });

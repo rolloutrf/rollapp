@@ -51,6 +51,9 @@ const transport={
   },
   async post(path,body,{signal}={}) {
     if(path==='/catalog/product-suggestions') return {items: []};
+    if(path==='/metadata' && body.url==='https://example.invalid/coffee') return {
+      title:'Кофемолка из магазина',description:'Описание магазина',price:9900,currency:'USD',
+    };
     if(path==='/wishes') {
       window.messengerTest.wishWrites.push(body);
       return {wish:{id:'saved-wish',...body}};
@@ -71,7 +74,9 @@ const transport={
         {type:'draft_note',value:{title:'Идеи встречи',content:'Первый пункт\n![Внешнее изображение](https://example.invalid/image.png)'}},
       ]};
       if(content==='Открой календарь') return {reply:'Могу открыть календарь.',actions:[{type:'open_section',value:{section:'calendar'}}]};
-      if(content==='Открой вкладку «Ценности» в сфере «Идентичность».') return {reply:'Могу открыть ценности.',actions:[{type:'open_section',value:{section:'identity:values'}}]};
+      if(content.includes('https://example.invalid/coffee')) return {reply:'Подготовил карточку по ссылке.',actions:[
+        {type:'draft_wish',value:{url:'https://example.invalid/coffee',price:4500,currency:'RUB',listName:'Кухня'}},
+      ]};
       return {reply:'Личный ответ о планировании',actions:[]};
     }
     if(path.startsWith('/planning/tasks?') || path==='/planning/notes') {

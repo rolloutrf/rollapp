@@ -6512,7 +6512,10 @@ function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = null, spa
   const [participants, setParticipants] = useState(initialParticipants);
   const autoTimerRef = useRef(null);
   const metadataRequestRef = useRef(0);
-  const editedMetadataFieldsRef = useRef(new Set());
+  const editedMetadataFieldsRef = useRef(new Set(initialDraft
+    ? ['title', 'description', 'price', 'currency'].filter(field =>
+      field === 'price' || field === 'currency' ? initialDraft.price != null : Boolean(initialDraft[field]))
+    : []));
   const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const mutationRef = useRef(null);

@@ -39,8 +39,10 @@ export function AssistantWishAction({ value, onReview }) {
     }
   }
 
-  return <WishDraft role="group" aria-label={`Черновик желания: ${value.title}`} draftKey={draftKey} onReview={() => onReview(value)} className="messenger-assistant-action">
-    <p><strong>{value.title}</strong></p>
+  const title = value.title || 'Желание по ссылке';
+  return <WishDraft role="group" aria-label={`Черновик желания: ${title}`} draftKey={draftKey} onReview={() => onReview(value)} className="messenger-assistant-action">
+    <p><strong>{title}</strong></p>
+    {value.url && <p>{new URL(value.url).hostname}</p>}
     {value.price !== null && <p>{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: value.currency, maximumFractionDigits: 2 }).format(value.price)}</p>}
     {value.listName && <p>Список «{value.listName}»</p>}
     <PageActionButton type="button" variant="outline" disabled={busy} onClick={review}>

@@ -215,8 +215,8 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await checkDictation(page, chat, text, send, heading, close, openAssistant);
   assert.equal(await send.isDisabled(),true);
   await checkAssistantPresets(page, chat, text, width, height);
-  await chat.getByRole('button',{name:'Открыть календарь',exact:true}).press('Enter');
-  assert.equal(await text.inputValue(),'Открой календарь Rollapp.');
+  await chat.getByRole('button',{name:'Добавить желание',exact:true}).press('Enter');
+  assert.match(await text.inputValue(),/кофемолку за 4 500 ₽/);
   assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
   assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant),[],'Selecting a starter must not send it');
   await text.fill('Что у меня в планах?');
@@ -332,6 +332,23 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     else await wishPage.getByRole('button', { name: 'Закрыть', exact: true }).click();
     await review.waitFor();
     assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
+    if ((width === 390 || width === 1440) && height === 844) {
+      await composer.fill('Добавь в «Кухню» за 4 500 ₽ https://example.invalid/coffee');
+      await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+      const linkDraft = assistantChat.getByRole('group', { name: 'Черновик желания: Желание по ссылке' });
+      const linkReview = linkDraft.getByRole('button', { name: 'Проверить желание' });
+      await linkReview.click();
+      assert.equal(await wishPage.getByRole('textbox', { name: 'Ссылка', exact: true }).inputValue(), 'https://example.invalid/coffee');
+      await wishPage.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Кофемолка из магазина'));
+      assert.equal(await title.inputValue(), 'Кофемолка из магазина');
+      assert.equal(await wishPage.getByRole('spinbutton', { name: 'Цена', exact: true }).inputValue(), '4500');
+      assert.equal(await wishPage.getByRole('combobox', { name: 'Валюта', exact: true }).innerText(), '₽');
+      assert.equal(await kitchen.getAttribute('aria-checked'), 'true');
+      assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
+      if (width < 768) await wishPage.goBack();
+      else await wishPage.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await linkReview.waitFor();
+    }
     if (width === 390 && height === 400) {
       await composer.fill('Добавь кофемолку в список «Несуществующий»');
       await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
@@ -399,25 +416,6 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     await text.fill('Ручной ввод');
     assert.equal(await send.isEnabled(),true);
   }
-  if (width === 1440 && height === 844) {
-    await openAssistant();
-    await chat.getByRole('button', { name: 'Новый чат', exact: true }).click();
-    await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Идентичность', exact: true }).press('ArrowRight');
-    await page.getByRole('menuitem', { name: 'Открыть «Ценности»', exact: true }).press('Enter');
-    await send.click();
-    const values = chat.getByRole('link', { name: 'Открыть: Ценности', exact: true });
-    await values.waitFor();
-    assert.equal(await values.getAttribute('href'), '/app/spheres/identity?tab=values');
-    await values.click();
-    await chat.waitFor({ state: 'hidden' });
-    assert.equal(new URL(page.url()).searchParams.get('tab'), 'values');
-    await openAssistant();
-    await chat.getByRole('button', { name: 'Новый чат', exact: true }).click();
-    const examples = chat.getByRole('group', { name: 'Примеры запросов' });
-    await examples.getByRole('button', { name: 'Подготовить вопросы о ценностях', exact: true }).waitFor();
-    await examples.getByRole('button', { name: 'Открыть «Ценности»', exact: true }).waitFor();
-  }
   console.log(`PASS assistant ${width}x${height}: shared drawer, editable presets, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
 }
 
@@ -431,7 +429,7 @@ async function checkAssistantPresets(page, chat, text, width, height) {
   await trigger.press('Enter');
   await menu.waitFor();
   await settlePopup(menu);
-  assert.equal(await menu.getByRole('menuitem').count(), 12);
+  assert.equal(await menu.getByRole('menuitem').count(), 16);
   const bounds = await menu.boundingBox();
   assert(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y >= 0 && bounds.y + bounds.height <= height + 1);
   if ((width === 390 && height === 400) || (width === 1440 && height === 844)) {
@@ -442,18 +440,21 @@ async function checkAssistantPresets(page, chat, text, width, height) {
   assert(await chat.isVisible());
   assert.equal(await text.inputValue(), 'Заметки встречи');
   await trigger.press('Enter');
-  const identity = menu.getByRole('menuitem', { name: 'Идентичность', exact: true });
-  await identity.press('ArrowRight');
-  const sphereMenu = page.getByRole('menu', { name: 'Идентичность', exact: true });
-  await sphereMenu.waitFor();
-  await settlePopup(sphereMenu);
-  const sphereBounds = await sphereMenu.boundingBox();
-  assert(sphereBounds.x >= 0 && sphereBounds.x + sphereBounds.width <= width + 1 &&
-    sphereBounds.y >= 0 && sphereBounds.y + sphereBounds.height <= height + 1);
-  await sphereMenu.getByRole('menuitem', { name: 'Открыть «Ценности»', exact: true }).press('Enter');
+  await menu.waitFor();
+  await settlePopup(menu);
+  await page.keyboard.press('Home');
+  for (let index = 0; index < 8; index++) await page.keyboard.press('ArrowDown');
+  const values = menu.getByRole('menuitem', { name: 'Ценности и действия на неделю', exact: true });
+  assert(await values.evaluate(node => node === document.activeElement));
+  assert(await values.evaluate(node => {
+    const item = node.getBoundingClientRect();
+    const popup = node.closest('[role="menu"]').getBoundingClientRect();
+    return item.top >= popup.top - 1 && item.bottom <= popup.bottom + 1;
+  }), 'Keyboard navigation must scroll the focused preset into the menu');
+  await page.keyboard.press('Enter');
   await menu.waitFor({ state: 'hidden' });
   await page.waitForFunction(() => document.activeElement?.id === 'messenger-text');
-  assert.equal(await text.inputValue(), 'Заметки встречи\n\nОткрой вкладку «Ценности» в сфере «Идентичность».');
+  assert.match(await text.inputValue(), /^Заметки встречи\n\nПо моим примерам важных решений/);
   await text.fill('Заметки встречи');
   await trigger.press('Enter');
   await menu.getByRole('menuitem', { name: 'Подготовить заметку', exact: true }).press('Space');
@@ -590,12 +591,9 @@ async function checkParallelChats(page, chat, text, close, openAssistant, width,
 async function checkAssistantAccountSwitch(page, chat) {
   await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
   const presets = page.getByRole('menu', { name: 'Пресеты запросов', exact: true });
-  for (const [sphere, tab] of [['Здоровье', 'Сон'], ['Образование', 'Курсы'], ['Карьера', 'ИПР']]) {
-    await presets.getByRole('menuitem', { name: sphere, exact: true }).press('ArrowRight');
-    const submenu = page.getByRole('menu', { name: sphere, exact: true });
-    await submenu.getByRole('menuitem', { name: `Открыть «${tab}»`, exact: true }).waitFor();
-    await page.keyboard.press('Escape');
-    await submenu.waitFor({ state: 'hidden' });
+  const spherePresets = [['Здоровье', 'Поставить тренировки в календарь'], ['Образование', 'Разложить курс по календарю'], ['Карьера', 'Превратить пункт ИПР в задачи']];
+  for (const [sphere, name] of spherePresets) {
+    await presets.getByRole('group', { name: sphere, exact: true }).getByRole('menuitem', { name, exact: true }).waitFor();
   }
   await page.keyboard.press('Escape');
   await presets.waitFor({ state: 'hidden' });
@@ -623,7 +621,9 @@ async function checkAssistantAccountSwitch(page, chat) {
   await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
   await presets.waitFor();
   assert.equal(await presets.getByRole('menuitem').count(), 8);
-  assert.equal(await presets.getByText('Сферы', { exact: true }).count(), 0);
+  for (const [sphere] of spherePresets) {
+    assert.equal(await presets.getByRole('group', { name: sphere, exact: true }).count(), 0);
+  }
   await page.keyboard.press('Escape');
 }
 
