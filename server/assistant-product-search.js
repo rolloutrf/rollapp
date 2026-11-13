@@ -32,15 +32,28 @@ function storeDomain(value) {
   return /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]+)$/u.test(domain) ? domain : '';
 }
 
+function mentionedStores(content) {
+  const domains = [...content.matchAll(/(?:^|[^\p{L}\p{N}@.\-])((?:[\p{L}\p{N}-]+\.)+[\p{L}]{2,63})(?![\p{L}\p{N}-])/gu)]
+    .map(([, host]) => storeDomain(host)).filter(Boolean);
+  const named = marketplaces.filter(store => domains.includes(store.domain) ||
+    new RegExp(`(?:^|[^\\p{L}\\p{N}])${store.names.source}(?=$|[^\\p{L}\\p{N}])`, 'iu').test(content));
+  return { domains, named };
+}
+
+export function hasAssistantStoreMention(messages) {
+  return messages.some(({ role, content }) => {
+    if (role !== 'user') return false;
+    const { domains, named } = mentionedStores(content);
+    return domains.length > 0 || named.length > 0;
+  });
+}
+
 function requestedStore(site, messages) {
   const domain = storeDomain(site);
   const known = marketplaces.find(store => store.id === site.toLowerCase() || store.domain === domain);
   if (!known && !domain) return null;
   for (const { content } of messages.filter(message => message.role === 'user').reverse()) {
-    const domains = [...content.matchAll(/(?:^|[^\p{L}\p{N}@.\-])((?:[\p{L}\p{N}-]+\.)+[\p{L}]{2,63})(?![\p{L}\p{N}-])/gu)]
-      .map(([, host]) => storeDomain(host)).filter(Boolean);
-    const named = marketplaces.filter(store => domains.includes(store.domain) ||
-      new RegExp(`(?:^|[^\\p{L}\\p{N}])${store.names.source}(?=$|[^\\p{L}\\p{N}])`, 'iu').test(content));
+    const { domains, named } = mentionedStores(content);
     if (known && named.includes(known)) return known;
     if (!known && domains.includes(domain)) return { domain, label: domain };
     if (named.length || domains.length) return null;

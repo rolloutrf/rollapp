@@ -246,10 +246,12 @@ test('assistant offers a wish draft and drops unsupported or invalid actions', a
     resolveCredential: async () => ({ provider: 'yandex', model: 'gpt://folder/aliceai-llm-flash' }),
     yandexRequest: async (_path, body) => {
       assert.ok(body.tools.some(({ function: fn }) => fn.name === 'draft_wish'));
+      assert.ok(body.tools.every(({ function: fn }) => fn.name !== 'search_wish_product'));
       return { choices: [{ message: { tool_calls: [
         tool('draft_wish', wish),
         tool('draft_wish', { ...wish, listId: 'other-owner-id' }),
         tool('save_wish', wish),
+        tool('search_wish_product', { site: 'yandex-market', query: 'Кофемолка', maxPrice: 4500 }),
       ] } }] };
     },
   }, async request => {
