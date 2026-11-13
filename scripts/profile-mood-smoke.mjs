@@ -126,14 +126,21 @@ try {
     const calls = await page.evaluate(() => window.__moodSaves);
     assert.deepEqual(calls, [calls[0], calls[0], { published: true }, { published: false }]);
     assert.equal(calls[0].entry.level, 5);
+    // The photo and initials use different portrait CSS. Exercise both.
+    const photo = width === 390 && height === 844 || width === 1440;
     for (const published of [false, true]) {
-      await page.goto(`${smokeOrigin(server)}/__profile-mood?guest${published ? "&published" : ""}`);
+      await page.goto(`${smokeOrigin(server)}/__profile-mood?guest${published ? "&published" : ""}${photo ? "&photo" : ""}`);
       const profile = page.locator("[data-friend-profile]");
       await profile.getByRole("heading", { name: "Александра", exact: true }).waitFor();
       const portrait = profile.locator("[data-profile-mood='5']");
       assert.equal(await portrait.count(), Number(published));
       assert.equal(await profile.getByText("Настроение: отлично", { exact: true }).count(), Number(published));
       assert.equal(await page.getByRole("heading", { name: "Журнал настроения" }).count(), 0);
+      if (photo) {
+        const image = profile.locator('[data-slot="avatar-image"]');
+        await image.waitFor();
+        assert(await image.evaluate((el) => el.complete && el.naturalWidth > 0));
+      }
       if (published) {
         assert.match(await portrait.evaluate((el) => getComputedStyle(el).boxShadow), /242, 184, 78/);
         assert(await profile.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

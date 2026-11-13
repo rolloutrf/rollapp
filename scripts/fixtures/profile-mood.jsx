@@ -12,7 +12,10 @@ import "../../src/index.css";
 
 const params = new URLSearchParams(location.search);
 const guest = params.has("guest");
-const userBase = { id: "mood-owner", name: "Александра", username: "mood-owner" };
+const userBase = {
+  id: "mood-owner", name: "Александра", username: "mood-owner",
+  ...(params.has("photo") && { avatarUrl: "/art/plant.svg" }),
+};
 if (guest) history.replaceState({}, "", "/mood-owner");
 let entries = params.has("history") ? Array.from({ length: 24 }, (_, i) => ({ id: String(24 - i), level: 1 + i % 5, recordedAt: "2026-11-13T10:15:00Z" })) : [];
 let published = false;
