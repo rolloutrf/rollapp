@@ -211,21 +211,34 @@ export function registerMessengerAssistantRoute(app, {
       const prepareSort = () => prepareAssistantWishlistSort(query, req.user.id, latest, complete, signal);
       if (presetSort) return res.json(await prepareSort());
 
-      const payload = await complete(chatMessages, chatTools[Number(canDiscoverSpheres)]);
-      const message = payload?.choices?.[0]?.message;
-      const content = typeof message?.content === 'string' ? message.content.trim().slice(0, ASSISTANT_MESSAGE_LIMIT) : '';
-      const { actions, wishSort, productSearch } = replyActions(message?.tool_calls, canDiscoverSpheres, messages);
-      if (wishSort && !payload?.error) return res.json(await prepareSort());
-      if (productSearch && !payload?.error) {
+      const assistantTools = chatTools[Number(canDiscoverSpheres)];
+      async function readReply() {
+        const payload = await complete(chatMessages, assistantTools);
+        if (payload?.error) return null;
+        const message = payload?.choices?.[0]?.message;
+        const content = typeof message?.content === 'string' ? message.content.trim().slice(0, ASSISTANT_MESSAGE_LIMIT) : '';
+        const suggestions = replyActions(message?.tool_calls, canDiscoverSpheres, messages);
+        return content || suggestions.actions.length || suggestions.wishSort || suggestions.productSearch
+          ? { content, ...suggestions } : null;
+      }
+
+      let reply = await readReply();
+      if (!reply && activeCredential.provider !== 'yandex' && yandexAiConfig(env).enabled) {
+        signal.throwIfAborted();
+        activeCredential = { provider: 'yandex' };
+        reply = await readReply();
+      }
+      if (!reply) return res.status(502).json({ error: 'Ассистент не вернул ответ.' });
+
+      const { content, actions, wishSort, productSearch } = reply;
+      if (wishSort) return res.json(await prepareSort());
+      if (productSearch) {
         signal.throwIfAborted();
         const { wish, reply } = await searchProduct(productSearch, messages, activeCredential, { signal, env });
         signal.throwIfAborted();
         const draft = wish && parseAssistantAction('draft_wish', { ...wish, searchResult: true });
         const otherActions = actions.filter(action => action.type !== 'draft_wish');
         return res.json({ reply, actions: draft ? [draft, ...otherActions] : otherActions });
-      }
-      if (payload?.error || (!content && !actions.length)) {
-        return res.status(502).json({ error: 'Ассистент не вернул ответ.' });
       }
       return res.json({ reply: content || 'Подготовил для вас:', actions });
     } catch (error) {

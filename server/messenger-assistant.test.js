@@ -62,6 +62,31 @@ test('assistant retries an OpenRouter credit failure once on Yandex with the sam
   }
 });
 
+test('assistant retries an empty OpenRouter wish reply once on Yandex', async () => {
+  const calls = [];
+  const wish = { title: 'Кофемолка', price: 4500, listName: 'Кухня' };
+  await withAssistant({
+    env: yandexEnv,
+    resolveCredential: async () => ({ provider: 'openrouter', apiKey: 'personal-key' }),
+    fetchImpl: async () => {
+      calls.push('openrouter');
+      return completion({ content: null, tool_calls: [tool('draft_wish', { ...wish, unexpected: true })] });
+    },
+    yandexRequest: async (_path, body) => {
+      calls.push('yandex');
+      assert.equal(body.messages.at(-1).content, 'Добавь кофемолку за 4 500 ₽ в список «Кухня»');
+      return { choices: [{ message: { content: null, tool_calls: [tool('draft_wish', wish)] } }] };
+    },
+  }, async request => {
+    const response = await request(ask('Добавь кофемолку за 4 500 ₽ в список «Кухня»'));
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).actions, [
+      { type: 'draft_wish', value: { ...wish, description: '', url: '', currency: 'RUB' } },
+    ]);
+    assert.deepEqual(calls, ['openrouter', 'yandex']);
+  });
+});
+
 test('assistant reports insufficient credits when Yandex is unconfigured', async () => {
   await withAssistant({
     env: {},
