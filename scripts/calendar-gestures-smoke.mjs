@@ -9,7 +9,7 @@ const server = await createServer({
   cacheDir: process.env.CALENDAR_GESTURE_CACHE_DIR || 'node_modules/.vite-calendar-gestures',
   optimizeDeps: {
     entries: ['scripts/fixtures/calendar-events.jsx'],
-    include: [...smokeBaseUiDependencies, "date-fns/locale", "react-day-picker", "next-themes", "sonner"],
+    include: [...smokeBaseUiDependencies, "date-fns/locale", "react-day-picker", "next-themes", "sonner", "zod"],
   },
   server: { host: '127.0.0.1', port: 0, strictPort: true, hmr: false, watch: null },
   plugins: [{ name: 'calendar-gestures',
