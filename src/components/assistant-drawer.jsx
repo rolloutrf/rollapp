@@ -1,11 +1,12 @@
 import { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Bot, ChevronDown, CircleAlert, LoaderCircle, Mic, Plus, Square } from 'lucide-react';
-import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE, ASSISTANT_WISH_SORT_PROMPT, parseAssistantAction } from '../../shared/messenger-assistant.js';
+import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_PRODUCT_EXAMPLE, parseAssistantAction } from '../../shared/messenger-assistant.js';
 import { NOTE_TASKS_PROMPT } from '../../shared/assistant-note-tasks.js';
 import { NoteTasksSource } from './assistant-note-tasks';
 import { localDateKey } from '../../shared/planning.js';
 import { api } from '../api.js';
+import { AssistantPresets } from './assistant-presets';
 import { AssistantWishAction } from './assistant-wish-action';
 import { AssistantWishlistSort } from './assistant-wishlist-sort';
 import { ControlBar } from './control-bar';
@@ -18,13 +19,6 @@ import { useAssistantDictation } from '@/hooks/use-assistant-dictation';
 import './assistant-drawer.css';
 
 const AssistantContext = createContext(null);
-const assistantStarters = [
-  ['Открыть календарь', 'Открой календарь Rollapp.'],
-  ['Добавить желание', ASSISTANT_WISH_EXAMPLE],
-  ['Разобрать «Не отсортированные»', ASSISTANT_WISH_SORT_PROMPT],
-  ['Подготовить задачу', 'Подготовь задачу: собрать вопросы к встрече.'],
-  ['Составить план', 'Помоги составить план на неделю.'],
-];
 const date = value => new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 
 function newChat(number) {
@@ -145,7 +139,7 @@ export function AssistantProvider({ children }) {
   return <AssistantContext.Provider value={workspace}>{children}</AssistantContext.Provider>;
 }
 
-function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview, messageKey, onWishlistChanged, noteReviews, onReviewNoteTasks }) {
+function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview, messageKey, onWishlistChanged, noteReviews, onReviewNoteTasks, canDiscoverSpheres }) {
   if (!Array.isArray(actions)) return null;
   const targets = {
     draft_task: ['todo', 'Проверить задачу'],
@@ -156,6 +150,7 @@ function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview
     const action = parseAssistantAction(candidate?.type, candidate?.value);
     if (!action) return null;
     const { type, value } = action;
+    if (type === 'open_section' && ASSISTANT_SECTIONS[value.section].private && !canDiscoverSpheres) return null;
     if (type === 'review_note_tasks') {
       return <NoteTasksSource key={value.batchId} value={value} saved={noteReviews[value.batchId]?.saved}
         onReview={onReviewNoteTasks ? () => onReviewNoteTasks(value) : undefined} />;
@@ -189,7 +184,7 @@ function chatStatus(chat) {
   return '';
 }
 
-function AssistantChatPicker({ chats, chat, createChat, selectChat }) {
+function AssistantChatPicker({ chats, chat, createChat, selectChat, presetMenu }) {
   const background = chats.filter(item => item.id !== chat.id);
   const ready = background.filter(item => item.hasNewReply).length;
   const sending = background.filter(item => item.sending).length;
@@ -223,11 +218,12 @@ function AssistantChatPicker({ chats, chat, createChat, selectChat }) {
     <Button data-control-icon size="icon" variant="outline" aria-label="Новый чат" title="Новый чат" onClick={() => createChat()}>
       <Plus aria-hidden="true" />
     </Button>
+    {presetMenu}
     <span className="sr-only" role="status">{status}</span>
   </ControlBar>;
 }
 
-export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, onWishlistChanged, onReviewNoteTasks, noteId, noteRequest }) {
+export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, onWishlistChanged, onReviewNoteTasks, noteId, noteRequest, canDiscoverSpheres }) {
   const workspace = useContext(AssistantContext);
   const heading = useRef(null);
   const handledRequest = useRef(null);
@@ -238,19 +234,15 @@ export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish
   }, [open, noteId, noteRequest, workspace]);
   return <MessageDrawer open={open} onOpenChange={onOpenChange} title={ASSISTANT_NAME} icon={Bot}
     triggerClassName="assistant-fab" initialFocus={heading} onAfterClose={onAfterClose}>
-    <section className="messenger-conversation assistant-drawer">
-      <ControlBar as="header" className="messenger-heading assistant-drawer__header">
-        <DrawerTitle ref={heading} tabIndex={-1} className="text-2xl font-semibold outline-none">{ASSISTANT_NAME}</DrawerTitle>
-        <MessageDrawerClose label="Закрыть ассистента" />
-        <AssistantChatPicker {...workspace} />
-      </ControlBar>
-      <AssistantConversation key={workspace.chat.id} open={open} onReviewWish={onReviewWish} onWishlistChanged={onWishlistChanged} noteId={noteId} onReviewNoteTasks={onReviewNoteTasks} {...workspace} />
-    </section>
+    <AssistantConversation key={workspace.chat.id} open={open} heading={heading} onReviewWish={onReviewWish}
+      onWishlistChanged={onWishlistChanged} noteId={noteId} onReviewNoteTasks={onReviewNoteTasks}
+      canDiscoverSpheres={canDiscoverSpheres} workspace={workspace} />
   </MessageDrawer>;
 }
 
-function AssistantConversation({ chat, open, setDraft, submit, onReviewWish, onWishlistChanged, sortReviews, updateSortReview, noteReviews, onReviewNoteTasks, noteId }) {
-  const voice = useAssistantDictation({ disabled: !open || chat.sending, setDraft });
+function AssistantConversation({ workspace, open, heading, onReviewWish, onWishlistChanged, onReviewNoteTasks, noteId, canDiscoverSpheres }) {
+  const { chat, setDraft, submit, sortReviews, updateSortReview, noteReviews } = workspace;
+  const voice = useAssistantDictation({ disabled: !open || chat.sending, setDraft, chatId: chat.id });
   const voiceStatus = voice.status || (voice.supported ? '' : 'Диктовка недоступна в этом браузере');
   const history = useRef(null);
   const input = useRef(null);
@@ -260,38 +252,40 @@ function AssistantConversation({ chat, open, setDraft, submit, onReviewWish, onW
       history.current.scrollTop = history.current.scrollHeight;
     }
   }, [chat.messages, chat.sending, chat.error]);
-  const starters = noteId ? [['Задачи из заметки', NOTE_TASKS_PROMPT], ...assistantStarters] : assistantStarters;
-  return <>
-    <div className="messenger-history" ref={history} role="log" aria-live="polite" tabIndex={0} aria-label="История сообщений" onScroll={event => {
-      const node = event.currentTarget;
-      atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
-    }}>
-      {!chat.messages.length && <div className="assistant-drawer__welcome typeset typeset-rollapp">
-        <p>Помогу найти раздел, составить план или подготовить желание, задачу, событие или заметку.</p>
-        {!chat.draft && <div data-not-typeset role="group" aria-label="Примеры запросов" className="flex flex-wrap gap-2">
-          {starters.map(([label, prompt]) => <Button key={label} type="button" variant="outline"
-            className="min-h-12 rounded-full px-6" disabled={chat.sending || voice.active} onClick={() => {
-              setDraft(prompt, prompt === NOTE_TASKS_PROMPT ? noteId : null);
-              input.current?.focus();
-            }}>{label}</Button>)}
+  return <AssistantPresets draft={chat.draft} disabled={!open || chat.sending || voice.active} setDraft={setDraft} inputRef={input}
+    canDiscoverSpheres={canDiscoverSpheres} noteId={noteId}>
+    {({ menu, suggestions }) => <>
+      <ControlBar as="header" className="messenger-heading assistant-drawer__header">
+        <DrawerTitle ref={heading} tabIndex={-1} className="text-2xl font-semibold outline-none">{ASSISTANT_NAME}</DrawerTitle>
+        <MessageDrawerClose label="Закрыть ассистента" />
+        <AssistantChatPicker {...workspace} presetMenu={menu} />
+      </ControlBar>
+      <div className="messenger-history" ref={history} role="log" aria-live="polite" tabIndex={0} aria-label="История сообщений" onScroll={event => {
+        const node = event.currentTarget;
+        atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
+      }}>
+        {!chat.messages.length && <div className="assistant-drawer__welcome typeset typeset-rollapp">
+          <p>Помогу найти раздел, составить план или подготовить желание, задачу, событие или заметку.</p>
+          {!chat.draft && suggestions}
+          <small className="text-muted-foreground">Сообщения обрабатывает модель Rollapp в Yandex Cloud или ваша модель OpenRouter.</small>
         </div>}
-        <small className="text-muted-foreground">Сообщения обрабатывает модель Rollapp в Yandex Cloud или ваша модель OpenRouter.</small>
-      </div>}
-      {chat.messages.map(({ role, content, actions }, index) => <article key={index} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
-        data-wish-sort={actions?.some?.(action => action?.type === 'review_wish_sort') || undefined}
-        aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish}
-          sortReviews={sortReviews} updateSortReview={updateSortReview} messageKey={`${chat.id}:${index}`} onWishlistChanged={onWishlistChanged} noteReviews={noteReviews} onReviewNoteTasks={onReviewNoteTasks} /></article>)}
-      {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
-      {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
-    </div>
-    <MessageComposer inputRef={input} placeholder="Сообщение…" draft={chat.draft} onDraftChange={setDraft}
-      sending={chat.sending} disabled={voice.active} onSubmit={submit}
-      extraAction={<Button type="button" data-control-icon size="icon" variant={voice.active ? 'default' : 'outline'}
-        aria-label="Диктовка" aria-pressed={voice.active} aria-keyshortcuts={voice.supported ? 'Space' : undefined}
-        aria-describedby={voiceStatus ? 'assistant-voice-status' : undefined} title={voice.active ? 'Остановить диктовку' : 'Начать диктовку'}
-        disabled={!voice.supported || chat.sending || voice.stopping} onClick={voice.toggle}>
-        {voice.active ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
-      </Button>}
-      status={<p id="assistant-voice-status" className={voiceStatus ? 'assistant-drawer__voice-status' : 'sr-only'} role="status">{voiceStatus}</p>} />
-  </>;
+        {chat.messages.map(({ role, content, actions }, index) => <article key={index} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
+          data-wish-sort={actions?.some?.(action => action?.type === 'review_wish_sort') || undefined}
+          aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish}
+            sortReviews={sortReviews} updateSortReview={updateSortReview} messageKey={`${chat.id}:${index}`} onWishlistChanged={onWishlistChanged} noteReviews={noteReviews} onReviewNoteTasks={onReviewNoteTasks} canDiscoverSpheres={canDiscoverSpheres} /></article>)}
+        {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
+        {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
+      </div>
+      <MessageComposer inputRef={input} placeholder="Сообщение…" draft={chat.draft} onDraftChange={setDraft}
+        suggestedDraft={open && !chat.messages.length ? ASSISTANT_PRODUCT_EXAMPLE : undefined}
+        sending={chat.sending} disabled={voice.active} onSubmit={submit}
+        extraAction={<Button type="button" data-control-icon size="icon" variant={voice.active ? 'default' : 'outline'}
+          aria-label="Диктовка" aria-pressed={voice.active} aria-keyshortcuts={voice.supported ? 'Space' : undefined}
+          aria-describedby={voiceStatus ? 'assistant-voice-status' : undefined} title={voice.active ? 'Остановить диктовку' : 'Начать диктовку'}
+          disabled={!voice.supported || chat.sending || voice.stopping} onClick={voice.toggle}>
+          {voice.active ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
+        </Button>}
+        status={<p id="assistant-voice-status" className={voiceStatus ? 'assistant-drawer__voice-status' : 'sr-only'} role="status">{voiceStatus}</p>} />
+    </>}
+  </AssistantPresets>;
 }

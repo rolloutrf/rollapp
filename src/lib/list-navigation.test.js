@@ -7,18 +7,9 @@ import {
 
 const supportedSpaces = ["products", "places", "events", "media", "food", "transport"];
 
-test("owners can create the first list in every empty space", () => {
-  for (const space of supportedSpaces) {
-    assert.equal(
-      shouldShowListNavigation({ space, canCreateList: true, listCount: 0 }),
-      true,
-      `list creation is hidden in ${space}`,
-    );
-  }
-});
-
-test("empty list navigation stays hidden for visitors", () => {
-  assert.equal(shouldShowListNavigation({ canCreateList: false, listCount: 0 }), false);
+test("empty list navigation stays hidden until there is a list or unsorted wish", () => {
+  assert.equal(shouldShowListNavigation({ listCount: 0, unlistedCount: 0 }), false);
+  assert.equal(shouldShowListNavigation({ listCount: 0, unlistedCount: 1 }), true);
 });
 
 test("existing and shared collections keep their navigation", () => {

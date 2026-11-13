@@ -214,8 +214,40 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   if (width===320 || width===1440) await page.screenshot({path:`/tmp/rollapp-assistant-empty-${width}-${height}.png`});
   await checkDictation(page, chat, text, send, heading, close, openAssistant);
   assert.equal(await send.isDisabled(),true);
-  await chat.getByRole('button',{name:'Открыть календарь',exact:true}).press('Enter');
-  assert.equal(await text.inputValue(),'Открой календарь Rollapp.');
+  const example = 'Найди кофемолку на Ozon до 4500 ₽ в «Кухню»';
+  assert.equal(await text.getAttribute('placeholder'), example);
+  assert.equal(await text.inputValue(), '');
+  assert(await text.evaluate(node => node.scrollHeight <= node.clientHeight + 1), 'The full suggestion must fit in the composer');
+  await text.press('Shift+Tab');
+  assert.equal(await text.inputValue(), '');
+  assert(await text.evaluate(node => node !== document.activeElement), 'Shift+Tab must move focus');
+  await text.press('Tab');
+  assert.equal(await text.inputValue(), example);
+  assert(await text.evaluate(node => node === document.activeElement && node.selectionStart === node.value.length),
+    'Accepting a suggestion must keep the composer focused with the caret after the text');
+  assert.equal(await send.isEnabled(), true);
+  await page.keyboard.press('Tab');
+  assert(await text.evaluate(node => node !== document.activeElement), 'Tab must move focus after accepting the suggestion');
+  assert.deepEqual(await page.evaluate(() => window.messengerTest.assistant), [], 'Accepting a suggestion must not send it');
+  await text.fill('');
+  await checkAssistantPresets(page, chat, text, width, height);
+  const starters = chat.getByRole('group', { name: 'Примеры запросов' });
+  assert.equal(await starters.locator(':scope > button').count(), 17);
+  assert(await starters.evaluate(catalog => {
+    const history = catalog.closest('[role="log"]');
+    return history.scrollWidth === history.clientWidth && Array.from(catalog.querySelectorAll('button')).every(button =>
+      button.offsetHeight >= 48 && button.scrollWidth <= button.clientWidth + 1);
+  }), 'Preset labels must fit without horizontal scrolling');
+  const lastStarter = starters.getByRole('button', { name: 'Превратить пункт ИПР в задачи' });
+  const sendBefore = await send.boundingBox();
+  await lastStarter.scrollIntoViewIfNeeded();
+  assert.deepEqual(await send.boundingBox(), sendBefore, 'Scrolling the presets moved the composer');
+  await lastStarter.click();
+  assert.match(await text.inputValue(), /^По пункту моего ИПР/);
+  assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
+  await text.fill('');
+  await starters.getByRole('button',{name:'Добавить желание',exact:true}).press('Enter');
+  assert.match(await text.inputValue(),/кофемолку за 4 500 ₽/);
   assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
   assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant),[],'Selecting a starter must not send it');
   await text.fill('Что у меня в планах?');
@@ -226,6 +258,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await page.evaluate(()=>{window.messengerTest.failAssistant=false;window.messengerTest.failList=false;});
   await text.press('Control+Enter');
   await chat.getByText('Личный ответ о планировании',{exact:true}).waitFor();
+  assert.equal(await text.getAttribute('placeholder'), 'Сообщение…');
   await close.click();
   await chat.waitFor({state:'hidden'});
   await page.waitForFunction(()=>document.activeElement?.classList.contains('assistant-fab'));
@@ -309,7 +342,8 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
       wishErrors.push('Unexpected production API request');
       return route.abort();
     });
-    await wishPage.goto(`${smokeOrigin(server)}/app/wishes`, { waitUntil: 'networkidle' });
+    await wishPage.goto(`${smokeOrigin(server)}/app/wishes`, { waitUntil: 'domcontentloaded' });
+    await wishPage.getByRole('button', { name: 'Ассистент Rollapp', exact: true }).waitFor({ timeout: 20_000 });
     await wishPage.getByRole('button', { name: 'Ассистент Rollapp', exact: true }).click();
     const assistantChat = wishPage.getByRole('dialog', { name: 'Ассистент Rollapp', exact: true });
     await assistantChat.getByRole('button', { name: 'Добавить желание', exact: true }).click();
@@ -330,6 +364,41 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     else await wishPage.getByRole('button', { name: 'Закрыть', exact: true }).click();
     await review.waitFor();
     assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
+    if ((width === 390 || width === 1440) && height === 844) {
+      await composer.fill('Найди кофемолку на Ozon до 4500 ₽ в «Кухню»');
+      await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+      const productReview = assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка Bosch' })
+        .getByRole('button', { name: 'Проверить желание' });
+      await productReview.click();
+      const description = wishPage.getByRole('textbox', { name: 'Описание желания', exact: true });
+      await description.waitFor();
+      await wishPage.waitForFunction(() => Array.from(document.querySelectorAll('textarea')).some(
+        field => field.value === 'Компактная кофемолка с ножом из нержавеющей стали'));
+      assert(await wishPage.getByRole('button', { name: 'Заполнить по ссылке', exact: true }).isEnabled());
+      assert.equal(await title.inputValue(), 'Кофемолка Bosch');
+      assert.equal(await wishPage.getByRole('textbox', { name: 'Ссылка', exact: true }).inputValue(), 'https://www.ozon.ru/product/coffee-123/');
+      assert.equal(await wishPage.getByRole('spinbutton', { name: 'Цена', exact: true }).inputValue(), '3290');
+      assert.equal(await kitchen.getAttribute('aria-checked'), 'true');
+      assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
+      if (width < 768) await wishPage.goBack();
+      else await wishPage.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await productReview.waitFor();
+      await composer.fill('Добавь в «Кухню» за 4 500 ₽ https://example.invalid/coffee');
+      await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+      const linkDraft = assistantChat.getByRole('group', { name: 'Черновик желания: Желание по ссылке' });
+      const linkReview = linkDraft.getByRole('button', { name: 'Проверить желание' });
+      await linkReview.click();
+      assert.equal(await wishPage.getByRole('textbox', { name: 'Ссылка', exact: true }).inputValue(), 'https://example.invalid/coffee');
+      await wishPage.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Кофемолка из магазина'));
+      assert.equal(await title.inputValue(), 'Кофемолка из магазина');
+      assert.equal(await wishPage.getByRole('spinbutton', { name: 'Цена', exact: true }).inputValue(), '4500');
+      assert.equal(await wishPage.getByRole('combobox', { name: 'Валюта', exact: true }).innerText(), '₽');
+      assert.equal(await kitchen.getAttribute('aria-checked'), 'true');
+      assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
+      if (width < 768) await wishPage.goBack();
+      else await wishPage.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await linkReview.waitFor();
+    }
     if (width === 390 && height === 400) {
       await composer.fill('Добавь кофемолку в список «Несуществующий»');
       await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
@@ -341,7 +410,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
       await wishPage.getByRole('button', { name: 'Назад', exact: true }).click();
       await missingReview.waitFor();
     }
-    await assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка' })
+    await assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка', exact: true })
       .filter({ hasText: 'Кухня' }).getByRole('button', { name: 'Проверить желание' }).click();
     await title.fill('Кофемолка для кухни');
     await title.press('Escape');
@@ -402,7 +471,57 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     assert.equal(await send.isEnabled(),true);
   }
   await checkNoteTasks(page, width, height);
-  console.log(`PASS assistant ${width}x${height}: shared drawer, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
+  console.log(`PASS assistant ${width}x${height}: shared drawer, editable presets, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
+}
+
+async function checkAssistantPresets(page, chat, text, width, height) {
+  const trigger = chat.getByRole('button', { name: 'Пресеты запросов', exact: true });
+  const menu = page.getByRole('menu', { name: 'Пресеты запросов', exact: true });
+  const geometry = await trigger.boundingBox();
+  assert.equal(geometry.width, 48);
+  assert.equal(geometry.height, 48);
+  await text.fill('Заметки встречи');
+  await trigger.press('Enter');
+  await menu.waitFor();
+  await settlePopup(menu);
+  assert.equal(await menu.getByRole('menuitem').count(), 17);
+  const bounds = await menu.boundingBox();
+  assert(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y >= 0 && bounds.y + bounds.height <= height + 1);
+  if ((width === 390 && height === 400) || (width === 1440 && height === 844)) {
+    await page.screenshot({ path: `/tmp/rollapp-assistant-presets-${width}-${height}.png`, animations: 'disabled' });
+  }
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'hidden' });
+  assert(await chat.isVisible());
+  assert.equal(await text.inputValue(), 'Заметки встречи');
+  await trigger.press('Enter');
+  await menu.waitFor();
+  await settlePopup(menu);
+  await page.keyboard.press('Home');
+  for (let index = 0; index < 9; index++) await page.keyboard.press('ArrowDown');
+  const values = menu.getByRole('menuitem', { name: 'Ценности и действия на неделю', exact: true });
+  assert(await values.evaluate(node => node === document.activeElement));
+  assert(await values.evaluate(node => {
+    const item = node.getBoundingClientRect();
+    const popup = node.closest('[role="menu"]').getBoundingClientRect();
+    return item.top >= popup.top - 1 && item.bottom <= popup.bottom + 1;
+  }), 'Keyboard navigation must scroll the focused preset into the menu');
+  await page.keyboard.press('Enter');
+  await menu.waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => document.activeElement?.id === 'messenger-text');
+  assert.match(await text.inputValue(), /^Заметки встречи\n\nПо моим примерам важных решений/);
+  await text.fill('Заметки встречи');
+  await trigger.press('Enter');
+  await menu.getByRole('menuitem', { name: 'Подготовить заметку', exact: true }).press('Space');
+  await menu.waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => document.activeElement?.id === 'messenger-text');
+  assert.match(await text.inputValue(), /^Заметки встречи\n\nПодготовь заметку/);
+  assert.equal(await chat.getByRole('button', { name: 'Диктовка', exact: true }).getAttribute('aria-pressed'), 'false');
+  assert.deepEqual(await page.evaluate(() => window.messengerTest.assistant), []);
+  await text.fill('а'.repeat(3999));
+  assert(await trigger.isDisabled());
+  assert.equal((await text.inputValue()).length, 3999);
+  await text.fill('');
 }
 
 async function checkNoteTasks(page, width, height) {
@@ -665,6 +784,14 @@ async function checkParallelChats(page, chat, text, close, openAssistant, width,
 }
 
 async function checkAssistantAccountSwitch(page, chat) {
+  await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
+  const presets = page.getByRole('menu', { name: 'Пресеты запросов', exact: true });
+  const spherePresets = [['Здоровье', 'Поставить тренировки в календарь'], ['Образование', 'Разложить курс по календарю'], ['Карьера', 'Превратить пункт ИПР в задачи']];
+  for (const [sphere, name] of spherePresets) {
+    await presets.getByRole('group', { name: sphere, exact: true }).getByRole('menuitem', { name, exact: true }).waitFor();
+  }
+  await page.keyboard.press('Escape');
+  await presets.waitFor({ state: 'hidden' });
   const prompts=['Первый незавершённый запрос','Второй незавершённый запрос'];
   await holdAssistantReplies(page,...prompts);
   const text=chat.getByRole('textbox',{name:'Сообщение',exact:true});
@@ -678,6 +805,8 @@ async function checkAssistantAccountSwitch(page, chat) {
   await page.evaluate(()=>window.messengerTest.switchAccount('other'));
   await chat.getByRole('button',{name:'Чаты ассистента. Текущий чат: Чат 1',exact:true}).waitFor();
   assert.equal(await text.inputValue(),'');
+  const starters = chat.getByRole('group', { name: 'Примеры запросов' });
+  assert.equal(await starters.locator(':scope > button').count(), 9);
   assert.equal(await page.evaluate(()=>[...window.messengerTest.assistantHolds.values()].every(hold=>hold.signal.aborted)),true);
   for(const prompt of prompts) await finishAssistantReply(page,prompt,{reply:'Поздний ответ другого аккаунта'});
   await chat.getByRole('button',{name:/^Чаты ассистента/}).click();
@@ -685,6 +814,13 @@ async function checkAssistantAccountSwitch(page, chat) {
   await list.getByRole('menuitemradio',{name:'Чат 1',exact:true}).waitFor();
   assert.equal(await list.getByRole('menuitemradio').count(),1);
   assert.equal(await chat.getByText('Поздний ответ другого аккаунта').count(),0);
+  await page.keyboard.press('Escape');
+  await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
+  await presets.waitFor();
+  assert.equal(await presets.getByRole('menuitem').count(), 9);
+  for (const [sphere] of spherePresets) {
+    assert.equal(await presets.getByRole('group', { name: sphere, exact: true }).count(), 0);
+  }
   await page.keyboard.press('Escape');
 }
 

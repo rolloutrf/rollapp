@@ -280,16 +280,31 @@ function Conversation({ id, user, peer: initialPeer, transport, drafts, onChange
   </section>;
 }
 
-export function MessageComposer({ inputRef, placeholder = 'Напишите сообщение…', draft, sending, sendError, disabled, onSubmit, onDraftChange, extraAction, status }) {
+export function MessageComposer({ inputRef, placeholder = 'Напишите сообщение…', suggestedDraft, draft, sending, sendError, disabled, onSubmit, onDraftChange, extraAction, status }) {
+  const showSuggestion = Boolean(suggestedDraft && !draft && !sending && !disabled);
+
+  function handleKeyDown(event) {
+    if (event.nativeEvent.isComposing || event.shiftKey) return;
+    if (event.key === 'Tab' && showSuggestion && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      onDraftChange(suggestedDraft);
+    } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      event.currentTarget.form.requestSubmit();
+    }
+  }
+
   return <form className="messenger-composer" onSubmit={event => {
     if (disabled) event.preventDefault();
     else onSubmit(event);
   }} aria-label="Новое сообщение">
       {sendError && <div className="messenger-send-error" role="alert">{sendError} Текст сохранён — попробуйте отправить снова.</div>}
       <label htmlFor="messenger-text" className="sr-only">Сообщение</label>
-      <Textarea ref={inputRef} id="messenger-text" placeholder={placeholder} rows={1} maxLength={ASSISTANT_MESSAGE_LIMIT} value={draft} readOnly={sending} aria-busy={sending} onChange={event => onDraftChange(event.target.value)} onKeyDown={event => {
-        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.form.requestSubmit(); }
-      }} />
+      {showSuggestion && <span id="messenger-suggestion-hint" className="sr-only">Нажмите Tab, чтобы вставить пример сообщения.</span>}
+      <Textarea ref={inputRef} id="messenger-text" placeholder={showSuggestion ? suggestedDraft : placeholder} rows={1}
+        maxLength={ASSISTANT_MESSAGE_LIMIT} value={draft} readOnly={sending} aria-busy={sending}
+        aria-describedby={showSuggestion ? 'messenger-suggestion-hint' : undefined} aria-keyshortcuts={showSuggestion ? 'Tab' : undefined}
+        onChange={event => onDraftChange(event.target.value)} onKeyDown={handleKeyDown} />
       <ControlBar className="messenger-composer-actions">{extraAction}<Button type="submit" data-control-icon size="icon" aria-label={sending ? 'Отправляем сообщение' : 'Отправить сообщение'} disabled={sending || disabled || !draft.trim()}><Send aria-hidden="true" /></Button></ControlBar>
       {status}
   </form>;

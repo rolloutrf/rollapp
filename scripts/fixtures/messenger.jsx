@@ -56,6 +56,12 @@ const transport={
   },
   async post(path,body,{signal}={}) {
     if(path==='/catalog/product-suggestions') return {items: []};
+    if(path==='/metadata' && body.url==='https://example.invalid/coffee') return {
+      title:'Кофемолка из магазина',description:'Описание магазина',price:9900,currency:'USD',
+    };
+    if(path==='/metadata' && body.url==='https://www.ozon.ru/product/coffee-123/') return {
+      title:'Название из магазина',description:'Компактная кофемолка с ножом из нержавеющей стали',price:4990,currency:'RUB',
+    };
     if(path==='/wishes') {
       window.messengerTest.wishWrites.push(body);
       return {wish:{id:'saved-wish',...body}};
@@ -106,6 +112,9 @@ const transport={
           hasMore:true,
         }},
       ]};
+      if(content.startsWith('Найди кофемолку на Ozon')) return {reply:'Подобрал товар в магазине «Ozon».',actions:[
+        {type:'draft_wish',value:{title:'Кофемолка Bosch',url:'https://www.ozon.ru/product/coffee-123/',price:3290,currency:'RUB',listName:'Кухня',searchResult:true}},
+      ]};
       if(content.startsWith('Добавь кофемолку')) return {reply:'Подготовил желание.',actions:[
         {type:'draft_wish',value:{title:'Кофемолка',price:4500,currency:'RUB',listName:content.includes('Несуществующий') ? 'Несуществующий' : 'Кухня'}},
       ]};
@@ -115,6 +124,9 @@ const transport={
         {type:'draft_note',value:{title:'Идеи встречи',content:'Первый пункт\n![Внешнее изображение](https://example.invalid/image.png)'}},
       ]};
       if(content==='Открой календарь') return {reply:'Могу открыть календарь.',actions:[{type:'open_section',value:{section:'calendar'}}]};
+      if(content.includes('https://example.invalid/coffee')) return {reply:'Подготовил карточку по ссылке.',actions:[
+        {type:'draft_wish',value:{url:'https://example.invalid/coffee',price:4500,currency:'RUB',listName:'Кухня'}},
+      ]};
       return {reply:'Личный ответ о планировании',actions:[]};
     }
     if(path.startsWith('/planning/tasks?') || path==='/planning/notes') {
@@ -155,5 +167,5 @@ window.SpeechRecognition = class {
   stop() { this.stopRequested = true; }
   abort() { this.aborted = true; }
 };
-function Fixture(){useVisualViewport();const [id,setId]=React.useState('alice');window.messengerTest.switchAccount=setId;return <SessionContext.Provider value={{user:{id,name:'Алиса',username:id,accountType:'personal'}}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}><MobileFormPages><GlobalAppChrome/><PlanningFab/><Routes><Route path="/app/assistant" element={<AssistantRoute/>}/><Route path="/app/messenger/:conversationId?" element={<AppShell><MessengerRoute user={{id:'alice'}}/></AppShell>}/><Route path="/app/planning" element={<AppShell><PlanningSpace/></AppShell>}/><Route path="/:username/wishes/:wishId" element={<div>Сохранённое желание</div>}/><Route path="/app/wishes" element={<div className="app-layout app-layout--dark"><p>Исходная страница</p></div>}/></Routes></MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;}
+function Fixture(){useVisualViewport();const [id,setId]=React.useState('alice');window.messengerTest.switchAccount=setId;return <SessionContext.Provider value={{user:{id,name:'Алиса',username:id,accountType:'personal',canDiscoverSpheres:id==='alice'}}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}><MobileFormPages><GlobalAppChrome/><PlanningFab/><Routes><Route path="/app/assistant" element={<AssistantRoute/>}/><Route path="/app/messenger/:conversationId?" element={<AppShell><MessengerRoute user={{id:'alice'}}/></AppShell>}/><Route path="/app/planning" element={<AppShell><PlanningSpace/></AppShell>}/><Route path="/:username/wishes/:wishId" element={<div>Сохранённое желание</div>}/><Route path="/app/spheres/:sphereId" element={<div>Открытая сфера</div>}/><Route path="/app/wishes" element={<div className="app-layout app-layout--dark"><p>Исходная страница</p></div>}/></Routes></MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;}
 createRoot(document.getElementById('root')).render(<BrowserRouter><Fixture/></BrowserRouter>);

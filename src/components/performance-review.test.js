@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { CAREER_TABS } from "../../shared/sphere-tabs.js";
 
 const root = new URL("../../", import.meta.url);
 
 test("the performance page is composed from shadcn/ui without page-specific CSS", async () => {
-  const [source, appSource, styles, accordion] = await Promise.all([
+  const [source, styles, accordion] = await Promise.all([
     readFile(new URL("src/components/performance-review.jsx", root), "utf8"),
-    readFile(new URL("src/App.jsx", root), "utf8"),
     readFile(new URL("src/styles.css", root), "utf8"),
     readFile(new URL("src/components/ui/accordion.jsx", root), "utf8"),
   ]);
@@ -25,9 +25,9 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
   assert.doesNotMatch(source, /\bstyle=\{/, "PerformanceReview must not use inline styles");
   assert.doesNotMatch(source, /#[\da-f]{3,8}\b/iu, "PerformanceReview must use shadcn theme tokens instead of custom colors");
   assert.doesNotMatch(styles, /\.performance-review(?:__|\b)/, "Legacy CSS must not style PerformanceReview");
-  assert.match(
-    appSource,
-    /id: "performance",[\s\S]*?layout: "full-width",/u,
+  assert.equal(
+    CAREER_TABS.find(tab => tab.id === "performance")?.layout,
+    "full-width",
     "The performance tab must opt into the full-width sphere layout",
   );
   assert.match(
@@ -71,7 +71,7 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
   assert.doesNotMatch(source, /\b(?:importError|importNotice)\b/, "Performance actions must not leave independent stale notices on screen");
   assert.match(
     source,
-    /disabled=\{careerContent\.loading \|\| importing \|\| deleting\}/,
+    /label: "Импортировать PDF", disabled: careerContent\.loading \|\| importing \|\| deleting/,
     "Performance mutations must prevent overlapping imports and deletions",
   );
 });

@@ -284,6 +284,7 @@ function decodeHtmlBody(body, contentType) {
 
 async function fetchPublicResource(input, {
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  signal,
   maxBytes = DEFAULT_MAX_BYTES,
   maxRedirects = DEFAULT_MAX_REDIRECTS,
   allowRedirect,
@@ -295,10 +296,11 @@ async function fetchPublicResource(input, {
   const timeoutError = new Error("Metadata request timed out");
   timeoutError.name = "TimeoutError";
   const timeout = setTimeout(() => timeoutController.abort(timeoutError), timeoutMs);
-  const timeoutSignal = timeoutController.signal;
+  const timeoutSignal = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal;
 
   try {
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+      timeoutSignal.throwIfAborted();
       let addresses;
       let response;
       try {
