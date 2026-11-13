@@ -214,6 +214,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   if (width===320 || width===1440) await page.screenshot({path:`/tmp/rollapp-assistant-empty-${width}-${height}.png`});
   await checkDictation(page, chat, text, send, heading, close, openAssistant);
   assert.equal(await send.isDisabled(),true);
+  await checkAssistantPresets(page, chat, text, width, height);
   await chat.getByRole('button',{name:'Открыть календарь',exact:true}).press('Enter');
   assert.equal(await text.inputValue(),'Открой календарь Rollapp.');
   assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
@@ -309,7 +310,8 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
       wishErrors.push('Unexpected production API request');
       return route.abort();
     });
-    await wishPage.goto(`${smokeOrigin(server)}/app/wishes`, { waitUntil: 'networkidle' });
+    await wishPage.goto(`${smokeOrigin(server)}/app/wishes`, { waitUntil: 'domcontentloaded' });
+    await wishPage.getByRole('button', { name: 'Ассистент Rollapp', exact: true }).waitFor({ timeout: 20_000 });
     await wishPage.getByRole('button', { name: 'Ассистент Rollapp', exact: true }).click();
     const assistantChat = wishPage.getByRole('dialog', { name: 'Ассистент Rollapp', exact: true });
     await assistantChat.getByRole('button', { name: 'Добавить желание', exact: true }).click();
@@ -397,7 +399,40 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     await text.fill('Ручной ввод');
     assert.equal(await send.isEnabled(),true);
   }
-  console.log(`PASS assistant ${width}x${height}: shared drawer, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
+  console.log(`PASS assistant ${width}x${height}: shared drawer, editable presets, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
+}
+
+async function checkAssistantPresets(page, chat, text, width, height) {
+  const trigger = chat.getByRole('button', { name: 'Пресеты запросов', exact: true });
+  const menu = page.getByRole('menu', { name: 'Пресеты запросов', exact: true });
+  const geometry = await trigger.boundingBox();
+  assert.equal(geometry.width, 48);
+  assert.equal(geometry.height, 48);
+  await text.fill('Заметки встречи');
+  await trigger.press('Enter');
+  await menu.waitFor();
+  await settlePopup(menu);
+  assert.equal(await menu.getByRole('menuitem').count(), 8);
+  const bounds = await menu.boundingBox();
+  assert(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y >= 0 && bounds.y + bounds.height <= height + 1);
+  if ((width === 390 && height === 400) || (width === 1440 && height === 844)) {
+    await page.screenshot({ path: `/tmp/rollapp-assistant-presets-${width}-${height}.png`, animations: 'disabled' });
+  }
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'hidden' });
+  assert(await chat.isVisible());
+  assert.equal(await text.inputValue(), 'Заметки встречи');
+  await trigger.press('Enter');
+  await menu.getByRole('menuitem', { name: 'Подготовить заметку', exact: true }).press('Space');
+  await menu.waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => document.activeElement?.id === 'messenger-text');
+  assert.match(await text.inputValue(), /^Заметки встречи\n\nПодготовь заметку/);
+  assert.equal(await chat.getByRole('button', { name: 'Диктовка', exact: true }).getAttribute('aria-pressed'), 'false');
+  assert.deepEqual(await page.evaluate(() => window.messengerTest.assistant), []);
+  await text.fill('а'.repeat(3999));
+  assert(await trigger.isDisabled());
+  assert.equal((await text.inputValue()).length, 3999);
+  await text.fill('');
 }
 
 async function holdAssistantReplies(page, ...prompts) {

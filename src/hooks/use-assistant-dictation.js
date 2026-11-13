@@ -10,7 +10,7 @@ const speechErrors = {
 };
 const startError = 'Не удалось включить диктовку. Попробуйте ещё раз.';
 
-export function useAssistantDictation({ disabled, setDraft }) {
+export function useAssistantDictation({ disabled, setDraft, chatId }) {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const session = useRef(null);
   const [phase, setPhase] = useState('idle');
@@ -22,6 +22,12 @@ export function useAssistantDictation({ disabled, setDraft }) {
     session.current = null;
     current.engine.abort();
   }, []);
+
+  useLayoutEffect(() => {
+    cancel();
+    setPhase('idle');
+    setNotice('');
+  }, [cancel, chatId]);
 
   const toggle = useCallback(() => {
     if (disabled || !Recognition) return;
