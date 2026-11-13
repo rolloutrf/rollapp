@@ -113,7 +113,7 @@ const transport={
         }},
       ]};
       if(content.startsWith('Найди кофемолку на Ozon')) return {reply:'Подобрал товар в магазине «Ozon».',actions:[
-        {type:'draft_wish',value:{title:'Кофемолка Bosch',url:'https://www.ozon.ru/product/coffee-123/',price:3290,currency:'RUB',listName:'Кухня',searchResult:true}},
+        {type:'draft_wish',value:{title:'Кофемолка Bosch',url:'https://www.ozon.ru/product/coffee-123/',price:3290,currency:'RUB',listName:'Кухню',searchResult:true}},
       ]};
       if(content.startsWith('Добавь кофемолку')) return {reply:'Подготовил желание.',actions:[
         {type:'draft_wish',value:{title:'Кофемолка',price:4500,currency:'RUB',listName:content.includes('Несуществующий') ? 'Несуществующий' : 'Кухня'}},

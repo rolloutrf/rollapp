@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  isGeneralList, listDisplayTitle, resolveVisibleListSelection, shouldShowListNavigation,
+  findAssistantWishLists, isGeneralList, listDisplayTitle, resolveVisibleListSelection, shouldShowListNavigation,
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./list-navigation.js";
 
@@ -43,4 +43,17 @@ test("the technical general list is always displayed as unsorted", () => {
     );
   }
   assert.equal(listDisplayTitle({ title: "Кофейни", description: "" }), "Кофейни");
+});
+
+test("assistant list matching prefers exact names and handles accusative endings without guessing between lists", () => {
+  const kitchen = { title: "Кухня" };
+  const gym = { title: "Йога" };
+  const otherKitchen = { title: "кухня" };
+  const exact = { title: "Кухню" };
+  assert.deepEqual(findAssistantWishLists([kitchen, gym], " КУХНЮ "), [kitchen]);
+  assert.deepEqual(findAssistantWishLists([kitchen, gym], "йогу"), [gym]);
+  assert.deepEqual(findAssistantWishLists([kitchen, exact], "Кухню"), [exact]);
+  assert.deepEqual(findAssistantWishLists([kitchen, otherKitchen], "Кухню"), [kitchen, otherKitchen]);
+  assert.deepEqual(findAssistantWishLists([kitchen, gym], "Кухни"), []);
+  assert.deepEqual(findAssistantWishLists([kitchen, gym], null), []);
 });

@@ -137,7 +137,7 @@ import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { useWishReorder } from "@/hooks/use-wish-reorder";
 import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./lib/auth.js";
 import {
-  isGeneralList, listDisplayTitle, orderWishListsForNavigation, resolveVisibleListSelection, shouldShowListNavigation,
+  findAssistantWishLists, isGeneralList, listDisplayTitle, orderWishListsForNavigation, resolveVisibleListSelection, shouldShowListNavigation,
   shouldShowUnsortedList, UNSORTED_LIST_TITLE, wishCountNoun,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
@@ -6605,8 +6605,7 @@ function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = null, spa
   const listCreatorTriggerRef = useRef(null);
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
   const requestedListName = initialDraft?.listName;
-  const normalizeListName = (name) => String(name ?? "").normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("ru").replaceAll("ё", "е");
-  const matchingLists = requestedListName ? selectableLists.filter((list) => normalizeListName(listDisplayTitle(list)) === normalizeListName(requestedListName)) : [];
+  const matchingLists = findAssistantWishLists(selectableLists, requestedListName);
   const matchedList = matchingLists.length === 1 ? matchingLists[0] : null;
   const [assistantListResolved, setAssistantListResolved] = useState(false);
   useEffect(() => {
