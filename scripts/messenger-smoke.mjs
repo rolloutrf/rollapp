@@ -627,10 +627,8 @@ async function checkNoteTasks(page, width, height) {
 
 async function checkWishlistSort(page, chat, text, send, width, height) {
   const back = chat.getByRole('button', { name: 'Все диалоги', exact: true });
-  const originalChat = await chat.locator('.messenger-heading h2:visible').textContent();
   const starter = chat.getByRole('group', { name: 'Примеры запросов' })
     .getByRole('button', { name: 'Разобрать «Не отсортированные»', exact: true });
-  await back.click();
   await assistantRow(chat, 'Новый чат').click();
   await starter.click();
   assert.match(await text.inputValue(), /^Разбери «Не отсортированные»/);
@@ -683,8 +681,6 @@ async function checkWishlistSort(page, chat, text, send, width, height) {
   await preview.getByRole('status').filter({ hasText: 'Перенесено 1 желание.' }).waitFor();
   const expected = { moves: [{ wishId: 'coffee', listId: 'workspace' }] };
   assert.deepEqual(await page.evaluate(() => window.messengerTest.sortWrites), [expected, expected]);
-  await back.click();
-  await assistantRow(chat, new RegExp('^' + originalChat)).click();
 
 }
 
@@ -816,6 +812,7 @@ async function checkAssistantAccountSwitch(page, chat) {
   }
   await page.keyboard.press('Escape');
   await presets.waitFor({ state: 'hidden' });
+  await chat.getByRole('button',{name:'Все диалоги',exact:true}).click();
   const prompts=['Первый незавершённый запрос','Второй незавершённый запрос'];
   await holdAssistantReplies(page,...prompts);
   const text=chat.getByRole('textbox',{name:'Сообщение',exact:true});
@@ -835,7 +832,6 @@ async function checkAssistantAccountSwitch(page, chat) {
   await assistantRow(chat,'Новый чат').click();
   assert.equal(await text.inputValue(),'');
   assert.equal(await chat.getByText('Поздний ответ другого аккаунта').count(),0);
-  await page.keyboard.press('Escape');
   await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
   await presets.waitFor();
   assert.equal(await presets.getByRole('menuitem').count(), 9);
