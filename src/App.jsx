@@ -6513,7 +6513,7 @@ function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = null, spa
   const autoTimerRef = useRef(null);
   const metadataRequestRef = useRef(0);
   const editedMetadataFieldsRef = useRef(new Set(initialDraft
-    ? ['title', 'description', 'price', 'currency'].filter(field =>
+    ? ['title', 'description', 'imageUrl', 'price', 'currency'].filter(field =>
       field === 'price' || field === 'currency' ? initialDraft.price != null : Boolean(initialDraft[field]))
     : []));
   const imageFileRef = useRef(null);
@@ -6713,7 +6713,6 @@ function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = null, spa
     metadataRequestRef.current += 1;
     const url = form.url.trim();
     if (!url || !isProductUrl(url)) { setMetadata({ status: "idle", message: "" }); return undefined; }
-    if (initialDraft?.searchResult && url === initialDraft.url) { setMetadata({ status: "idle", message: "" }); return undefined; }
     if (isPlaces && !isYandexMapsUrl(url)) { setMetadata({ status: "error", message: "Вставьте ссылку на место из Яндекс Карт" }); return undefined; }
     const kinopoiskUrlError = isMedia ? kinopoiskContentUrlError(url) : "";
     if (kinopoiskUrlError) {

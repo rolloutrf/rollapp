@@ -370,6 +370,11 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
       const productReview = assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка Bosch' })
         .getByRole('button', { name: 'Проверить желание' });
       await productReview.click();
+      const description = wishPage.getByRole('textbox', { name: 'Описание желания', exact: true });
+      await description.waitFor();
+      await wishPage.waitForFunction(() => Array.from(document.querySelectorAll('textarea')).some(
+        field => field.value === 'Компактная кофемолка с ножом из нержавеющей стали'));
+      assert(await wishPage.getByRole('button', { name: 'Заполнить по ссылке', exact: true }).isEnabled());
       assert.equal(await title.inputValue(), 'Кофемолка Bosch');
       assert.equal(await wishPage.getByRole('textbox', { name: 'Ссылка', exact: true }).inputValue(), 'https://www.ozon.ru/product/coffee-123/');
       assert.equal(await wishPage.getByRole('spinbutton', { name: 'Цена', exact: true }).inputValue(), '3290');

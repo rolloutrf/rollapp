@@ -54,6 +54,9 @@ const transport={
     if(path==='/metadata' && body.url==='https://example.invalid/coffee') return {
       title:'Кофемолка из магазина',description:'Описание магазина',price:9900,currency:'USD',
     };
+    if(path==='/metadata' && body.url==='https://www.ozon.ru/product/coffee-123/') return {
+      title:'Название из магазина',description:'Компактная кофемолка с ножом из нержавеющей стали',price:4990,currency:'RUB',
+    };
     if(path==='/wishes') {
       window.messengerTest.wishWrites.push(body);
       return {wish:{id:'saved-wish',...body}};
