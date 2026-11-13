@@ -188,3 +188,24 @@ test('assistant reports a missing key and shields upstream error details', async
     assert.deepEqual(await response.json(), { error: 'Ассистент временно недоступен.' });
   });
 });
+
+test('assistant offers a wish draft and drops unsupported or invalid actions', async () => {
+  const wish = { title: 'Кофемолка', price: 4500, currency: 'RUB', listName: 'Кухня' };
+  await withAssistant({
+    resolveCredential: async () => ({ provider: 'yandex', model: 'gpt://folder/aliceai-llm-flash' }),
+    yandexRequest: async (_path, body) => {
+      assert.ok(body.tools.some(({ function: fn }) => fn.name === 'draft_wish'));
+      return { choices: [{ message: { tool_calls: [
+        tool('draft_wish', wish),
+        tool('draft_wish', { ...wish, listId: 'other-owner-id' }),
+        tool('save_wish', wish),
+      ] } }] };
+    },
+  }, async request => {
+    const response = await request(ask('Добавь кофемолку за 4 500 ₽ в список «Кухня»'));
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).actions, [
+      { type: 'draft_wish', value: { ...wish, description: '' } },
+    ]);
+  });
+});

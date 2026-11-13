@@ -743,7 +743,37 @@ function PlanningControls({ user }) {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [initialConversationId, setInitialConversationId] = useState(null);
+  const [assistantWish, setAssistantWish] = useState(null);
+  const assistantWishSource = useRef(null);
+  const pendingAssistantWish = useRef(null);
+  const assistantWishActive = useRef(false);
+  const assistantWishResult = useRef(null);
+  const navigate = useNavigate();
+  const finishAssistantWish = () => {
+    if (!assistantWishActive.current) return;
+    assistantWishActive.current = false;
+    const saved = assistantWishResult.current;
+    assistantWishResult.current = null;
+    const source = assistantWishSource.current;
+    assistantWishSource.current = null;
+    if (saved?.id) navigate(publicWishPath(user.username, saved.id));
+    else if (source === location.pathname) setAssistantOpen(true);
+  };
+  const closeAssistantWish = (saved) => {
+    if (!assistantWishActive.current) return;
+    assistantWishResult.current = saved || null;
+    setAssistantWish(null);
+    if (!isMobile) finishAssistantWish();
+  };
   useLayoutEffect(() => {
+    if (assistantWishActive.current && assistantWishSource.current === location.pathname) return;
+    if (assistantWishActive.current) {
+      assistantWishActive.current = false;
+      assistantWishResult.current = null;
+      assistantWishSource.current = null;
+      setAssistantWish(null);
+    }
+    pendingAssistantWish.current = null;
     const showMessages = Boolean(location.state?.messengerOpen);
     setOpen(false);
     setAssistantOpen(!showMessages && Boolean(location.state?.assistantOpen));
@@ -774,7 +804,19 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantDrawerOpen} />
+      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantDrawerOpen} onReviewWish={(draft) => {
+        if (pendingAssistantWish.current || assistantWishActive.current) return;
+        pendingAssistantWish.current = draft;
+        setAssistantDrawerOpen(false);
+      }} onAfterClose={() => {
+        if (!pendingAssistantWish.current) return;
+        assistantWishActive.current = true;
+        assistantWishSource.current = location.pathname;
+        setAssistantWish(pendingAssistantWish.current);
+        pendingAssistantWish.current = null;
+      }} />
+      {assistantWish && <WishModal initialDraft={assistantWish} onClose={() => closeAssistantWish()}
+        onSaved={closeAssistantWish} onAfterClose={finishAssistantWish} />}
       <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
       {inPlanning && <Link
         data-control-icon
@@ -6571,11 +6613,11 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
   </>;
 }
 
-function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products", initialListId = "" }) {
+function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = null, space = "products", initialListId = "", initialDraft = null }) {
   const isMobile = useIsMobile();
   const editing = Boolean(wish?.id);
   const toast = useToast();
-  const { data, loading: listsLoading, reload: reloadDashboard } = useAsync(() => api.get("/dashboard"), []);
+  const { data, loading: listsLoading, error: listsError, reload: reloadDashboard } = useAsync(() => api.get("/dashboard"), []);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -6585,7 +6627,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const [listCreatorOpen, setListCreatorOpen] = useState(false);
   const [metadata, setMetadata] = useState({ status: "idle", message: "" });
   const [vehicleCatalog, setVehicleCatalog] = useState({ status: "idle", makes: [], models: [], modelsStatus: "idle" });
-  const [form, setForm] = useState(() => wishFormFrom(wish, initialListId));
+  const [form, setForm] = useState(() => wishFormFrom(wish || initialDraft, initialListId));
   const [initialParticipants] = useState(() => wish?.participants || []);
   const [participants, setParticipants] = useState(initialParticipants);
   const autoTimerRef = useRef(null);
@@ -6597,7 +6639,19 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const deleteTriggerRef = useRef(null);
   const listCreatorTriggerRef = useRef(null);
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
+  const requestedListName = initialDraft?.listName;
+  const normalizeListName = (name) => String(name ?? "").normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("ru").replaceAll("ё", "е");
+  const matchingLists = requestedListName ? selectableLists.filter((list) => normalizeListName(listDisplayTitle(list)) === normalizeListName(requestedListName)) : [];
+  const matchedList = matchingLists.length === 1 ? matchingLists[0] : null;
+  const [assistantListResolved, setAssistantListResolved] = useState(false);
+  useEffect(() => {
+    if (!requestedListName || !data || assistantListResolved) return;
+    if (matchedList) setForm((current) => ({ ...current, listIds: initialWishListIds(current, matchedList.id) }));
+    setAssistantListResolved(true);
+  }, [data, matchedList, requestedListName, assistantListResolved]);
+  const assistantListPending = Boolean(requestedListName && (listsLoading || listsError || !assistantListResolved));
   const effectiveSpace = (() => {
+    if (matchedList) return listSpace(matchedList);
     if (editing) {
       if (SPACE_IDS.includes(wish?.space)) return wish.space;
       if (data?.lists) {
@@ -6831,7 +6885,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (mutationRef.current || deleting || imageUploading) return;
+    if (mutationRef.current || deleting || imageUploading || assistantListPending) return;
     mutationRef.current = "save";
     setLoading(true);
     try {
@@ -6911,6 +6965,13 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           <p id={fieldId("dialog-description")} className="sr-only">{editing ? "Обновите информацию, изображение и списки желания." : "Добавьте изображение и заполните основную информацию о желании."}</p>
 
           <div className="wish-editor-screen__content px-4" aria-label="Поля желания">
+            {requestedListName && listsError && <Alert variant="destructive" role="alert">
+              <AlertDescription>Не удалось загрузить списки.</AlertDescription>
+              <ShadcnButton type="button" variant="outline" onClick={() => void reloadDashboard().catch(() => {})}>Повторить</ShadcnButton>
+            </Alert>}
+            {requestedListName && data && !matchedList && <p className="m-0" role="status">
+              {matchingLists.length ? `Есть несколько списков «${requestedListName}».` : `Список «${requestedListName}» не найден.`} Выберите список в форме или оставьте желание без списка.
+            </p>}
             <div className="wish-editor__layout m-0 flex h-auto w-full flex-col gap-4 overflow-visible p-0 pr-3 max-[820px]:pr-0">
           <section className="wish-editor__media h-auto w-full gap-2" aria-label="Фотография желания">
             <div
@@ -7050,7 +7111,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
 
               <Field className="wish-editor__field wish-editor__field--price grid grid-cols-[minmax(0,1fr)_84px] grid-rows-[auto_auto] items-center gap-2">
                 <FieldLabel className="col-span-2 row-start-1" htmlFor={fieldId("price")}>Цена</FieldLabel>
-                <Input className="col-start-1 row-start-2" id={fieldId("price")} type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
+                <Input className="col-start-1 row-start-2" id={fieldId("price")} type="number" min="0" step="0.01" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
                 <Select value={form.currency} onValueChange={(currency) => updateMetadataField("currency", currency)}>
                   <SelectTrigger className="wish-editor__currency col-start-2 row-start-2 w-full" aria-label="Валюта">
                     <SelectValue>{(currency) => WISH_CURRENCY_SYMBOLS[currency] || ""}</SelectValue>
@@ -7107,7 +7168,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           </div>
 
           <MobileFormFooter className="wish-editor-screen__footer">
-            <ShadcnButton type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
+            <ShadcnButton type="submit" disabled={loading || deleting || imageUploading || assistantListPending} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
             {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
@@ -7126,6 +7187,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     {editorContent}
   </FullscreenDialog> : <Drawer
     open
+    onAfterClose={onAfterClose}
     modal={!listCreatorOpen}
     disablePointerDismissal={listCreatorOpen}
     showSwipeHandle={!isMobile}
