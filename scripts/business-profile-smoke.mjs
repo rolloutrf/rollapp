@@ -21,6 +21,29 @@ const server = await createServer({ cacheDir, server: { host: "127.0.0.1", port:
 }] });
 await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
+async function revealInPageScroll(control) {
+  await control.evaluate(node => {
+    node.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    const box = node.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    if (node.contains(hit)) return;
+    const fixedControls = [...document.querySelectorAll(
+      ".global-app-chrome button, .global-app-chrome a, .planning-fab-controls button, [data-add-fab] button",
+    )].map(item => item.getBoundingClientRect())
+      .filter(item => item.height && item.left < box.right && item.right > box.left)
+      .sort((a, b) => a.top - b.top);
+    const gaps = [];
+    let top = 0;
+    for (const fixed of fixedControls) {
+      if (fixed.top - top >= box.height) gaps.push([top, fixed.top]);
+      top = Math.max(top, fixed.bottom);
+    }
+    if (innerHeight - top >= box.height) gaps.push([top, innerHeight]);
+    const [start, end] = gaps.sort(([a, b], [c, d]) => (d - c) - (b - a))[0];
+    window.scrollBy({ top: box.top + box.height / 2 - (start + end) / 2, behavior: "instant" });
+  });
+}
+
 async function snippetAppearance(card) {
   await card.waitFor();
   await card.page().evaluate(() => document.fonts.ready);
@@ -107,24 +130,7 @@ async function checkWishSale(width, height) {
     const sale = page.getByRole("menuitem", { name: "Выставить на продажу" });
     const wishOptions = async (name) => {
       const control = page.getByRole("button", { name: `Опции желания «${name}»` });
-      await control.evaluate(node => {
-        const box = node.getBoundingClientRect();
-        const fixedControls = [...document.querySelectorAll(
-          ".global-app-chrome button, .global-app-chrome a, .planning-fab-controls button, [data-add-fab] button",
-        )].map(item => item.getBoundingClientRect())
-          .filter(item => item.height && item.left < box.right && item.right > box.left)
-          .sort((a, b) => a.top - b.top);
-        const gaps = [];
-        let top = 0;
-        for (const fixed of fixedControls) {
-          if (fixed.top - top >= box.height) gaps.push([top, fixed.top]);
-          top = Math.max(top, fixed.bottom);
-        }
-        if (innerHeight - top >= box.height) gaps.push([top, innerHeight]);
-        if (gaps.some(([start, end]) => box.top >= start && box.bottom <= end)) return;
-        const [start, end] = gaps.sort(([a, b], [c, d]) => (d - c) - (b - a))[0];
-        window.scrollBy({ top: box.top + box.height / 2 - (start + end) / 2, behavior: "instant" });
-      });
+      await revealInPageScroll(control);
       await control.click();
     };
     await wishOptions("Кофеварка");
@@ -294,6 +300,8 @@ async function checkAnnouncementsEntry(width, height) {
       await services.getByRole("link", { name: "Вишлист", exact: true }).waitFor();
       assert.equal(await services.locator('a[href="/app/classifieds"]').count(), 0);
       await page.keyboard.press("Escape");
+      await services.waitFor({ state: "hidden" });
+      await revealInPageScroll(entry);
       await entry.click();
       await announcement.waitFor();
       const destination = new URL(page.url());
