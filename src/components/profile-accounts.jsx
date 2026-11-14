@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Check, Plus, UserMinus } from "lucide-react";
 import { api } from "@/api";
+import { DrawerFooter } from "@/components/form-surface";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 
-export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBusyChange }) {
+export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBusyChange, isMobile }) {
   const [revision, setRevision] = useState(0);
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState("");
@@ -48,7 +49,8 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
   };
 
   const actionBlocked = blocked || changed || Boolean(pending);
-  return <section aria-label="Аккаунты на этом устройстве"
+  const canAdd = data && !loadError && data.accounts.length < data.maxAccounts;
+  const accounts = <section aria-label="Аккаунты на этом устройстве"
     aria-busy={(!data && !loadError) || Boolean(pending) || undefined}
     className="flex min-w-0 flex-col gap-2">
     {changed && <p className="text-xs text-muted-foreground">Сохраните изменения профиля, чтобы переключить аккаунт.</p>}
@@ -89,12 +91,21 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
           </li>;
         })}
       </ul>
-      {data.accounts.length < data.maxAccounts
-        ? <a data-slot="button" href={actionBlocked ? undefined : addHref} aria-disabled={actionBlocked || undefined}
-            className={cn(buttonVariants({ variant: "outline" }), "h-12 w-full", actionBlocked && "opacity-50")}>
-          <Plus className="size-5" aria-hidden="true" />Добавить аккаунт
-        </a>
-        : <p className="text-xs text-muted-foreground">Чтобы добавить аккаунт, уберите один из сохранённых.</p>}
+      {!canAdd && <p className="text-xs text-muted-foreground">Чтобы добавить аккаунт, уберите один из сохранённых.</p>}
     </>}
   </section>;
+
+  return <>
+    {isMobile ? <div className="p-4">{accounts}</div> : (
+      <ScrollArea className="min-h-0 w-full flex-1">
+        <div className="p-4">{accounts}</div>
+      </ScrollArea>
+    )}
+    {(canAdd || isMobile) && <DrawerFooter>
+      {canAdd && <a data-slot="button" href={actionBlocked ? undefined : addHref} aria-disabled={actionBlocked || undefined}
+        className={buttonVariants({ variant: "outline", className: "flex-1" })}>
+        <Plus data-icon="inline-start" aria-hidden="true" />Добавить аккаунт
+      </a>}
+    </DrawerFooter>}
+  </>;
 }

@@ -7849,13 +7849,6 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       </section>
       {isMobile && wishlistsFooter}
     </form>
-  ) : section === "accounts" ? (
-    <div className="px-4 py-4">
-      <ProfileAccounts Avatar={Avatar} addHref={addAccountHref} home={APP_HOME}
-        changed={changed || Boolean(openRouterDraft.apiKey || openRouterDraft.modelId)}
-        blocked={loading || importingWishlist || imageUploading || loggingOut || openRouterBusy}
-        onBusyChange={setAccountsBusy} />
-    </div>
   ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded onWishlistsImported={onWishlistsImported} />
     : section === "gift-cards" ? <ProfileGiftCards key={user.id} user={user} onNavigate={leaveSettingsFor} />
     : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="grid gap-3 px-4 pt-4">
@@ -7934,7 +7927,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
     </DrawerFooter>
   );
   const desktopSection = !isMobile && section;
-  const fullSection = openRouterSection
+  const fullSection = (section === "accounts" && <ProfileAccounts Avatar={Avatar} addHref={addAccountHref} home={APP_HOME}
+    changed={changed || Boolean(openRouterDraft.apiKey || openRouterDraft.modelId)}
+    blocked={loading || importingWishlist || imageUploading || loggingOut || openRouterBusy}
+    onBusyChange={setAccountsBusy} isMobile={isMobile} />)
+    || openRouterSection
     || (section === "mood" && <ProfileMoodSettings user={user} onSaved={onMoodSaved} onBusyChange={setMoodBusy} />)
     || (section === "mcp" && <ProfileMcpKeys key={user.id} onBusyChange={setMcpKeysBusy} />)
     || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);

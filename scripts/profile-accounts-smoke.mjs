@@ -33,11 +33,14 @@ const personal = { id: "personal", username: "personal", name: "Личный а�
 const business = { id: "business", username: "business-username-with-long-suffix", name: "Бизнес аккаунт с длинным названием для узкого экрана", accountType: "business" };
 const errors = [];
 
-async function fixture(viewport, startWithTwo = true) {
+async function fixture(viewport, accountCount = 2) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width < 768, isMobile: viewport.width < 768, reducedMotion: "reduce" });
   context.setDefaultTimeout(12_000);
   let active = personal;
-  let remembered = startWithTwo ? [personal, business] : [personal];
+  const extra = Array.from({ length: Math.max(0, accountCount - 2) }, (_, index) => ({
+    id: `extra-${index}`, username: `extra-${index}`, name: `Сохранённый аккаунт ${index + 1}`, accountType: "personal",
+  }));
+  let remembered = accountCount === 1 ? [personal] : [personal, business, ...extra];
   let staleWrites = 0;
   let failList = false;
   let cancelYandex = true;
@@ -98,6 +101,26 @@ const home = (page, user = personal) => page.getByRole("button", { name: `Ред
 const section = (page) => page.getByRole("region", { name: "Аккаунты на этом устройстве" });
 const toggle = (page) => page.getByRole("button", { name: "Аккаунты", exact: true });
 const switchTo = (page, account) => page.getByRole("button", { name: `Переключиться на @${account.username}`, exact: true });
+const addAccount = (page) => page.getByRole("link", { name: "Добавить аккаунт", exact: true });
+
+async function footerGeometry(add) {
+  return add.evaluate((button) => {
+    const footer = button.closest('[data-slot="drawer-footer"], [data-native-form-actions]');
+    const popup = footer.closest('[data-slot="drawer-content"]');
+    const { top, bottom, left, right, height } = button.getBoundingClientRect();
+    const style = getComputedStyle(button);
+    return {
+      top, bottom, left, right, height,
+      radius: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius],
+      drawerBottomGap: popup ? popup.getBoundingClientRect().bottom - footer.getBoundingClientRect().bottom : null,
+      native: footer.hasAttribute("data-native-form-actions"),
+      back: footer.querySelector('button[aria-label="Назад"]')?.getBoundingClientRect().top ?? null,
+      outsideListScroll: !button.closest('[data-slot="scroll-area-viewport"]'),
+      hit: button.contains(document.elementFromPoint((left + right) / 2, (top + bottom) / 2)),
+    };
+  });
+}
+
 async function openAccounts(page, user) {
   await home(page, user).click();
   await toggle(page).click();
@@ -111,8 +134,21 @@ try {
       await page.goto(origin + "/app/wishes?space=products");
       await openAccounts(page);
       await section(page).getByText("Активный аккаунт", { exact: true }).waitFor({ state: "attached" });
-      const add = section(page).getByRole("link", { name: "Добавить аккаунт" });
-      await add.scrollIntoViewIfNeeded();
+      const add = addAccount(page);
+      await add.waitFor();
+      const footer = await footerGeometry(add);
+      assert.equal(await section(page).getByRole("link", { name: "Добавить аккаунт" }).count(), 0);
+      assert.equal(footer.height, 48);
+      assert.deepEqual(footer.radius, Array(4).fill("24px"));
+      assert(footer.outsideListScroll && footer.hit);
+      assert.equal(footer.native, width < 768);
+      if (footer.native) {
+        assert.equal(footer.back, footer.top);
+        assert(footer.bottom <= height && height - footer.bottom < 40);
+      } else {
+        assert(Math.abs(footer.drawerBottomGap) < 1);
+        assert(footer.bottom <= height && height - footer.bottom < 40);
+      }
       for (const control of [switchTo(page, business), add]) {
         const box = await control.boundingBox();
         assert(box && box.height >= 48 && box.x >= 0 && box.x + box.width <= width, `${width}x${height}: invalid account control bounds ${JSON.stringify(box)}`);
@@ -127,12 +163,51 @@ try {
       if (process.env.ROLLAPP_ACCOUNT_SCREENSHOTS && ((width === 390 && height === 844) || width === 1440)) {
         await page.screenshot({ path: `${process.env.ROLLAPP_ACCOUNT_SCREENSHOTS}/rollapp-accounts-${width}.png` });
       }
-      console.log(`PASS ${width}x${height}: account list, current marker, long account names, 48px actions and return path`);
+      console.log(`PASS ${width}x${height}: account list, current marker, long account names, fixed footer, 48px actions and return path`);
     } finally {
       await context.close();
     }
   }
-  const { context, failNextList, staleWrites } = await fixture({ width: 390, height: 844 }, false);
+  for (const width of [390, 1024]) {
+    const { context } = await fixture({ width, height: 250 }, 4);
+    try {
+      const page = await context.newPage();
+      await page.goto(origin + "/app/wishes");
+      await openAccounts(page);
+      const add = addAccount(page);
+      await add.waitFor();
+      const initial = await footerGeometry(add);
+      const lastRow = section(page).getByRole("listitem").last();
+      const scroll = (top) => lastRow.evaluate((row, top) => {
+        const owner = row.closest('[data-slot="scroll-area-viewport"]') || document.scrollingElement;
+        owner.scrollTo({ top, behavior: "instant" });
+        return owner.scrollTop;
+      }, top);
+      assert(await scroll(10_000) > 0, "Short screen should scroll account rows");
+      assert.deepEqual(await footerGeometry(add), initial);
+      assert((await lastRow.boundingBox()).y + (await lastRow.boundingBox()).height <= initial.top + 1);
+      assert.equal(await scroll(0), 0);
+      assert.deepEqual(await footerGeometry(add), initial);
+      console.log(`PASS ${width}x250: footer stays in place while scrolling to the last account and back`);
+    } finally {
+      await context.close();
+    }
+  }
+  {
+    const { context } = await fixture({ width: 390, height: 400 }, 5);
+    try {
+      const page = await context.newPage();
+      await page.goto(origin + "/app/wishes");
+      await openAccounts(page);
+      await section(page).getByText("Чтобы добавить аккаунт, уберите один из сохранённых.").waitFor();
+      assert.equal(await addAccount(page).count(), 0);
+      await page.getByRole("button", { name: "Назад", exact: true }).click();
+      await toggle(page).waitFor();
+    } finally {
+      await context.close();
+    }
+  }
+  const { context, failNextList, staleWrites } = await fixture({ width: 390, height: 844 }, 1);
   try {
     const page = await context.newPage();
     await page.goto(origin + "/app/wishes?space=products");
@@ -140,7 +215,7 @@ try {
     await openAccounts(page);
     await section(page).getByText("Список временно недоступен").waitFor();
     await section(page).getByRole("button", { name: "Повторить" }).click();
-    await section(page).getByRole("link", { name: "Добавить аккаунт" }).click();
+    await addAccount(page).click();
     await page.getByRole("heading", { name: "Добавить аккаунт" }).waitFor();
     const yandex = page.getByRole("link", { name: "Войти с помощью Яндекс ID", exact: true });
     await yandex.waitFor();
@@ -156,7 +231,7 @@ try {
     await stale.getByRole("button", { name: "Персональная информация" }).click();
     await stale.getByLabel("Имя", { exact: true }).fill("Черновик старой вкладки");
     await openAccounts(page);
-    await section(page).getByRole("link", { name: "Добавить аккаунт" }).click();
+    await addAccount(page).click();
     await yandex.click();
     await page.getByText("Вход через Яндекс отменён", { exact: true }).waitFor();
     await yandex.click();
