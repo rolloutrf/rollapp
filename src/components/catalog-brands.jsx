@@ -85,7 +85,7 @@ export function BusinessCatalogList() {
       <EmptyDescription>{sphere ? "Здесь появятся бизнес-аккаунты этой сферы." : "Здесь появятся аккаунты продавцов этого раздела."}</EmptyDescription>
     </EmptyHeader>
   </Empty>;
-  return <ul className="rollapp-body mx-auto grid w-full max-w-(--layout-collection-width) gap-3 sm:grid-cols-2" aria-label="Бизнес-аккаунты">
+  return <ul className="business-catalog-grid rollapp-body mx-auto grid w-full max-w-(--layout-collection-width) gap-3 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="Бизнес-аккаунты">
     {accounts.map(account => <BusinessCatalogAccount key={`${endpoint}:${account.username}`} account={account}
       path={space ? publicSpacePath(account.username, space) : publicProfilePath(account.username)} onChange={updateFollowing} />)}
   </ul>;
@@ -112,16 +112,18 @@ function BusinessCatalogAccount({ account, path, onChange }) {
       setBusy(false);
     }
   };
-  return <li className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border p-3">
-    <Link to={path} className="flex min-h-12 min-w-0 flex-1 basis-40 items-center gap-3 rounded-lg hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-      <BusinessAvatar account={account} className="size-10 shrink-0" />
-      <span className="flex min-w-0 flex-col">
-        <span className="font-medium wrap-anywhere">{name}</span>
+  return <li className="business-catalog-card">
+    <Link to={path} className="business-catalog-card__profile" aria-label={`Открыть профиль ${name} (@${account.username})`}>
+      <BusinessAvatar account={account} className="business-catalog-card__avatar size-(--contact-avatar-size)" />
+      <span className="business-catalog-card__identity">
+        <strong>{name}</strong>
         <span className="text-xs text-muted-foreground wrap-anywhere">@{account.username}</span>
       </span>
     </Link>
-    {typeof account.isFollowing === "boolean" && <PageActionButton type="button" variant="outline"
-      aria-label={`${label} · ${name}`} aria-busy={busy || undefined} disabled={busy} onClick={change}>{label}</PageActionButton>}
-    {error && <p role="alert" className="basis-full text-destructive wrap-anywhere">{error}</p>}
+    {typeof account.isFollowing === "boolean" && <footer className="business-catalog-card__footer">
+      <PageActionButton type="button" variant="outline" aria-label={`${label} · ${name}`}
+        aria-busy={busy || undefined} disabled={busy} onClick={change}>{label}</PageActionButton>
+      {error && <p role="alert" className="w-full text-xs text-destructive wrap-anywhere">{error}</p>}
+    </footer>}
   </li>;
 }
