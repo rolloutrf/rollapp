@@ -121,7 +121,7 @@ jobs:
           npm run test:profile 2>&1 | tee -a "${RUNNER_TEMP}/rollapp-comprehensive.log"
 
       - name: Preserve complete release verification
-        if: always()
+        if: always() && (github.event_name != 'workflow_dispatch' || inputs.verification == 'full')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-audit-${{ github.sha }}-${{ github.run_attempt }}

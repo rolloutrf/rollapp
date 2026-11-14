@@ -96,7 +96,7 @@ python3 -m venv .runtime-ots
 npm run test:reward-proofs
 ```
 
-CI устанавливает тот же runtime перед check:release. Dockerfile устанавливает его в /opt/rollapp-ots, удаляет compiler/build packages и запускает codec-тесты при сборке runtime-образа. Регулярный релиз по-прежнему только verify, без миграции. Для отключения сетевых подтверждений достаточно выключить ROLLAPP_REWARD_PROOFS_ENABLED: роллы, готовые квитанции и очередь сохраняются. Не удалять очередь ради восстановления.
+CI устанавливает тот же runtime перед check:release. Dockerfile устанавливает его в /opt/rollapp-ots, удаляет пакеты сборки, pip и setuptools из образа и запускает codec-тесты при сборке. Регулярный релиз по-прежнему только verify, без миграции. Для отключения сетевых подтверждений достаточно выключить ROLLAPP_REWARD_PROOFS_ENABLED: роллы, готовые квитанции и очередь сохраняются. Не удалять очередь ради восстановления.
 
 Источники протокола и независимой проверки: [OpenTimestamps client](https://github.com/opentimestamps/opentimestamps-client), [официальная библиотека](https://github.com/opentimestamps/python-opentimestamps), [Esplora API](https://github.com/Blockstream/esplora/blob/master/API.md). Денежных транзакций клиента Bitcoin при этом нет: публичные календари агрегируют хеши в собственные blockchain commitments.
 

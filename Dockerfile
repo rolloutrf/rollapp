@@ -23,6 +23,7 @@ RUN apk add --no-cache python3 \
   && apk add --no-cache --virtual .ots-build gcc musl-dev python3-dev py3-pip \
   && python3 -m venv /opt/rollapp-ots \
   && /opt/rollapp-ots/bin/pip install --no-cache-dir -r /tmp/opentimestamps-requirements.txt \
+  && /opt/rollapp-ots/bin/pip uninstall -y pip setuptools \
   && apk del .ots-build
 
 RUN apk add --no-cache caddy chromium ffmpeg su-exec tini xvfb-run \
