@@ -21,12 +21,3 @@ export function Avatar({ user, moodLevel = user?.publicMood, size = "md", classN
     </ShadcnAvatar>
   );
 }
-
-export function ProfileMoodCaption({ level }) {
-  const mood = highlightedMood(level);
-  if (!mood) return null;
-  return <span className="profile-mood-caption" style={{ "--profile-mood-color": mood.color }}>
-    <span className="profile-mood-dot" aria-hidden="true" />
-    Настроение: {mood.label.toLocaleLowerCase("ru-RU")}
-  </span>;
-}

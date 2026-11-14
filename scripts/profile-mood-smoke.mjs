@@ -135,7 +135,7 @@ try {
     await open.waitFor();
     const avatar = owner.locator("[data-profile-mood='5']");
     await avatar.waitFor();
-    await owner.getByText("Настроение: отлично", { exact: true }).waitFor();
+    assert.equal(await owner.getByText(/^Настроение:/).count(), 0);
     if (photo) await avatar.locator('[data-slot="avatar-image"]').waitFor();
     await assertMoodGlow(avatar);
     const [dimmed, bright] = await avatar.evaluate((element) => {
@@ -168,7 +168,7 @@ try {
     await open.waitFor();
     const ownerPortrait = owner.locator(".wishes-page__hero-avatar");
     await assertNoGlow(ownerPortrait);
-    assert.equal(await owner.locator(".profile-mood-caption").count(), 0);
+    assert.equal(await owner.getByText(/^Настроение:/).count(), 0);
     const calls = await page.evaluate(() => window.__moodSaves);
     assert.deepEqual(calls, [calls[0], calls[0], calls[2]]);
     assert.deepEqual(Object.keys(calls[0]), ["entry"]);
@@ -187,7 +187,7 @@ try {
       await profile.getByRole("heading", { name: "Александра", exact: true }).waitFor();
       const portrait = profile.locator("[data-profile-mood='5']");
       assert.equal(await portrait.count(), Number(published));
-      assert.equal(await profile.getByText("Настроение: отлично", { exact: true }).count(), Number(published));
+      assert.equal(await profile.getByText(/^Настроение:/).count(), 0);
       assert.equal(await page.getByRole("heading", { name: "Журнал настроения" }).count(), 0);
       if (photo) {
         const image = profile.locator('[data-slot="avatar-image"]');
@@ -201,7 +201,7 @@ try {
       } else await assertNoGlow(profile.locator(".wishes-page__hero-avatar"));
     }
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height}: 5 levels, preview, retry, private log, automatic glow, neutral without glow, cancel, 48px controls`);
+    console.log(`PASS ${width}×${height}: 5 levels, preview, retry, private log, automatic glow without a caption, neutral without glow, cancel, 48px controls`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

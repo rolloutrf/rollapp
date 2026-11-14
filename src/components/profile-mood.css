@@ -38,29 +38,6 @@
   50% { opacity: 1; transform: scale(1.055); }
 }
 
-.profile-mood-caption {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--layout-item-gap);
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
-  font-weight: 400;
-  text-align: center;
-}
-
-.profile-mood-dot {
-  display: inline-block;
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--profile-mood-color);
-}
-
-.friend-row__identity > .profile-mood-caption { justify-content: flex-start; text-align: start; }
-
 .mood-settings__preview {
   min-height: 9rem;
   display: grid;

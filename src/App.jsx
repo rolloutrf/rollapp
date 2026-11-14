@@ -12,7 +12,7 @@ import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { HealthTracker } from "@/components/health-tracker";
 import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/identity-reports-page";
 
-import { Avatar, ProfileMoodCaption } from "@/components/profile-avatar";
+import { Avatar } from "@/components/profile-avatar";
 import { ProfileMoodSettings } from "@/components/profile-mood-settings";
 import { StoryAvatar } from "@/components/story-avatar";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
@@ -3466,7 +3466,6 @@ function PersistentProfileHero({ user, wishlistChrome = false }) {
         <div className="wishes-page__hero-copy">
           <h1 id="persistent-profile-name">{profile.name}</h1>
           {(wishlistChrome || wishlistPage) && editable && <AppFriendsLink memberNumber={profile.memberNumber} />}
-          <ProfileMoodCaption level={moodLevel} />
           {wishlistChrome && <WishlistSectionNavigation user={user} />}
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
@@ -7354,7 +7353,6 @@ function FriendsPage() {
                     <Avatar user={person} size="md" aria-hidden="true" />
                     <span className="friend-row__identity">
                       <strong>{person.name}</strong>
-                      <ProfileMoodCaption level={person.publicMood} />
                       <small>@{person.username} · {person.wishCount} {person.wishCount === 1 ? "желание" : "желаний"}</small>
                     </span>
                   </Link>
@@ -8288,7 +8286,6 @@ function PublicProfile({ shared = false }) {
       <div className="wishes-page__hero-copy">
         <h1 id="public-profile-name">{data.profile.name}</h1>
         {data.isOwner && <AppFriendsLink memberNumber={data.profile.memberNumber} />}
-        <ProfileMoodCaption level={moodLevel} />
         {businessProfile && <span className="text-muted-foreground">Бизнес-аккаунт</span>}
         {businessProfile && data.profile.bio?.trim() && (
           <div className="typeset typeset-rollapp max-w-full">
