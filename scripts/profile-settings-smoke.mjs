@@ -533,13 +533,36 @@ try {
     const secret = keys.getByRole("textbox", { name: "Новый ключ MCP" });
     if (shortMobile) {
       await keys.getByRole("alert").getByText("Ключи временно недоступны").waitFor();
+      assert(await createKey.isDisabled());
       await button("Повторить").click();
     }
     await createKey.waitFor();
     await keys.getByText("Активных ключей пока нет.").waitFor();
     assert.equal(await writeScope.getAttribute("aria-checked"), "false");
-    const createBox = await createKey.boundingBox();
-    assert(createBox.x >= 0 && createBox.x + createBox.width <= width && createBox.height >= 48);
+    const footer = createKey.locator("xpath=ancestor::*[@data-control-bar][1]");
+    assert.equal(await footer.getAttribute("data-native-form-actions") !== null, mobile);
+    const footerGeometry = () => createKey.evaluate((control) => {
+      const { x, y, width, height, bottom } = control.getBoundingClientRect();
+      const parent = control.closest('[data-control-bar]');
+      const drawer = parent.closest('[data-slot="drawer-content"]');
+      const style = getComputedStyle(control);
+      return {
+        x, y, width, height, bottom,
+        radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius],
+        drawerGap: drawer ? drawer.getBoundingClientRect().bottom - parent.getBoundingClientRect().bottom : null,
+        ownsSubmit: Boolean(control.form?.contains(control) && control.form.querySelector("#mcp-allow-write")),
+        outsideScroll: !control.closest('[data-slot="scroll-area-viewport"]'),
+        hit: control.contains(document.elementFromPoint(x + width / 2, y + height / 2)),
+      };
+    });
+    const initialFooter = await footerGeometry();
+    assert(initialFooter.x >= 0 && initialFooter.x + initialFooter.width <= width);
+    assert(initialFooter.y >= 0 && initialFooter.bottom <= height && height - initialFooter.bottom < 40);
+    assert.equal(initialFooter.height, 48);
+    assert.deepEqual(initialFooter.radii, Array(4).fill("24px"));
+    assert(initialFooter.ownsSubmit && initialFooter.outsideScroll && initialFooter.hit);
+    if (mobile) assert.equal((await back.boundingBox()).y, initialFooter.y);
+    else assert(Math.abs(initialFooter.drawerGap) < 1);
     await createKey.click();
     await secret.waitFor();
     const readToken = `rwmcp_read_${"x".repeat(43)}`;
@@ -563,11 +586,19 @@ try {
       assert.equal(await writeScope.getAttribute("aria-checked"), "false");
     }
     await page.screenshot({ path: `/tmp/rollapp-profile-mcp-${width}x${height}.png` });
-    if (mobile) {
+    if (height < 500) {
       const lastKey = keys.getByRole("listitem").last();
-      await lastKey.evaluate((element) => element.scrollIntoView({ block: "end", behavior: "instant" }));
-      const [lastBox, backBox] = await Promise.all([lastKey.boundingBox(), back.boundingBox()]);
-      assert(lastBox.y + lastBox.height <= backBox.y + 1);
+      const scroll = (top) => lastKey.evaluate((element, top) => {
+        const owner = element.closest('[data-slot="drawer-popup"] [data-slot="scroll-area-viewport"]') || document.scrollingElement;
+        owner.scrollTo({ top, behavior: "instant" });
+        return owner.scrollTop;
+      }, top);
+      assert(await scroll(10_000) > 0);
+      assert.deepEqual(await footerGeometry(), initialFooter);
+      const lastBox = await lastKey.boundingBox();
+      assert(lastBox.y + lastBox.height <= initialFooter.y + 1);
+      assert.equal(await scroll(0), 0);
+      assert.deepEqual(await footerGeometry(), initialFooter);
     }
     await back.click();
     await menu.waitFor();

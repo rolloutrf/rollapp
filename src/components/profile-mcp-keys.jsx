@@ -5,8 +5,7 @@ import { ControlBar } from "@/components/control-bar";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { DrawerFooter } from "@/components/form-surface";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
@@ -72,7 +71,7 @@ export function ProfileMcpKeys({ onBusyChange }) {
     }
   };
 
-  return <>
+  return <form onSubmit={issueKey} className="flex min-h-0 flex-1 flex-col">
     <ScrollArea className="mx-auto min-h-0 w-full max-w-full flex-1">
       <section aria-label="Ключи доступа MCP" className="not-typeset rollapp-body grid min-w-0 gap-4 px-4 py-4">
         <p>Подключите Codex или другой MCP-клиент к своим задачам и вишлистам. Ключ действует 30 дней.</p>
@@ -84,21 +83,15 @@ export function ProfileMcpKeys({ onBusyChange }) {
           </div>
           : <div className="flex items-center gap-2" role="status"><Spinner />Загружаем ключи…</div>)}
         {keys && <>
-          <Card>
-            <CardContent>
-              <form onSubmit={issueKey} className="grid min-w-0 gap-3">
-                <Field orientation="horizontal">
-                  <FieldLabel htmlFor="mcp-allow-write">Разрешить запись</FieldLabel>
-                  <Switch id="mcp-allow-write" checked={allowWrite} disabled={issuing || revoking} onCheckedChange={setAllowWrite} />
-                </Field>
-                <FieldDescription>Запись позволяет создавать и обновлять задачи и желания.</FieldDescription>
-                <Button type="submit" disabled={issuing || revoking} aria-busy={issuing || undefined} className="min-h-12 rounded-full">
-                  {issuing ? <Spinner /> : <KeyRound aria-hidden="true" />}Создать ключ
-                </Button>
-                {issueError && <p role="alert" className="text-destructive">{issueError}</p>}
-              </form>
-            </CardContent>
-          </Card>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldLabel htmlFor="mcp-allow-write">Разрешить запись</FieldLabel>
+              <FieldDescription id="mcp-write-description">Запись позволяет создавать и обновлять задачи и желания.</FieldDescription>
+            </FieldContent>
+            <Switch id="mcp-allow-write" aria-describedby="mcp-write-description" checked={allowWrite}
+              disabled={issuing || revoking} onCheckedChange={setAllowWrite} />
+          </Field>
+          {issueError && <p role="alert" className="text-destructive">{issueError}</p>}
           {issuedKey && <Field>
             <FieldLabel htmlFor="mcp-issued-key">Новый ключ MCP</FieldLabel>
             <FieldDescription>Ключ показывается один раз. Скопируйте его сейчас.</FieldDescription>
@@ -130,6 +123,10 @@ export function ProfileMcpKeys({ onBusyChange }) {
         </>}
       </section>
     </ScrollArea>
-    <DrawerFooter className="md:hidden" />
-  </>;
+    <DrawerFooter>
+      <Button type="submit" disabled={!keys || issuing || revoking} aria-busy={issuing || undefined}>
+        {issuing ? <Spinner data-icon="inline-start" /> : <KeyRound data-icon="inline-start" aria-hidden="true" />}Создать ключ
+      </Button>
+    </DrawerFooter>
+  </form>;
 }
