@@ -1,7 +1,7 @@
 import { AddFab } from "@/components/add-fab";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Pencil, Trash2, X, ExternalLink } from "lucide-react";
+import { Pencil, Trash2, X, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { OfferPaymentAction, durations } from "@/components/personal-offers";
 import { publicSpacePath } from "../../shared/profile-links.js";
@@ -9,7 +9,7 @@ import { formatRolls } from "../../shared/rolls.js";
 import { api } from "@/api";
 import { APP_WISH_LISTINGS_PATH, APP_WISH_SALES_PATH } from "@/lib/app-routing";
 import { WISHLIST_SPACES, canManageWishSales, canManageWishlistSpace } from "../../shared/wishlist-business.js";
-import { ControlBar } from "@/components/control-bar";
+import { PageActionButton } from "@/components/page-action-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { WishlistSnippet } from "@/components/wishlist-snippet";
 import { isVideoUrl } from "../../shared/video-links.js";
@@ -121,57 +121,134 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfte
  </DrawerFooter>
  </DrawerContent></Drawer>;
 }
-export function WishlistBusinessManager({user,space}) {
- const state=useBusinessData(`/wishlist-business/${space}/page`);const [page,setPage]=useState(null);const [editor,setEditor]=useState(null);const [selected,setSelected]=useState(null);const [busy,setBusy]=useState(false);const [error,setError]=useState("");
- const [items, setItems] = useState([]);
- const [pendingEdit, setPendingEdit] = useState(null);
- const isProduct = space === "products";
- useEffect(() => {
-   if (!state.data) return;
-   setPage(state.data.page);
-   setItems(state.data.items ?? []);
- }, [state.data]);
- const saveItem = (saved) => setItems((current) => current.some((item) => item.id === saved.id)
-   ? current.map((item) => item.id === saved.id ? saved : item)
-   : [saved, ...current]);
- if(!canManageWishlistSpace(user,space))return <Blank title="Выберите раздел продавца" text="Управление страницей доступно продавцу в его разделе Вишлиста."/>;
- const save=async event=>{event.preventDefault();setBusy(true);setError("");try{await api.post(`/wishlist-business/${space}/page`,page);toast.success("Страница сохранена");state.reload();}catch(e){setError(e.message);}finally{setBusy(false);}};
- return <Status state={state}>{page&&<div className="page-stack"><form onSubmit={save} className="flex flex-col gap-6">
- <Field><FieldLabel htmlFor="seller-page-title">Название страницы</FieldLabel><Input id="seller-page-title" required maxLength={160} value={page.title} disabled={busy} onChange={e=>setPage({...page,title:e.target.value})}/></Field>
- <Field><FieldLabel htmlFor="seller-page-description">Описание</FieldLabel><Textarea id="seller-page-description" maxLength={4000} value={page.description} disabled={busy} onChange={e=>setPage({...page,description:e.target.value})}/></Field>
- <label className="flex items-center gap-2"><Checkbox checked={page.published} disabled={busy} onCheckedChange={published=>setPage({...page,published:Boolean(published)})}/>Опубликовать витрину</label>
- <ErrorMessage message={error}/><ControlBar className="flex gap-2"><Button type="submit" disabled={busy}>{busy?"Сохраняем…":"Сохранить страницу"}</Button></ControlBar></form>
- <AddFab actions={[{ label: isProduct ? "Добавить товар" : "Добавить позицию", disabled: busy, onSelect: () => setEditor({}) }]} />
- {items.length ? (
-   <div className="wish-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={item} onOpen={setSelected} />)}</div>
- ) : (
-   <Blank title={isProduct ? "Добавьте первый товар" : "Добавьте первую позицию"} text="Загрузите фото, укажите название и цену. Покупатели увидят карточку после публикации витрины." />
- )}
- {selected && (
-   <ItemDetails
-     key={selected.id} item={selected} space={space} owner
-     open={!pendingEdit} onClose={() => setSelected(null)} onEdit={setPendingEdit}
-     onAfterClose={() => {
-       if (!pendingEdit) return;
-       setSelected(null);
-       setEditor(pendingEdit);
-       setPendingEdit(null);
-     }}
-   />
- )}
- {editor && (
-   <WishlistBusinessItemEditor
-     key={editor.id || "new"} item={editor} space={space} spaceLabel={labelFor(space)}
-     published={state.data.page.published}
-     onClose={() => setEditor(null)} onSaved={saveItem}
-     renderPreview={(draft) => (
-       <div className="mx-auto w-full max-w-xs" aria-label="Предпросмотр карточки">
-         <BusinessItem item={{ ...draft, title: draft.title.trim(), business: { name: state.data.page.title } }} />
-       </div>
-     )}
-   />
- )}
- </div>}</Status>;
+export function WishlistBusinessManager({ user, space }) {
+  if (!canManageWishlistSpace(user, space)) return null;
+  return <SellerStorefront key={`${user.id}:${space}`} space={space} profileName={user.name} />;
+}
+
+function SellerStorefront({ space, profileName }) {
+  const endpoint = `/wishlist-business/${space}/page`;
+  const state = useBusinessData(endpoint);
+  const [savedPage, setSavedPage] = useState(null);
+  const [pageDraft, setPageDraft] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editor, setEditor] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [pendingEdit, setPendingEdit] = useState(null);
+  const [items, setItems] = useState([]);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const settingsLock = useRef(false);
+  const [settingsError, setSettingsError] = useState("");
+  const isProduct = space === "products";
+  const addLabel = isProduct ? "Добавить товар" : "Добавить позицию";
+
+  useEffect(() => {
+    if (!state.data) return;
+    setSavedPage(state.data.page);
+    setPageDraft(state.data.page);
+    setItems(state.data.items ?? []);
+  }, [state.data]);
+
+  const saveItem = (saved) => setItems((current) => current.some((item) => item.id === saved.id)
+    ? current.map((item) => item.id === saved.id ? saved : item)
+    : [saved, ...current]);
+
+  const saveSettings = async (event) => {
+    event.preventDefault();
+    if (settingsLock.current || !pageDraft.title.trim()) return;
+    const fields = { title: pageDraft.title.trim(), description: pageDraft.description.trim(), published: pageDraft.published };
+    settingsLock.current = true;
+    setSavingSettings(true);
+    setSettingsError("");
+    try {
+      await api.post(endpoint, fields);
+      setSavedPage(fields);
+      setPageDraft(fields);
+      setSettingsOpen(false);
+      toast.success("Витрина сохранена");
+    } catch (error) {
+      setSettingsError(error.message);
+    } finally {
+      setSavingSettings(false);
+      settingsLock.current = false;
+    }
+  };
+
+  return <Status state={state}>{savedPage && <div className="page-stack">
+    {(savedPage.title !== profileName || savedPage.description || !savedPage.published) && (
+      <div className="typeset typeset-rollapp">
+        {savedPage.title !== profileName && <h2>{savedPage.title}</h2>}
+        {savedPage.description && <p className="whitespace-pre-wrap">{savedPage.description}</p>}
+        {!savedPage.published && <p className="text-muted-foreground">Витрина не опубликована. Карточки пока видны только вам.</p>}
+      </div>
+    )}
+    <div>
+      <PageActionButton type="button" variant="outline" onClick={(event) => {
+        event.currentTarget.focus({ preventScroll: true });
+        setSettingsOpen(true);
+      }}>Настройки витрины</PageActionButton>
+    </div>
+    <AddFab actions={[{ label: addLabel, onSelect: () => setEditor({}) }]} />
+    {items.length ? (
+      <div className="wish-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={{ ...item, published: savedPage.published, business: { ...item.business, pageTitle: savedPage.title } }} onOpen={setSelected} />)}</div>
+    ) : (
+      <Blank title={isProduct ? "Добавьте первый товар" : "Добавьте первую позицию"} text="Загрузите фото, укажите название и цену." />
+    )}
+    <Drawer open={settingsOpen} onOpenChange={(open) => { if (!settingsLock.current) setSettingsOpen(open); }}>
+      <DrawerContent className="rollapp-body app-drawer--form">
+        <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 z-10" disabled={savingSettings} />} aria-label="Закрыть настройки витрины"><X aria-hidden="true" /></DrawerClose>
+        <DrawerHeader className="pr-16">
+          <DrawerTitle>Настройки витрины</DrawerTitle>
+          <DrawerDescription>Название, описание и видимость для покупателей.</DrawerDescription>
+        </DrawerHeader>
+        <form onSubmit={saveSettings} className="flex min-h-0 flex-1 flex-col">
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
+            <Field>
+              <FieldLabel htmlFor="seller-page-title">Название страницы</FieldLabel>
+              <Input id="seller-page-title" required maxLength={160} value={pageDraft.title} disabled={savingSettings}
+                onChange={(event) => setPageDraft({ ...pageDraft, title: event.target.value })} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="seller-page-description">Описание</FieldLabel>
+              <Textarea id="seller-page-description" maxLength={4000} value={pageDraft.description} disabled={savingSettings}
+                onChange={(event) => setPageDraft({ ...pageDraft, description: event.target.value })} />
+            </Field>
+            <label className="flex items-center gap-2">
+              <Checkbox checked={pageDraft.published} disabled={savingSettings}
+                onCheckedChange={(published) => setPageDraft({ ...pageDraft, published: Boolean(published) })} />
+              Опубликовать витрину
+            </label>
+            <ErrorMessage message={settingsError} />
+          </div>
+          <DrawerFooter><Button type="submit" disabled={savingSettings || !pageDraft.title.trim()}>{savingSettings ? "Сохраняем…" : "Сохранить витрину"}</Button></DrawerFooter>
+        </form>
+      </DrawerContent>
+    </Drawer>
+    {selected && (
+      <ItemDetails
+        key={selected.id} item={selected} space={space} owner
+        open={!pendingEdit} onClose={() => setSelected(null)} onEdit={setPendingEdit}
+        onAfterClose={() => {
+          if (!pendingEdit) return;
+          setSelected(null);
+          setEditor(pendingEdit);
+          setPendingEdit(null);
+        }}
+      />
+    )}
+    {editor && (
+      <WishlistBusinessItemEditor
+        key={editor.id || "new"} item={editor} space={space} spaceLabel={labelFor(space)}
+        published={savedPage.published}
+        onClose={() => setEditor(null)} onSaved={saveItem}
+        renderPreview={(draft) => (
+          <div className="mx-auto w-full max-w-xs" aria-label="Предпросмотр карточки">
+            <BusinessItem item={{ ...draft, title: draft.title.trim(), business: { name: savedPage.title } }} />
+          </div>
+        )}
+      />
+    )}
+  </div>}</Status>;
 }
 export function WishlistBusinessListing({space,offers=false,business="",publicProfile=false,viewerId}) {
  const state=useBusinessData(publicProfile ? `/wishlist-business/${space}/profiles/${encodeURIComponent(business)}` : `/wishlist-business/${space}/${offers?"offers":"store"}${business?`?business=${encodeURIComponent(business)}`:""}`);
@@ -236,16 +313,5 @@ export function WishSalesPage({ user }) {
    {canManageWishSales(user, space)
      ? <WishSalesManager key={`${user.id}:${space}:${wishId || ""}`} user={user} space={space} wishId={wishId} />
      : <Blank title="Продажи недоступны" text="Выберите раздел, в котором можете размещать объявления." />}
- </section>;
-}
-
-export function WishlistBusinessPage({user,manager=false}) {
- const location=useLocation();const space=wishlistSpace(location.search);
- return <section className="app-page page-stack rollapp-body" aria-label={`${manager?"Страница продавца":"Предложения"}: ${labelFor(space)}`}>
-   {manager&&<>
-     <ControlBar className="page-actions horizontal-action-scroller"><Link to={`/app/wishes?tab=${space}`} className={buttonVariants({variant:"outline",size:"icon"})} data-control-icon aria-label="Вернуться в Вишлист"><ArrowLeft aria-hidden="true"/></Link></ControlBar>
-     <header className="typeset typeset-rollapp"><h1>Моя страница · {labelFor(space)}</h1></header>
-   </>}
-   {manager?<WishlistBusinessManager key={space} user={user} space={space}/>:<WishlistBusinessListing key={space} space={space} offers/>}
  </section>;
 }

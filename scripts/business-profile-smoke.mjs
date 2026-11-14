@@ -7,6 +7,7 @@ import { APP_ORDERS_PATH } from "../src/lib/app-routing.js";
 
 const salesOnly = process.argv.includes("--sales-only");
 const announcementsOnly = process.argv.includes("--announcements-only");
+const storefrontOnly = process.argv.includes("--storefront-only");
 const cover = { name: "cover.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOo6D6IFTEMpAQAyI5UwfdZU4cAAAAASUVORK5CYII=", "base64") };
 const cacheDir = announcementsOnly ? "node_modules/.vite-announcements-entry" : salesOnly ? "node_modules/.vite-wish-sales" : "node_modules/.vite-business-profile";
 const server = await createServer({ cacheDir, server: { host: "127.0.0.1", port: 0, hmr: false, watch: null }, plugins: [{
@@ -328,20 +329,27 @@ try {
       await checkAnnouncementsEntry(width, height);
       continue;
     }
-    await checkRolloutStore(width, height);
-    await checkWishSale(width, height);
-    await checkDirectSale(width, height);
-    if (salesOnly) continue;
-    await checkAnnouncementsEntry(width, height);
-    for (const mode of ["owner", "dashboard", "guest", "buyer", "empty", "listing-error", "personal"]) {
+    if (!storefrontOnly) {
+      await checkRolloutStore(width, height);
+      await checkWishSale(width, height);
+      await checkDirectSale(width, height);
+      if (salesOnly) continue;
+      await checkAnnouncementsEntry(width, height);
+    }
+    for (const mode of ["owner", "dashboard", "guest", "buyer", "empty", "owner-empty", "listing-error", "personal", "other-space", "legacy-storefront"]) {
       const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
-      const query = `public&offers&seller&${mode}${mode === "empty" || mode === "listing-error" ? "&guest" : ""}`;
+      const query = `public&offers&seller&${mode}${mode === "empty" || mode === "listing-error" ? "&guest" : ""}${["other-space", "legacy-storefront", "owner-empty"].includes(mode) ? "&owner" : ""}`;
       await page.goto(`${smokeOrigin(server)}/__business-profile?${query}`);
       await page.getByRole("heading", { level: 1 }).waitFor();
-      if (mode === "dashboard") assert.equal(new URL(page.url()).pathname, "/studio/products");
+      if (mode === "dashboard" || mode === "legacy-storefront") {
+        await page.waitForURL(url => url.pathname === "/studio/products");
+      }
+      const ownerStorefront = ["owner", "dashboard", "legacy-storefront", "owner-empty"].includes(mode);
+      const add = page.getByRole("button", { name: "Добавить товар", exact: true });
+      const settings = page.getByRole("button", { name: "Настройки витрины", exact: true });
       await page.evaluate(() => document.fonts.ready);
       if (mode === "personal") {
         await page.getByText("Добавьте то, что действительно порадует.").or(page.getByText("Загляните чуть позже — новая мечта наверняка появится.")).waitFor();
@@ -351,9 +359,11 @@ try {
         assert.equal(await page.getByText("В этом списке пока пусто", { exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: "Новый список", exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: "Добавить", exact: true }).count(), 0);
-        if (mode === "empty") {
+        if (mode === "empty" || mode === "other-space") {
           await page.getByText("Товаров пока нет", { exact: true }).waitFor();
           assert.equal(await page.getByText("В магазине пока пусто", { exact: true }).count(), 0);
+        } else if (mode === "owner-empty") {
+          await page.getByText("Добавьте первый товар", { exact: true }).waitFor();
         } else if (mode === "listing-error") {
           await page.getByText("Товары временно недоступны", { exact: true }).waitFor();
           await page.getByRole("button", { name: "Повторить", exact: true }).click();
@@ -361,27 +371,42 @@ try {
         } else {
           await page.getByRole("button", { name: "Открыть «Товар мастерской»", exact: true }).waitFor();
         }
-        const manage = page.getByRole("link", { name: "Управлять товарами", exact: true });
-        if (mode === "owner" || mode === "dashboard") {
-          assert.equal(await manage.getAttribute("href"), "/app/wishes/business?tab=products");
-          const style = await manage.evaluate(node => { const css = getComputedStyle(node); return { height: node.getBoundingClientRect().height, left: css.paddingLeft, right: css.paddingRight }; });
-          assert(style.height >= 48); assert.equal(style.left, "24px"); assert.equal(style.right, "24px");
-        } else assert.equal(await manage.count(), 0);
+        assert.equal(await page.getByRole("link", { name: "Управлять товарами", exact: true }).count(), 0);
+        if (ownerStorefront) {
+          await add.waitFor();
+          assert.equal(await page.locator("[data-add-fab]").count(), 1);
+          assert.equal(await add.evaluate(button => button.offsetWidth), 48);
+          await settings.waitFor();
+          if (mode === "owner-empty") {
+            await add.click();
+            const editor = page.locator("[data-wishlist-item-editor]");
+            await editor.getByRole("heading", { name: "Добавить товар", exact: true }).waitFor();
+            await editor.getByRole("button", { name: width < 768 ? "Назад" : "Отмена", exact: true }).click();
+            await editor.waitFor({ state: "hidden" });
+          }
+          assert(await page.evaluate(() => giftHarness.reads.includes("/wishlist-business/products/page")));
+        } else {
+          assert.equal(await add.count(), 0);
+          assert.equal(await settings.count(), 0);
+          assert.equal(await page.evaluate(() => giftHarness.reads.includes("/wishlist-business/products/page")), false);
+        }
       }
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${mode} ${width}: root overflow`);
       await page.screenshot({ path: `/tmp/rollapp-business-profile-${mode}-${width}-${height}.png`, fullPage: true });
       if (mode === "owner" || mode === "dashboard") {
-        await page.getByRole("link", { name: "Управлять товарами", exact: true }).click();
-        await page.getByRole("textbox", { name: "Название страницы", exact: true }).waitFor();
-        assert.equal(new URL(page.url()).searchParams.get("tab"), "products");
-        const add = page.getByRole("button", { name: "Добавить товар", exact: true });
+        assert.equal(new URL(page.url()).pathname, "/studio/products");
         const editor = page.locator("[data-wishlist-item-editor]");
         const title = editor.getByRole("combobox", { name: "Название", exact: true });
         const footer = editor.locator("[data-native-form-actions], .app-form-actions");
         const back = footer.getByRole("button", { name: width < 768 ? "Назад" : "Отмена", exact: true });
         const submit = footer.locator("button[type=submit]");
+        if (width < 768) {
+          await page.evaluate(() => window.scrollTo({ top: 260, behavior: "instant" }));
+        }
+        const sourceScroll = await page.evaluate(() => window.scrollY);
         await add.click();
         await title.waitFor();
+        assert.equal(new URL(page.url()).pathname, "/studio/products");
         assert.equal(await editor.getByRole("heading", { name: "Добавить товар", exact: true }).count(), 1);
         assert.equal(await editor.getByRole("button", { name: /Добавить фото/ }).count(), 1);
         assert.equal(await submit.textContent(), mode === "owner" ? "Опубликовать" : "Добавить");
@@ -412,12 +437,20 @@ try {
           await editor.waitFor({ state: "hidden" });
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           assert.deepEqual(await page.evaluate(() => giftHarness.calls), [], "Invalid submit and cancel must not write");
+          if (width < 768) {
+            assert(sourceScroll > 0);
+            await page.waitForFunction(scroll => Math.abs(window.scrollY - scroll) < 2, sourceScroll);
+          }
         } else {
           await back.click();
           await editor.waitFor({ state: "hidden" });
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
+          await settings.click();
           const pageTitle = page.getByRole("textbox", { name: "Название страницы", exact: true });
           await pageTitle.fill("Несохранённое название витрины");
+          await page.getByRole("button", { name: width < 768 ? "Назад" : "Закрыть настройки витрины", exact: true }).click();
+          await pageTitle.waitFor({ state: "hidden" });
+          await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           await add.click();
           await title.fill("Кофемашина Dedica");
           await title.press("Tab");
@@ -484,7 +517,7 @@ try {
           await submit.click();
           await editor.waitFor({ state: "hidden" });
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
-          assert.equal(await pageTitle.inputValue(), "Несохранённое название витрины");
+          assert.equal(new URL(page.url()).pathname, "/studio/products");
           const sellerCard = page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true }).locator("..");
           await sellerCard.getByText("Скрыт", { exact: true }).waitFor();
           assert.deepEqual(await snippetAppearance(sellerCard), previewAppearance, "Preview and seller page must use the same appearance");
@@ -506,6 +539,17 @@ try {
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           await page.getByRole("button", { name: "Открыть «Кофемашина Dedica EC685»", exact: true }).waitFor();
           assert.equal(await page.evaluate(() => giftHarness.calls.at(-1).payload.title), "Кофемашина Dedica EC685");
+          await settings.click();
+          await pageTitle.waitFor();
+          assert.equal(await pageTitle.inputValue(), "Несохранённое название витрины");
+          await page.getByRole("checkbox", { name: "Опубликовать витрину" }).check();
+          await page.getByRole("button", { name: "Сохранить витрину", exact: true }).click();
+          await pageTitle.waitFor({ state: "hidden" });
+          await page.getByRole("heading", { name: "Несохранённое название витрины", exact: true }).waitFor();
+          assert.equal(new URL(page.url()).pathname, "/studio/products");
+          assert.equal(await page.evaluate(() => giftHarness.calls.at(-1).payload.published), true);
+          await page.getByRole("button", { name: "Открыть «Кофемашина Dedica EC685»", exact: true }).waitFor();
+
         }
       } else {
         assert.deepEqual(await page.evaluate(() => giftHarness.calls), [], "Read-only profile must not write");

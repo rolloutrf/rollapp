@@ -16,7 +16,7 @@ const friend = { id: "friend", name: "Получатель подарочной 
 const params = new URLSearchParams(location.search);
 const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], requests: new Map(), lost: false };
 state.reads = [];
-state.sellerItems = params.has("empty") ? [] : [{ id: "seller-item", space: "products", title: "Товар мастерской", description: "Описание товара", brand: "Мастерская", active: true, price: "1 000 ₽", business }];
+state.sellerItems = (params.has("empty") || params.has("owner-empty")) ? [] : [{ id: "seller-item", space: "products", title: "Товар мастерской", description: "Описание товара", brand: "Мастерская", active: true, price: "1 000 ₽", business }];
 const personal = { ...user, username: "owner", accountType: "personal" };
 const wishes = [
   { id: "fulfilled", title: "Кофемолка", description: "Ручная кофемолка", status: "fulfilled", space: "products", listIds: [], userId: user.id },
@@ -27,6 +27,7 @@ state.sales = params.has("sale-buyer")
     business: params.get("sale-buyer") === "owner" ? personal : friend }]
   : [];
 window.giftHarness = state;
+const sellerPage = { title: business.name, description: "", published: params.has("owner") };
 const clone = (value) => JSON.parse(JSON.stringify(value));
 // Explicit UI transport. Real API and production writes are forbidden here.
 api.get = async (path) => {
@@ -71,9 +72,13 @@ api.get = async (path) => {
   if (path === "/business-profiles/studio/offers") return { items: [{ id:"offer", sphere:"career", kind:"store", itemType:"service", title:"Консультация", description:"Описание услуги", priceRolls:20, business }] };
   if (path === "/wishlist-business/products/profiles/studio") {
     if (params.has("listing-error")) throw new Error("Товары временно недоступны");
-    return { items: state.sellerItems, pages: [] };
+    return { items: sellerPage.published || !owner ? state.sellerItems.filter(item => item.active) : [], pages: [] };
   }
-  if (path === "/wishlist-business/products/page") return { items: state.sellerItems, page: {title: business.name, description: "", published: params.has("owner")} };
+  if (path === "/wishlist-business/products/page") {
+    if (!owner || !seller) throw new Error("Запрос владельца недоступен");
+    return clone({ items: state.sellerItems, page: sellerPage });
+  }
+  if (path === "/wishlist-business/places/profiles/studio") return { items: [], pages: [] };
   if (path === "/wishlist-business/products/buyers") return { buyers: [] };
   if (params.has("sale-buyer") && path === "/messenger/conversations") return { conversations: [{ id: "sale-chat", peer: friend, unread: 0 }] };
   if (params.has("sale-buyer") && path.startsWith("/messenger/conversations/sale-chat/messages")) return { peer: friend, messages: [], hasMore: false };
@@ -119,6 +124,10 @@ api.post = async (path, payload) => {
     state.sales.push({ ...fields, id, space: "products", personalSale: true, business: personal });
     throw new Error("Ответ сервера потерян");
   }
+  if (path === "/wishlist-business/products/page") {
+    Object.assign(sellerPage, payload);
+    return { saved: true };
+  }
   if (path === "/wishlist-business/products/items") {
     const { requestId, ...fields } = payload;
     const existing = state.sellerItems.find((item) => item.id === requestId);
@@ -149,7 +158,7 @@ function Fixture() {
     {!params.has("guest") && <ProfileGiftCards user={user} />}
   </div></main></div>;
 }
-if (params.has("public")) history.replaceState({}, "", params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");
+if (params.has("public")) history.replaceState({}, "", params.has("legacy-storefront") ? "/app/wishes/business?tab=products" : params.has("other-space") ? "/studio/places" : params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");
 if (params.has("sales")) history.replaceState({}, "", params.get("sales") === "direct" ? "/app/wishes/sales?tab=products" : "/app/wishes?tab=products");
 if (params.has("sale-buyer")) history.replaceState({}, "", "/app/wishes/listings?tab=products");
 if (params.has("store-only")) {

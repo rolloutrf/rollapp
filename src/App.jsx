@@ -5,7 +5,7 @@ import { AddFab } from "@/components/add-fab";
 import { ProductTitleInput } from "@/components/product-title-input";
 import { AssistantDrawer, useAssistantChats } from "@/components/assistant-drawer";
 import { MessengerDrawer } from "@/components/messenger";
-import { WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
+import { WishlistBusinessManager, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
@@ -3184,7 +3184,7 @@ function BusinessAccessContent({ user }) {
         <h1>Доступ к пространствам клиентов</h1>
         {category && <p>{category.label} · {category.sphereLabel}</p>}
         <p>Открытые владельцами разделы доступны только для чтения. Чтобы получить доступ к другому разделу, найдите пользователя и отправьте запрос.</p>
-        {category?.id === "seller" && <PageActionButton to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`}>Моя страница</PageActionButton>}
+        {category?.id === "seller" && <PageActionButton to={publicSpacePath(user.username, user.sellerSpace || "products")}>Моя страница</PageActionButton>}
       </header>
 
       {category?.id !== "seller" && <BusinessPersonalOffers user={user} />}
@@ -3530,7 +3530,7 @@ function WishesProfileControls({ selectedSpace }) {
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
-        {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" to={`/app/wishes/business?tab=${selectedSpace}`}>Моя страница</PageActionButton>}
+        {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" to={publicSpacePath(user.username, selectedSpace)}>Моя страница</PageActionButton>}
       </ControlBar>
     </section>
   );
@@ -3624,7 +3624,9 @@ function ProtectedWishlistBusiness({ listings = false }) {
       <WishlistBusinessListing key={`${user.id}:${space}:${business}`} space={space} business={business} viewerId={user.id} />
     </section></AppShell>;
   }
-  return <AppShell><WishlistBusinessPage user={user} manager /></AppShell>;
+  const requestedSpace = wishlistSpace(location.search);
+  const space = user.sellerSpace || requestedSpace;
+  return <Navigate to={canManageWishlistSpace(user, space) ? publicSpacePath(user.username, space) : APP_HOME} replace />;
 }
 
 function WishlistSectionLayout() {
@@ -3667,8 +3669,12 @@ function WishlistStoreRoute({ ordersOpen = false }) {
 }
 
 function WishlistOffersRoute() {
-  const { user } = useSession();
-  return <WishlistBusinessPage user={user} />;
+  const { search } = useLocation();
+  const space = wishlistSpace(search);
+  const label = SPACES.find((entry) => entry.id === space)?.label;
+  return <section className="app-page page-stack rollapp-body" aria-label={`Предложения: ${label}`}>
+    <WishlistBusinessListing key={space} space={space} offers />
+  </section>;
 }
 
 function WishlistSalesRoute() {
@@ -8253,6 +8259,8 @@ function PublicProfile({ shared = false }) {
   const businessStorefront = businessProfile && !params.listId && !params.wishId;
   const sellerProfile = businessStorefront && data.profile.businessCategory === "seller";
   const sellerSpace = activeSpace;
+  const managesStorefront = sellerProfile && data.isOwner && user?.id === data.profile.id
+    && canManageWishlistSpace(user, sellerSpace);
   const moodLevel = data.isOwner && data.profile.id === user?.id ? user.moodLevel ?? user.publicMood : data.profile.publicMood;
   const identity = (
     <div className="wishes-page__identity friend-profile-page__identity">
@@ -8286,7 +8294,6 @@ function PublicProfile({ shared = false }) {
       {relationshipBlock}
       <ControlBar className={`page-actions wishes-page__hero-actions ${!shared ? "horizontal-action-scroller" : ""} ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={businessStorefront ? "Действия с бизнес-профилем" : data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
         {businessStorefront && data.isOwner ? <>
-          {sellerProfile && <PageActionButton to={`/app/wishes/business?tab=${data.profile.sellerSpace || sellerSpace}`} >Управлять товарами</PageActionButton>}
           <PageActionButton variant="outline" to="/app/business/access">Клиенты</PageActionButton>
         </> : ownerCollection ? null : data.isOwner && shared
           ? <PageActionButton onClick={() => navigate(publicListPath(data.profile.username, data.list.id))}>Открыть мой список</PageActionButton>
@@ -8307,7 +8314,9 @@ function PublicProfile({ shared = false }) {
     {businessStorefront && !publication && <div className="page-stack">
       <BusinessGiftCertificates business={data.profile} user={user} />
       <section className="page-stack rollapp-body" aria-label="Товары и предложения бизнеса">
-        {sellerProfile && <WishlistBusinessListing key={`${data.profile.username}:${sellerSpace}`} space={sellerSpace} business={data.profile.username} publicProfile />}
+        {managesStorefront
+          ? <WishlistBusinessManager user={user} space={sellerSpace} />
+          : sellerProfile && <WishlistBusinessListing key={`${data.profile.username}:${sellerSpace}`} space={sellerSpace} business={data.profile.username} publicProfile />}
         <BusinessMarketplacePage key={`${data.profile.username}:${user?.id}`} user={user} businessUsername={data.profile.username} kind="store" hideEmpty={sellerProfile} />
       </section>
     </div>}
