@@ -2505,23 +2505,6 @@ function ContactEditForm({ contact = null, companies = [], favoriteSaving = fals
                 <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
               </ShadcnButton>
               <div><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
-              <ControlBar>
-                {!creating && <ShadcnButton
-                  data-control-icon
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="contact-detail__favorite size-12 rounded-full"
-                  data-favorite={contact.favorite ? "true" : "false"}
-                  aria-pressed={Boolean(contact.favorite)}
-                  aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
-                  title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
-                  disabled={favoriteSaving}
-                  onClick={onFavoriteToggle}
-                >
-                  {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
-                </ShadcnButton>}
-              </ControlBar>
             </div>
             <Input
               ref={avatarFileRef}
@@ -2584,6 +2567,21 @@ function ContactEditForm({ contact = null, companies = [], favoriteSaving = fals
         </div>
       </ScrollArea>
       <MobileFormFooter className="contact-detail__edit-actions">
+        {!creating && <ShadcnButton
+          data-control-icon
+          type="button"
+          variant="outline"
+          size="icon"
+          className="contact-detail__favorite"
+          data-favorite={contact.favorite ? "true" : "false"}
+          aria-pressed={Boolean(contact.favorite)}
+          aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
+          title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
+          disabled={favoriteSaving}
+          onClick={onFavoriteToggle}
+        >
+          {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
+        </ShadcnButton>}
         <ShadcnButton type="submit" disabled={busy}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
         {!creating && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
       </MobileFormFooter>

@@ -21,6 +21,7 @@ const columns = [{ id: "todo", title: "Запланировано" }];
 function Fixture() {
   useVisualViewport();
   const [open, setOpen] = useState(true);
+  const [favorite, setFavorite] = useState(false);
   if (!open) return null;
   const close = () => setOpen(false);
   const name = new URLSearchParams(location.search).get("form");
@@ -36,7 +37,7 @@ function Fixture() {
   if (name === "wish-edit") return <WishModal wish={{ id: "unsaved-wish", title: "Несохранённое желание", url: "https://example.com", listIds: [], participants: [{ id: "participant", name: "Участник совместного желания с длинным именем", username: "participant-with-a-long-username" }] }} onClose={close} />;
   // The real editor owns its ScrollArea and separate footer.
   if (name === "contact-photo") return <Drawer open swipeDirection="right" onOpenChange={setOpen}><DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form"><DrawerTitle className="sr-only">Контакт</DrawerTitle><ContactEditForm /></DrawerContent></Drawer>;
-  if (name === "contact") return <Drawer open swipeDirection="right" onOpenChange={setOpen}><DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form"><DrawerTitle className="sr-only">Контакт</DrawerTitle><div className="contact-detail__toolbar flex shrink-0 justify-end px-4 pt-4 pb-2"><DrawerClose render={<Button type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />} aria-label="Закрыть карточку контакта"><X /></DrawerClose></div><ContactEditForm contact={{ id: "unsaved-contact", name: "Контакт с длинным именем", avatarUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23777985'/%3E%3C/svg%3E", links: [{ label: "Ссылка", url: "https://example.com" }] }} onSaved={close} /></DrawerContent></Drawer>;
+  if (name === "contact") return <Drawer open swipeDirection="right" onOpenChange={setOpen}><DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form"><DrawerTitle className="sr-only">Контакт</DrawerTitle><div className="contact-detail__toolbar flex shrink-0 justify-end px-4 pt-4 pb-2"><DrawerClose render={<Button type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />} aria-label="Закрыть карточку контакта"><X /></DrawerClose></div><ContactEditForm contact={{ id: "unsaved-contact", favorite, name: "Контакт с длинным именем", avatarUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23777985'/%3E%3C/svg%3E", links: [{ label: "Ссылка", url: "https://example.com" }] }} onFavoriteToggle={() => setFavorite(value => !value)} onSaved={close} /></DrawerContent></Drawer>;
   if (name === "markdown") return <MarkdownEditorDrawer content="" label="Документ" deleteLabel="Удалить документ" deleteTitle="Удалить документ?" deleteDescription="Документ будет удалён." open onOpenChange={setOpen} onDelete={async () => {}} />;
   return <TaskEditor task={{ id: "unsaved-task", title: "Задача", dueOn: "2026-10-17", startTime: "09:00", durationMinutes: 60, recurrence: { frequency: "weekly", until: "2026-12-31" } }} columns={columns} onClose={close} />;
 }

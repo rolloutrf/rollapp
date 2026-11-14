@@ -110,7 +110,7 @@ try {
           const parts = await heading.locator(':scope > *').evaluateAll(elements => elements.map(el => {
             const r = el.getBoundingClientRect(); return { left: r.left, right: r.right };
           }));
-          assert(parts.every((part, i) => !i || part.left >= parts[i - 1].right), "Contact avatar, name and favorite overlap");
+          assert(parts.every((part, i) => !i || part.left >= parts[i - 1].right), "Contact avatar and name overlap");
           assert.equal(await page.getByRole('button', { name: 'Удалить фото', exact: true }).count(), 0);
           assert.equal(await page.getByRole('button', { name: 'Удалить', exact: true }).count(), 0, "Ambiguous Delete action");
           const linkRow = page.locator('.contact-detail__edit-link');
@@ -125,7 +125,23 @@ try {
           if ([320, 390, 1440].includes(width)) {
             await linkRow.screenshot({ path: `/tmp/rollapp-contact-link-${width}-${height}.png`, animations: 'disabled' });
           }
+          assert.equal(await heading.getByRole('button', { name: /избранное|из избранного/ }).count(), 0);
           const footer = page.locator('.contact-detail__edit-actions');
+          const favorite = footer.locator('.contact-detail__favorite');
+          const submit = footer.getByRole('button', { name: 'Сохранить', exact: true });
+          const favoriteBox = await favorite.boundingBox();
+          const submitBox = await submit.boundingBox();
+          assert.deepEqual([favoriteBox.width, favoriteBox.height], [48, 48]);
+          assert(Math.abs(favoriteBox.y - submitBox.y) < 1 && Math.abs(submitBox.x - favoriteBox.x - favoriteBox.width - 8) < 1, 'Favorite must be immediately left of Save');
+          assert.equal(await favorite.getAttribute('type'), 'button');
+          assert.equal(await favorite.getAttribute('aria-pressed'), 'false');
+          await favorite.click();
+          assert.equal(await favorite.getAttribute('aria-pressed'), 'true');
+          await favorite.evaluate(async button => Promise.all(button.getAnimations().map(animation => animation.finished.catch(() => {}))));
+          assert.equal(await favorite.evaluate(button => getComputedStyle(button).color), 'rgb(246, 196, 83)', 'Selected favorite lost its accent');
+          if ([320, 390, 1440].includes(width)) await footer.screenshot({ path: `/tmp/rollapp-contact-favorite-${width}-${height}.png`, animations: 'disabled' });
+          await favorite.click();
+          assert.equal(await favorite.getAttribute('aria-pressed'), 'false');
           assert.equal(await footer.locator('xpath=ancestor::*[@data-slot="scroll-area-viewport"]').count(), 0, "Contact actions scroll with the fields");
           if (width >= 768) {
             const viewport = page.locator('.contact-detail__scroll [data-slot="scroll-area-viewport"]');
@@ -257,7 +273,7 @@ try {
               assert(new Set(frames.map(frame => frame.scroll)).size > 3, `Motion check did not scroll the ${name} editor`);
               assert(frames.every(frame => frame.buttons.length === before.buttons.length && frame.buttons.every((box, i) =>
                 Math.abs(box.y - before.y) < 1 && box.height === 48 && Math.abs(box.x - before.buttons[i].x) < 1 && Math.abs(box.width - before.buttons[i].width) < 1
-              )), `${name}: Back, Save and Delete separated or resized during animated scrolling`);
+              )), `${name}: Footer controls separated or resized during animated scrolling`);
             }
           }
           for (const ratio of [0, 0.5, 1, 0]) {

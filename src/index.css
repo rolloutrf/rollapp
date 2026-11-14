@@ -429,6 +429,11 @@
   [data-native-form-actions] [class~="group/button"]:not([class~="bg-primary"]):hover {
     background-color: var(--muted);
   }
+  [data-control-bar] .contact-detail__favorite[data-favorite="true"]:not(:disabled) {
+    border-color: color-mix(in oklch, #f6c453 48%, var(--card));
+    color: #f6c453;
+    background-color: color-mix(in oklch, #f6c453 11%, var(--card));
+  }
   [data-control-bar] [class~="group/button"][class~="bg-primary"]:hover:not(:disabled) {
     background-color: color-mix(in oklch, var(--primary) 80%, var(--background));
   }

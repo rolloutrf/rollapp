@@ -300,13 +300,15 @@ all API requests. The live wish/list flow is also checked without saving data.
 ### Contact editor
 
 `ContactEditForm` owns a flex column: one `ScrollArea` for `.contact-detail__edit-body`
-and a sibling `MobileFormFooter` composed through `ControlBar`. Desktop Save and
-icon-only Delete stay in a single 48px row outside the scroll viewport. On mobile,
-the same footer includes Back and follows the native page/VisualViewport contract;
+and a sibling `MobileFormFooter` composed through `ControlBar`. Desktop Favorite,
+Save and Delete stay in a single 48px row outside the scroll viewport. On mobile,
+Back is first and the remaining actions keep their order with the native
+page/VisualViewport contract;
 the document remains the only vertical scroll owner. Do not wrap the entire editor
 in another `ScrollArea` or restore a sticky footer inside its fields.
 
-The profile header places avatar, name and favorite in separate grid columns.
+The profile header places the avatar and name in separate grid columns. The
+favorite toggle is immediately to the left of Save for existing contacts.
 The avatar (including its empty placeholder) is a keyboard-accessible button that
 opens the existing authenticated file upload. Separate upload/social-import buttons
 are not rendered. Complete supported social URLs trigger a debounced photo lookup
