@@ -26,7 +26,7 @@ const selectedViewport = process.env.ROLLAPP_PUBLICATION_VIEWPORT;
 try {
   for (const [width, height] of viewports) {
     if (selectedViewport && selectedViewport !== `${width}x${height}`) continue;
-    const page = await browser.newPage({ viewport: { width, height }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
+    const page = await browser.newPage({ viewport: { width, height }, hasTouch: width < 768, locale: "ru-RU", timezoneId: "Europe/Moscow" });
     page.setDefaultTimeout(30_000);
     page.setDefaultNavigationTimeout(60_000);
     const errors = [];
@@ -310,7 +310,7 @@ try {
         assert.equal(await page.locator("[data-add-fab]").getByRole("button", { name: "Добавить", exact: true }).count(), publication ? 0 : 1);
         assert.match(await space.innerText(), /Медиа/);
         const rows = await rail.evaluate(node => new Set([...node.children].map(child => child.getBoundingClientRect().top)).size);
-        assert.equal(rows, routing === "wishlist" && width < 472 ? 2 : 1);
+        assert.equal(rows, 1);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       };
       const assertPublication = async () => {
@@ -388,17 +388,40 @@ try {
           }), `${name}: selected icon is clipped`);
           assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
         }
-        const metrics = await rail.evaluate(node => ({
-          position: getComputedStyle(node).position,
-          icons: [...node.querySelectorAll("a")].map(link => {
-            const box = link.getBoundingClientRect();
+        const measureRail = () => rail.evaluate(node => {
+          const box = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          const links = [...node.querySelectorAll("a")];
+          const icons = links.map(link => {
             const glyph = link.querySelector("svg").getBoundingClientRect();
-            return [link.offsetWidth, link.offsetHeight, glyph.width, glyph.height, getComputedStyle(link).borderRadius,
-              box.left >= 0 && box.right <= innerWidth];
-          }),
-        }));
+            return [link.offsetWidth, link.offsetHeight, glyph.width, glyph.height, getComputedStyle(link).borderRadius];
+          });
+          return { left: box.left, right: box.right, first: links[0].getBoundingClientRect().left,
+            last: links.at(-1).getBoundingClientRect().right, offset: node.scrollLeft,
+            overflows: node.scrollWidth > node.clientWidth, gutter: parseFloat(style.paddingInlineStart),
+            position: style.position, overflowX: style.overflowX, icons };
+        });
+        const assertRail = async (viewportWidth) => {
+          await rail.evaluate(node => node.scrollTo({ left: 0, behavior: "instant" }));
+          const start = await measureRail();
+          assert(Math.abs(start.left) < 1 && Math.abs(start.right - viewportWidth) < 1);
+          assert.equal(start.overflowX, "auto");
+          assert.equal(start.overflows, viewportWidth < 472);
+          if (start.overflows) {
+            assert.equal(start.first, start.gutter);
+            await rail.evaluate(node => node.scrollTo({ left: node.scrollWidth, behavior: "instant" }));
+            const end = await measureRail();
+            assert(end.offset > 0);
+            assert(Math.abs(end.last - (viewportWidth - end.gutter)) < 1, "Last icon must be fully reachable");
+            await rail.evaluate(node => node.scrollTo({ left: 0, behavior: "instant" }));
+          } else {
+            assert(Math.abs(start.first + start.last - viewportWidth) < 1, "Fitting icons must be centered");
+          }
+          return start;
+        };
+        const metrics = await assertRail(width);
         assert.equal(metrics.position, "static");
-        for (const icon of metrics.icons) assert.deepEqual(icon, [48, 48, 20, 20, "24px", true]);
+        for (const icon of metrics.icons) assert.deepEqual(icon, [48, 48, 20, 20, "24px"]);
         await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
         const beforeScroll = await rail.evaluate(node => node.getBoundingClientRect().top);
         await page.evaluate(() => scrollTo({ top: 180, behavior: "instant" }));
@@ -410,14 +433,20 @@ try {
           await page.screenshot({ path: `/tmp/rollapp-wishlist-sections-${width}.png`, animations: "disabled" });
         }
         if (width === 390 && height === 844) {
-          for (const [boundary, expectedRows] of [[471, 2], [472, 1]]) {
+          const session = await page.context().newCDPSession(page);
+          const box = await rail.boundingBox();
+          const touch = (type, x) => session.send("Input.dispatchTouchEvent", {
+            type, touchPoints: x === undefined ? [] : [{ x, y: box.y + box.height / 2 }],
+          });
+          await touch("touchStart", 330);
+          for (const x of [300, 260, 210, 150, 90]) await touch("touchMove", x);
+          await touch("touchEnd");
+          await page.waitForFunction(() => document.querySelector(".wishlist-section-navigation").scrollLeft > 0);
+          await session.detach();
+          for (const boundary of [471, 472]) {
             await page.setViewportSize({ width: boundary, height });
-            const boxes = await rail.getByRole("link").evaluateAll(links => links.map(link => {
-              const { top, left, right } = link.getBoundingClientRect();
-              return { top, left, right };
-            }));
-            assert.equal(new Set(boxes.map(box => box.top)).size, expectedRows);
-            assert(boxes.every(box => box.left >= 16 && box.right <= boundary - 16));
+            assert.equal(await rail.getByRole("link").evaluateAll(links => new Set(links.map(link => link.getBoundingClientRect().top)).size), 1);
+            await assertRail(boundary);
           }
           await page.setViewportSize({ width, height });
         }

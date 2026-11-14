@@ -563,18 +563,7 @@
 
 @layer utilities {
   .wishlist-section-navigation {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--layout-inline-gap);
-    max-inline-size: 100%;
     margin-block-start: var(--layout-inline-gap);
-  }
-
-  @media (width < 472px) {
-    .wishlist-section-navigation {
-      max-inline-size: min(100%, calc(4 * var(--layout-control-size) + 3 * var(--layout-inline-gap)));
-    }
   }
 
   /* One action rail across spheres. Safe centering keeps the first action

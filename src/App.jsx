@@ -3510,7 +3510,7 @@ function WishlistSectionNavigation({ user }) {
     links.push({ to: wishSalesPath(space), active: path === APP_WISH_SALES_PATH, label: "Мои продажи", title: "Мои продажи", icon: Tag });
   }
   return (
-    <ControlBar as="nav" className="wishlist-section-navigation" aria-label="Разделы Вишлиста">
+    <ControlBar as="nav" className="page-actions horizontal-action-scroller wishlist-section-navigation" aria-label="Разделы Вишлиста">
       {links.map(({ to, active, label, title, icon: Icon }) => (
         <Link key={title} to={to} aria-current={active ? "page" : undefined}
           className={buttonVariants({ variant: active ? "default" : "outline", size: "icon" })}
