@@ -116,14 +116,18 @@ export async function requestRetailerBrowserMetadata(retailerId, url, {
   return normalizeRetailerBrowserMetadata(retailerId, response.result.metadata);
 }
 
-export async function requestBrowserWishlist(provider, { target = window, signal } = {}) {
+export async function requestBrowserWishlist(provider, { target = window, signal, url } = {}) {
+  let capability;
   try {
-    await exchange(target, "ROLLAPP_WISHLIST_PING", "ROLLAPP_WISHLIST_PONG", {}, 700, signal);
+    capability = await exchange(target, "ROLLAPP_WISHLIST_PING", "ROLLAPP_WISHLIST_PONG", {}, 700, signal);
   } catch (error) {
     signal?.throwIfAborted();
     throw new RetailerBrowserImportError("Установите или обновите расширение Rollapp в Chrome или Comet, затем обновите эту страницу.", "helper_unavailable");
   }
-  const response = await exchange(target, "ROLLAPP_WISHLIST_IMPORT", "ROLLAPP_WISHLIST_RESULT", { provider }, 180_000, signal);
+  if (url && capability.result?.linkedWishlist !== true) {
+    throw new RetailerBrowserImportError("Обновите расширение RULAB, чтобы прочитать сохранённую ссылку.", "helper_upgrade_required");
+  }
+  const response = await exchange(target, "ROLLAPP_WISHLIST_IMPORT", "ROLLAPP_WISHLIST_RESULT", { provider, ...(url && { url }) }, 180_000, signal);
   if (!response.result?.ok || !Array.isArray(response.result.items)) {
     throw new RetailerBrowserImportError(
       response.result?.error || "Не удалось прочитать избранное.",

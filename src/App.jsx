@@ -7409,11 +7409,14 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
   const [initialWishlistLinks, setInitialWishlistLinks] = useState(() => user.wishlistLinks || {});
   const [wishlistLinks, setWishlistLinks] = useState(initialWishlistLinks);
   const [validateWishlistLinks, setValidateWishlistLinks] = useState(false);
-  const [importingWishlist, setImportingWishlist] = useState(false);
-  const browserWishlistRequest = useRef(null);
+  const [importingWishlist, setImportingWishlist] = useState(null);
+  const wishlistImportRequest = useRef(null);
   const [browserWishlistStatus, setBrowserWishlistStatus] = useState({});
   const [browserWishlistExtensionError, setBrowserWishlistExtensionError] = useState("");
-  useEffect(() => () => browserWishlistRequest.current?.abort(), [user.id]);
+  useEffect(() => () => {
+    wishlistImportRequest.current?.abort();
+    wishlistImportRequest.current = null;
+  }, [user.id]);
   const [wishlistImportStatus, setWishlistImportStatus] = useState({});
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -7460,6 +7463,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
   }, [isMobile, section]);
   const imageFileRef = useRef(null);
   const changedWishlists = EXTERNAL_WISHLIST_PROVIDERS.filter(({ id }) => (wishlistLinks[id]?.trim() || "") !== (initialWishlistLinks[id] || ""));
+  const savedWishlistProviders = EXTERNAL_WISHLIST_PROVIDERS.filter((provider) => externalWishlistUrl(provider, initialWishlistLinks[provider.id]));
   const profileChanged = Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
   const changed = profileChanged || changedWishlists.length > 0;
   const sourceParams = new URLSearchParams(location.search);
@@ -7558,56 +7562,77 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       setLoading(false);
     }
   };
-  const importWishlists = async (providers) => {
-    setImportingWishlist(true);
-    const results = await Promise.all(providers.map(async ({ id }) => {
-      const setStatus = (message) => setWishlistImportStatus((current) => ({ ...current, [id]: message }));
-      setStatus("Загружаем список…");
-      try {
-        const { added, skipped, partial } = await api.post(`/me/wishlist-import/${id}`);
-        const message = added ? `Добавлено в «Товары»: ${added}.` : skipped ? "Новых позиций среди прочитанных нет." : "Список пуст.";
-        setStatus(partial ? `${message} Сервис отдал только первую страницу списка.` : message);
-        return added;
-      } catch (error) {
-        setStatus(error.message);
-        return 0;
-      }
-    }));
-    if (results.some(Boolean)) onWishlistsImported?.();
-    setImportingWishlist(false);
-  };
-  const importBrowserWishlist = async (provider) => {
-    if (busy || browserWishlistRequest.current) return;
+  const withWishlistImport = async (kind, run) => {
+    if (wishlistImportRequest.current) return;
     const request = new AbortController();
-    browserWishlistRequest.current = request;
-    setImportingWishlist(true);
-    const setStatus = (text, openStore = false) =>
-      setBrowserWishlistStatus((current) => ({ ...current, [provider.id]: { text, openStore } }));
-    setStatus("Читаем избранное и списки…");
+    wishlistImportRequest.current = request;
+    setImportingWishlist(kind);
     try {
-      const { items } = await requestBrowserWishlist(provider.id, { signal: request.signal });
-      request.signal.throwIfAborted();
-      setBrowserWishlistExtensionError("");
-      if (!items.length) {
-        setStatus("В избранном и списках нет товаров.");
-        return;
-      }
-      const { added, skipped } = await api.post(`/me/browser-wishlist-import/${provider.id}`, { ownerId: user.id, items });
-      if (request.signal.aborted) return;
-      setStatus(added ? `Добавлено в «Товары»: ${added}. Уже было в Rollapp: ${skipped}.` : "Все найденные товары уже в Rollapp.");
-      if (added) onWishlistsImported?.();
-    } catch (error) {
-      if (!request.signal.aborted) {
-        const missingExtension = error.code === "helper_unavailable";
-        setBrowserWishlistExtensionError(missingExtension ? error.message : "");
-        setStatus(missingExtension ? "" : error.message, error.code === "marketplace_access_required");
-      }
+      const added = await run(request.signal);
+      if (!request.signal.aborted && added) onWishlistsImported?.();
     } finally {
-      if (browserWishlistRequest.current === request) {
-        browserWishlistRequest.current = null;
-        if (!request.signal.aborted) setImportingWishlist(false);
+      if (wishlistImportRequest.current === request) {
+        wishlistImportRequest.current = null;
+        setImportingWishlist(null);
       }
     }
+  };
+  const readLinkedWishlist = async (provider, url, signal) => {
+    const { id, importsItems } = provider;
+    const setStatus = (message) => setWishlistImportStatus((current) => ({ ...current, [id]: message }));
+    setStatus("Загружаем список…");
+    try {
+      const { added, skipped, partial } = importsItems
+        ? await api.post(`/me/wishlist-import/${id}`, undefined, { signal })
+        : await importWishlistFromBrowser(id, signal, url);
+      signal.throwIfAborted();
+      const message = added ? `Добавлено в «Товары»: ${added}.` : skipped ? "Новых позиций среди прочитанных нет." : "Список пуст.";
+      setStatus(partial ? `${message} Сервис отдал только первую страницу списка.` : message);
+      return added;
+    } catch (error) {
+      if (!signal.aborted) setStatus(error.message);
+      return 0;
+    }
+  };
+  const importWishlistFromBrowser = async (id, signal, url) => {
+    const { items } = await requestBrowserWishlist(id, { signal, url });
+    signal.throwIfAborted();
+    if (!items.length) return { added: 0, skipped: 0 };
+    return api.post(`/me/browser-wishlist-import/${id}`, { ownerId: user.id, items, ...(url && { linkedUrl: url }) }, { signal });
+  };
+  const importWishlists = (providers, links, kind = "save") => withWishlistImport(kind, async (signal) => {
+    const direct = providers.filter(({ importsItems }) => importsItems);
+    // The browser extension owns one import at a time. Start the independent
+    // server readers immediately and run the browser readers in order.
+    const directResults = Promise.all(direct.map((provider) => readLinkedWishlist(provider, links[provider.id], signal)));
+    let added = 0;
+    for (const provider of providers.filter(({ importsItems }) => !importsItems)) {
+      if (signal.aborted) break;
+      added += await readLinkedWishlist(provider, links[provider.id], signal);
+    }
+    return added + (await directResults).reduce((sum, count) => sum + count, 0);
+  });
+  const importBrowserWishlist = (provider) => {
+    if (busy) return;
+    return withWishlistImport("browser", async (signal) => {
+      const setStatus = (text, openStore = false) =>
+        setBrowserWishlistStatus((current) => ({ ...current, [provider.id]: { text, openStore } }));
+      setStatus("Читаем избранное и списки…");
+      try {
+        const { added, skipped } = await importWishlistFromBrowser(provider.id, signal);
+        signal.throwIfAborted();
+        setBrowserWishlistExtensionError("");
+        setStatus(added ? `Добавлено в «Товары»: ${added}. Уже было в Rollapp: ${skipped}.`
+          : skipped ? "Все найденные товары уже в Rollapp." : "В избранном и списках нет товаров.");
+        return added;
+      } catch (error) {
+        if (!signal.aborted) {
+          const missingExtension = error.code === "helper_unavailable";
+          setBrowserWishlistExtensionError(missingExtension ? error.message : "");
+          setStatus(missingExtension ? "" : error.message, error.code === "marketplace_access_required");
+        }
+      }
+    });
   };
   const submitWishlists = async (event) => {
     event.preventDefault();
@@ -7632,7 +7657,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       onProfileUpdated(savedUser);
       toast("Внешние вишлисты сохранены");
       const imports = changedWishlists.filter(({ id, importsItems }) => importsItems && links[id] && savedLinks[id]);
-      if (imports.length) await importWishlists(imports);
+      if (imports.length) await importWishlists(imports, savedLinks);
     } catch (error) {
       toast(error.message, "error");
     } finally {
@@ -7644,6 +7669,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       <ShadcnButton type="submit" form="profile-wishlists-form" disabled={!changedWishlists.length || busy} aria-busy={loading || undefined}>
         {loading && <Spinner />}
         Сохранить
+      </ShadcnButton>
+      <ShadcnButton type="button" variant="outline" size="icon" data-control-icon=""
+        aria-label="Обновить все сохранённые вишлисты" title="Обновить все сохранённые вишлисты"
+        aria-busy={importingWishlist === "refresh" || undefined} disabled={busy || !savedWishlistProviders.length}
+        onClick={() => importWishlists(savedWishlistProviders, initialWishlistLinks, "refresh")}>
+        {importingWishlist === "refresh" ? <Spinner aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
       </ShadcnButton>
     </DrawerFooter>
   );
@@ -7750,54 +7781,35 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
               const id = `settings-wishlist-${provider.id}`;
               const value = wishlistLinks[provider.id] || "";
               const invalid = validateWishlistLinks && Boolean(value.trim()) && !externalWishlistUrl(provider, value);
-              const canReimport = provider.importsItems && initialWishlistLinks[provider.id];
               return (
                 <Field key={provider.id} className="min-w-0" data-invalid={invalid || undefined}>
                   <FieldLabel htmlFor={id}>{provider.label}</FieldLabel>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Input
-                      id={id}
-                      className="min-w-0 flex-1"
-                      inputMode="url"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      autoComplete="off"
-                      spellCheck={false}
-                      maxLength={EXTERNAL_WISHLIST_URL_MAX_LENGTH}
-                      placeholder="https://"
-                      value={value}
-                      disabled={busy}
-                      aria-invalid={invalid || undefined}
-                      aria-describedby={invalid ? `${id}-error` : undefined}
-                      onChange={(event) => {
-                        setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value });
-                        if (provider.importsItems) setWishlistImportStatus((current) => ({ ...current, [provider.id]: "" }));
-                      }}
-                    />
-                    {canReimport && (
-                      <ControlBar className="flex shrink-0">
-                        <ShadcnButton
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          data-control-icon=""
-                          aria-label={`Импортировать позиции · ${provider.label}`}
-                          title={`Повторить импорт из ${provider.label}`}
-                          disabled={busy || value.trim() !== initialWishlistLinks[provider.id]}
-                          onClick={() => importWishlists([provider])}
-                        >
-                          <RotateCcw aria-hidden="true" />
-                        </ShadcnButton>
-                      </ControlBar>
-                    )}
-                  </div>
+                  <Input
+                    id={id}
+                    className="min-w-0"
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={EXTERNAL_WISHLIST_URL_MAX_LENGTH}
+                    placeholder="https://"
+                    value={value}
+                    disabled={busy}
+                    aria-invalid={invalid || undefined}
+                    aria-describedby={invalid ? `${id}-error` : undefined}
+                    onChange={(event) => {
+                      setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value });
+                      setWishlistImportStatus((current) => ({ ...current, [provider.id]: "" }));
+                    }}
+                  />
                   {invalid && <FieldError id={`${id}-error`}>Вставьте HTTPS-ссылку на вишлист {provider.label}.</FieldError>}
-                  {canReimport && <p role="status" className={cn("text-xs text-muted-foreground", !wishlistImportStatus[provider.id] && "sr-only")}>{wishlistImportStatus[provider.id]}</p>}
+                  {initialWishlistLinks[provider.id] && <p role="status" className={cn("text-xs text-muted-foreground", !wishlistImportStatus[provider.id] && "sr-only")}>{wishlistImportStatus[provider.id]}</p>}
                 </Field>
               );
             })}
           </FieldGroup>
-          <p className="text-xs text-muted-foreground">После сохранения списки OhMyWishes и Яндекс Маркета импортируются в «Товары» как приватные позиции.</p>
+          <p className="text-xs text-muted-foreground">Кнопка обновления читает сохранённые ссылки. Новые позиции добавляются в «Товары» как приватные. Для Ozon и WB нужно расширение RULAB.</p>
         </section>
         <Accordion className="min-w-0 rounded-xl border bg-card px-3">
           <AccordionItem value="browser-import">

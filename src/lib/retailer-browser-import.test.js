@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeRetailerBrowserMetadata, RetailerBrowserImportError } from "./retailer-browser-import.js";
+import { normalizeRetailerBrowserMetadata, requestBrowserWishlist, RetailerBrowserImportError } from "./retailer-browser-import.js";
 
 test("normalizes trusted browser metadata for supported food retailers", () => {
   const cases = [
@@ -24,4 +24,24 @@ test("rejects an image outside the selected retailer CDN", () => {
       (error) => error instanceof RetailerBrowserImportError && error.code === "image_missing",
     );
   }
+});
+
+test("an older extension cannot silently substitute all favorites for a saved link", async () => {
+  const target = new EventTarget();
+  target.location = { origin: "https://роллапп.рф" };
+  const posted = [];
+  target.postMessage = (message, origin) => {
+    posted.push(message.type);
+    const response = new Event("message");
+    Object.assign(response, { source: target, origin, data: {
+      source: "rollapp-retailer-helper", type: "ROLLAPP_WISHLIST_PONG",
+      requestId: message.requestId, result: { ok: true },
+    } });
+    target.dispatchEvent(response);
+  };
+  await assert.rejects(
+    requestBrowserWishlist("ozon", { target, url: "https://ozon.ru/t/example" }),
+    { code: "helper_upgrade_required" },
+  );
+  assert.deepEqual(posted, ["ROLLAPP_WISHLIST_PING"]);
 });

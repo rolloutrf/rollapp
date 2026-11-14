@@ -49,8 +49,13 @@ api.get = async (path) => {
   return unexpected(path);
 };
 api.post = async (path, body) => {
-  if (!guest && path === "/me/browser-wishlist-import/yandex-market") {
+  const browserProvider = /^\/me\/browser-wishlist-import\/(ozon|wb|yandex-market)$/.exec(path)?.[1];
+  if (!guest && browserProvider) {
     window.browserWishlistImports.push(body);
+    if (body.linkedUrl) {
+      if (body.linkedUrl !== profile.wishlistLinks[browserProvider]) return unexpected(path);
+      (window.linkedBrowserWishlistImports ??= []).push(browserProvider);
+    }
     return { added: 1, skipped: 0 };
   }
   if (!guest && path === "/wishes/backfill-previews") return { updated: 0 };

@@ -43,7 +43,7 @@ window.addEventListener("message", (event) => {
       result,
     }, window.location.origin);
     if (ping) {
-      send({ ok: true });
+      send({ ok: true, linkedWishlist: true });
       return;
     }
     if (wishlistImports.has(id)) return;
@@ -62,7 +62,7 @@ window.addEventListener("message", (event) => {
         port.disconnect();
         send(result);
       });
-      port.postMessage({ provider: message.provider });
+      port.postMessage({ provider: message.provider, url: message.url });
     } catch {
       wishlistImports.get(id)?.disconnect();
       wishlistImports.delete(id);

@@ -90,7 +90,9 @@
       return links.length || empty ? { items: [], links, empty: empty && !links.length } : null;
     }
     // Recommendation grids are separate Ozon widgets and must never supply imported cards.
-    const grids = [...document.querySelectorAll('[data-widget="favoriteProducts"], [data-widget="favorites"], [data-widget="wishlist"], [data-widget="selectionProducts"]')];
+    const grids = [...document.querySelectorAll(kind === "linked-list"
+      ? '[data-widget="wishlist"], [data-widget="selectionProducts"]'
+      : '[data-widget="favoriteProducts"], [data-widget="favorites"], [data-widget="wishlist"], [data-widget="selectionProducts"]')];
     const cards = grids.flatMap((grid) => [...grid.querySelectorAll('[data-index], [data-widget="tile"]')].filter((card) => !card.parentElement.closest('[data-index], [data-widget="tile"]')));
     const items = cards.map((card) => {
       const anchors = [...card.querySelectorAll('a[href*="/product/"]')];
@@ -100,15 +102,17 @@
     return (cards.length || empty) && items.every(Boolean) ? { scope: grids.at(-1), items, links: [], empty: empty && !cards.length } : null;
   }
 
-  function wbRead() {
+  function wbRead(kind) {
     const config = selectors.wb;
-    const scope = document.querySelector(".favorites, .lk-favorites, #favorites");
+    const scope = document.querySelector(kind === "linked-list" && location.pathname.startsWith("/wishlist/")
+      ? ".wishlist, .lk-wishlist, #wishlist, .favorites, .lk-favorites, #favorites"
+      : ".favorites, .lk-favorites, #favorites");
     if (!scope) return null;
     const cards = [...scope.querySelectorAll(".product-card")];
     const items = cards.map((card) => cardItem(card, card.querySelector(config.title), config));
     const links = linksWithin(scope, /^\/lk\/favorites\/(?:list|folder)\/[^/]+\/?$/);
     const empty = /в избранном пока (?:пусто|ничего нет)|список пуст/i.test(scope.innerText);
-    return (cards.length || empty || links.length) && items.every(Boolean) ? { scope, items, links } : null;
+    return (cards.length || empty || kind !== "linked-list" && links.length) && items.every(Boolean) ? { scope, items, links, empty: empty && !cards.length } : null;
   }
 
   const readers = { "yandex-market": yandexRead, ozon: ozonRead, wb: wbRead };
@@ -163,6 +167,10 @@
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== "ROLLAPP_COLLECT_WISHLIST") return false;
+    if (message.kind === "linked-list" && message.linkedPage !== location.href) {
+      sendResponse({ ok: false, error: "Страница списка сменилась во время импорта. Повторите обновление." });
+      return false;
+    }
     collect(message.provider, message.kind, message.timeoutMs)
       .then((data) => sendResponse({ ok: true, ...data }))
       .catch((error) => sendResponse({ ok: false, error: error.message, code: error.code }));

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rollapp — импорт из магазинов",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Импорт товаров и избранного из поддерживаемых магазинов в Rollapp.",
   "permissions": [
     "tabs"
@@ -51,7 +51,20 @@
         "https://market.yandex.ru/wishlist/*",
         "https://www.ozon.ru/my/favorites*",
         "https://www.ozon.ru/selections/*",
-        "https://www.wildberries.ru/lk/favorites*"
+        "https://www.ozon.ru/wishlist/*",
+        "https://www.ozon.ru/wishlists/*",
+        "https://ozon.ru/my/favorites*",
+        "https://ozon.ru/selections/*",
+        "https://ozon.ru/wishlist/*",
+        "https://ozon.ru/wishlists/*",
+        "https://www.wildberries.ru/lk/favorites*",
+        "https://www.wildberries.ru/wishlist/*",
+        "https://wildberries.ru/lk/favorites*",
+        "https://wildberries.ru/wishlist/*",
+        "https://www.wb.ru/lk/favorites*",
+        "https://www.wb.ru/wishlist/*",
+        "https://wb.ru/lk/favorites*",
+        "https://wb.ru/wishlist/*"
       ],
       "js": [
         "wishlist-content.js"

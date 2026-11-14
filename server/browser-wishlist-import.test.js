@@ -23,6 +23,8 @@ test("Browser and public Yandex wishlist imports use the same product ID, includ
 test("Browser imports validate the whole batch before saving and drop third-party images", () => {
   const item = { url: "https://www.ozon.ru/product/svitshot-1234/", title: "Свитшот", imageUrl: "https://tracking.example/image" };
   assert.equal(parseBrowserWishlist("ozon", { ownerId: "owner", items: [item] }, "owner")[0].image_url, "");
+  assert.equal(parseBrowserWishlist("ozon", { ownerId: "owner", linkedUrl: "https://ozon.ru/t/example", items: [item] }, "owner").length, 1);
+  assert.equal(parseBrowserWishlist("ozon", { ownerId: "owner", linkedUrl: {}, items: [item] }, "owner"), null);
   assert.equal(parseBrowserWishlist("ozon", { ownerId: "owner", items: [item, { ...item, url: "https://ozon.ru.example/product/1234/" }] }, "owner"), null);
   assert.equal(parseBrowserWishlist("ozon", { ownerId: "owner", items: [{ ...item, token: "unexpected" }] }, "owner"), null);
   assert.equal(parseBrowserWishlist("wb", { ownerId: "owner", items: [item] }, "owner"), null);

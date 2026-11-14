@@ -88,7 +88,17 @@ try {
       await wishlistEntry.click();
     } else await openWishlists();
     const save = page.getByRole('button', { name: 'Сохранить', exact: true });
+    const refresh = page.getByRole('button', { name: 'Обновить все сохранённые вишлисты', exact: true });
     const wishlist = page.getByRole('region', { name: 'Внешние вишлисты' });
+    assert(await refresh.isDisabled());
+    const footerGeometry = await refresh.evaluate(button => {
+      const save = button.closest('[data-control-bar]').querySelector('[type="submit"]');
+      const box = button.getBoundingClientRect(), saveBox = save.getBoundingClientRect(), style = getComputedStyle(button);
+      return { width: box.width, height: box.height, radius: style.borderTopLeftRadius,
+        gap: box.left - saveBox.right, row: box.top === saveBox.top };
+    });
+    assert.deepEqual(footerGeometry, { width: 48, height: 48, radius: '24px', gap: 8, row: true });
+    assert.equal(await wishlist.getByRole('button', { name: /Импортировать позиции ·/ }).count(), 0);
     const backToMenu = async () => {
       await page.getByRole('button', { name: 'Назад', exact: true }).click();
       await wishlistEntry.waitFor();
@@ -155,14 +165,14 @@ try {
       assert.deepEqual(await page.evaluate(() => window.browserWishlistImports), []);
       await page.evaluate(() => {
         window.addEventListener('message', ({ data, origin, source }) => {
-          if (source !== window || origin !== location.origin || data?.source !== 'rollapp-page') return;
+          if (source !== window || origin !== location.origin || data?.source !== 'rollapp-page' || data.url) return;
           const type = data.type === 'ROLLAPP_WISHLIST_PING' ? 'ROLLAPP_WISHLIST_PONG'
             : data.type === 'ROLLAPP_WISHLIST_IMPORT' ? 'ROLLAPP_WISHLIST_RESULT' : null;
           if (!type) return;
           const items = [{ url: 'https://market.yandex.ru/card/example/1001', title: 'Карточка из браузера' }];
           const result = type === 'ROLLAPP_WISHLIST_RESULT' && window.browserWishlistRequiresAccess
             ? { ok: false, code: 'marketplace_access_required', error: 'Завершите проверку в магазине.' }
-            : { ok: true, items };
+            : { ok: true, items, linkedWishlist: true };
           window.postMessage({ type, source: 'rollapp-retailer-helper', requestId: data.requestId, result }, location.origin);
         });
         window.browserWishlistRequiresAccess = true;
@@ -227,7 +237,7 @@ try {
           visualViewport.dispatchEvent(new Event('resize'));
         });
         await page.waitForFunction(() => document.documentElement.hasAttribute('data-overlay-keyboard'));
-        for (const action of [save, back]) {
+        for (const action of [save, refresh, back]) {
           const box = await action.boundingBox();
           assert.equal(box.y + box.height, 304);
         }
@@ -252,17 +262,38 @@ try {
     await page.getByRole('status').getByText('Добавлено в «Товары»: 1.', { exact: true }).waitFor();
     await page.getByRole('status').getByText('Не удалось прочитать список Маркета').waitFor();
     if (width === 320 || width === 1440) {
-      const reimport = page.getByRole('button', { name: 'Импортировать позиции · OhMyWishes' });
-      const [inputBox, reimportBox] = await Promise.all([inputs[0].boundingBox(), reimport.boundingBox()]);
-      assert.equal(reimportBox.width, 48);
-      assert.equal(reimportBox.height, 48);
-      assert.equal(reimportBox.x - (inputBox.x + inputBox.width), 8);
-      assert.equal(reimportBox.y, inputBox.y);
-      await reimport.click();
+      await page.evaluate(() => {
+        window.linkedWishlistReads = [];
+        window.addEventListener('message', ({ data, origin, source }) => {
+          if (source !== window || origin !== location.origin || data?.source !== 'rollapp-page') return;
+          const respond = (type, result) => window.postMessage({ type, result, source: 'rollapp-retailer-helper', requestId: data.requestId }, origin);
+          if (data.type === 'ROLLAPP_WISHLIST_PING') respond('ROLLAPP_WISHLIST_PONG', { linkedWishlist: true });
+          if (data.type !== 'ROLLAPP_WISHLIST_IMPORT' || !data.url) return;
+          window.linkedWishlistReads.push({ provider: data.provider, url: data.url });
+          if (data.provider === 'ozon') window.finishLinkedOzon = () => respond('ROLLAPP_WISHLIST_RESULT', { ok: false, error: 'Список Ozon недоступен' });
+          else respond('ROLLAPP_WISHLIST_RESULT', { ok: true, items: [{ url: 'https://www.wildberries.ru/catalog/12345/detail.aspx', title: 'Товар WB' }] });
+        });
+        window.rejectMarketImport = false;
+      });
+      const draft = 'https://ozon.ru/t/unsaved';
+      await inputs[1].fill(draft);
+      const patches = await page.evaluate(() => window.profilePatches.length);
+      await refresh.click();
+      await page.waitForFunction(() => Boolean(window.finishLinkedOzon));
+      assert.equal(await refresh.getAttribute('aria-busy'), 'true');
+      assert(await save.isDisabled());
+      assert.deepEqual(await page.evaluate(() => window.linkedWishlistReads), [{ provider: 'ozon', url: urls[1] }]);
       await page.getByRole('status').getByText('Новых позиций среди прочитанных нет.').waitFor();
-      await page.evaluate(() => { window.rejectMarketImport = false; });
-      await page.getByRole('button', { name: 'Импортировать позиции · Яндекс Маркет' }).click();
+      await page.evaluate(() => window.finishLinkedOzon());
+      await wishlist.getByRole('status').getByText('Список Ozon недоступен', { exact: true }).waitFor();
       await page.getByRole('status').getByText('Добавлено в «Товары»: 1. Сервис отдал только первую страницу списка.', { exact: true }).waitFor();
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Обновить все сохранённые вишлисты"]').disabled);
+      assert.deepEqual(await page.evaluate(() => window.wishlistImports), ['ohmywishes', 'yandex-market', 'ohmywishes', 'yandex-market']);
+      assert.deepEqual(await page.evaluate(() => window.linkedWishlistReads), [{ provider: 'ozon', url: urls[1] }, { provider: 'wb', url: urls[2] }]);
+      assert.deepEqual(await page.evaluate(() => window.linkedBrowserWishlistImports), ['wb']);
+      assert.equal(await page.evaluate(() => window.profilePatches.length), patches);
+      assert.equal(await inputs[1].inputValue(), draft);
+      await inputs[1].fill(urls[1]);
       await page.screenshot({ path: `/tmp/rollapp-profile-wishlist-import-${width}.png` });
     }
     await backToMenu();

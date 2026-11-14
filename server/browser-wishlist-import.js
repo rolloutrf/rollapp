@@ -12,7 +12,7 @@ const marketplaceProducts = new Map([
     image: (host) => host.endsWith(".ozone.ru"),
   }],
   ["wb", {
-    hosts: ["www.wildberries.ru", "wildberries.ru"],
+    hosts: ["www.wildberries.ru", "wildberries.ru", "www.wb.ru", "wb.ru"],
     product: /^\/catalog\/(\d{1,20})\/detail\.aspx$/,
     image: (host) => /^(?:basket-\d+\.)?wbbasket\.ru$|^basket-\d+\.wbcontent\.net$/.test(host),
   }],
@@ -20,6 +20,7 @@ const marketplaceProducts = new Map([
 
 const browserWishlistPayload = z.object({
   ownerId: z.string().min(1).max(160),
+  linkedUrl: z.string().min(1).max(2048).optional(),
   items: z.array(z.object({
     url: z.string().max(1000),
     title: z.string().trim().min(1).max(160).refine((title) => !title.includes("\0")),

@@ -2938,11 +2938,13 @@ app.post("/api/me/browser-wishlist-import/:provider", requireAuth, wishlistImpor
   if (!items) return res.status(400).json({ error: "Проверьте список товаров и версию расширения Rollapp." });
 
   const added = await transaction(async (client) => {
-    await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+    const current = await client.query("SELECT wishlist_links FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+    if (req.body.linkedUrl && externalWishlistLinks(current.rows[0]?.wishlist_links)[provider] !== req.body.linkedUrl) return null;
     const existing = await client.query("SELECT url FROM wishes WHERE user_id=$1 AND url<>''", [req.user.id]);
     const keys = new Set(existing.rows.map(({ url }) => marketplaceWishlistKey(provider, url)));
     return insertExternalWishlistItems(client, req.user.id, items.filter(({ key }) => !keys.has(key)));
   });
+  if (added === null) return res.status(409).json({ error: "Ссылка изменилась во время импорта. Попробуйте снова." });
   res.set("Cache-Control", "private, no-store");
   return res.json({ added, skipped: items.length - added });
 }));
