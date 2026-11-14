@@ -317,6 +317,13 @@ Removal is labelled “Удалить фото” in the named photo group below
 `node scripts/contact-photo-smoke.mjs` checks automatic lookup, stale responses,
 manual replacement and native mouse/keyboard file selection at eight viewports,
 using explicit fixture transport and rejecting unrelated API requests.
+The company field uses the shared Combobox for optional suggestions from the
+authenticated contact feed’s full company facet. Both contact editors allow new
+names. Suggestions ignore case, repeated spaces and the distinction between Е
+and Ё. The import label «Не отсортированные» is omitted from suggestions.
+`test:contacts` covers navigation and selection using companies beyond the
+first page of contacts.
+
 Each link row has a URL input and an independent destructive removal button.
 Saving keeps existing labels for unchanged addresses and derives new labels from
 the social platform or hostname. The body owns section spacing with

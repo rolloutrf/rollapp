@@ -19,6 +19,7 @@ import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
 import { WishParticipantField } from "@/components/wish-participant-field";
 import { wishParticipantChanges } from "../shared/wish-participants.js";
 import { ContactCardButton, ContactCardContent } from "@/components/contact-card-dialog";
+import { ContactCompanyInput } from "@/components/contact-company-input";
 import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
@@ -2315,7 +2316,7 @@ function ContactNotes({ notes }) {
   });
 }
 
-function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteToggle, onSaved, onDeleted }) {
+function ContactEditForm({ contact = null, companies = [], favoriteSaving = false, onFavoriteToggle, onSaved, onDeleted }) {
   const toast = useToast();
   const contactFieldId = useId();
   const creating = !contact?.id;
@@ -2539,7 +2540,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
             </Field>
             <Field className="contact-detail__edit-field--wide">
               <FieldLabel htmlFor={`${contactFieldId}-company`}>Компания</FieldLabel>
-              <Input id={`${contactFieldId}-company`} value={form.company} maxLength={160} placeholder="Не указана" onChange={(event) => setField("company", event.target.value)} />
+              <ContactCompanyInput id={`${contactFieldId}-company`} companies={companies} value={form.company} maxLength={160} placeholder="Не указана" disabled={busy} onValueChange={(value) => setField("company", value)} />
             </Field>
             <Field className="contact-detail__edit-field--wide">
               <FieldLabel htmlFor={`${contactFieldId}-category`}>Направление</FieldLabel>
@@ -2629,7 +2630,7 @@ function ContactReadView({ contact }) {
   );
 }
 
-function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnly = false }) {
+function ContactDetailDrawer({ contactId, companies, onClose, onUpdated, onDeleted, readOnly = false }) {
   const isMobile = useIsMobile();
   const toast = useToast();
   const [favoriteSaving, setFavoriteSaving] = useState(false);
@@ -2671,6 +2672,7 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnl
         ) : contact ? (
           readOnly ? <ScrollArea className="contact-detail__scroll"><ContactReadView contact={contact} /></ScrollArea> : <ContactEditForm
               contact={contact}
+              companies={companies}
               favoriteSaving={favoriteSaving}
               onFavoriteToggle={toggleFavorite}
               onSaved={(savedContact) => {
@@ -2685,7 +2687,7 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnl
   );
 }
 
-function ContactCreateDrawer({ onClose, onCreated }) {
+function ContactCreateDrawer({ companies, onClose, onCreated }) {
   const isMobile = useIsMobile();
   return (
     <Drawer open showSwipeHandle={isMobile} swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -2697,7 +2699,7 @@ function ContactCreateDrawer({ onClose, onCreated }) {
             aria-label="Закрыть добавление контакта"
           ><X /></DrawerClose>
         </div>
-        <ContactEditForm onSaved={onCreated} />
+        <ContactEditForm companies={companies} onSaved={onCreated} />
       </DrawerContent>
     </Drawer>
   );
@@ -2946,6 +2948,7 @@ function ContactsSpherePage() {
       {selectedContactId && <ContactDetailDrawer
         readOnly={access.readOnly}
         contactId={selectedContactId}
+        companies={companies}
         onClose={() => setSelectedContactId("")}
         onUpdated={() => reload({ background: true }).catch(() => {})}
         onDeleted={() => {
@@ -2954,6 +2957,7 @@ function ContactsSpherePage() {
         }}
       />}
       {!access.readOnly && creatingContact && <ContactCreateDrawer
+        companies={companies}
         onClose={() => setCreatingContact(false)}
         onCreated={(contact) => {
           setCreatingContact(false);
