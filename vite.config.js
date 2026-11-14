@@ -6,9 +6,42 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const backendPort = /^\d{1,5}$/.test(process.env.PORT || "") ? Number(process.env.PORT) : 8080;
+const extensionFileName = "rollapp-browser-extension.zip";
+
+async function browserExtensionArchive() {
+  const directory = new URL("./browser-extension/", import.meta.url);
+  const names = (await readdir(directory)).filter((name) => /^(?:manifest\.json|README\.md|[a-z-]+\.js)$/.test(name)).sort();
+  const entries = await Promise.all(names.map(async (name) => [
+    `rollapp-browser-extension/${name}`,
+    new Uint8Array(await readFile(new URL(name, directory))),
+  ]));
+  return zipSync(Object.fromEntries(entries), { mtime: new Date("2020-01-01T00:00:00Z") });
+}
+
+function browserExtensionDownload() {
+  return {
+    name: "rollapp-browser-extension-download",
+    configureServer(server) {
+      server.middlewares.use(async (request, response, next) => {
+        if (request.url?.split("?")[0] !== `/${extensionFileName}` || !["GET", "HEAD"].includes(request.method)) return next();
+        try {
+          const archive = await browserExtensionArchive();
+          response.setHeader("Content-Type", "application/zip");
+          response.setHeader("Content-Length", archive.byteLength);
+          response.end(request.method === "HEAD" ? undefined : archive);
+        } catch (error) {
+          next(error);
+        }
+      });
+    },
+    async generateBundle() {
+      this.emitFile({ type: "asset", fileName: extensionFileName, source: await browserExtensionArchive() });
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), browserExtensionDownload()],
   optimizeDeps: { include: [
     "@ui-sdk/core",
     "@ui-sdk/react/agent",
@@ -74,23 +107,5 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
-    rolldownOptions: {
-      plugins: [{
-        name: "rollapp-browser-extension-download",
-        async generateBundle() {
-          const directory = new URL("./browser-extension/", import.meta.url);
-          const names = (await readdir(directory)).filter((name) => /^(?:manifest\.json|README\.md|[a-z-]+\.js)$/.test(name)).sort();
-          const entries = await Promise.all(names.map(async (name) => [
-            `rollapp-browser-extension/${name}`,
-            new Uint8Array(await readFile(new URL(name, directory))),
-          ]));
-          this.emitFile({
-            type: "asset",
-            fileName: "rollapp-browser-extension.zip",
-            source: zipSync(Object.fromEntries(entries), { mtime: new Date("2020-01-01T00:00:00Z") }),
-          });
-        },
-      }],
-    },
   },
 });

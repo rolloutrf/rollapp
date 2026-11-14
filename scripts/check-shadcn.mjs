@@ -100,7 +100,7 @@ assert.deepEqual(config.aliases, {
 }, "shadcn aliases must stay aligned with the Vite project");
 
 assert.match(vite, /import tailwindcss from ["']@tailwindcss\/vite["']/, "Vite must load Tailwind v4's official plugin");
-assert.match(vite, /plugins:\s*\[\s*react\(\),\s*tailwindcss\(\)\s*\]/, "Tailwind must be enabled in the Vite plugin list");
+assert.match(vite, /plugins:\s*\[\s*react\(\),\s*tailwindcss\(\)(?=\s*[,\]])/, "Tailwind must be enabled in the Vite plugin list");
 assert.match(vite, /["']@["']:\s*path\.resolve\(import\.meta\.dirname,\s*["']\.\/src["']\)/, "Vite must resolve the configured @ alias");
 assert.deepEqual(jsconfig.compilerOptions?.paths?.["@/*"], ["./src/*"], "jsconfig must resolve the same @ alias");
 

@@ -120,7 +120,29 @@ try {
     const importBox = await importBrowser.boundingBox();
     assert(importBox.x >= 0 && importBox.x + importBox.width <= width && importBox.height >= 47.5);
     assert.equal(await importBrowser.evaluate(el => getComputedStyle(el).paddingInlineStart), '24px');
+    const downloadExtension = wishlist.getByRole('link', { name: 'Скачать расширение RULAB', exact: true });
+    await downloadExtension.scrollIntoViewIfNeeded();
+    assert.equal(await downloadExtension.getAttribute('href'), '/rollapp-browser-extension.zip');
+    assert.equal(await downloadExtension.getAttribute('download'), '');
+    assert.equal(await wishlist.getByText(/Распакуйте архив/).count(), 0);
+    const downloadGeometry = await downloadExtension.evaluate(element => {
+      const { left, right, height } = element.getBoundingClientRect();
+      const { paddingInlineStart, paddingInlineEnd, borderTopLeftRadius, textDecorationLine } = getComputedStyle(element);
+      return { left, right, height, paddingInlineStart, paddingInlineEnd, radius: parseFloat(borderTopLeftRadius), textDecorationLine };
+    });
+    assert(downloadGeometry.left >= 0 && downloadGeometry.right <= width && downloadGeometry.height >= 48);
+    assert.equal(downloadGeometry.paddingInlineStart, '24px');
+    assert.equal(downloadGeometry.paddingInlineEnd, '24px');
+    assert(downloadGeometry.radius >= downloadGeometry.height / 2);
+    assert.equal(downloadGeometry.textDecorationLine, 'none');
     if (width === 320 || width === 1440) {
+      const originalUrl = page.url();
+      const [download] = await Promise.all([page.waitForEvent('download'), downloadExtension.click()]);
+      assert.equal(download.suggestedFilename(), 'rollapp-browser-extension.zip');
+      const response = await page.request.get(download.url());
+      assert.equal(response.headers()['content-type'], 'application/zip');
+      assert.equal((await response.body()).subarray(0, 4).toString('hex'), '504b0304');
+      assert.equal(page.url(), originalUrl);
       await importBrowser.click();
       const extensionNotice = wishlist.getByRole('status').getByText(/Установите или обновите расширение Rollapp/);
       await extensionNotice.waitFor();
@@ -128,8 +150,6 @@ try {
       await ozonImport.click();
       await wishlist.getByRole('status').getByText('Читаем избранное и списки…').waitFor({ state: 'hidden' });
       assert.equal(await extensionNotice.count(), 1);
-      const downloadExtension = wishlist.getByRole('link', { name: 'Скачать расширение Rollapp' });
-      assert.equal(await downloadExtension.getAttribute('href'), '/rollapp-browser-extension.zip');
       await downloadExtension.scrollIntoViewIfNeeded();
       if (width === 1440) await page.screenshot({ path: `/tmp/rollapp-profile-wishlists-extension-${width}.png` });
       assert.deepEqual(await page.evaluate(() => window.browserWishlistImports), []);

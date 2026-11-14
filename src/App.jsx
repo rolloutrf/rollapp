@@ -7838,10 +7838,10 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
                     </div>
                   );
                 })}
-                <div className="grid gap-1">
-                  <a className="w-fit rollapp-body" href="/rollapp-browser-extension.zip" download>Скачать расширение Rollapp</a>
-                  <span className="text-xs text-muted-foreground">Распакуйте архив и загрузите папку на странице расширений в режиме разработчика.</span>
-                </div>
+                <PageActionButton to="/rollapp-browser-extension.zip" reloadDocument download data-not-typeset
+                  variant="outline" className="w-fit max-w-full whitespace-normal text-center no-underline!">
+                  Скачать расширение RULAB
+                </PageActionButton>
               </div>
             </AccordionContent>
           </AccordionItem>
