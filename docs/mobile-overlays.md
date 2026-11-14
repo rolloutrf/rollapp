@@ -297,7 +297,12 @@ are rejected. It is required by `check:release`.
 nested drafts, busy guards, StrictMode and a suspended group. The fixture rejects
 all API requests. The live wish/list flow is also checked without saving data.
 
-### Contact editor
+### Contact cards and editor
+
+In the contact list, the favorite toggle sits in the lower-left corner of the
+card footer. Notes and social links can wrap alongside it. In read-only views,
+the footer appears only if there are notes or links. `test:contacts` checks the
+footer with and without secondary actions.
 
 `ContactEditForm` owns a flex column: one `ScrollArea` for `.contact-detail__edit-body`
 and a sibling `MobileFormFooter` composed through `ControlBar`. Desktop Favorite,

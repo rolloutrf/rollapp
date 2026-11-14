@@ -2884,20 +2884,6 @@ function ContactsSpherePage() {
                       <div className="contact-card__top w-full min-w-0">
                         <div className="contact-card__avatar-wrap">
                           <Avatar user={contact} size="lg" className="contact-card__avatar" aria-hidden="true" />
-                          {!access.readOnly && <ShadcnButton
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="contact-card__favorite rounded-full"
-                            data-favorite={contact.favorite ? "true" : "false"}
-                            aria-pressed={Boolean(contact.favorite)}
-                            aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
-                            title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
-                            disabled={favoriteSavingIds.has(contact.id)}
-                            onClick={() => toggleFavorite(contact)}
-                          >
-                            {favoriteSavingIds.has(contact.id) ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
-                          </ShadcnButton>}
                         </div>
                         {contact.category && <span className="contact-card__category-slot"><span className="contact-card__category">{CONTACT_CATEGORY_LABELS[contact.category] || contact.category}</span></span>}
                       </div>
@@ -2911,14 +2897,30 @@ function ContactsSpherePage() {
                         <span className="contact-card__bio-text">{contact.role || (contact.hasNotes ? "Есть заметки" : "Роль не указана")}</span>
                       </div>
                     </div>
-                    {(contact.hasNotes || socialLinks.length > 0) && (
+                    {(!access.readOnly || contact.hasNotes || socialLinks.length > 0) && (
                       <footer className="contact-card__footer">
-                        {contact.hasNotes && <ShadcnButton type="button" variant="ghost" className="contact-card__details h-9 rounded-full px-1" onClick={() => setSelectedContactId(contact.id)}><NotebookText aria-hidden="true" />Заметки</ShadcnButton>}
-                        {socialLinks.length > 0 && (
-                          <span className="contact-card__social-links" aria-label={`Ссылки ${contact.name}`}>
-                            {socialLinks.map((link, index) => <ContactSocialLink key={`${link.url}-${index}`} link={link} contactName={contact.name} />)}
-                          </span>
-                        )}
+                        {!access.readOnly && <ShadcnButton
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="contact-card__favorite rounded-full"
+                          data-favorite={contact.favorite ? "true" : "false"}
+                          aria-pressed={Boolean(contact.favorite)}
+                          aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
+                          title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
+                          disabled={favoriteSavingIds.has(contact.id)}
+                          onClick={() => toggleFavorite(contact)}
+                        >
+                          {favoriteSavingIds.has(contact.id) ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
+                        </ShadcnButton>}
+                        {(contact.hasNotes || socialLinks.length > 0) && <div className="contact-card__secondary-actions">
+                          {contact.hasNotes && <ShadcnButton type="button" variant="ghost" className="contact-card__details h-9 rounded-full px-1" onClick={() => setSelectedContactId(contact.id)}><NotebookText aria-hidden="true" />Заметки</ShadcnButton>}
+                          {socialLinks.length > 0 && (
+                            <span className="contact-card__social-links" aria-label={`Ссылки ${contact.name}`}>
+                              {socialLinks.map((link, index) => <ContactSocialLink key={`${link.url}-${index}`} link={link} contactName={contact.name} />)}
+                            </span>
+                          )}
+                        </div>}
                       </footer>
                     )}
                   </li>

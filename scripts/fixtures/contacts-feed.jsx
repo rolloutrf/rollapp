@@ -9,6 +9,8 @@ import { api } from '../../src/api.js';
 import '../../src/styles.css';
 import '../../src/index.css';
 const contacts = Array.from({ length: 145 }, (_, i) => ({ id: String(i), name: `Контакт ${String(i).padStart(3, '0')}`, company: 'Компания', role: 'Дизайнер', favorite: false, links: [] }));
+contacts[0].hasNotes = true;
+contacts[0].links = [{ label: 'Facebook', url: 'https://www.facebook.com/example' }, { label: 'Telegram', url: 'https://t.me/example' }];
 contacts[134].company = 'Северная звезда';
 contacts[135].company = 'северная  звезда';
 contacts[136].company = 'Группа Север';

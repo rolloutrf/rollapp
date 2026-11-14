@@ -47,6 +47,24 @@ try {
     await page.goto(`${origin}/__contacts-feed`, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForFunction(() => document.querySelectorAll('.contact-card').length === 48);
     await page.evaluate(() => document.fonts.ready);
+    for (const index of [0, 1]) {
+      const card = page.locator('.contact-card').nth(index);
+      const footer = card.locator('.contact-card__footer');
+      const favorite = footer.getByRole('button', { name: /в избранное$/ });
+      assert.equal(await card.locator('.contact-card__avatar-wrap button').count(), 0);
+      assert.equal(await favorite.count(), 1);
+      const fits = await footer.evaluate(element => {
+        const bounds = element.getBoundingClientRect();
+        const star = element.querySelector('.contact-card__favorite').getBoundingClientRect();
+        const actions = [...element.querySelectorAll('.contact-card__secondary-actions :is(button, a)')].map(action => action.getBoundingClientRect());
+        return star.left - bounds.left <= 9 && star.bottom <= bounds.bottom && bounds.bottom - star.bottom <= 13 &&
+          star.height === star.width && actions.every(action => action.left >= star.right + 7 && action.right <= bounds.right + 1);
+      });
+      assert(fits, 'Favorite must remain in the lower-left corner without overlapping notes or links');
+      if (index === 0 && ((width === 390 && height === 844) || (width === 1440 && height === 844))) {
+        await card.screenshot({ path: `/tmp/rollapp-contact-list-favorite-${width}.png`, animations: 'disabled' });
+      }
+    }
     const mobile = width < 768;
     {
       const create = page.locator('[data-add-fab]').getByRole('button', { name: 'Добавить контакт' });
