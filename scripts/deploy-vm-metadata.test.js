@@ -130,7 +130,8 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
   assert.match(workflow, /mcp_status=.*PUBLIC_URL.*\/mcp.*\n\s+if \[ "\$mcp_status" != "401" \]; then/);
   assert(workflow.indexOf("Rollapp is healthy at") < workflow.indexOf("mcp_status="));
   assert.match(workflow, /keeping the running service available/);
-  assert.doesNotMatch(workflow, /Install pinned Yandex Cloud CLI|yc compute instance (?:restart|stop|delete)|--max-time 120/);
+  const deploy = workflow.slice(workflow.indexOf("\n  deploy:"));
+  assert.doesNotMatch(deploy, /Install pinned Yandex Cloud CLI|yc compute instance (?:restart|stop|delete)|--max-time 120/);
   assert.match(workflow, /YC_LOCKBOX_SOURCE: iam/);
   assert.doesNotMatch(workflow, /YC_LOCKBOX_SOURCE: cli/);
 });
@@ -138,7 +139,7 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
 test("targeted snippet releases require an explicit manual choice and retain control geometry checks", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  assert.match(workflow, /options: \[full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, profile, drawers, none\]\s+default: full/);
+  assert.match(workflow, /options: \[full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, profile, drawers, image, none\]\s+default: full/);
   assert.match(workflow, /name: Verify targeted health release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'health'\s+run: npm run check:release:health/);
   assert(workflow.indexOf('run: npm run check:release:health') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:health', 'build']) assert(packageJson.scripts['check:release:health'].split(' && ').includes(`npm run ${command}`));
@@ -173,12 +174,34 @@ test("targeted snippet releases require an explicit manual choice and retain con
 test("manual branch audits run the full matrix without production deployment or cloud credentials", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
   assert(workflow.includes("group: ${{ github.ref == 'refs/heads/main' && 'rollapp-production-deploy' || format('rollapp-ui-audit-{0}', github.ref) }}"), "Read-only branch audits must not occupy the serialized production deployment queue");
-  const audit = workflow.split("  audit:\n")[1].split("  deploy:\n")[0];
+  const audit = workflow.split("  audit:\n")[1].split("  build-and-scan:\n")[0];
   assert.match(audit, /if: github.event_name == 'workflow_dispatch' && github.ref != 'refs\/heads\/main'/);
   assert.match(audit, /permissions:\s+contents: read\s+steps:/);
   assert.match(audit, /set -euo pipefail/);
   assert.match(audit, /npm run check:comprehensive/);
   assert.match(audit, /actions\/upload-artifact@v4/);
   assert.doesNotMatch(audit, /id-token: write|yc-actions|docker push|deploy-vm-metadata/);
-  assert.match(workflow, /  deploy:\s+if: github.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /  deploy:\s+if: github.ref == 'refs\/heads\/main' && inputs.verification != 'image'/);
+});
+
+test("release scans the saved image without OIDC and publishes only the verified artifact", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
+  const [buildAndScan, deploy] = workflow.split("\n  deploy:");
+  assert.match(buildAndScan, /\n  build-and-scan:\s+if: github.ref == 'refs\/heads\/main' \|\| \(github.event_name == 'workflow_dispatch' && inputs.verification == 'image'\)/);
+  assert.doesNotMatch(buildAndScan, /id-token:|YC_|docker push|continue-on-error/);
+  assert.match(buildAndScan, /docker save --output "\$RUNNER_TEMP\/rollapp-image\.tar"/);
+  const scan = buildAndScan.indexOf("./trivy image --scanners vuln --input rollapp-image.tar");
+  const upload = buildAndScan.indexOf("name: Upload scanned image");
+  assert(scan > buildAndScan.indexOf("docker save --output") && upload > scan);
+  assert.match(buildAndScan.slice(scan, upload), /--severity HIGH,CRITICAL --exit-on-eol 1/);
+  assert.match(buildAndScan.slice(scan, upload), /--severity CRITICAL --ignore-unfixed --exit-code 1/);
+  assert.match(deploy, /needs: build-and-scan/);
+  assert.match(deploy, /artifact-ids: \$\{\{ needs\.build-and-scan\.outputs\.artifact-id \}\}/);
+  assert.match(deploy, /digest-mismatch: error/);
+  assert.match(deploy, /EXPECTED_IMAGE_ID: \$\{\{ needs\.build-and-scan\.outputs\.image-id \}\}/);
+  assert.match(deploy, /"\$actual_id" != "\$EXPECTED_IMAGE_ID"/);
+  assert.match(deploy, /docker tag "\$actual_id" "\$IMAGE_SHA"/);
+  assert.doesNotMatch(deploy, /docker build/);
+  const verify = deploy.indexOf("name: Verify and tag scanned image");
+  assert(verify >= 0 && deploy.indexOf("run: docker push") > verify);
 });

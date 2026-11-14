@@ -6,14 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       verification:
-        description: "Release verification (targeted UI only when explicitly requested)"
+        description: "Release verification (image scans without deploying)"
         type: choice
-        options: [full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, profile, drawers, none]
+        options: [full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, profile, drawers, image, none]
         default: full
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: ${{ github.ref == 'refs/heads/main' && 'rollapp-production-deploy' || format('rollapp-ui-audit-{0}', github.ref) }}
@@ -22,18 +21,9 @@ concurrency:
   cancel-in-progress: false
   queue: max
 
-env:
-  YC_FOLDER_ID: b1gebpfrhvkd43r38q98
-  YC_DEPLOY_SA_ID: ajea75b2e3r8kiigmice
-  YC_RUNTIME_SA_ID: ajers2ngi708sf3i1t4g
-  YC_REGISTRY_ID: crpvg7pqnbpjl26q93f6
-  YC_VM_ID: fv4chl6pdb4lnhsj7139
-  IMAGE_REPOSITORY: cr.yandex/crpvg7pqnbpjl26q93f6/rollapp
-  PUBLIC_URL: https://xn--80avakiab.xn--p1ai
-
 jobs:
   audit:
-    if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && inputs.verification != 'none'
+    if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && inputs.verification != 'none' && inputs.verification != 'image'
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     permissions:
@@ -80,21 +70,25 @@ jobs:
             /tmp/rollapp-snippets/*.json
             /tmp/rollapp-snippets/*failure*.png
 
-  deploy:
-    if: github.ref == 'refs/heads/main'
+  build-and-scan:
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.verification == 'image')
     runs-on: ubuntu-24.04
     # The last complete release took 155 minutes; coverage has grown since then.
     # Preserve every assertion and allow headroom for the full browser matrices.
     timeout-minutes: 240
+    outputs:
+      artifact-id: ${{ steps.upload-image.outputs.artifact-id }}
+      image-id: ${{ steps.build-image.outputs.image-id }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
           cache: npm
@@ -107,10 +101,10 @@ jobs:
         run: npx playwright-core install --with-deps webkit
 
       - name: Install video encoder
-        if: github.event_name != 'workflow_dispatch' || (inputs.verification != 'none' && inputs.verification != 'drawers')
+        if: github.event_name != 'workflow_dispatch' || (inputs.verification != 'none' && inputs.verification != 'drawers' && inputs.verification != 'image')
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install pinned blockchain receipt codec
-        if: github.event_name != 'workflow_dispatch' || (inputs.verification != 'none' && inputs.verification != 'drawers')
+        if: github.event_name != 'workflow_dispatch' || (inputs.verification != 'none' && inputs.verification != 'drawers' && inputs.verification != 'image')
         run: |
           python3 -m venv "$RUNNER_TEMP/rollapp-ots"
           "$RUNNER_TEMP/rollapp-ots/bin/pip" install -r server/requirements/opentimestamps.txt
@@ -128,9 +122,9 @@ jobs:
 
       - name: Preserve complete release verification
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-audit-${{ github.sha }}
+          name: release-audit-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/rollapp-comprehensive.json
             ${{ runner.temp }}/rollapp-comprehensive.log
@@ -172,19 +166,108 @@ jobs:
 
       - name: Record explicit deployment without tests
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'none'
-        run: echo "Tests skipped by explicit user request; Docker build, schema verify and exact-SHA health remain."
+        run: echo "Tests skipped by explicit user request; Docker build, Trivy, schema verify and exact-SHA health remain."
+
+      - name: Build release image
+        id: build-image
+        run: |
+          set -euo pipefail
+          image="rollapp-release:${GITHUB_SHA}"
+          docker build --pull --platform linux/amd64 --tag "$image" .
+          docker image inspect --format 'image-id={{.Id}}' "$image" >> "$GITHUB_OUTPUT"
+          docker save --output "$RUNNER_TEMP/rollapp-image.tar" "$image"
+
+      - name: Install and run Trivy
+        env:
+          TRIVY_VERSION: '0.76.2'
+          TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          archive="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 --max-time 120 \
+            --output "$archive" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${archive}"
+          printf '%s  %s\n' "$TRIVY_SHA256" "$archive" | sha256sum --check --strict
+          tar -xzf "$archive" trivy
+
+          ./trivy image --scanners vuln --input rollapp-image.tar --timeout 10m \
+            --severity HIGH,CRITICAL --exit-on-eol 1 --table-mode detailed --no-progress --skip-version-check
+          ./trivy image --scanners vuln --input rollapp-image.tar --timeout 10m \
+            --severity CRITICAL --ignore-unfixed --exit-code 1 --table-mode detailed --no-progress --skip-version-check
+
+      - name: Upload scanned image
+        id: upload-image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rollapp-release-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/rollapp-image.tar
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 1
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && inputs.verification != 'image'
+    needs: build-and-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      YC_FOLDER_ID: b1gebpfrhvkd43r38q98
+      YC_DEPLOY_SA_ID: ajea75b2e3r8kiigmice
+      YC_RUNTIME_SA_ID: ajers2ngi708sf3i1t4g
+      YC_REGISTRY_ID: crpvg7pqnbpjl26q93f6
+      YC_VM_ID: fv4chl6pdb4lnhsj7139
+      IMAGE_REPOSITORY: cr.yandex/crpvg7pqnbpjl26q93f6/rollapp
+      PUBLIC_URL: https://xn--80avakiab.xn--p1ai
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install runtime dependencies
+        run: npm ci --omit=dev --ignore-scripts
+
+      - name: Download scanned image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build-and-scan.outputs.artifact-id }}
+          path: ${{ runner.temp }}
+          digest-mismatch: error
+
+      - name: Verify and tag scanned image
+        env:
+          EXPECTED_IMAGE_ID: ${{ needs.build-and-scan.outputs.image-id }}
+          IMAGE_SHA: ${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          image="rollapp-release:${GITHUB_SHA}"
+          docker load --input "$RUNNER_TEMP/rollapp-image.tar"
+          actual_id="$(docker image inspect --format '{{.Id}}' "$image")"
+          if [[ ! "$EXPECTED_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ || "$actual_id" != "$EXPECTED_IMAGE_ID" ]]; then
+            echo '::error::Loaded image ID differs from the scanned image ID'
+            exit 1
+          fi
+          docker tag "$actual_id" "$IMAGE_SHA"
 
       - name: Log in to Yandex Container Registry via OIDC
-        uses: yc-actions/yc-cr-login@v3
+        uses: yc-actions/yc-cr-login@ee42362bcacb854964afa3a3180ca8ae6dd388f8 # v3.0.2
         with:
           yc-sa-id: ${{ env.YC_DEPLOY_SA_ID }}
 
-      - name: Build and push immutable image
+      - name: Push scanned image
         env:
           IMAGE_SHA: ${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
-        run: |
-          docker build --platform linux/amd64 --tag "$IMAGE_SHA" .
-          docker push "$IMAGE_SHA"
+        run: docker push "$IMAGE_SHA"
 
       - name: Exchange GitHub OIDC token for Yandex IAM token
         shell: bash

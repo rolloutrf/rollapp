@@ -32,7 +32,9 @@ RUN apk add --no-cache caddy chromium ffmpeg su-exec tini xvfb-run \
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts \
-  && npm cache clean --force
+  && npm cache clean --force \
+  && rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --from=build /app/dist ./dist
 COPY server ./server
