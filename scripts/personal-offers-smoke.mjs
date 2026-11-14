@@ -14,6 +14,34 @@ async function checkSphereCatalog(page, sphere, section) {
   const catalog = page.getByRole("link", { name: "Открыть каталог брендов" });
   await catalog.waitFor();
   assert.deepEqual(await catalog.evaluate(link => [link.offsetWidth, link.offsetHeight]), [48, 48]);
+  if (sphere === "career" && section === "contacts") {
+    const rail = page.getByRole("navigation", { name: "Бизнес-разделы", exact: true });
+    const store = rail.getByRole("link", { name: "Открыть магазин за роллы", exact: true });
+    assert.equal(await catalog.count(), 1);
+    assert.deepEqual(await rail.getByRole("link").evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), [
+      "Открыть каталог брендов", "Открыть магазин за роллы",
+    ]);
+    assert.equal(await catalog.getAttribute("href"), "/app/spheres/career/business/catalog?tab=contacts");
+    assert.equal(await store.getAttribute("href"), "/app/spheres/career/business/store");
+    const [catalogBox, storeBox] = await Promise.all([catalog.boundingBox(), store.boundingBox()]);
+    assert.deepEqual([storeBox.width, storeBox.height], [48, 48]);
+    assert.equal(catalogBox.y, storeBox.y);
+    assert.equal(storeBox.x - (catalogBox.x + catalogBox.width), 8);
+    assert.equal((catalogBox.x + storeBox.x + storeBox.width) / 2, (await page.viewportSize()).width / 2);
+    const { width, height } = page.viewportSize();
+    if ((width === 390 && height === 844) || width === 1440) {
+      await page.getByRole("group", { name: "Действия с контактами", exact: true }).screenshot({
+        path: `${output}/contacts-catalog-store-${width}.png`,
+        animations: "disabled",
+      });
+    }
+    await store.click();
+    await page.waitForURL(url => url.pathname === "/app/spheres/career/business/store");
+    await page.getByText("В магазине пока пусто").waitFor();
+    await page.goBack();
+    await page.waitForURL(url => url.pathname === "/app/spheres/career" && url.searchParams.get("tab") === section);
+    await catalog.waitFor();
+  }
   await catalog.click();
   await page.waitForURL(url => url.pathname.endsWith("/business/catalog") && url.searchParams.get("tab") === section);
   const subscribe = page.getByRole("button", { name: "Подписаться · Партнёр сферы" });

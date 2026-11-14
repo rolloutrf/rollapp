@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Coins, Image as ImageIcon, Package, Store } from "lucide-react";
+import { Coins, Image as ImageIcon, Package, ShoppingBag, Store } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api.js";
 import { businessMarketplacePath } from "@/lib/app-routing.js";
@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ControlBar } from "@/components/control-bar";
 import { WishlistSnippet } from "@/components/wishlist-snippet";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { PersonalOfferComposer } from "@/components/personal-offers";
@@ -24,15 +25,21 @@ function initials(value = "") {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
-export function SphereBusinessControls({ sphereId }) {
+export function SphereBusinessControls({ sphereId, catalogPath }) {
   const storePath = businessMarketplacePath(sphereId);
   if (!storePath) return null;
+  const controlClass = buttonVariants({ variant: "outline", size: "icon" });
   return (
-    <nav className="sphere-business-controls horizontal-action-scroller" aria-label="Бизнес-разделы">
-      <Link className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })} to={storePath} aria-label="Открыть магазин за роллы" title="Магазин за роллы">
+    <ControlBar as="nav" className="sphere-business-controls horizontal-action-scroller" aria-label="Бизнес-разделы">
+      {catalogPath && (
+        <Link to={catalogPath} data-control-icon className={controlClass} aria-label="Открыть каталог брендов" title="Каталог брендов">
+          <ShoppingBag aria-hidden="true" />
+        </Link>
+      )}
+      <Link to={storePath} data-control-icon className={controlClass} aria-label="Открыть магазин за роллы" title="Магазин за роллы">
         <Store aria-hidden="true" />
       </Link>
-    </nav>
+    </ControlBar>
   );
 }
 

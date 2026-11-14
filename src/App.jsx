@@ -2718,10 +2718,14 @@ function LegacyContactsRedirect() {
 }
 
 function ContactsProfileControls() {
+  const user = useSession()?.user;
+  const access = useSphereSharing();
+  const location = useLocation();
+  const catalogPath = ownedSphereCatalogPath(user, access, location);
   return (
     <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
-        <SphereBusinessControls sphereId="career" />
+        <SphereBusinessControls sphereId="career" catalogPath={catalogPath} />
       </div>
     </section>
   );
@@ -3425,6 +3429,16 @@ function SphereSharePicker({ open, onOpenChange }) {
   );
 }
 
+function ownedSphereCatalogPath(user, access, location) {
+  const params = new URLSearchParams(location.search);
+  if ((access.active && !access.isOwner) || access.error || user?.accountType !== "personal" || !canAccessPrivateSpheres(user)
+    || params.has("owner") || location.pathname.includes("/business/")) return null;
+  const identityReports = location.pathname === "/app/spheres/identity" && params.get("tab") === "identity-reports";
+  return identityReports
+    ? sphereBusinessCatalogPath("identity", "identity-reports")
+    : sphereBusinessCatalogPath(access.sphere, access.section);
+}
+
 function PersistentProfileHero({ user, wishlistChrome = false }) {
   const { openProfileEditor } = useProfileEditor();
   const location = useLocation();
@@ -3435,12 +3449,9 @@ function PersistentProfileHero({ user, wishlistChrome = false }) {
     : user;
   const moodLevel = profile.id === user.id ? user.moodLevel ?? user.publicMood : profile.publicMood;
   const editable = !access.active || access.isOwner;
-  const params = new URLSearchParams(location.search);
-  const identityReports = location.pathname === "/app/spheres/identity" && params.get("tab") === "identity-reports";
-  const catalogPath = editable && !access.error && user.accountType === "personal" && canAccessPrivateSpheres(user) &&
-    !params.has("owner") && !location.pathname.includes("/business/")
-    ? identityReports ? sphereBusinessCatalogPath("identity", "identity-reports") : sphereBusinessCatalogPath(access.sphere, access.section)
-    : null;
+  const catalogPath = access.sphere === "career" && access.section === "contacts"
+    ? null
+    : ownedSphereCatalogPath(user, access, location);
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className="wishes-page__identity wishes-page__identity--readonly">
