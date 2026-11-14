@@ -459,7 +459,8 @@ try {
   assert((await planEditor.textContent()).includes("Исправленный пункт"));
   await page.goto(`${origin}/__text-edit?add=1`);
   await textbox.waitFor();
-  await page.getByRole("button", { name: "Добавить", exact: true }).click();
+  const addBlock = page.locator("[data-add-fab]").getByRole("button", { name: "Добавить блок", exact: true });
+  await addBlock.click();
   await page.waitForFunction(() => document.activeElement?.getAttribute("contenteditable") === "true");
   await page.keyboard.insertText("Новый вопрос");
   await textbox.getByRole("heading", { name: "Новый вопрос", level: 3 }).waitFor();
