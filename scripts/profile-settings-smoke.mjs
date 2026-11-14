@@ -160,21 +160,71 @@ try {
     await page.getByRole("heading", { name: "Инвайты", exact: true }).waitFor();
     const inviteEmail = page.getByRole("textbox", { name: "Email получателя" });
     const sendInvite = button("Отправить приглашение");
-    await inviteEmail.fill("alice@example.com");
+    await page.getByText("previous-19@example.com", { exact: true }).waitFor();
+    const inviteFooter = sendInvite.locator("xpath=ancestor::*[@data-control-bar][1]");
+    assert.equal(await inviteFooter.getAttribute("data-native-form-actions") !== null, mobile);
+    const inviteAction = () => sendInvite.evaluate((element) => {
+      const { x, y, width, height, bottom } = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const email = element.form?.querySelector("#account-invite-email");
+      return {
+        x, y, width, height, bottom, radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius],
+        ownsField: Boolean(email), card: Boolean(email?.closest('[data-slot="card"]')),
+        insideScroll: Boolean(element.closest('[data-slot="scroll-area-viewport"]')),
+        reachable: element.contains(document.elementFromPoint(x + width / 2, y + height / 2)),
+      };
+    });
+    const initialInviteAction = await inviteAction();
+    assert.equal(initialInviteAction.height, 48);
+    assert.deepEqual(initialInviteAction.radii, Array(4).fill("24px"));
+    assert(initialInviteAction.ownsField && !initialInviteAction.card && !initialInviteAction.insideScroll && initialInviteAction.reachable);
+    assert(initialInviteAction.bottom <= height && height - initialInviteAction.bottom <= 40);
+    if (mobile) assert.equal(initialInviteAction.y, (await back.boundingBox()).y);
     await sendInvite.click();
+    assert.equal(await page.evaluate(() => window.inviteRequests || 0), 0);
+    await inviteEmail.fill("alice@example.com");
+    await inviteEmail.press("Enter");
     await page.getByRole("alert").filter({ hasText: "Отправка временно недоступна" }).waitFor();
+    assert.equal(await inviteEmail.inputValue(), "alice@example.com");
     await sendInvite.click();
     await page.getByText("alice@example.com", { exact: true }).waitFor();
     assert.equal(await inviteEmail.inputValue(), "");
-    const inviteAction = await sendInvite.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return [element.getBoundingClientRect().height, parseFloat(style.borderTopLeftRadius)];
-    });
-    assert.equal(inviteAction[0], 48);
-    assert(inviteAction[1] >= 24);
     await inviteEmail.fill("bob@example.com");
     await sendInvite.click();
     await page.getByText("bob@example.com", { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.inviteRequests), 3);
+    if (height < 500) {
+      const lastInvite = page.getByRole("list", { name: "Приглашения", exact: true }).getByRole("listitem").last();
+      const scroll = (top) => lastInvite.evaluate((node, top) => {
+        const scroller = node.closest('[data-slot="drawer-popup"] [data-slot="scroll-area-viewport"]') || document.scrollingElement;
+        scroller.scrollTo({ top, behavior: "instant" });
+        return scroller.scrollTop;
+      }, top);
+      assert(await scroll(10_000) > 0);
+      assert.deepEqual(await inviteAction(), initialInviteAction);
+      const row = await lastInvite.boundingBox();
+      assert(row.y + row.height <= initialInviteAction.y + 1);
+      await scroll(0);
+      assert.deepEqual(await inviteAction(), initialInviteAction);
+      if (mobile) {
+        await inviteEmail.focus();
+        await page.evaluate(() => {
+          Object.defineProperties(visualViewport, { height: { configurable: true, value: 280 }, offsetTop: { configurable: true, value: 40 } });
+          visualViewport.dispatchEvent(new Event("resize"));
+        });
+        await page.waitForFunction(() => document.documentElement.hasAttribute("data-overlay-keyboard"));
+        const keyboardAction = await inviteAction();
+        assert(keyboardAction.y >= 40 && keyboardAction.bottom <= 320 && keyboardAction.reachable);
+        assert.equal(keyboardAction.y, (await back.boundingBox()).y);
+        await page.evaluate(() => {
+          delete visualViewport.height;
+          delete visualViewport.offsetTop;
+          visualViewport.dispatchEvent(new Event("resize"));
+        });
+        await page.waitForFunction(() => !document.documentElement.hasAttribute("data-overlay-keyboard"));
+        assert.deepEqual(await inviteAction(), initialInviteAction);
+      }
+    }
     await page.screenshot({ path: `/tmp/rollapp-profile-invites-${width}x${height}.png` });
     await back.click();
     await menu.waitFor();

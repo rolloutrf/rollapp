@@ -95,7 +95,7 @@ import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
 import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
-import { ProfileInvites } from "@/components/profile-invites";
+import { InvitesManager } from "@/components/invites-manager";
 import { ProfileAccounts } from "@/components/profile-accounts";
 import { ProfileMcpKeys } from "@/components/profile-mcp-keys";
 import { PrivateNotes, PrivateNotesLink, PRIVATE_NOTES_PATH } from "@/components/private-notes";
@@ -7851,7 +7851,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
     </form>
   ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded onWishlistsImported={onWishlistsImported} />
     : section === "gift-cards" ? <ProfileGiftCards key={user.id} user={user} onNavigate={leaveSettingsFor} />
-    : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="grid gap-3 px-4 pt-4">
+    : section === "yandex" ? <div className="grid gap-3 px-4 pt-4">
     <Card className="grid gap-3 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -7934,6 +7934,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
     || openRouterSection
     || (section === "mood" && <ProfileMoodSettings user={user} onSaved={onMoodSaved} onBusyChange={setMoodBusy} />)
     || (section === "mcp" && <ProfileMcpKeys key={user.id} onBusyChange={setMcpKeysBusy} />)
+    || (section === "invites" && <InvitesManager key={user.id} />)
     || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);
   const sectionOwnsScroll = Boolean(desktopSection && (fullSection || desktopSection === "rolls"));
   return <>

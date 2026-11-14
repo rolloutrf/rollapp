@@ -15,7 +15,9 @@ sessionStorage.setItem(`rollapp:virtual-card-sandbox:${fixtureUser.id}:legacy-fu
   initialBalance: 200, balance: 150, purchases: [{ id: "fixture-purchase", merchant: "Магазин", amount: 50 }],
 }));
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
-let invites = [];
+let invites = Array.from({ length: 20 }, (_, index) => ({
+  id: `old-${index}`, email: `previous-${index}@example.com`, status: "sent", expiresAt: "2026-11-17T00:00:00.000Z",
+}));
 let mcpKeys = [];
 let diskSync = { connected: true, hasNotes: true, enabled: false, pending: false, running: false, lastCompletedAt: null, error: null };
 window.completeDiskSync = () => {
