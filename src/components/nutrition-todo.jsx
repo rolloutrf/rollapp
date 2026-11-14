@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { ArrowUp, Plus, Trash2 } from "lucide-react";
-import { ControlBar } from "@/components/control-bar";
+import { ComposerField } from "@/components/composer-field";
 import { HealthDayNavigation } from "@/components/health-day-navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
+import { InputGroupTextarea } from "@/components/ui/input-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MEAL_TYPES } from "../../shared/health-trackers.js";
 
@@ -85,10 +85,12 @@ export function NutritionTodo({ entries, selected, today, onDateChange, canEdit,
       {showComposer && <footer className="daily-todo__footer nutrition-todo__footer" ref={footer}>
         <form className="daily-todo__composer" onSubmit={add}>
           {error?.date === selected && <p role="alert" className="text-destructive">{error.message}</p>}
-          <InputGroup className="daily-todo__composer-input">
+          <ComposerField className="daily-todo__composer-input" actions={<>
+            <Button data-control-icon type="button" variant="outline" size="icon" aria-label="Добавить приём пищи" disabled={busy} onClick={create}><Plus /></Button>
+            <Button data-control-icon type="submit" size="icon" aria-label="Добавить в список питания" disabled={busy || !title.trim()}><ArrowUp /></Button>
+          </>}>
             <InputGroupTextarea value={title} onChange={event => { setDraft({ date: selected, title: event.target.value }); setError(null); }} rows={1} maxLength={200} disabled={busy} placeholder="Новый приём пищи на этот день" aria-label="Новый приём пищи на этот день" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} />
-            <InputGroupAddon align="block-end" className="daily-todo__composer-addon"><ControlBar className="daily-todo__composer-actions"><Button data-control-icon type="button" variant="outline" size="icon" aria-label="Добавить приём пищи" disabled={busy} onClick={create}><Plus /></Button><Button data-control-icon type="submit" size="icon" aria-label="Добавить в список питания" disabled={busy || !title.trim()}><ArrowUp /></Button></ControlBar></InputGroupAddon>
-          </InputGroup>
+          </ComposerField>
         </form>
       </footer>}
     </div>

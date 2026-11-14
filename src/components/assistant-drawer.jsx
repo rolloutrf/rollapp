@@ -268,7 +268,7 @@ function AssistantConversation({ workspace, open, heading, onReviewWish, onWishl
         {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
         {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
       </div>
-      <MessageComposer inputRef={input} placeholder="Сообщение…" draft={chat.draft} onDraftChange={setDraft}
+      <MessageComposer stacked inputRef={input} placeholder="Сообщение…" draft={chat.draft} onDraftChange={setDraft}
         suggestedDraft={open && !chat.messages.length ? ASSISTANT_PRODUCT_EXAMPLE : undefined}
         sending={chat.sending} disabled={voice.active} onSubmit={submit}
         extraAction={<Button type="button" data-control-icon size="icon" variant={voice.active ? 'default' : 'outline'}

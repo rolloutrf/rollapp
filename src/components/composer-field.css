@@ -1,0 +1,26 @@
+.composer-field {
+  align-items: stretch;
+  border-radius: calc(var(--layout-control-size) / 2);
+  background-color: var(--card);
+  opacity: 1;
+}
+
+.composer-field > textarea {
+  min-width: 0;
+  max-block-size: 10rem;
+  padding: var(--layout-item-gap);
+  overflow-y: auto;
+}
+
+.composer-field__addon {
+  padding: 0 var(--layout-item-gap) var(--layout-item-gap);
+}
+
+.composer-field__actions {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--layout-inline-gap);
+}

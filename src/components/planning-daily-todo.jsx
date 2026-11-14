@@ -4,10 +4,11 @@ import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { AddFab } from "@/components/add-fab";
+import { ComposerField } from "@/components/composer-field";
 import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
+import { InputGroupTextarea } from "@/components/ui/input-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { RelatedChoiceCard } from "@/components/planning-related-card";
@@ -94,7 +95,10 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate, cr
         </ControlBar> : <>
         {error && <p className="daily-todo__error" role="alert">{error}</p>}
         <form className="daily-todo__composer" onSubmit={add}>
-          <InputGroup className="daily-todo__composer-input" aria-label="Новая задача">
+          <ComposerField className="daily-todo__composer-input" aria-label="Новая задача" actions={<>
+            <Button data-control-icon variant="outline" type="button" size="icon" aria-label="Добавить связанные объекты" title="Добавить связанные объекты" disabled={busy} onClick={() => onCreate(selected, nextCalendarTaskStart(expanded, selected), { title, relatedItems, openRelated: true, relatedOnly: true, onRelatedSelected: (items) => setRelatedDraft({ owner: composerOwner, items }) })}><Plus aria-hidden="true" /></Button>
+            <Button data-control-icon type="submit" size="icon" aria-label="Добавить задачу" title="Добавить задачу" disabled={busy || !title.trim()}><ArrowUp aria-hidden="true" /></Button>
+          </>}>
             <InputGroupTextarea className="field-sizing-fixed resize-none" rows={1} value={title} onChange={(event) => { setTitle(event.target.value); if (error) setError(""); }} onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
                 event.preventDefault();
@@ -104,13 +108,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate, cr
             {relatedItems.length > 0 && <div className="daily-todo__composer-related planning-related__selected" aria-label="Связанные объекты новой задачи">
               {relatedItems.map((item) => <RelatedChoiceCard key={`${item.kind}:${item.id}`} item={item} selected removable preview disabled={busy} onToggle={() => setRelatedDraft({ owner: composerOwner, items: relatedItems.filter((current) => current.kind !== item.kind || current.id !== item.id) })} />)}
             </div>}
-            <InputGroupAddon align="block-end" className="daily-todo__composer-addon">
-              <ControlBar className="daily-todo__composer-actions">
-                <Button data-control-icon variant="outline" type="button" size="icon" aria-label="Добавить связанные объекты" title="Добавить связанные объекты" disabled={busy} onClick={() => onCreate(selected, nextCalendarTaskStart(expanded, selected), { title, relatedItems, openRelated: true, relatedOnly: true, onRelatedSelected: (items) => setRelatedDraft({ owner: composerOwner, items }) })}><Plus aria-hidden="true" /></Button>
-                <Button data-control-icon type="submit" size="icon" aria-label="Добавить задачу" title="Добавить задачу" disabled={busy || !title.trim()}><ArrowUp aria-hidden="true" /></Button>
-              </ControlBar>
-            </InputGroupAddon>
-          </InputGroup>
+          </ComposerField>
         </form>
         </>}
       </div>

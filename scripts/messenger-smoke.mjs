@@ -229,6 +229,36 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   assert.equal(await chat.getByText(/Ctrl\/⌘ \+ Enter — отправить/).count(),0);
   assert.equal(await chat.getByRole('checkbox').count(),0);
   assert.equal(await chat.getByText('Учесть моё планирование',{exact:true}).count(),0);
+  await page.evaluate(() => document.fonts.ready);
+  const composerLayout = () => text.evaluate(node => {
+    const field = node.closest('[data-slot="input-group"]');
+    const bar = field?.querySelector('[data-align="block-end"] [data-control-bar]');
+    const mic = bar?.querySelector('button[type="button"]');
+    const send = bar?.querySelector('button[type="submit"]');
+    const box = element => element.getBoundingClientRect();
+    const hasVisibleShadow = element => /-?[1-9]\d*(?:\.\d+)?px/.test(getComputedStyle(element).boxShadow);
+    return {
+      field: box(field).toJSON(), text: box(node).toJSON(), mic: box(mic).toJSON(), send: box(send).toJSON(),
+      radius: getComputedStyle(field).borderRadius, opacity: getComputedStyle(field).opacity,
+      ownBorder: getComputedStyle(node).borderTopWidth, ownShadow: hasVisibleShadow(node), groupShadow: hasVisibleShadow(field),
+      sameForm: mic.form === node.form && send.form === node.form,
+      arrow: Boolean(send.querySelector('.lucide-arrow-up')),
+    };
+  });
+  await text.focus();
+  const layout = await composerLayout();
+  assert.equal(layout.radius, '24px');
+  assert.equal(layout.opacity, '1', 'Disabled send must not fade the composer');
+  assert.equal(layout.ownBorder, '0px');
+  assert(!layout.ownShadow && layout.groupShadow, 'Focus must frame the shared surface');
+  assert(layout.sameForm && layout.arrow);
+  assert.equal(layout.mic.width, 48);
+  assert.equal(layout.mic.height, 48);
+  assert.equal(layout.mic.y, layout.send.y);
+  assert(layout.text.bottom <= layout.mic.top && layout.send.bottom < layout.field.bottom);
+  assert.equal(layout.mic.left - layout.field.left, layout.field.right - layout.send.right);
+  assert(layout.send.left - layout.mic.right > 8, 'Controls must sit at opposite sides');
+  await conversationHeading.focus();
   if (width===320 || width===1440) await page.screenshot({path:`/tmp/rollapp-assistant-empty-${width}-${height}.png`});
   await checkDictation(page, chat, text, send, conversationHeading, close, resume);
   assert.equal(await send.isDisabled(),true);
@@ -320,8 +350,10 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
       visualViewport.dispatchEvent(new Event('resize'));
     });
     await page.waitForFunction(()=>document.documentElement.hasAttribute('data-overlay-keyboard'));
-    const panned=await send.boundingBox();
-    assert(panned.y>=50 && panned.y+panned.height<=310,`Assistant composer escaped panned viewport: ${JSON.stringify(panned)}`);
+    const panned = await composerLayout();
+    assert(panned.field.top >= 50 && panned.field.bottom <= 310, 'Composer escaped the panned viewport');
+    assert.equal(panned.text.height, 48, 'Long draft must leave room for history when the keyboard opens');
+    assert(await chat.getByRole('log').evaluate(node => node.clientHeight > 0));
     await page.evaluate(()=>{
       delete visualViewport.height;
       delete visualViewport.offsetTop;
@@ -844,12 +876,6 @@ async function checkAssistantAccountSwitch(page, chat) {
 
 async function checkDictation(page, chat, text, send, conversationHeading, close, resume) {
   const mic=chat.getByRole('button',{name:'Диктовка',exact:true});
-  const micBounds=await mic.boundingBox();
-  const sendBounds=await send.boundingBox();
-  assert.equal(micBounds.width,48);
-  assert.equal(micBounds.height,48);
-  assert.equal(micBounds.y,sendBounds.y);
-  assert.equal(sendBounds.x-micBounds.x-micBounds.width,8);
   await page.keyboard.press('Space');
   assert.equal(await mic.getAttribute('aria-pressed'),'true');
   assert.equal(await page.evaluate(()=>window.messengerTest.speech.lang),'ru-RU');

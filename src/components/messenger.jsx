@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, MessageCircle, Search, Send, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, MessageCircle, Search, Send, X } from 'lucide-react';
 import { ASSISTANT_MESSAGE_LIMIT } from '../../shared/messenger-assistant.js';
 import { api } from '../api.js';
+import { ComposerField } from './composer-field';
 import { ControlBar } from './control-bar';
 import { Button } from './ui/button';
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from './ui/input';
+import { InputGroupTextarea } from './ui/input-group';
 import { Textarea } from './ui/textarea';
 import './messenger.css';
 
@@ -292,8 +294,10 @@ function Conversation({ id, user, peer: initialPeer, transport, drafts, onChange
   </section>;
 }
 
-export function MessageComposer({ inputRef, placeholder = 'Напишите сообщение…', suggestedDraft, draft, sending, sendError, disabled, onSubmit, onDraftChange, extraAction, status }) {
+export function MessageComposer({ inputRef, placeholder = 'Напишите сообщение…', suggestedDraft, draft, sending, sendError, disabled, onSubmit, onDraftChange, extraAction, status, stacked = false }) {
   const showSuggestion = Boolean(suggestedDraft && !draft && !sending && !disabled);
+  const MessageInput = stacked ? InputGroupTextarea : Textarea;
+  const SendIcon = stacked ? ArrowUp : Send;
 
   function handleKeyDown(event) {
     if (event.nativeEvent.isComposing || event.shiftKey) return;
@@ -306,18 +310,24 @@ export function MessageComposer({ inputRef, placeholder = 'Напишите со
     }
   }
 
-  return <form className="messenger-composer" onSubmit={event => {
+  const field = <MessageInput ref={inputRef} id="messenger-text" placeholder={showSuggestion ? suggestedDraft : placeholder} rows={1}
+    maxLength={ASSISTANT_MESSAGE_LIMIT} value={draft} readOnly={sending} aria-busy={sending}
+    aria-describedby={showSuggestion ? 'messenger-suggestion-hint' : undefined} aria-keyshortcuts={showSuggestion ? 'Tab' : undefined}
+    onChange={event => onDraftChange(event.target.value)} onKeyDown={handleKeyDown} />;
+  const actions = <>{extraAction}<Button type="submit" data-control-icon size="icon" aria-label={sending ? 'Отправляем сообщение' : 'Отправить сообщение'}
+    disabled={sending || disabled || !draft.trim()}><SendIcon aria-hidden="true" /></Button></>;
+
+  return <form className="messenger-composer" data-stacked={stacked || undefined} onSubmit={event => {
     if (disabled) event.preventDefault();
     else onSubmit(event);
   }} aria-label="Новое сообщение">
       {sendError && <div className="messenger-send-error" role="alert">{sendError} Текст сохранён — попробуйте отправить снова.</div>}
       <label htmlFor="messenger-text" className="sr-only">Сообщение</label>
       {showSuggestion && <span id="messenger-suggestion-hint" className="sr-only">Нажмите Tab, чтобы вставить пример сообщения.</span>}
-      <Textarea ref={inputRef} id="messenger-text" placeholder={showSuggestion ? suggestedDraft : placeholder} rows={1}
-        maxLength={ASSISTANT_MESSAGE_LIMIT} value={draft} readOnly={sending} aria-busy={sending}
-        aria-describedby={showSuggestion ? 'messenger-suggestion-hint' : undefined} aria-keyshortcuts={showSuggestion ? 'Tab' : undefined}
-        onChange={event => onDraftChange(event.target.value)} onKeyDown={handleKeyDown} />
-      <ControlBar className="messenger-composer-actions">{extraAction}<Button type="submit" data-control-icon size="icon" aria-label={sending ? 'Отправляем сообщение' : 'Отправить сообщение'} disabled={sending || disabled || !draft.trim()}><Send aria-hidden="true" /></Button></ControlBar>
+      {stacked ? <ComposerField actions={actions}>{field}</ComposerField> : <>
+        {field}
+        <ControlBar className="messenger-composer-actions">{actions}</ControlBar>
+      </>}
       {status}
   </form>;
 }

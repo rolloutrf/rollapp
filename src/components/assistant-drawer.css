@@ -9,10 +9,6 @@
   flex-shrink: 0;
 }
 
-.assistant-drawer .messenger-composer textarea { background-color: var(--card); }
-.assistant-drawer .messenger-composer textarea[aria-keyshortcuts="Tab"] {
-  max-height: calc(112px + var(--text-rollapp-body--line-height));
-}
 .assistant-drawer__voice-status {
   grid-column: 1 / -1;
   color: var(--muted-foreground);
@@ -23,8 +19,9 @@
 @media (max-width: 767px) {
   :root[data-overlay-keyboard] .assistant-drawer .messenger-composer { padding-block-end: var(--layout-inline-gap); }
 
-  :root[data-overlay-keyboard] .assistant-drawer .messenger-composer textarea {
-    max-height: var(--layout-control-size);
+  :root[data-overlay-keyboard] .assistant-drawer .composer-field > textarea {
+    min-block-size: var(--layout-control-size);
+    max-block-size: var(--layout-control-size);
     padding-block: var(--layout-inline-gap);
   }
 }

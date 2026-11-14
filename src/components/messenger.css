@@ -30,7 +30,8 @@
 .messenger-message p { white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; }
 .messenger-message time { display: block; text-align: end; opacity: .7; margin-block-start: 4px; }
 .messenger-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--layout-inline-gap); padding: var(--layout-item-gap); border-top: 1px solid var(--border); flex-shrink: 0; }
-.messenger-composer textarea { min-height: var(--layout-control-size); max-height: 112px; resize: none; }
+.messenger-composer[data-stacked] { grid-template-columns: minmax(0, 1fr); }
+.messenger-composer > textarea { min-height: var(--layout-control-size); max-height: 112px; resize: none; }
 .messenger-composer-actions { display: flex; gap: var(--layout-inline-gap); }
 .messenger-composer-hint { grid-column: 1 / -1; color: var(--muted-foreground); }
 .messenger-assistant-message { display: grid; gap: var(--layout-item-gap); flex-shrink: 0; }
