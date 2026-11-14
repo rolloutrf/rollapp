@@ -5,6 +5,7 @@ import { MobileFormPages } from "@/components/mobile-form-pages";
 import { api } from "@/api";
 import App, { PersistentProfileHero, ProfileEditorProvider, SessionProvider, ToastContext, useSession } from "@/App.jsx?profile-mood-smoke";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
+import { highlightedMood } from "../../shared/profile-mood.js";
 import "../../src/styles.css";
 import "../../src/index.css";
 
@@ -37,7 +38,7 @@ api.get = async (path) => {
     return { user: guest ? null : { ...userBase, moodLevel: level, publicMood } };
   }
   if (guest && path === "/profile/mood-owner") return {
-    profile: { ...userBase, publicMood: params.has("published") ? 5 : null },
+    profile: { ...userBase, publicMood: params.has("neutral") ? 3 : params.has("published") ? 5 : null },
     lists: [], wishes: [], groups: [], isOwner: false, followersCount: 0, followingCount: 0,
   };
   const url = new URL(path, location.origin);
@@ -50,7 +51,7 @@ api.patch = async (path, payload) => {
   window.__moodSaves.push(payload);
   if (errorOnSave) { errorOnSave = false; throw new Error("Не удалось сохранить отметку"); }
   if (payload.entry) entries = [{ id: String(++previousId), level: payload.entry.level, recordedAt: "2026-11-13T10:30:00Z" }, ...entries];
-  published = payload.published;
+  published = highlightedMood(payload.entry.level) !== null;
   sessionStorage.setItem("profile-mood-fixture", JSON.stringify({ entries, published }));
   return snapshot();
 };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { moodAt } from "../shared/profile-mood.js";
+import { highlightedMood, moodAt } from "../shared/profile-mood.js";
 
 const PAGE_SIZE = 20;
 const maxCursor = 9223372036854775807n;
@@ -8,12 +8,12 @@ const cursorSchema = z.string().regex(/^[1-9]\d{0,18}$/)
 
 export const moodQuerySchema = z.strictObject({ before: cursorSchema.optional() });
 export const moodSaveSchema = z.strictObject({
-  published: z.boolean(),
+  published: z.boolean().optional(),
   entry: z.strictObject({ requestId: z.uuid(), level: z.number().int().refine((level) => moodAt(level) !== null) }).optional(),
-});
+}).refine(({ entry, published }) => entry !== undefined || published !== undefined);
 
 export function publicMood(row) {
-  return row?.mood_public === true ? moodAt(row.mood_level)?.level ?? null : null;
+  return row?.mood_public === true ? highlightedMood(row.mood_level)?.level ?? null : null;
 }
 
 export async function checkProfileMoodSchema(client) {
@@ -47,7 +47,8 @@ async function readJournal(client, userId, before = null) {
 }
 
 function privateState(row) {
-  return { level: row.mood_level, published: row.mood_public, publicMood: publicMood(row) };
+  const visibleLevel = publicMood(row);
+  return { level: row.mood_level, published: visibleLevel !== null, publicMood: visibleLevel };
 }
 
 export async function readProfileMood(client, userId, before) {
@@ -68,7 +69,7 @@ export async function saveProfileMood(client, userId, { published, entry }) {
       "SELECT level FROM user_mood_entries WHERE user_id=$1 AND request_id=$2", [userId, entry.requestId],
     );
     if (existing) {
-      if (existing.level !== entry.level) return { status: 409, error: "У этой записи уже есть другая отметка" };
+      if (existing.level !== level) return { status: 409, error: "У этой записи уже есть другая отметка" };
       return { ...privateState(current), ...await readJournal(client, userId) };
     }
     await client.query(
@@ -77,9 +78,10 @@ export async function saveProfileMood(client, userId, { published, entry }) {
       [userId, entry.requestId, level],
     );
   }
+  // Older clients can still explicitly keep a mark private.
   const { rows: [updated] } = await client.query(
     "UPDATE users SET mood_level=$2,mood_public=$3 WHERE id=$1 RETURNING mood_level,mood_public",
-    [userId, level, published],
+    [userId, level, published !== false && highlightedMood(level) !== null],
   );
   return { ...privateState(updated), ...await readJournal(client, userId) };
 }
@@ -103,7 +105,7 @@ export function registerProfileMoodRoutes(app, { requireAuth, asyncRoute, transa
   }));
   app.patch("/api/me/mood", requireAuth, requireMood, asyncRoute(async (req, res) => {
     const parsed = moodSaveSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Проверьте отметку и настройку видимости" });
+    if (!parsed.success) return res.status(400).json({ error: "Проверьте отметку настроения" });
     const mood = await transaction((client) => saveProfileMood(client, req.user.id, parsed.data));
     if (mood.status) return res.status(mood.status).json({ error: mood.error });
     return res.json(mood);

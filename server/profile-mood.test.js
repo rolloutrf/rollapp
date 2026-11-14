@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import express from "express";
-import { MOOD_LEVELS } from "../shared/profile-mood.js";
+import { MOOD_LEVELS, NEUTRAL_MOOD_LEVEL } from "../shared/profile-mood.js";
 import { moodQuerySchema, moodSaveSchema, publicMood, registerProfileMoodRoutes, verifyProfileMoodAvailability } from "./profile-mood.js";
 
-test("only an explicitly published, valid level is exposed to visitors", () => {
+test("visitors see only valid, non-neutral levels with public visibility", () => {
   for (const { level } of MOOD_LEVELS) {
-    assert.equal(publicMood({ mood_level: level, mood_public: true, entries: [{ level }] }), level);
+    assert.equal(publicMood({ mood_level: level, mood_public: true, entries: [{ level }] }), level === NEUTRAL_MOOD_LEVEL ? null : level);
     assert.equal(publicMood({ mood_level: level, mood_public: false }), null);
   }
   for (const mood_level of [null, 0, 6, "5", undefined]) {
@@ -18,9 +18,11 @@ test("only an explicitly published, valid level is exposed to visitors", () => {
 
 test("journal requests cannot select or submit another owner or an authored timestamp", () => {
   const entry = { requestId: randomUUID(), level: 5 };
+  assert(moodSaveSchema.safeParse({ entry }).success);
   assert(moodSaveSchema.safeParse({ published: false, entry }).success);
   assert(moodSaveSchema.safeParse({ published: true }).success);
   for (const body of [
+    {},
     { published: true, userId: "another-user" },
     { published: false, entry: { ...entry, userId: "another-user" } },
     { published: false, entry: { ...entry, recordedAt: "2026-11-13" } },

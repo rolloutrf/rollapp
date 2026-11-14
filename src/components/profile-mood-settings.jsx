@@ -7,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MOOD_LEVELS, moodAt } from "../../shared/profile-mood.js";
+import { MOOD_LEVELS, highlightedMood, moodAt } from "../../shared/profile-mood.js";
 
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" });
 const spectrum = `linear-gradient(to right, ${MOOD_LEVELS.map((mood) => mood.color).join(", ")})`;
@@ -23,7 +22,6 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
   const Body = isMobile ? "div" : ScrollArea;
   const [journal, setJournal] = useState(null);
   const [level, setLevel] = useState(null);
-  const [published, setPublished] = useState(false);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
@@ -37,7 +35,6 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
     transport.read().then((result) => {
       if (!active) return;
       setJournal(result);
-      setPublished(result.published);
     }).catch((failure) => {
       if (active) setError({ message: failure.message || "Не удалось открыть журнал." });
     });
@@ -45,7 +42,8 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
   }, [retry, transport]);
 
   const preview = moodAt(level ?? journal?.level);
-  const changed = journal && (level !== null || journal.published !== published);
+  const highlight = highlightedMood(preview?.level);
+  const changed = journal && level !== null;
   const submit = async (event) => {
     event.preventDefault();
     if (!changed || inFlight.current) return;
@@ -55,15 +53,13 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
     setError(null);
     setStatus("");
     try {
-      const intent = `${level}:${published}`;
-      if (pending.current?.intent !== intent) pending.current = { intent, requestId: level === null ? null : crypto.randomUUID() };
-      const result = await transport.save({ published, ...(level === null ? {} : { entry: { level, requestId: pending.current.requestId } }) });
+      if (pending.current?.level !== level) pending.current = { level, requestId: crypto.randomUUID() };
+      const result = await transport.save({ entry: pending.current });
       if (!alive.current) return;
       pending.current = null;
       setJournal(result);
       setLevel(null);
-      setPublished(result.published);
-      setStatus(level === null ? "Видимость обновлена" : "Отметка добавлена в журнал");
+      setStatus("Отметка добавлена в журнал");
       onSaved?.(result);
     } catch (failure) {
       if (alive.current) setError({ operation: "save", message: failure.message || "Не удалось сохранить отметку. Попробуйте снова." });
@@ -100,7 +96,7 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
           <Button type="button" variant="outline" onClick={() => { setError(null); setRetry((value) => value + 1); }}>Повторить</Button>
         </div> : <p className="flex items-center gap-2" role="status"><Spinner aria-hidden="true" />Загружаем настроение…</p> : <>
           <section className="grid gap-4" aria-labelledby="profile-mood-question">
-            <div className="mood-settings__preview" style={preview ? { "--profile-mood-color": preview.color } : undefined}>
+            <div className="mood-settings__preview" style={highlight ? { "--profile-mood-color": highlight.color } : undefined}>
               <Avatar user={user} moodLevel={preview?.level ?? null} size="lg" className="mood-settings__portrait !size-16" aria-hidden="true" />
               <div className="grid min-w-0 gap-1">
                 <h2 id="profile-mood-question" className="font-heading text-xl font-semibold">Как вы сейчас?</h2>
@@ -121,13 +117,7 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
                 <span>Очень плохо</span><span>Отлично</span>
               </div>
             </div>
-            <div className="grid gap-1 rounded-xl border p-3">
-              <label className="flex min-h-(--layout-control-size) cursor-pointer items-center justify-between gap-2">
-                <span>Показывать посетителям профиля</span>
-                <Switch checked={published} onCheckedChange={(checked) => { setPublished(checked); setStatus(""); }} aria-describedby="profile-mood-visibility" disabled={!!busy || (!preview && !published)} />
-              </label>
-              <p id="profile-mood-visibility" className="text-xs text-muted-foreground">Вы всегда видите свою последнюю отметку. Если включить настройку, посетители увидят её по цвету аватара и подписи. Журнал доступен только вам.</p>
-            </div>
+            <p id="profile-mood-visibility" className="text-xs text-muted-foreground">После сохранения цветное настроение видно всем посетителям профиля. Нейтральное убирает подсветку. Журнал доступен только вам.</p>
             {error?.operation === "save" && <Alert variant="destructive"><AlertDescription>{error.message}</AlertDescription></Alert>}
             <div className="sr-only" role="status">{status}</div>
           </section>

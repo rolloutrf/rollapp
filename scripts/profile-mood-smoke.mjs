@@ -5,7 +5,7 @@ import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
-import { MOOD_LEVELS } from "../shared/profile-mood.js";
+import { MOOD_LEVELS, NEUTRAL_MOOD_LEVEL } from "../shared/profile-mood.js";
 
 const screenshotDir = process.env.ROLLAPP_MOOD_SCREENSHOTS;
 if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
@@ -26,6 +26,13 @@ async function assertMoodGlow(avatar, { reduced = false } = {}) {
   assert.match(paint.shadow, /(?:oklch|color\(|rgba?\()/);
   assert.equal(paint.layer, "-1");
   assert.equal(paint.animation, reduced ? "none" : "profile-mood-breathe");
+}
+
+async function assertNoGlow(avatar) {
+  assert.deepEqual(await avatar.evaluate((element) => {
+    const glow = getComputedStyle(element, "::before");
+    return [element.hasAttribute("data-profile-mood"), glow.boxShadow, glow.animationName];
+  }), [false, "none", "none"]);
 }
 
 const server = await createServer({
@@ -73,26 +80,30 @@ try {
       await more.waitFor({ state: "hidden" });
     } else {
       await page.getByText("Здесь появятся ваши отметки с датой и временем.").waitFor();
-      assert(await visible.isDisabled());
     }
     const radios = page.getByRole("radio");
     assert.equal(await radios.count(), 5);
+    assert.equal(await visible.count(), 0);
+    await page.getByText(/цветное настроение видно всем посетителям/).waitFor();
     assert(await submit.isDisabled());
     for (const [i, mood] of MOOD_LEVELS.entries()) {
       if (i === 0) await radios.nth(i).click();
       else await page.keyboard.press("ArrowRight");
-      await page.waitForFunction((level) => document.querySelector(".mood-settings__portrait")?.dataset.profileMood === level, String(mood.level));
       assert.equal(await radios.nth(i).getAttribute("aria-checked"), "true");
-      await assertMoodGlow(preview);
+      if (mood.level === NEUTRAL_MOOD_LEVEL) await assertNoGlow(preview);
+      else {
+        assert.equal(await preview.getAttribute("data-profile-mood"), String(mood.level));
+        await assertMoodGlow(preview);
+      }
     }
     const geometry = await page.evaluate(() => {
       const boxes = [...document.querySelectorAll('[role="radio"]')].map((node) => node.getBoundingClientRect().toJSON());
       const footer = document.querySelector("form [data-control-bar]");
       const save = footer.querySelector('[type="submit"]');
-      const label = document.querySelector('[role="switch"]').closest('label');
+      const hint = document.querySelector("#profile-mood-visibility");
       return { boxes, screen: { width: innerWidth, height: innerHeight }, root: document.documentElement.scrollWidth,
         button: save.getBoundingClientRect().toJSON(), radius: getComputedStyle(save).borderTopLeftRadius,
-        bodyFont: getComputedStyle(label).fontSize, bodyLeading: getComputedStyle(label).lineHeight,
+        hintFont: getComputedStyle(hint).fontSize, hintLeading: getComputedStyle(hint).lineHeight,
         nestedScroll: !!document.querySelector('form [data-slot="scroll-area-viewport"]') };
     });
     assert(geometry.root <= width, `root overflow ${width}`);
@@ -103,8 +114,8 @@ try {
     }
     assert.equal(geometry.button.height, 48);
     assert.equal(geometry.radius, "24px");
-    assert.equal(geometry.bodyFont, "18px");
-    assert.equal(geometry.bodyLeading, "28px");
+    assert.equal(geometry.hintFont, "13px");
+    assert.equal(geometry.hintLeading, "16px");
     assert(geometry.button.bottom <= height + 1);
     assert.equal(geometry.nestedScroll, width >= 768);
     if (width < 768) assert.equal(await page.getByRole("button", { name: "Назад", exact: true }).count(), 1);
@@ -143,36 +154,35 @@ try {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await assertMoodGlow(avatar, { reduced: true });
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await open.click();
-    await moodSection.click();
-    await visible.click();
-    await submit.click();
-    await page.getByText("Видимость обновлена", { exact: true }).waitFor();
-    await close();
-    await page.getByText("Настроение: отлично", { exact: true }).waitFor();
-    await assertMoodGlow(avatar);
     if (screenshotDir && [390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${screenshotDir}/published-${width}.png` });
     await open.click();
     await moodSection.click();
-    await visible.click();
+    await page.getByRole("radio", { name: "Нейтрально", exact: true }).click();
     await submit.click();
-    await page.getByText("Видимость обновлена", { exact: true }).waitFor();
+    await page.getByText("Отметка добавлена в журнал", { exact: true }).waitFor();
+    assert.equal(await list.locator("li").first().getByText("Нейтрально", { exact: true }).count(), 1);
+    await assertNoGlow(preview);
     await radios.first().click();
     if (width < 768) await page.goBack(); else await page.keyboard.press("Escape");
     await closeMenu();
     await open.waitFor();
-    await avatar.waitFor();
-    await owner.getByText("Настроение: отлично", { exact: true }).waitFor();
+    const ownerPortrait = owner.locator(".wishes-page__hero-avatar");
+    await assertNoGlow(ownerPortrait);
+    assert.equal(await owner.locator(".profile-mood-caption").count(), 0);
     const calls = await page.evaluate(() => window.__moodSaves);
-    assert.deepEqual(calls, [calls[0], calls[0], { published: true }, { published: false }]);
+    assert.deepEqual(calls, [calls[0], calls[0], calls[2]]);
+    assert.deepEqual(Object.keys(calls[0]), ["entry"]);
     assert.equal(calls[0].entry.level, 5);
+    assert.equal(calls[2].entry.level, NEUTRAL_MOOD_LEVEL);
+    assert.notEqual(calls[0].entry.requestId, calls[2].entry.requestId);
     await page.reload();
-    await avatar.waitFor();
-    await owner.getByText("Настроение: отлично", { exact: true }).waitFor();
-    if (screenshotDir && photo) await page.screenshot({ path: `${screenshotDir}/private-owner-${width}.png` });
+    await ownerPortrait.waitFor();
+    await assertNoGlow(ownerPortrait);
+    if (screenshotDir && photo) await page.screenshot({ path: `${screenshotDir}/neutral-owner-${width}.png` });
     // The photo and initials use different portrait CSS. Exercise both.
-    for (const published of [false, true]) {
-      await page.goto(`${smokeOrigin(server)}/__profile-mood?guest${published ? "&published" : ""}${photo ? "&photo" : ""}`);
+    for (const scenario of ["", "&neutral", "&published"]) {
+      const published = scenario === "&published";
+      await page.goto(`${smokeOrigin(server)}/__profile-mood?guest${scenario}${photo ? "&photo" : ""}`);
       const profile = page.locator("[data-friend-profile]");
       await profile.getByRole("heading", { name: "Александра", exact: true }).waitFor();
       const portrait = profile.locator("[data-profile-mood='5']");
@@ -188,10 +198,10 @@ try {
         await assertMoodGlow(portrait);
         assert(await profile.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
         if (screenshotDir && [390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${screenshotDir}/guest-${width}.png` });
-      }
+      } else await assertNoGlow(profile.locator(".wishes-page__hero-avatar"));
     }
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height}: 5 levels, preview, retry, private log, publish/hide, cancel, 48px controls`);
+    console.log(`PASS ${width}×${height}: 5 levels, preview, retry, private log, automatic glow, neutral without glow, cancel, 48px controls`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

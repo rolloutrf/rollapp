@@ -28,29 +28,32 @@ test("production mood journal: owner isolation, ordering, pagination, replay and
       const privateMark = await saveProfileMood(client, owner, { published: false, entry: first });
       assert.equal(privateMark.publicMood, null);
       assert.equal(privateMark.entries[0].level, 1);
-      const publication = await saveProfileMood(client, owner, { published: true });
-      assert.deepEqual(publication.entries, privateMark.entries);
+      const publication = await saveProfileMood(client, owner, { entry: { level: 1, requestId: randomUUID() } });
+      assert.equal(publication.entries.length, 2);
       assert.equal(publication.publicMood, 1);
-      const replay = await saveProfileMood(client, owner, { published: false, entry: first });
+      const replay = await saveProfileMood(client, owner, { entry: first });
       assert.deepEqual(replay, publication);
       assert.equal((await saveProfileMood(client, owner, { published: true, entry: { ...first, level: 5 } })).status, 409);
       for (let i = 0; i < 22; i++) {
-        await saveProfileMood(client, owner, { published: true, entry: { requestId: randomUUID(), level: 5 } });
+        await saveProfileMood(client, owner, { entry: { requestId: randomUUID(), level: 5 } });
       }
       assert.deepEqual(await readProfileMood(client, visitor), empty);
       const firstPage = await readProfileMood(client, owner);
       const secondPage = await readProfileMood(client, owner, firstPage.nextBefore);
       assert.equal(firstPage.publicMood, 5);
       assert.equal(firstPage.entries.length, 20);
-      assert.equal(secondPage.entries.length, 3);
+      assert.equal(secondPage.entries.length, 4);
       assert.equal(secondPage.nextBefore, null);
       const entries = [...firstPage.entries, ...secondPage.entries];
       assert.equal(entries.at(-1).id, privateMark.entries[0].id);
       assert(entries.every((entry, index) => entry.recordedAt instanceof Date && (!index || BigInt(entry.id) < BigInt(entries[index - 1].id))));
-      const hidden = await saveProfileMood(client, owner, { published: false });
-      assert.deepEqual(hidden.entries, firstPage.entries);
+      const neutral = await saveProfileMood(client, owner, { published: true, entry: { requestId: randomUUID(), level: 3 } });
+      assert.equal(neutral.level, 3);
+      assert.equal(neutral.entries[0].level, 3);
+      assert.equal(neutral.publicMood, null);
+      assert.equal(neutral.published, false);
       const { rows: [row] } = await client.query("SELECT mood_level,mood_public FROM users WHERE id=$1", [owner]);
-      assert.equal(row.mood_level, 5);
+      assert.equal(row.mood_level, 3);
       assert.equal(publicMood(row), null);
 
       const readBackup = async (userId) => {
@@ -71,9 +74,9 @@ test("production mood journal: owner isolation, ordering, pagination, replay and
       };
       const ownerBackup = await readBackup(owner);
       const visitorBackup = await readBackup(visitor);
-      assert.equal(ownerBackup.users[0].mood_level, 5);
+      assert.equal(ownerBackup.users[0].mood_level, 3);
       assert.equal(ownerBackup.users[0].mood_public, false);
-      assert.equal(ownerBackup.user_mood_entries.length, 23);
+      assert.equal(ownerBackup.user_mood_entries.length, 25);
       assert(ownerBackup.user_mood_entries.every((entry) => entry.user_id === owner && !("request_id" in entry)));
       assert.deepEqual(visitorBackup.user_mood_entries, []);
     } finally {
