@@ -24,7 +24,7 @@ window.followCalls = calls;
 api.post = async (path, body) => {
   if (path !== "/profile/example-studio/follow") throw Error(`Unexpected POST ${path}`);
   calls.push(body.following);
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await new Promise(resolve => { window.completeBusinessFollow = resolve; });
   if (calls.length === 1) throw Error("Не удалось изменить подписку. Попробуйте ещё раз.");
   return { following: body.following };
 };

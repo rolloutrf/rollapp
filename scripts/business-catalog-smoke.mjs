@@ -68,12 +68,20 @@ try {
       }
     }
     await grid.screenshot({ path: join(output, `${width}x${height}.png`), animations: "disabled" });
+    const completeFollow = () => page.evaluate(() => {
+      const complete = window.completeBusinessFollow;
+      window.completeBusinessFollow = undefined;
+      complete();
+    });
     await follow.click();
     assert.equal(await follow.getAttribute("aria-busy"), "true");
     assert(await follow.isDisabled());
+    await completeFollow();
     await card.getByRole("alert").waitFor();
     await follow.click();
+    await completeFollow();
     await card.getByRole("button", { name: `Отписаться · ${name}` }).click();
+    await completeFollow();
     await follow.waitFor();
     assert.deepEqual(await page.evaluate(() => window.followCalls), [true, true, false]);
     assert.equal(await page.locator("[data-location]").textContent(), "/");
