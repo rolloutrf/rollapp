@@ -16,6 +16,10 @@ const friend = { id: "friend", name: "Получатель подарочной 
 const params = new URLSearchParams(location.search);
 const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], requests: new Map(), lost: false };
 state.reads = [];
+if (params.has("wallet-error")) {
+  state.cards[1].balance = 0;
+  state.walletUnavailable = true;
+}
 state.sellerItems = (params.has("empty") || params.has("owner-empty")) ? [] : [{ id: "seller-item", space: "products", title: "Товар мастерской", description: "Описание товара", brand: "Мастерская", active: true, price: "1 000 ₽", business }];
 const personal = { ...user, username: "owner", accountType: "personal" };
 const wishes = [
@@ -84,11 +88,18 @@ api.get = async (path) => {
   if (params.has("sale-buyer") && path.startsWith("/messenger/conversations/sale-chat/messages")) return { peer: friend, messages: [], hasMore: false };
   if (params.has("sale-buyer") && path === "/messenger/subscriptions") return { users: [] };
   if (path === "/rolls/gift-cards") {
+    if (state.holdCardDetails) {
+      state.holdCardDetails = false;
+      await new Promise((resolve) => { state.finishCardDetails = resolve; });
+    }
     const cards = clone(state.cards);
     if (params.has("missing-card")) state.cards = state.cards.filter((card) => card.id !== "second-card");
     return { cards };
   }
-  if (path === "/rolls") return { balance: state.balance };
+  if (path === "/rolls") {
+    if (state.walletUnavailable) throw new Error("Кошелёк временно недоступен");
+    return { balance: state.balance };
+  }
   if (params.has("store-only") && path === "/rolls/orders") return { orders: [] };
   if (params.has("store-only") && path === "/delivery/cdek/cities") return { cities: [] };
   if (path.startsWith("/rolls/recipients?q=")) return { people: [friend] };

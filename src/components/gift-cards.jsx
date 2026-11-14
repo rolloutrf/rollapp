@@ -26,35 +26,71 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
   const storageKey = `rollapp:gift-intent:${user.id}:${business.id}`;
   const [pending, setPending] = useState(() => readPending(storageKey));
   const [cards, setCards] = useState([]);
-  const [selectedId, setSelectedId] = useState(initialCardId);
+  const [selectedId, setSelectedId] = useState(initialCardId || null);
   const [wallet, setWallet] = useState(null);
   const [amount, setAmount] = useState("");
   const [search, setSearch] = useState("");
   const [people, setPeople] = useState([]);
   const [recipient, setRecipient] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cardsError, setCardsError] = useState("");
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [walletError, setWalletError] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const alive = useRef(true);
+  const cardReads = useRef(0);
+  const walletReads = useRef(0);
+  const alive = useRef(false);
   const selected = cards.find((card) => card.id === selectedId);
   const locked = busy || Boolean(pending);
 
-  async function refresh() {
-    const [result, balance] = await Promise.all([api.get("/rolls/gift-cards"), api.get("/rolls")]);
-    if (!alive.current) return;
-    const available = result.cards.filter((card) => card.business.id === business.id);
-    setCards(available);
-    setSelectedId((current) => available.some((card) => card.id === current) ? current : current || initialCardId ? "" : available[0]?.id || "");
-    setWallet(balance);
+  async function loadCards() {
+    const read = ++cardReads.current;
+    setLoading(true);
+    setCardsError("");
+    try {
+      const result = await api.get("/rolls/gift-cards");
+      if (read !== cardReads.current) return;
+      const available = result.cards.filter((card) => card.business.id === business.id);
+      setCards(available);
+      setSelectedId((current) => current ?? available[0]?.id ?? "");
+    } catch (cause) {
+      if (read === cardReads.current) setCardsError(cause.message || "Не удалось загрузить карту");
+    } finally {
+      if (read === cardReads.current) setLoading(false);
+    }
   }
+
+  async function loadWallet() {
+    const read = ++walletReads.current;
+    setWalletLoading(true);
+    setWalletError("");
+    try {
+      const balance = await api.get("/rolls");
+      if (read === walletReads.current) setWallet(balance);
+    } catch (cause) {
+      if (read === walletReads.current) {
+        setWallet(null);
+        setWalletError(cause.message || "Не удалось загрузить кошелёк");
+      }
+    } finally {
+      if (read === walletReads.current) setWalletLoading(false);
+    }
+  }
+
   useEffect(() => {
     alive.current = true;
-    refresh().catch((cause) => { if (alive.current) setError(cause.message); }).finally(() => { if (alive.current) setLoading(false); });
-    return () => { alive.current = false; };
+    loadCards();
+    loadWallet();
+    return () => {
+      alive.current = false;
+      cardReads.current += 1;
+      walletReads.current += 1;
+    };
   }, []);
   useEffect(() => {
     let active = true;
@@ -87,10 +123,11 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       sessionStorage.removeItem(storageKey);
       if (!alive.current) return;
       setPending(null);
-      setSelectedId(result.card.id);
+      setSelectedId(intent.path.endsWith("/send") ? "" : result.card.id);
       setAmount(""); setRecipient(null); setSearch("");
       setMessage(intent.label);
-      try { await refresh(); } catch (cause) { if (alive.current) setError(`Операция выполнена, но данные не обновились: ${cause.message}`); }
+      loadCards();
+      loadWallet();
       onChanged?.();
     } catch (cause) {
       if (!alive.current) return;
@@ -103,13 +140,18 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
   const validInteger = Number.isSafeInteger(value) && value > 0 && value <= ROLLS_MAX_TRANSFER;
   const insufficient = validInteger && wallet && value > wallet.balance;
   const exceedsLimit = validInteger && selected && value + selected.balance > ROLLS_MAX_TRANSFER;
-  const valid = validInteger && wallet && selected && !insufficient && !exceedsLimit;
+  const cardsReady = !loading && !cardsError;
+  const walletReady = Boolean(wallet && !walletLoading && !walletError);
+  const valid = validInteger && walletReady && cardsReady && selected && !insufficient && !exceedsLimit;
   const amountHint = amount && !validInteger ? "Введите положительное целое количество роллов."
     : insufficient ? "На вашем балансе недостаточно роллов."
       : exceedsLimit ? "На карте можно хранить не больше 1 000 000 000 роллов."
         : "Роллы спишутся с вашего баланса.";
   const description = `${business.name} · Роллы с карты можно потратить только у этого бизнеса.`;
-  return <Drawer open onOpenChange={(open, event) => {
+  return <Drawer open onAfterClose={returnFocusRef ? () => {
+    const opener = returnFocusRef.current;
+    if (opener?.isConnected && !opener.closest("[hidden]")) opener.focus({ preventScroll: true });
+  } : undefined} onOpenChange={(open, event) => {
     if (!open && busyRef.current) event?.cancel?.();
     else if (!open) onClose();
   }}>
@@ -121,18 +163,29 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 break-words">
         {loading && <p role="status" className="flex items-center gap-2"><Spinner />Загружаем карты…</p>}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        {cardsError && <Alert variant="destructive"><AlertDescription>{cardsError}</AlertDescription></Alert>}
         {message && <p role="status">{message}</p>}
-        {!loading && initialCardId && !cards.some((card) => card.id === initialCardId) && <p role="status">Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую.</p>}
+        {cardsReady && selectedId && !selected && <p role="status">Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую.</p>}
         {pending && <Alert><AlertDescription>Сохранён запрос: {pending.label} Проверьте его результат перед следующим действием.</AlertDescription></Alert>}
         {cards.length > 0 && <div className="flex flex-col gap-2" role="group" aria-label="Мои карты этого бизнеса">
-          {cards.map((card) => <Button type="button" key={card.id} variant={card.id === selectedId ? "secondary" : "outline"} aria-pressed={card.id === selectedId} disabled={locked} className="h-auto min-h-12 justify-between gap-3 whitespace-normal text-left" onClick={() => { setSelectedId(card.id); setMessage(""); }}><Gift className="size-5 shrink-0" /><span className="min-w-0 break-words">{business.name} · {formatRolls(card.balance)}</span></Button>)}
+          {cards.map((card) => <Button type="button" key={card.id} variant={card.id === selectedId ? "secondary" : "outline"} aria-pressed={card.id === selectedId} disabled={locked || !cardsReady} className="h-auto min-h-12 justify-between gap-3 whitespace-normal text-left" onClick={() => {
+            if (card.id === selectedId) return;
+            setSelectedId(card.id);
+            setAmount(""); setRecipient(null); setSearch("");
+            setError(""); setMessage("");
+          }}><Gift className="size-5 shrink-0" /><span className="min-w-0 break-words">{business.name} · {formatRolls(card.balance)}</span></Button>)}
         </div>}
-        {!loading && !error && !cards.length && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
+        {cardsReady && !cards.length && !selectedId && !message && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
         {selected && <>
           <section className="flex flex-col gap-3" aria-label="Пополнение карты">
-            <p>На карте: <strong>{formatRolls(selected.balance)}</strong><br />Ваш баланс: {wallet ? formatRolls(wallet.balance) : "загружается…"}</p>
+            <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>
+            {walletError ? <>
+              <Alert variant="destructive"><AlertDescription>{walletError}</AlertDescription></Alert>
+              <Button type="button" variant="outline" disabled={busy} onClick={loadWallet}>Повторить загрузку кошелька</Button>
+            </> : <p>Ваш баланс: {walletReady ? formatRolls(wallet.balance) : "загружается…"}</p>}
+            {selected.balance === 0 && <p className="text-muted-foreground">Пополните карту, чтобы подарить её.</p>}
             <form id="gift-topup" className="flex flex-col gap-3" onSubmit={(event) => { event.preventDefault(); if (valid && !locked) run(`/rolls/gift-cards/${selected.id}/topup`, { amount: value }, `Карта пополнена на ${formatRolls(value)}`); }}>
-              <Field><FieldLabel htmlFor="gift-amount">Сколько роллов добавить</FieldLabel><Input id="gift-amount" inputMode="numeric" pattern="[0-9]+" maxLength={10} required value={amount} disabled={locked} onChange={(event) => setAmount(event.target.value)} aria-invalid={Boolean(amount && !valid)} aria-describedby="gift-amount-hint" /><FieldDescription className="text-xs leading-4" id="gift-amount-hint" aria-live="polite">{amountHint}</FieldDescription></Field>
+              <Field><FieldLabel htmlFor="gift-amount">Сколько роллов добавить</FieldLabel><Input id="gift-amount" inputMode="numeric" pattern="[0-9]+" maxLength={10} required value={amount} disabled={locked || !cardsReady || !walletReady} onChange={(event) => setAmount(event.target.value)} aria-invalid={Boolean(amount && !valid)} aria-describedby="gift-amount-hint" /><FieldDescription className="text-xs leading-4" id="gift-amount-hint" aria-live="polite">{amountHint}</FieldDescription></Field>
               <Button type="submit" variant="outline" className="h-auto min-h-12 whitespace-normal" disabled={!valid || locked}>Пополнить{valid ? ` на ${formatRolls(value)}` : ""}</Button>
             </form>
           </section>
@@ -151,13 +204,13 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
             {recipient && <p>Получатель: <strong>{recipient.name}</strong> · @{recipient.username}<br />Подарок: {formatRolls(selected.balance)} у {business.name}.</p>}
           </section>
         </>}
-        {selected && !pending && <Button variant="outline" disabled={busy} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Новая карта выпущена")}>Выпустить ещё карту</Button>}
-        {error && !pending && <Button variant="outline" disabled={busy || loading} onClick={() => { setLoading(true); refresh().then(() => setError("")).catch((cause) => setError(cause.message)).finally(() => setLoading(false)); }}>Повторить загрузку</Button>}
+        {selected && !pending && <Button variant="outline" disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Новая карта выпущена")}>Выпустить ещё карту</Button>}
+        {cardsError && !pending && <Button variant="outline" disabled={busy} onClick={loadCards}>Повторить загрузку</Button>}
       </div>
       <DrawerFooter>
         {pending ? <Button disabled={busy} onClick={() => run()}>{busy && <Spinner />}Проверить результат</Button>
-          : selected ? <Button disabled={busy || !recipient || selected.balance <= 0} onClick={() => run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id }, `Карта отправлена: ${recipient.name}`)}>{busy && <Spinner />}Подарить карту</Button>
-            : <Button disabled={busy || loading || Boolean(error)} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}
+          : selected ? <Button disabled={busy || !cardsReady || !recipient || selected.balance <= 0} onClick={() => run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id }, `Карта отправлена: ${recipient.name}`)}>{busy && <Spinner />}Подарить карту</Button>
+            : (!selectedId || cardsReady) && <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}
       </DrawerFooter>
     </DrawerContent>
   </Drawer>;

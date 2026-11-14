@@ -66,7 +66,8 @@ api.get = async (path) => {
       await new Promise((resolve) => { window.finishGiftLoad = resolve; });
       throw new Error("Подарочные карты временно недоступны");
     }
-    return { cards: [{ id: "gift-card", balance: 100, business: { id: "fixture-shop", username: "fixture-shop", name: "Магазин" } }] };
+    const business = { id: "fixture-shop", username: "fixture-shop", name: "Магазин" };
+    return { cards: [{ id: "gift-card", balance: 100, business }, { id: "empty-gift-card", balance: 0, business }] };
   }
   throw new Error(`Unexpected fixture read: ${path}`);
 };

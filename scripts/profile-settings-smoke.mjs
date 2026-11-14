@@ -338,7 +338,10 @@ try {
     assert.equal(page.url(), source.href);
     const gifts = button("Подарочные карты");
     const giftList = page.getByRole("region", { name: "Подарочные карты" });
-    const business = giftList.getByRole("link", { name: "Магазин", exact: true });
+    const cardRow = (balance) => giftList.getByRole("article").filter({
+      has: page.getByText(`${balance} роллов · Только у этого бизнеса`, { exact: true }),
+    });
+    const business = cardRow(100).getByRole("link", { name: "Магазин", exact: true });
     await gifts.click();
     await giftList.waitFor();
     await business.waitFor();
@@ -347,7 +350,7 @@ try {
     assert.equal(new URL(page.url()).pathname, source.pathname);
     if (!mobile) assert.equal(page.url(), source.href);
     await page.evaluate(() => document.fonts.ready);
-    const openCard = giftList.getByRole("button", { name: "Открыть карту", exact: true });
+    const openCard = cardRow(100).getByRole("button", { name: "Открыть карту", exact: true });
     const giftBox = await openCard.boundingBox();
     const giftBackBox = await back.boundingBox();
     assert.equal(giftBox.height, 48);
@@ -363,7 +366,16 @@ try {
     await back.click();
     await card.waitFor({ state: "hidden" });
     await giftList.waitFor();
-    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Открыть карту");
+    await page.waitForFunction(() => document.activeElement?.closest("article")?.querySelector("p")?.textContent === "100 роллов · Только у этого бизнеса");
+    const openEmptyCard = cardRow(0).getByRole("button", { name: "Открыть карту", exact: true });
+    await openEmptyCard.click();
+    await page.getByRole("button", { name: "Магазин · 0 роллов", pressed: true }).waitFor();
+    assert(await page.getByRole("button", { name: "Подарить карту", exact: true }).isDisabled());
+    if (mobile) await page.goBack();
+    else await back.click();
+    await card.waitFor({ state: "hidden" });
+    await giftList.waitFor();
+    await page.waitForFunction(() => document.activeElement?.closest("article")?.querySelector("p")?.textContent === "0 роллов · Только у этого бизнеса");
     if (mobile && width === 320) await page.goBack();
     else await back.click();
     await menu.waitFor();

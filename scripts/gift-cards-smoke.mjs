@@ -156,6 +156,10 @@ try {
       assert.equal(await other.getAttribute("aria-pressed"), "false");
       assert.equal(await page.getByLabel("Сколько роллов добавить").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Подарить карту", exact: true }).count(), 0);
+      await other.click();
+      await page.getByLabel("Сколько роллов добавить").waitFor();
+      assert.equal(await other.getAttribute("aria-pressed"), "true");
+      assert.equal(await page.getByText(/Выбранная карта больше недоступна/).count(), 0);
     } else {
       const selected = page.getByRole("button", { name: "Мастерская подарков и хорошего настроения · 50 роллов", exact: true });
       await selected.waitFor();
@@ -164,6 +168,57 @@ try {
     assert.equal(await page.evaluate(() => giftHarness.calls.length), 0);
     assert.deepEqual(errors, []);
     console.log(`PASS profile gift selection ${width} missing=${missing}: exact source card, no automatic substitution or writes`);
+    await page.close();
+  }
+  for (const width of [390, 1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 400 } });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
+    await page.goto(`${smokeOrigin(server)}/__gift-cards?cards&wallet-error`);
+    const list = page.getByRole("region", { name: "Подарочные карты" });
+    const open = (balance) => list.getByRole("article").filter({
+      has: page.getByText(`${balance} роллов · Только у этого бизнеса`, { exact: true }),
+    })
+      .getByRole("button", { name: "Открыть карту", exact: true });
+    const zero = open(0);
+    await zero.focus();
+    await page.evaluate(() => { giftHarness.holdCardDetails = true; });
+    await zero.press("Enter");
+    await page.getByRole("status").filter({ hasText: "Загружаем карты…" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Выпустить карту", exact: true }).count(), 0);
+    await page.waitForFunction(() => Boolean(giftHarness.finishCardDetails));
+    await page.evaluate(() => giftHarness.finishCardDetails());
+    const active = (balance) => page.getByRole("button", { name: new RegExp(` · ${balance} роллов$`), pressed: true });
+    await active(0).waitFor({ timeout: 5000 });
+    await page.getByText("Кошелёк временно недоступен", { exact: true }).waitFor();
+    assert.equal(await page.getByText(/Выбранная карта больше недоступна/).count(), 0);
+    assert(await page.getByRole("button", { name: "Подарить карту", exact: true }).isDisabled());
+    assert(await page.getByLabel("Сколько роллов добавить").isDisabled());
+    await page.screenshot({ path: `/tmp/rollapp-gift-opening-wallet-error-${width}.png` });
+    const readsBefore = await page.evaluate(() => giftHarness.reads.length);
+    await page.evaluate(() => { giftHarness.walletUnavailable = false; });
+    await page.getByRole("button", { name: "Повторить загрузку кошелька", exact: true }).click();
+    const amount = page.getByLabel("Сколько роллов добавить");
+    const recipient = page.getByLabel("Кому подарить", { exact: true });
+    await amount.fill("12");
+    assert.deepEqual(await page.evaluate((from) => giftHarness.reads.slice(from), readsBefore), ["/rolls"]);
+    await recipient.fill("friend");
+    await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
+    await page.getByRole("button", { name: / · 25 роллов$/, pressed: false }).click();
+    await active(25).waitFor();
+    assert.equal(await amount.inputValue(), "");
+    assert.equal(await recipient.inputValue(), "");
+    assert(await page.getByRole("button", { name: "Подарить карту", exact: true }).isDisabled());
+    if (width < 768) await page.goBack();
+    else await page.getByRole("button", { name: "Назад", exact: true }).click();
+    await zero.waitFor();
+    await page.waitForFunction(() => document.activeElement?.closest("article")?.querySelector("p")?.textContent === "0 роллов · Только у этого бизнеса");
+    await open(25).click();
+    await active(25).waitFor();
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+    assert.deepEqual(errors, []);
+    console.log(`PASS gift card reopening ${width}x400: exact zero/positive card, independent wallet retry, draft ownership, Back focus`);
     await page.close();
   }
   for (const width of [390, 1440]) {
