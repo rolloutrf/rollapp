@@ -15,7 +15,6 @@ import { WishlistSnippet } from "@/components/wishlist-snippet";
 import { isVideoUrl } from "../../shared/video-links.js";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -46,8 +45,11 @@ function Status({state,children}) {
 }
 function Blank({title,text}) {return <Empty><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{text}</EmptyDescription></EmptyHeader></Empty>;}
 function ErrorMessage({message}) {return message ? <Alert variant="destructive"><AlertDescription>{message}</AlertDescription></Alert>:null;}
-function BusinessItem({ item, onOpen }) {
+function BusinessItem({ item, onOpen, storefront = false }) {
  const title = item.title || "Название";
+ const attribution = item.brand || (!storefront && (item.business.pageTitle || item.business.name));
+ const visibility = item.published === false ? "Витрина не опубликована" : null;
+ const hidden = !item.active && onOpen;
  return (
    <WishlistSnippet
      title={title}
@@ -60,15 +62,15 @@ function BusinessItem({ item, onOpen }) {
        "aria-haspopup": "dialog",
        onClick: () => onOpen(item),
      }}
-     details={<>
-       <span>{item.brand || item.business.pageTitle || item.business.name}</span>
-       {item.published === false && <span>Витрина не опубликована</span>}
-       {!item.active && onOpen && <span>Скрыт</span>}
+     details={(attribution || visibility || hidden) && <>
+       {attribution && <span>{attribution}</span>}
+       {visibility && <span>{visibility}</span>}
+       {hidden && <span>Скрыт</span>}
      </>}
    />
  );
 }
-function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose,viewerId}) {
+function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose,viewerId,storefront=false}) {
  const location = useLocation();
  const navigate = useNavigate();
  const [conversationId, setConversationId] = useState(null);
@@ -100,7 +102,7 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfte
  };
  return <Drawer open={open && !conversationId} onAfterClose={afterClose} onOpenChange={open=>{if(!open&&!busy)onClose();}}><DrawerContent className="rollapp-body app-drawer--form">
  <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 z-10" disabled={busy} />} aria-label="Закрыть"><X aria-hidden="true" /></DrawerClose>
- <DrawerHeader className="wrap-anywhere pr-16"><DrawerTitle>{item.personalOffer?.title||item.title}</DrawerTitle><DrawerDescription>{item.brand || item.business.pageTitle} · {labelFor(space)}</DrawerDescription></DrawerHeader>
+ <DrawerHeader className="wrap-anywhere pr-16"><DrawerTitle>{item.personalOffer?.title||item.title}</DrawerTitle><DrawerDescription>{item.brand || (storefront ? item.business.name : item.business.pageTitle)} · {labelFor(space)}</DrawerDescription></DrawerHeader>
  <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto wrap-anywhere p-6">
  {item.imageUrl&&<img src={item.imageUrl} alt={item.title} className="max-h-96 w-full object-contain"/>}
  {item.description && <p className="whitespace-pre-wrap">{item.description}</p>}{(item.personalOffer||item.price)&&<p>{item.personalOffer?formatRolls(item.personalOffer.priceRolls):item.price}</p>}
@@ -123,14 +125,14 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfte
 }
 export function WishlistBusinessManager({ user, space }) {
   if (!canManageWishlistSpace(user, space)) return null;
-  return <SellerStorefront key={`${user.id}:${space}`} space={space} profileName={user.name} />;
+  return <SellerStorefront key={`${user.id}:${space}`} space={space} />;
 }
 
-function SellerStorefront({ space, profileName }) {
+function SellerStorefront({ space }) {
   const endpoint = `/wishlist-business/${space}/page`;
   const state = useBusinessData(endpoint);
-  const [savedPage, setSavedPage] = useState(null);
-  const [pageDraft, setPageDraft] = useState(null);
+  const [published, setPublished] = useState(null);
+  const [publishDraft, setPublishDraft] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editor, setEditor] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -144,8 +146,8 @@ function SellerStorefront({ space, profileName }) {
 
   useEffect(() => {
     if (!state.data) return;
-    setSavedPage(state.data.page);
-    setPageDraft(state.data.page);
+    setPublished(state.data.page.published);
+    setPublishDraft(state.data.page.published);
     setItems(state.data.items ?? []);
   }, [state.data]);
 
@@ -155,15 +157,13 @@ function SellerStorefront({ space, profileName }) {
 
   const saveSettings = async (event) => {
     event.preventDefault();
-    if (settingsLock.current || !pageDraft.title.trim()) return;
-    const fields = { title: pageDraft.title.trim(), description: pageDraft.description.trim(), published: pageDraft.published };
+    if (settingsLock.current || publishDraft === published) return;
     settingsLock.current = true;
     setSavingSettings(true);
     setSettingsError("");
     try {
-      await api.post(endpoint, fields);
-      setSavedPage(fields);
-      setPageDraft(fields);
+      await api.post(endpoint, { published: publishDraft });
+      setPublished(publishDraft);
       setSettingsOpen(false);
       toast.success("Витрина сохранена");
     } catch (error) {
@@ -174,14 +174,8 @@ function SellerStorefront({ space, profileName }) {
     }
   };
 
-  return <Status state={state}>{savedPage && <div className="page-stack">
-    {(savedPage.title !== profileName || savedPage.description || !savedPage.published) && (
-      <div className="typeset typeset-rollapp">
-        {savedPage.title !== profileName && <h2>{savedPage.title}</h2>}
-        {savedPage.description && <p className="whitespace-pre-wrap">{savedPage.description}</p>}
-        {!savedPage.published && <p className="text-muted-foreground">Витрина не опубликована. Карточки пока видны только вам.</p>}
-      </div>
-    )}
+  return <Status state={state}>{published !== null && <div className="page-stack">
+    {!published && <p className="text-muted-foreground">Витрина не опубликована. Карточки пока видны только вам.</p>}
     <div>
       <PageActionButton type="button" variant="outline" onClick={(event) => {
         event.currentTarget.focus({ preventScroll: true });
@@ -190,7 +184,7 @@ function SellerStorefront({ space, profileName }) {
     </div>
     <AddFab actions={[{ label: addLabel, onSelect: () => setEditor({}) }]} />
     {items.length ? (
-      <div className="wish-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={{ ...item, published: savedPage.published, business: { ...item.business, pageTitle: savedPage.title } }} onOpen={setSelected} />)}</div>
+      <div className="wish-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={{ ...item, published }} storefront onOpen={setSelected} />)}</div>
     ) : (
       <Blank title={isProduct ? "Добавьте первый товар" : "Добавьте первую позицию"} text="Загрузите фото, укажите название и цену." />
     )}
@@ -199,34 +193,24 @@ function SellerStorefront({ space, profileName }) {
         <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 z-10" disabled={savingSettings} />} aria-label="Закрыть настройки витрины"><X aria-hidden="true" /></DrawerClose>
         <DrawerHeader className="pr-16">
           <DrawerTitle>Настройки витрины</DrawerTitle>
-          <DrawerDescription>Название, описание и видимость для покупателей.</DrawerDescription>
+          <DrawerDescription>Управляйте видимостью товаров для покупателей.</DrawerDescription>
         </DrawerHeader>
         <form onSubmit={saveSettings} className="flex min-h-0 flex-1 flex-col">
           <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
-            <Field>
-              <FieldLabel htmlFor="seller-page-title">Название страницы</FieldLabel>
-              <Input id="seller-page-title" required maxLength={160} value={pageDraft.title} disabled={savingSettings}
-                onChange={(event) => setPageDraft({ ...pageDraft, title: event.target.value })} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="seller-page-description">Описание</FieldLabel>
-              <Textarea id="seller-page-description" maxLength={4000} value={pageDraft.description} disabled={savingSettings}
-                onChange={(event) => setPageDraft({ ...pageDraft, description: event.target.value })} />
-            </Field>
             <label className="flex items-center gap-2">
-              <Checkbox checked={pageDraft.published} disabled={savingSettings}
-                onCheckedChange={(published) => setPageDraft({ ...pageDraft, published: Boolean(published) })} />
+              <Checkbox checked={publishDraft} disabled={savingSettings}
+                onCheckedChange={(value) => setPublishDraft(Boolean(value))} />
               Опубликовать витрину
             </label>
             <ErrorMessage message={settingsError} />
           </div>
-          <DrawerFooter><Button type="submit" disabled={savingSettings || !pageDraft.title.trim()}>{savingSettings ? "Сохраняем…" : "Сохранить витрину"}</Button></DrawerFooter>
+          <DrawerFooter><Button type="submit" disabled={savingSettings || publishDraft === published}>{savingSettings ? "Сохраняем…" : "Сохранить витрину"}</Button></DrawerFooter>
         </form>
       </DrawerContent>
     </Drawer>
     {selected && (
       <ItemDetails
-        key={selected.id} item={selected} space={space} owner
+        key={selected.id} item={selected} space={space} owner storefront
         open={!pendingEdit} onClose={() => setSelected(null)} onEdit={setPendingEdit}
         onAfterClose={() => {
           if (!pendingEdit) return;
@@ -239,11 +223,11 @@ function SellerStorefront({ space, profileName }) {
     {editor && (
       <WishlistBusinessItemEditor
         key={editor.id || "new"} item={editor} space={space} spaceLabel={labelFor(space)}
-        published={savedPage.published}
+        published={published}
         onClose={() => setEditor(null)} onSaved={saveItem}
         renderPreview={(draft) => (
           <div className="mx-auto w-full max-w-xs" aria-label="Предпросмотр карточки">
-            <BusinessItem item={{ ...draft, title: draft.title.trim(), business: { name: savedPage.title } }} />
+            <BusinessItem storefront item={{ ...draft, title: draft.title.trim() }} />
           </div>
         )}
       />
@@ -258,9 +242,9 @@ export function WishlistBusinessListing({space,offers=false,business="",publicPr
  const items=(state.data?.items||[]).filter(item=>brand==="all"||item.brand===brand);
  return <Status state={state}><div className="page-stack">
  {brands.length>0&&<Field><FieldLabel htmlFor={`seller-brands-${offers?"offers":"store"}`}>Бренд</FieldLabel><Select value={brand} onValueChange={setBrand}><SelectTrigger id={`seller-brands-${offers?"offers":"store"}`}><SelectValue>{selected=>selected==="all"?"Все бренды":selected}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}><SelectItem value="all">Все бренды</SelectItem>{brands.map(value=><SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field>}
- {!offers&&state.data?.pages?.map(page=><article className="typeset typeset-rollapp" key={page.username}><h2>{publicProfile ? page.title : <Link to={`${APP_WISH_LISTINGS_PATH}?tab=${space}&business=${encodeURIComponent(page.username)}`}>{page.title}</Link>}</h2>{page.description&&<p className="whitespace-pre-wrap">{page.description}</p>}</article>)}
- {items.length?<div className="wish-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} onOpen={setSelected}/>)}</div>:<Blank title={offers?"Предложений пока нет":publicProfile?"Товаров пока нет":"Объявлений пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":publicProfile?"Здесь появятся опубликованные товары этого бизнеса.":"Здесь появятся опубликованные объявления продавцов."}/>}
- {selected&&<ItemDetails key={selected.id} item={selected} space={space} onClose={()=>setSelected(null)} onDismiss={state.reload} viewerId={viewerId}/>}
+ {!offers&&!publicProfile&&state.data?.pages?.map(page=><article className="typeset typeset-rollapp" key={page.username}><h2><Link to={`${APP_WISH_LISTINGS_PATH}?tab=${space}&business=${encodeURIComponent(page.username)}`}>{page.title}</Link></h2>{page.description&&<p className="whitespace-pre-wrap">{page.description}</p>}</article>)}
+ {items.length?<div className="wish-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} storefront={publicProfile} onOpen={setSelected}/>)}</div>:<Blank title={offers?"Предложений пока нет":publicProfile?"Товаров пока нет":"Объявлений пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":publicProfile?"Здесь появятся опубликованные товары этого бизнеса.":"Здесь появятся опубликованные объявления продавцов."}/>}
+ {selected&&<ItemDetails key={selected.id} item={selected} space={space} onClose={()=>setSelected(null)} onDismiss={state.reload} viewerId={viewerId} storefront={publicProfile}/>}
  </div></Status>;
 }
 function WishSalesManager({ user, space, wishId }) {

@@ -34,6 +34,7 @@ CREATE INDEX IF NOT EXISTS wishlist_business_offers_buyer ON wishlist_business_o
 `;
 const spaceSchema = z.enum(WISHLIST_SPACE_IDS);
 const pageSchema = z.object({ title: z.string().trim().min(1).max(160), description: z.string().trim().max(4000).default(""), published: z.boolean() }).strict();
+const pageVisibilitySchema = pageSchema.pick({ published: true });
 const webUrl = z.union([z.literal(""), z.string().url().max(2000).refine(value => /^https?:\/\//i.test(value))]);
 const uploadedImage = z.string().regex(/^\/api\/media\/[0-9a-f-]{36}$/i);
 const itemSchema = z.object({
@@ -136,6 +137,13 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
    res.json({page:page.rows[0] || {title:req.user.name,description:"",published:false},items:items.rows.map(clean)});
  }));
  app.post(`${base}/page`,requireAuth,scope,seller,route(async(req,res) => {
+   const visibility = pageVisibilitySchema.safeParse(req.body);
+   if (visibility.success) {
+     await query(`INSERT INTO wishlist_business_pages(business_user_id,space,title,published) VALUES($1,$2,$3,$4)
+       ON CONFLICT(business_user_id,space) DO UPDATE SET published=$4,updated_at=CURRENT_TIMESTAMP`,
+     [req.user.id,req.params.space,req.user.name,visibility.data.published]);
+     return res.json({ saved: true });
+   }
    const parsed=pageSchema.safeParse(req.body); if(!parsed.success) return fail(res,400,"Проверьте название и описание страницы");
    const {title,description,published}=parsed.data;
    await query(`INSERT INTO wishlist_business_pages(business_user_id,space,title,description,published) VALUES($1,$2,$3,$4,$5) ON CONFLICT(business_user_id,space) DO UPDATE SET title=$3,description=$4,published=$5,updated_at=CURRENT_TIMESTAMP`,[req.user.id,req.params.space,title,description,published]);

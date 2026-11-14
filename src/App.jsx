@@ -7695,7 +7695,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       <FieldGroup className="gap-4">
         <div className="grid gap-4">
           <Field>
-            <FieldLabel htmlFor="settings-profile-name">Имя</FieldLabel>
+            <FieldLabel htmlFor="settings-profile-name">{user.accountType === "business" ? "Название бизнеса" : "Имя"}</FieldLabel>
             <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
           </Field>
           <Field>
@@ -7721,8 +7721,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
           </Field>
         </div>
         <Field>
-          <FieldLabel htmlFor="settings-profile-bio">О себе</FieldLabel>
-          <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} />
+          <FieldLabel htmlFor="settings-profile-bio">{user.accountType === "business" ? "Описание бизнеса" : "О себе"}</FieldLabel>
+          <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder={user.accountType === "business" ? undefined : "Что вам нравится?"} onChange={(event) => setForm({ ...form, bio: event.target.value })} />
         </Field>
         <Field className="sm:max-w-[calc(50%-0.5rem)]">
           <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
@@ -8277,6 +8277,11 @@ function PublicProfile({ shared = false }) {
         {data.isOwner && <AppFriendsLink memberNumber={data.profile.memberNumber} />}
         <ProfileMoodCaption level={moodLevel} />
         {businessProfile && <span className="text-muted-foreground">Бизнес-аккаунт</span>}
+        {businessProfile && data.profile.bio?.trim() && (
+          <div className="typeset typeset-rollapp max-w-full">
+            <p className="wrap-anywhere whitespace-pre-wrap text-muted-foreground">{data.profile.bio}</p>
+          </div>
+        )}
       </div>
     </div>
   );

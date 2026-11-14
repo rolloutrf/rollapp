@@ -10,7 +10,7 @@ import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import "../../src/styles.css";
 import "../../src/index.css";
 
-const business = { id: "business", name: "Мастерская подарков и хорошего настроения", username: "studio" };
+const business = { id: "business", name: "Мастерская подарков и хорошего настроения", username: "studio", bio: "Делаем подарки для особых случаев." };
 const user = { id: "owner", name: "Владелец" };
 const friend = { id: "friend", name: "Получатель подарочной карты", username: "friend" };
 const params = new URLSearchParams(location.search);
@@ -27,7 +27,7 @@ state.sales = params.has("sale-buyer")
     business: params.get("sale-buyer") === "owner" ? personal : friend }]
   : [];
 window.giftHarness = state;
-const sellerPage = { title: business.name, description: "", published: params.has("owner") };
+const sellerPage = { title: "Старое название витрины", description: "Старое описание витрины.", published: params.has("owner") || !params.has("dashboard") };
 const clone = (value) => JSON.parse(JSON.stringify(value));
 // Explicit UI transport. Real API and production writes are forbidden here.
 api.get = async (path) => {
@@ -72,7 +72,7 @@ api.get = async (path) => {
   if (path === "/business-profiles/studio/offers") return { items: [{ id:"offer", sphere:"career", kind:"store", itemType:"service", title:"Консультация", description:"Описание услуги", priceRolls:20, business }] };
   if (path === "/wishlist-business/products/profiles/studio") {
     if (params.has("listing-error")) throw new Error("Товары временно недоступны");
-    return { items: sellerPage.published || !owner ? state.sellerItems.filter(item => item.active) : [], pages: [] };
+    return { items: sellerPage.published ? state.sellerItems.filter(item => item.active) : [], pages: sellerPage.published ? [{ ...sellerPage, username: "studio" }] : [] };
   }
   if (path === "/wishlist-business/products/page") {
     if (!owner || !seller) throw new Error("Запрос владельца недоступен");
@@ -104,6 +104,10 @@ api.uploadImage = async (file) => {
 };
 api.patch = async (path, payload) => {
   state.calls.push({ path, payload: clone(payload) });
+  if (path === "/me") {
+    Object.assign(business, payload);
+    return { user: { ...business, accountType: "business", businessCategory: "seller", sellerSpace: "products" } };
+  }
   const item = state.sellerItems.find((item) => path === `/wishlist-business/products/items/${item.id}`)
     || state.sales.find((item) => path === `/wishlist-business/products/sales/${encodeURIComponent(item.id)}`);
   if (!item) throw new Error(`Unexpected fixture mutation: ${path}`);

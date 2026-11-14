@@ -356,6 +356,12 @@ try {
         assert.equal(await page.getByText("Бизнес-аккаунт", { exact: true }).count(), 0);
       } else {
         await page.getByText("Бизнес-аккаунт", { exact: true }).waitFor();
+        const profileHeading = page.getByRole("heading", { level: 1 });
+        assert.equal(await profileHeading.textContent(), "Мастерская подарков и хорошего настроения");
+        const hero = page.locator(".public-collection-page__hero");
+        assert.equal(await hero.getByText("Делаем подарки для особых случаев.", { exact: true }).count(), 1);
+        assert.equal(await page.getByText("Делаем подарки для особых случаев.", { exact: true }).count(), 1);
+        assert.equal(await page.getByText(/Старое (название|описание) витрины/).count(), 0);
         assert.equal(await page.getByText("В этом списке пока пусто", { exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: "Новый список", exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: "Добавить", exact: true }).count(), 0);
@@ -446,10 +452,12 @@ try {
           await editor.waitFor({ state: "hidden" });
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           await settings.click();
-          const pageTitle = page.getByRole("textbox", { name: "Название страницы", exact: true });
-          await pageTitle.fill("Несохранённое название витрины");
+          const publish = page.getByRole("checkbox", { name: "Опубликовать витрину" });
+          await publish.waitFor();
+          assert.equal(await page.getByRole("textbox").count(), 0);
+          await publish.check();
           await page.getByRole("button", { name: width < 768 ? "Назад" : "Закрыть настройки витрины", exact: true }).click();
-          await pageTitle.waitFor({ state: "hidden" });
+          await publish.waitFor({ state: "hidden" });
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           await add.click();
           await title.fill("Кофемашина Dedica");
@@ -540,15 +548,31 @@ try {
           await page.getByRole("button", { name: "Открыть «Кофемашина Dedica EC685»", exact: true }).waitFor();
           assert.equal(await page.evaluate(() => giftHarness.calls.at(-1).payload.title), "Кофемашина Dedica EC685");
           await settings.click();
-          await pageTitle.waitFor();
-          assert.equal(await pageTitle.inputValue(), "Несохранённое название витрины");
-          await page.getByRole("checkbox", { name: "Опубликовать витрину" }).check();
+          await publish.waitFor();
+          assert(await publish.isChecked());
           await page.getByRole("button", { name: "Сохранить витрину", exact: true }).click();
-          await pageTitle.waitFor({ state: "hidden" });
-          await page.getByRole("heading", { name: "Несохранённое название витрины", exact: true }).waitFor();
+          await publish.waitFor({ state: "hidden" });
           assert.equal(new URL(page.url()).pathname, "/studio/products");
-          assert.equal(await page.evaluate(() => giftHarness.calls.at(-1).payload.published), true);
+          assert.deepEqual(await page.evaluate(() => giftHarness.calls.at(-1)), {
+            path: "/wishlist-business/products/page", payload: { published: true },
+          });
           await page.getByRole("button", { name: "Открыть «Кофемашина Dedica EC685»", exact: true }).waitFor();
+          await page.getByRole("button", { name: "Редактировать профиль Мастерская подарков и хорошего настроения", exact: true }).click();
+          await page.getByRole("button", { name: "Персональная информация", exact: true }).click();
+          const name = page.getByLabel("Название бизнеса", { exact: true });
+          const bio = page.getByLabel("Описание бизнеса", { exact: true });
+          assert.equal(await name.inputValue(), "Мастерская подарков и хорошего настроения");
+          assert.equal(await bio.inputValue(), "Делаем подарки для особых случаев.");
+          await name.fill("Студия подарков");
+          await bio.fill("Собираем подарки на заказ.");
+          await page.getByRole("button", { name: "Сохранить", exact: true }).click();
+          await page.getByRole("heading", { name: "Студия подарков", exact: true }).waitFor();
+          await page.locator(".public-collection-page__hero").getByText("Собираем подарки на заказ.", { exact: true }).waitFor();
+          assert.equal(await page.getByText("Собираем подарки на заказ.", { exact: true }).count(), 1);
+          assert.deepEqual(await page.evaluate(() => giftHarness.calls.at(-1)), {
+            path: "/me", payload: { name: "Студия подарков", bio: "Собираем подарки на заказ." },
+          });
+
 
         }
       } else {
