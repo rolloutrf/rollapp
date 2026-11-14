@@ -266,8 +266,18 @@ try {
     await page.waitForFunction(() => document.querySelectorAll('.contact-card').length === 1);
     await page.waitForTimeout(550);
     assert.equal(await page.locator('.contact-card__name-row strong').textContent(), 'Контакт 001');
-    await page.getByRole('searchbox').fill('Не существует');
+    const search = page.getByRole('searchbox', { name: 'Поиск по контактам', exact: true });
+    await search.fill('Не существует');
     await page.getByText('Контакты не найдены', {exact:true}).waitFor();
+    const clear = page.getByRole('button', { name: 'Очистить поиск', exact: true });
+    assert.equal(await clear.count(), 1);
+    if ((width === 390 && height === 844) || (width === 1440 && height === 844)) {
+      await page.locator('.contacts-sphere__search').screenshot({ path: `/tmp/rollapp-contacts-search-${width}-${height}.png`, animations: 'disabled' });
+    }
+    await clear.press('Enter');
+    await clear.waitFor({ state: 'detached' });
+    assert.equal(await search.inputValue(), '');
+    await page.locator('.contact-card').first().waitFor();
     await page.goto(`${origin}/__contacts-feed/public/synthetic-user`, { waitUntil: 'domcontentloaded' });
     const visitorCard = page.getByRole('button', { name: 'Визитка', exact: true });
     const dialog = page.getByRole('dialog', { name: 'Цифровая визитка' });

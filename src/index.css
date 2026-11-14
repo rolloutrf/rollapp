@@ -508,6 +508,11 @@
   .contacts-sphere__search [data-slot="input-group-control"] {
     padding-inline: 0 0.5rem;
   }
+  .contacts-sphere__search input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
 
   /* The filter grid owns its columns; selected labels may shrink without
      pushing the adjacent control or its chevron beyond the viewport. */
