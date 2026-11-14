@@ -7,9 +7,14 @@ import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
 async function assertProfileHeading(hero, { owner }) {
   const heading = hero.getByRole('heading', { name: 'Профиль', exact: true, level: 1 });
   await heading.waitFor();
-  assert.equal(await hero.getByText("ID #12345", { exact: true }).count(), owner ? 1 : 0);
-  assert(await heading.evaluate(element => !element.closest('a, button')));
+  const memberNumber = hero.getByText("ID #12345", { exact: true });
   const friends = hero.getByRole('link', { name: 'Друзья', exact: true });
+  if (owner) {
+    await memberNumber.waitFor();
+    await friends.waitFor();
+  }
+  assert.equal(await memberNumber.count(), owner ? 1 : 0);
+  assert(await heading.evaluate(element => !element.closest('a, button')));
   assert.equal(await friends.count(), owner ? 1 : 0);
   if (!owner) return;
   assert.equal(await friends.getAttribute('href'), '/app/friends');
