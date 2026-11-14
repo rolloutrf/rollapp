@@ -29,12 +29,12 @@ export async function runNotesProductionChecks({ origin, token }) {
         page.on("pageerror", error => errors.push(error.message));
         await page.goto(`${baseUrl}/app/planning?tab=notes`);
         const grid = page.locator(".notes-grid");
-        const create = grid.getByRole("button", { name: "Создать заметку", exact: true });
+        const create = page.locator("[data-add-fab]").getByRole("button", { name: "Создать заметку", exact: true });
         await create.waitFor();
         assert.equal(await page.locator(".app-layout--planning").count(), 0);
         await page.getByRole("button", { name: "Открыть планирование", exact: true }).click();
         await page.locator(".planning-fab__panel").getByRole("link", { name: "Заметки", exact: true }).click();
-        assert.equal(await grid.getByRole("button").count(), 1);
+        assert.equal(await grid.getByRole("button").count(), 0);
         await create.click();
         const title = page.getByRole("textbox", { name: "Название заметки", exact: true });
         const editor = page.getByRole("textbox", { name: "Текст заметки", exact: true });

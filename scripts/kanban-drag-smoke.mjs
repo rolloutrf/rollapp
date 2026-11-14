@@ -87,11 +87,13 @@ try {
       await ready(page, '?columns=3&empty=1');
       await begin(page);
       await page.locator('.planning-board').evaluate(board => { board.scrollLeft = board.scrollWidth; });
-      const end = await page.locator('.kanban-new-column').boundingBox();
-      const endX = Math.max(60, Math.min(width - 60, end.x + end.width / 2));
-      await page.mouse.move(endX, end.y + 24, { steps: 10 });
+      const last = await page.locator('[data-kanban-column="c2"]').boundingBox();
+      const endX = last.x + last.width * 0.75;
+      const endY = last.y + 24;
+      assert(endX > 0 && endX < width, `${label}: trailing drop target must be in the viewport`);
+      await page.mouse.move(endX, endY, { steps: 10 });
       await page.locator('[data-drop-column-end]').waitFor();
-      await dropAt(page, endX, end.y + 24);
+      await dropAt(page, endX, endY);
       assert.deepEqual(await order(page), ['c1', 'c2', 'c0'], `${label}: append to end`);
       assert.equal((await calls(page))[0].payload.beforeId, null);
 

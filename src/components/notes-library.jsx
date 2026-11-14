@@ -174,7 +174,6 @@ export function NotesLibrary({ library, group, loading, error, creating, onCreat
       </NoteActions>
     </header>}
     <div className="notes-grid" ref={drag.listRef}>
-      {!group && <AddFab actions={[{ label: "Создать заметку", disabled: actionsDisabled, onSelect: onCreate }]} />}
       {loading ? [0, 1, 2].map(index => <Skeleton key={index} className="notes-grid__skeleton" aria-hidden="true" />) : !error && orderedItems.map((item, index) => {
         const isGroup = Boolean(item.noteIds);
         const targeted = drag.groupTarget === `${isGroup ? "group" : "card"}:${item.id}`;
@@ -208,6 +207,7 @@ export function NotesLibrary({ library, group, loading, error, creating, onCreat
         </div>;
       })}
     </div>
+    {!group && <AddFab actions={[{ label: "Создать заметку", disabled: actionsDisabled, onSelect: onCreate }]} />}
     <p role="status" className="sr-only">{drag.announcement}</p>
     {action && <NoteLayoutDialog action={action} busy={busy} error={layoutError} onClose={close} onSave={apply} />}
   </>;

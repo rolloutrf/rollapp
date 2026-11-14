@@ -11,6 +11,11 @@ const server=await createServer({cacheDir:'node_modules/.vite-todo-ribbon',serve
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
+const floatingAdd = page => page.locator('[data-add-fab]').getByRole('button',{name:'Добавить',exact:true});
+async function openTask(page) {
+ await floatingAdd(page).click();
+ await page.getByRole('menuitem',{name:'Новая задача',exact:true}).click();
+}
 try{
  await runPlanningResultChecks(browser,origin);
  {
@@ -73,7 +78,7 @@ try{
   for(const empty of [false,true]){
    await page.goto(`${origin}/__todo-ribbon?date=2026-10-17${empty?'&empty':''}`);
    const ribbon=page.locator('.daily-todo__header'),selected=page.locator('.daily-todo__day[aria-pressed="true"]');
-   await page.getByRole('button',{name:'Добавить задачу',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
+   await floatingAdd(page).waitFor();await page.evaluate(()=>document.fonts.ready);
    const footerSurface=await page.locator('.daily-todo__footer').evaluate(element=>({background:getComputedStyle(element).backgroundColor,image:getComputedStyle(element).backgroundImage}));
    assert.deepEqual(footerSurface,{background:'rgba(0, 0, 0, 0)',image:'none'},'Quick-add area must not have a shared background');
    if(!empty){
@@ -126,24 +131,29 @@ try{
     const navTop=await page.locator('.planning-fab-controls').evaluate(e=>e.getBoundingClientRect().top);
     if(!empty){const last=await page.locator('.daily-todo__item').last().boundingBox();assert(last.y+last.height<=navTop-15,'Last task cannot scroll above navigation');}
     await owner.evaluate(e=>{e.scrollTop=0});
-    const field=page.getByRole('textbox',{name:'Новая задача на этот день',exact:true}),add=page.getByRole('button',{name:'Добавить задачу',exact:true});
+    const field=page.getByRole('textbox',{name:'Новая задача на этот день',exact:true}),add=floatingAdd(page);
     assert.equal(await field.count(),0,'Mobile field is visible before opening');
     assert(await add.isEnabled(),'Collapsed Add is disabled');
-    const trigger=await add.boundingBox();assert(trigger.y>=0&&trigger.y<120,'Add is not at the top');
-    const dateBox=await dateTrigger.boundingBox();assert(Math.abs(dateBox.y-trigger.y)<1,'Date and Add are not in one row');
+    const trigger=await add.boundingBox();
+    const dateBox=await dateTrigger.boundingBox();
     const previous=page.getByRole('button',{name:'Предыдущий день',exact:true}),next=page.getByRole('button',{name:'Следующий день',exact:true});
-    const buttons=[await previous.boundingBox(),dateBox,await next.boundingBox(),trigger];
-    assert(buttons.every(b=>Math.abs(b.y-dateBox.y)<1&&b.height===48),'Toolbar controls are not aligned at 48px');
-    assert(buttons[0].width===48&&buttons[2].width===48&&buttons[3].width===48,'Toolbar icon controls are not circular');
-    const lower=await page.locator('.planning-fab-controls').evaluate(e=>[...e.querySelectorAll('button')].map(b=>{const r=b.getBoundingClientRect();return {width:r.width,height:r.height,y:r.y}}));
+    const buttons=[await previous.boundingBox(),dateBox,await next.boundingBox()];
+    assert(buttons.every(b=>Math.abs(b.y-dateBox.y)<1&&b.height===48),'Date controls are not aligned at 48px');
+    assert(buttons[0].width===48&&buttons[2].width===48,'Date arrows are not 48px circles');
+    assert.equal(await page.locator('.daily-todo__toolbar button').count(),3);
+    const lower=await page.locator('.planning-fab-controls').evaluate(e=>[...e.querySelectorAll('button')].map(b=>{const r=b.getBoundingClientRect();return {x:r.x,width:r.width,height:r.height,y:r.y}}));
     assert(lower.length===3&&lower.every(b=>b.height===dateBox.height),'Lower controls differ from the top controls');
     assert(lower[0].width===48&&lower[2].width===48,'Lower icon controls are not 48px circles');
-    assert(lower.every(b=>Math.abs(b.y-lower[0].y)<1),'Lower controls are not aligned');
+    assert(Math.abs(lower[0].y-lower[1].y)<1,'Back and space selector are not aligned');
+    assert.equal(trigger.width,48);assert.equal(trigger.height,48);
+    assert.equal(trigger.y,lower[1].y,'Add must occupy the bottom slot');
+    assert.equal(trigger.x,lower[2].x,'Add and planning launcher must share the right edge');
+    assert.equal(trigger.y-(lower[2].y+lower[2].height),8,'Add overlaps the planning launcher');
     for(let i=1;i<buttons.length;i++)assert(buttons[i-1].x+buttons[i-1].width+7<=buttons[i].x,'Toolbar controls overlap');
     assert.equal((await dateTrigger.textContent()).trim(),'17.10, Сб','Date label does not contain the weekday');
     await previous.click();await page.getByRole('button',{name:'Выбрать дату: 16.10.2026',exact:true}).waitFor();
     await next.click();await dateTrigger.waitFor();
-    if(!empty){const first=await page.locator('.daily-todo__item').first().boundingBox();assert(trigger.y+trigger.height<first.y,'Add is below the task list');}
+    if(!empty){const first=await page.locator('.daily-todo__item').first().boundingBox();assert(dateBox.y+dateBox.height<first.y,'Date row is below the task list');}
     if(width===390&&height===844&&!empty){
      const listSelector=page.getByRole('button',{name:'Выбрать To Do-лист',exact:true});
      await listSelector.click();await page.getByRole('menuitem',{name:'Рабочие дела',exact:true}).click();
@@ -151,7 +161,7 @@ try{
      await previous.click();await page.getByRole('button',{name:'Выбрать дату: 16.10.2026',exact:true}).waitFor();await next.click();await dateTrigger.waitFor();
      assert.equal(new URL(page.url()).searchParams.get('space'),'work','Day navigation lost selected list');
      assert.equal(new URL(page.url()).searchParams.get('date'),'2026-10-17','List change lost selected date');
-     await listSelector.click();await page.getByRole('menuitem',{name:'Создать To Do-лист',exact:true}).click();
+     await add.click();await page.getByRole('menuitem',{name:'Создать To Do-лист',exact:true}).click();
      const listPage=page.locator('[data-mobile-form-page]:not([hidden])');await listPage.getByRole('heading',{name:'Новый To Do-лист',exact:true}).waitFor();
      await listPage.getByRole('textbox',{name:'Название',exact:true}).fill('Ошибка');
      await listPage.getByRole('button',{name:'Создать To Do-лист',exact:true}).click();await listPage.getByRole('alert').waitFor();
@@ -165,7 +175,7 @@ try{
     }
     const chosenDate=new URL(page.url()).searchParams.get('date');
     const chosenUrl=page.url();
-    await add.click();
+    await openTask(page);
     const screen=page.locator('[data-mobile-form-page]:not([hidden])');await screen.waitFor();
     await screen.getByRole('heading',{name:'Новая задача',exact:true}).waitFor();
     assert(new URL(page.url()).searchParams.has('formScreen'),'Create did not push a native form history entry');
@@ -217,12 +227,12 @@ try{
      await page.evaluate(()=>{delete visualViewport.height;delete visualViewport.offsetTop;visualViewport.dispatchEvent(new Event('resize'));});
      await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-overlay-keyboard'));
     }
-    await add.click();await screen.waitFor();
+    await openTask(page);await screen.waitFor();
     assert.equal(await screen.getByRole('textbox',{name:'Название',exact:true}).inputValue(),'','Reopening create retained saved text');
     await screen.getByRole('textbox',{name:'Название',exact:true}).fill('Не сохранять');
     await screen.getByRole('button',{name:'Назад',exact:true}).click();await screen.waitFor({state:'hidden'});await page.waitForURL(chosenUrl);
     assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()).title,'Новая задача','Cancel saved data');
-    await add.click();await screen.waitFor();await page.waitForURL(url=>url.searchParams.has('formScreen'));await page.goBack();
+    await openTask(page);await screen.waitFor();await page.waitForURL(url=>url.searchParams.has('formScreen'));await page.goBack();
     try{await screen.waitFor({state:'hidden',timeout:5000});}catch(error){console.log('BACK FAILURE',width,height,empty,await page.evaluate(()=>({url:location.href,state:history.state,forms:[...document.querySelectorAll('[data-mobile-form-page]')].map(e=>({id:e.dataset.mobileFormPage,hidden:e.hidden,text:e.textContent.slice(0,150)}))})));throw error;}
     await page.waitForURL(chosenUrl);
     assert.equal(await field.count(),0,'Inline field returned after closing page');
@@ -382,7 +392,7 @@ try{
  await page.getByRole('button',{name:'Следующий день',exact:true}).click();
  await page.getByRole('button',{name:'Выбрать дату: 17.10.2026',exact:true}).waitFor();
  await page.waitForURL(url=>!url.searchParams.has('date'));
- await page.getByRole('button',{name:'Добавить задачу',exact:true}).click();
+ await openTask(page);
  const screen=page.locator('[data-mobile-form-page]:not([hidden])');await screen.waitFor();
  await screen.getByRole('textbox',{name:'Название',exact:true}).fill('Задача на сегодня');
  await screen.getByRole('button',{name:'Сохранить',exact:true}).click();await screen.waitFor({state:'hidden'});
@@ -408,7 +418,7 @@ try{
   const background=await page.locator('.daily-todo__task').first().evaluate(node=>getComputedStyle(node).backgroundColor);
   assert(['transparent','rgba(0, 0, 0, 0)'].includes(background),`Task hover has a background: ${background}`);
   if(width<768){
-   await page.getByRole('button',{name:'Добавить задачу',exact:true}).click();
+   await openTask(page);
    const screen=page.locator('[data-mobile-form-page]:not([hidden])');await screen.waitFor();
    assert.equal(await screen.getByLabel('Начало').inputValue(),'13:00','New mobile task did not take the next free slot');
    assert.equal(await screen.getByLabel('Длительность, минут').inputValue(),'30','New mobile task does not occupy one half-hour slot');

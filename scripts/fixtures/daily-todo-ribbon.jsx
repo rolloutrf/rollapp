@@ -4,7 +4,7 @@ import { BrowserRouter, useSearchParams } from 'react-router-dom';
 import { RelatedChoiceCard } from '@/components/planning-related-card';
 import { PlanningDailyTodo } from '@/components/planning-daily-todo';
 import { PlanningCalendar } from '@/components/planning-calendar';
-import { PlanningSpaceMenu } from '@/components/planning-space-switcher';
+import { PlanningSpaceCreator, PlanningSpaceMenu } from '@/components/planning-space-switcher';
 import { TaskEditor } from '@/components/planning-space.jsx?drawer-smoke-export=TaskEditor';
 import { MobileFormPages } from '@/components/mobile-form-pages';
 import { useVisualViewport } from '@/hooks/use-visual-viewport';
@@ -44,6 +44,29 @@ function Fixture(){
   {id:'done',title:'Готово',dueOn:date,startTime:'11:00',durationMinutes:60,completed:true},
  ]:Array.from({length:30},(_,i)=>({id:`task-${i}`,title:`Задача ${i+1}`,dueOn:date,completed:false}));
  const calendar=search.get("tab")==="calendar";
- return <><div className="app-layout app-layout--dark app-layout--planning"><output hidden data-saved-task>{JSON.stringify(saved)}</output><output hidden data-edited-task>{JSON.stringify(edited)}</output><main className="app-main"><section className="app-page planning-space planning-space--todo"><div className="planning-tools">{calendar?<PlanningCalendar tasks={tasks.slice(0,1)} columns={columns} onSave={save} onEdit={()=>{}} onCreate={()=>{}}/>:<PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} onEdit={setEdited} onCreate={(dueOn,startTime,draft={})=>setEditor({...draft,dueOn,startTime:startTime||"",unscheduled:!startTime,durationMinutes:30,columnId:'todo',completed:false})}/>}</div></section></main><div className="planning-fab-controls" data-has-back data-daily-todo><button className="planning-fab !size-(--layout-control-size)">Назад</button><div className="planning-fab-space"><PlanningSpaceMenu kind="todo" selected={search.get('space')||'main'} onSelect={selectSpace} spaces={spaces} setSpaces={setSpaces} loading={false} error="" reload={()=>{}} createSpace={async title=>{if(title==='Ошибка')throw Error('Не удалось создать список');return {id:'new-todo',kind:'todo',title};}}/></div><button className="planning-fab !size-(--layout-control-size)">Меню</button></div></div>{editor&&<TaskEditor task={editor} columns={columns} onClose={()=>setEditor(null)} onSave={save}/>}</>;
+ const [creatingList,setCreatingList]=useState(false);
+ return <>
+  <div className="app-layout app-layout--dark app-layout--planning">
+   <output hidden data-saved-task>{JSON.stringify(saved)}</output>
+   <output hidden data-edited-task>{JSON.stringify(edited)}</output>
+   <main className="app-main"><section className="app-page planning-space planning-space--todo"><div className="planning-tools">
+    {calendar
+     ? <PlanningCalendar tasks={tasks.slice(0,1)} columns={columns} onSave={save} onEdit={()=>{}} onCreate={()=>{}}/>
+     : <PlanningDailyTodo createSpace={{label:"Создать To Do-лист",onSelect:()=>setCreatingList(true)}} tasks={tasks} columns={columns}
+        onSave={save} onEdit={setEdited} onCreate={(dueOn,startTime,draft={})=>setEditor({...draft,dueOn,startTime:startTime||"",unscheduled:!startTime,durationMinutes:30,columnId:'todo',completed:false})}/>}
+   </div></section></main>
+   <div className="planning-fab-controls" data-has-back data-daily-todo>
+    <button className="planning-fab !size-(--layout-control-size)">Назад</button>
+    <div className="planning-fab-space"><PlanningSpaceMenu kind="todo" selected={search.get('space')||'main'} onSelect={selectSpace} spaces={spaces} loading={false} error="" reload={()=>{}}/></div>
+    <button className="planning-fab planning-fab--launcher !size-(--layout-control-size)">Меню</button>
+   </div>
+  </div>
+  {creatingList&&<PlanningSpaceCreator kind="todo" onClose={()=>setCreatingList(false)} onCreate={async title=>{
+   if(title==='Ошибка')throw Error('Не удалось создать список');
+   setSpaces(current=>[...current,{id:'new-todo',kind:'todo',title}]);
+   selectSpace('new-todo',{replace:true});
+  }}/>}
+  {editor&&<TaskEditor task={editor} columns={columns} onClose={()=>setEditor(null)} onSave={save}/>}
+ </>;
 }
 createRoot(document.getElementById('root')).render(<BrowserRouter><MobileFormPages>{new URLSearchParams(location.search).has('outcomes')?<OutcomeEditorFixture/>:new URLSearchParams(location.search).has('relatedCards')?<RelatedCardsFixture/>:<Fixture/>}</MobileFormPages></BrowserRouter>);

@@ -138,7 +138,7 @@ try{for(const [width,height] of sizes){
  await page.goto(`${origin}/app/planning?tab=notes`,{waitUntil:"domcontentloaded"});
  await page.getByRole('link',{name:'Мысли и идеи',exact:true}).waitFor();
  await page.evaluate(()=>document.fonts.ready);
- const grid=page.locator('.notes-grid'),noteTiles=grid.getByRole('link'),createTiles=grid.getByRole('button',{name:'Создать заметку'});
+ const grid=page.locator('.notes-grid'),noteTiles=grid.getByRole('link'),create=page.locator('[data-add-fab]').getByRole('button',{name:'Создать заметку',exact:true});
  const checkScreenStart=async(content)=>{
   const layout=await content.evaluate(el=>({
    top:el.getBoundingClientRect().top,
@@ -149,9 +149,15 @@ try{for(const [width,height] of sizes){
   assert(!layout.spacer&&layout.top>=layout.chromeBottom);
  };
  await checkScreenStart(grid);
- assert.equal(await createTiles.count(),1);
+ await create.waitFor();
+ assert.equal(await grid.locator('[data-add-fab]').count(),0);
+ const createBounds=await create.boundingBox();
+ const planningBounds=await page.getByRole('button',{name:'Открыть планирование',exact:true}).boundingBox();
+ assert.equal(createBounds.width,48);assert.equal(createBounds.height,48);
+ assert.equal(createBounds.x,planningBounds.x);
+ assert.equal(createBounds.y-(planningBounds.y+planningBounds.height),8);
  assert.equal(await noteTiles.count(),2);
- assert.deepEqual(await grid.locator('.notes-tile').evaluateAll(tiles=>tiles.map(tile=>tile.getAttribute('aria-label'))),['Создать заметку','Мысли и идеи','Другая заметка']);
+ assert.deepEqual(await grid.locator('.notes-tile').evaluateAll(tiles=>tiles.map(tile=>tile.getAttribute('aria-label'))),['Мысли и идеи','Другая заметка']);
  assert.equal(await grid.evaluate(el=>el.parentElement.firstElementChild===el),true,'Library must start with the grid');
  const geometry=await grid.evaluate(el=>{
   const tiles=[...el.children].map(tile=>tile.getBoundingClientRect());
