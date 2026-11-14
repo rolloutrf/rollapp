@@ -121,6 +121,60 @@ async function footerGeometry(add) {
   });
 }
 
+async function checkAccountRows(page, width) {
+  const accounts = section(page);
+  const rows = accounts.getByRole("listitem");
+  const current = rows.first();
+  const saved = rows.last();
+  const remove = saved.getByRole("button", { name: `Убрать @${business.username} с этого устройства` });
+  const background = (locator) => locator.evaluate(async node => {
+    getComputedStyle(node).backgroundColor;
+    await Promise.all(node.getAnimations().map(animation => animation.finished.catch(() => {})));
+    const color = getComputedStyle(node).backgroundColor;
+    const context = document.createElement("canvas").getContext("2d");
+    context.fillStyle = color;
+    context.fillRect(0, 0, 1, 1);
+    return [...context.getImageData(0, 0, 1, 1).data].join(",");
+  });
+  assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(node => {
+    const style = getComputedStyle(node);
+    return [style.borderBlockStartWidth, style.borderBlockEndWidth];
+  })), [["0px", "0px"], ["0px", "0px"]]);
+  assert.equal(await remove.locator("svg.lucide-trash-2").count(), 1);
+  assert(await remove.evaluate(node => {
+    const { width, height } = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return width === 48 && height === 48 &&
+      [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius]
+        .every(radius => parseFloat(radius) >= 24);
+  }));
+  if (width < 768) return;
+  const heading = page.getByRole("heading", { name: "Аккаунты", exact: true });
+  assert.equal(await heading.evaluate(node =>
+    getComputedStyle(node.closest('[data-slot="drawer-header"]')).borderBlockEndWidth), "0px");
+
+  const resting = await background(saved);
+  const activeResting = await background(current);
+  const switchButton = switchTo(page, business);
+  await switchButton.hover();
+  const highlighted = await background(saved);
+  assert.notEqual(highlighted, resting);
+  assert.equal(await background(switchButton), "0,0,0,0");
+  assert.equal(await background(current), activeResting);
+  await remove.hover();
+  assert.equal(await background(saved), highlighted);
+  assert.equal(await background(current), activeResting);
+  if (process.env.ROLLAPP_ACCOUNT_SCREENSHOTS && width === 1440) {
+    await accounts.screenshot({ path: `${process.env.ROLLAPP_ACCOUNT_SCREENSHOTS}/rollapp-accounts-hover-1440.png` });
+  }
+  await heading.hover();
+  assert.equal(await background(saved), resting);
+  await page.keyboard.press("Tab");
+  await remove.focus();
+  await page.waitForFunction(() => document.activeElement?.matches(":focus-visible"));
+  assert.equal(await background(saved), highlighted);
+}
+
 async function openAccounts(page, user) {
   await home(page, user).click();
   await toggle(page).click();
@@ -160,10 +214,11 @@ try {
       }));
       assert(dimensions.scroll <= dimensions.available && dimensions.document <= width, JSON.stringify(dimensions));
       assert.equal(new URL(await add.getAttribute("href"), origin).searchParams.get("next"), "/app/wishes?space=products");
+      await checkAccountRows(page, width);
       if (process.env.ROLLAPP_ACCOUNT_SCREENSHOTS && ((width === 390 && height === 844) || width === 1440)) {
         await page.screenshot({ path: `${process.env.ROLLAPP_ACCOUNT_SCREENSHOTS}/rollapp-accounts-${width}.png` });
       }
-      console.log(`PASS ${width}x${height}: account list, current marker, long account names, fixed footer, 48px actions and return path`);
+      console.log(`PASS ${width}x${height}: account list, current marker, long account names, borderless rows, trash, fixed footer and return path`);
     } finally {
       await context.close();
     }

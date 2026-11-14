@@ -29,9 +29,9 @@ export function DrawerHeader({ className, ...props }) {
 export function DrawerTitle({ className, ...props }) {
   return useContext(FormMode) ? <h1 className={cn("text-2xl font-semibold", className)} {...props} /> : <Sheet.DrawerTitle className={className} {...props} />;
 }
-export function DrawerSectionHeader({ title, titleId, titleRef, description, startAction, endAction }) {
+export function DrawerSectionHeader({ title, titleId, titleRef, description, startAction, endAction, borderless = false }) {
   const heading = <DrawerTitle id={titleId} ref={titleRef} tabIndex={titleRef ? -1 : undefined} className="min-w-0 flex-1 wrap-anywhere text-left text-2xl font-semibold">{title}</DrawerTitle>;
-  return <ControlBar as={DrawerHeader} className="app-drawer-section-header">
+  return <ControlBar as={DrawerHeader} className="app-drawer-section-header" data-borderless={borderless || undefined}>
     {startAction}
     {description ? <div className="grid min-w-0 flex-1 gap-1 text-left">
       {heading}

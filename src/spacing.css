@@ -119,7 +119,7 @@
     gap: var(--layout-inline-gap);
     padding: var(--layout-item-gap);
   }
-  [data-slot="drawer-header"].app-drawer-section-header { border-block-end: 1px solid var(--border); }
+  [data-slot="drawer-header"].app-drawer-section-header:not([data-borderless]) { border-block-end: 1px solid var(--border); }
 
   /* One navigation size everywhere. These dimensions intentionally outrank
      primitive sizes and caller utilities; changing a screen cannot silently

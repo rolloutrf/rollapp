@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Plus, UserMinus } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api";
 import { DrawerFooter } from "@/components/form-surface";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -62,7 +62,7 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
         setRevision((current) => current + 1);
       }}>Повторить</Button>
     </> : !data ? <p role="status" className="flex min-h-12 items-center gap-2"><Spinner />Загружаем аккаунты…</p> : <>
-      <ul className="divide-y">
+      <ul className="grid gap-1">
         {data.accounts.map((account) => {
           const label = <><Avatar user={account} size="sm" className="shrink-0" />
             <span className="grid min-w-0 flex-1 gap-1 text-left">
@@ -71,13 +71,13 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
                 @{account.username} · {account.accountType === "business" ? "Бизнес" : "Личный"}
               </span>
             </span></>;
-          return <li key={account.id} className="flex min-w-0 items-center gap-2 py-1">
+          return <li key={account.id} className="flex min-w-0 items-center gap-2 rounded-xl py-1 hover:bg-muted has-[:focus-visible]:bg-muted">
             {account.active ? <div className="flex min-h-12 min-w-0 flex-1 items-center gap-2 px-2">
               {label}
               <span className="sr-only">Активный аккаунт</span>
               <Check className="size-5 shrink-0 text-primary" aria-hidden="true" />
             </div> : <>
-              <Button type="button" variant="ghost" className="h-auto min-h-12 min-w-0 flex-1 justify-start gap-2 px-2 py-1"
+              <Button type="button" variant="ghost" className="h-auto min-h-12 min-w-0 flex-1 justify-start gap-2 px-2 py-1 hover:bg-transparent dark:hover:bg-transparent"
                 aria-label={`Переключиться на @${account.username}`} disabled={actionBlocked} onClick={() => selectAccount(account)}>
                 {label}
                 {pending?.id === account.id && !pending.remove && <Spinner />}
@@ -85,7 +85,7 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
               <Button type="button" variant="destructive" size="icon" className="size-12 shrink-0 rounded-full"
                 aria-label={`Убрать @${account.username} с этого устройства`} title="Убрать аккаунт с этого устройства"
                 disabled={actionBlocked} onClick={() => selectAccount(account, true)}>
-                {pending?.id === account.id && pending.remove ? <Spinner /> : <UserMinus className="size-5" aria-hidden="true" />}
+                {pending?.id === account.id && pending.remove ? <Spinner /> : <Trash2 className="size-5" aria-hidden="true" />}
               </Button>
             </>}
           </li>;

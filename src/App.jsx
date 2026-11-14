@@ -7954,7 +7954,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
           <X />
           <span className="sr-only">Закрыть</span>
         </DrawerClose>}
-        {desktopSection ? <DrawerSectionHeader title={sectionTitle} titleRef={sectionHeading} startAction={
+        {desktopSection ? <DrawerSectionHeader title={sectionTitle} titleRef={sectionHeading} borderless={desktopSection === "accounts"} startAction={
           <ShadcnButton data-control-icon="" type="button" variant="outline" size="icon" aria-label="Назад" disabled={busy} onClick={backToSections}>
             <ArrowLeft aria-hidden="true" />
           </ShadcnButton>
