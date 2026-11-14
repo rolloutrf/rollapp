@@ -3179,80 +3179,63 @@ function BusinessAccessContent({ user }) {
   ) : null;
 
   return (
-    <div className="app-page business-access-page rollapp-body">
-      <header className="business-access-page__header">
-        <span className="eyebrow"><Building2 aria-hidden="true" />Бизнес-аккаунт</span>
+    <div className="app-page business-access-page page-stack page-stack--sections rollapp-body">
+      <header className="business-access-page__header typeset typeset-rollapp">
         <h1>Доступ к пространствам клиентов</h1>
         {category && <p>{category.label} · {category.sphereLabel}</p>}
         <p>Открытые владельцами разделы доступны только для чтения. Чтобы получить доступ к другому разделу, найдите пользователя и отправьте запрос.</p>
-        {category?.id === "seller" && <PageActionButton render={<Link to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`} />}>Моя страница</PageActionButton>}
+        {category?.id === "seller" && <PageActionButton to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`}>Моя страница</PageActionButton>}
       </header>
 
       {category?.id !== "seller" && <BusinessPersonalOffers user={user} />}
 
       <section className="business-access-page__section" aria-labelledby="business-shares-title">
-        <div className="business-access-page__section-heading"><h2 id="business-shares-title">Открытые разделы</h2></div>
+        <div className="typeset typeset-rollapp"><h2 id="business-shares-title">Открытые разделы</h2></div>
         {accessStatus || (shares.length ? (
-          <div className="business-access-page__requests">
+          <ul className="contacts-grid">
             {shares.map((share) => (
-              <Card key={businessScopeKey(share.owner.id, share.sphere, share.section)} className="business-access-request grid">
-                <BusinessAccessOwner owner={share.owner} />
-                <BusinessAccessScope scope={share} />
-                <div className="business-access-request__action">
-                  <Link to={businessSharePath(share)} className={buttonVariants({ variant: "outline" })} aria-label={`Открыть «${businessSectionLabel(share.section)}» — ${share.owner.name}`}>Открыть</Link>
-                </div>
-              </Card>
+              <BusinessAccessCard key={businessScopeKey(share.owner.id, share.sphere, share.section)} owner={share.owner} scope={share} actions={
+                <Link to={businessSharePath(share)} data-slot="button" className={buttonVariants({ variant: "outline" })} aria-label={`Открыть «${businessSectionLabel(share.section)}» — ${share.owner.name}`}><span>Открыть</span></Link>
+              } />
             ))}
-          </div>
+          </ul>
         ) : <div className="business-access-page__status">У вас пока нет открытых разделов</div>)}
       </section>
 
       <section className="business-access-page__section" aria-labelledby="business-requests-title">
-        <div className="business-access-page__section-heading"><h2 id="business-requests-title">Мои запросы</h2></div>
+        <div className="typeset typeset-rollapp"><h2 id="business-requests-title">Мои запросы</h2></div>
         {accessReady && (outstanding.length ? (
-          <div className="business-access-page__requests">
+          <ul className="contacts-grid">
             {outstanding.map((request) => {
               const status = BUSINESS_REQUEST_STATUS[request.status];
               return (
-                <Card key={request.id} className="business-access-request grid">
-                  <BusinessAccessOwner owner={request.owner} />
-                  <BusinessAccessScope scope={request} />
-                  <div className="business-access-request__action">
-                    {status && <Badge variant={status.variant}>{status.label}</Badge>}
-                    {request.status === "pending" && (
-                      <ShadcnButton type="button" variant="ghost" disabled={Boolean(cancellingId)} onClick={() => cancelRequest(request)}>{cancellingId === request.id && <Spinner data-icon="inline-start" />}Отменить</ShadcnButton>
-                    )}
-                  </div>
-                </Card>
+                <BusinessAccessCard key={request.id} owner={request.owner} scope={request} status={status && <Badge variant={status.variant}>{status.label}</Badge>} actions={request.status === "pending" && (
+                  <ShadcnButton type="button" variant="outline" disabled={Boolean(cancellingId)} onClick={() => cancelRequest(request)}>{cancellingId === request.id && <Spinner data-icon="inline-start" />}<span>Отменить</span></ShadcnButton>
+                )} />
               );
             })}
-          </div>
+          </ul>
         ) : <div className="business-access-page__status">Здесь появятся запросы, по которым сейчас нет доступа</div>)}
       </section>
 
       <section className="business-access-page__section" aria-labelledby="business-people-title">
-        <div className="business-access-page__section-heading">
-          <h2 id="business-people-title">Пользователи</h2>
-          <InputGroup className="business-access-page__search">
-            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
-            <InputGroupInput type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
-          </InputGroup>
-        </div>
+        <div className="typeset typeset-rollapp"><h2 id="business-people-title">Пользователи</h2></div>
+        <InputGroup className="business-access-page__search">
+          <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
+          <InputGroupInput type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
+          {search && <InputGroupAddon align="inline-end"><InputGroupButton type="button" size="icon-sm" className="rounded-full" aria-label="Очистить поиск" onClick={() => setSearch("")}><X aria-hidden="true" /></InputGroupButton></InputGroupAddon>}
+        </InputGroup>
         {loadingPeople ? <div className="business-access-page__status" role="status"><Spinner /><span>Загружаем пользователей…</span></div> : peopleError ? (
           <Alert variant="destructive"><AlertTitle>Не удалось загрузить пользователей</AlertTitle><AlertDescription>{peopleError}</AlertDescription></Alert>
         ) : people.length ? (
-          <ul className="business-access-page__people" aria-label="Пользователи">
+          <ul className="contacts-grid" aria-label="Пользователи">
             {people.map((person) => {
               const sections = shares.filter((share) => share.owner.id === person.id);
               const hasPending = outstanding.some((request) => request.owner.id === person.id && request.status === "pending");
               return (
-                <li key={person.id} className="business-access-person">
-                  <BusinessAccessOwner owner={person} />
-                  <div className="business-access-request__action">
-                    {hasPending && <Badge variant="outline">Есть запрос</Badge>}
-                    <BusinessClientAccessActions account={user} person={person} sections={sections} onRequest={() => openRequest(person)} />
-                  </div>
-                </li>
+                <BusinessAccessCard key={person.id} owner={person} status={hasPending && <Badge variant="outline">Есть запрос</Badge>} actions={
+                  <BusinessClientAccessActions account={user} person={person} sections={sections} onRequest={() => openRequest(person)} />
+                } />
               );
             })}
           </ul>
@@ -3298,18 +3281,28 @@ function BusinessAccessContent({ user }) {
   );
 }
 
-function BusinessAccessOwner({ owner }) {
-  return <div className="business-access-request__owner">
-    <Avatar user={owner} size="sm" className="!size-11" />
-    <span><strong>{owner.name}</strong><small>@{owner.username}</small></span>
-  </div>;
-}
-
-function BusinessAccessScope({ scope }) {
-  return <div className="business-access-request__scope">
-    <strong>{businessSectionLabel(scope.section)}</strong>
-    {scope.section !== scope.sphere && <span>{businessSphereLabel(scope.sphere)}</span>}
-  </div>;
+function BusinessAccessCard({ owner, scope, status, actions }) {
+  return (
+    <li className="business-access-card" style={{ "--contact-accent": contactAccent(owner.username || owner.name) }}>
+      <div className="business-access-card__body">
+        <div className="contact-card__avatar-wrap">
+          <Avatar user={owner} size="lg" className="contact-card__avatar" aria-hidden="true" />
+        </div>
+        <div className="business-access-card__identity">
+          <strong>{owner.name}</strong>
+          <span className="business-access-card__caption">@{owner.username}</span>
+        </div>
+        {scope && (
+          <div className="business-access-card__scope">
+            <span><Building2 aria-hidden="true" /><span>{businessSectionLabel(scope.section)}</span></span>
+            {scope.section !== scope.sphere && <span className="business-access-card__caption">{businessSphereLabel(scope.sphere)}</span>}
+          </div>
+        )}
+        {status}
+      </div>
+      {actions && <footer className="business-access-card__footer">{actions}</footer>}
+    </li>
+  );
 }
 
 function SphereSharePicker({ open, onOpenChange }) {

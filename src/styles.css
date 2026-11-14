@@ -4164,16 +4164,14 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   gap: 16px;
 }
 .sphere-access-request__person,
-.business-access-form__person,
-.business-access-request__owner {
+.business-access-form__person {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 11px;
 }
 .sphere-access-request__person > span,
-.business-access-form__person > span,
-.business-access-request__owner > span {
+.business-access-form__person > span {
   min-width: 0;
   display: grid;
   gap: 2px;
@@ -4181,21 +4179,17 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .sphere-access-request__person strong,
 .sphere-access-request__person small,
 .business-access-form__person strong,
-.business-access-form__person small,
-.business-access-request__owner strong,
-.business-access-request__owner small {
+.business-access-form__person small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .sphere-access-request__person small,
-.business-access-form__person small,
-.business-access-request__owner small { color: var(--muted-foreground); font-size: .8125rem; line-height: 1rem; }
+.business-access-form__person small { color: var(--muted-foreground); font-size: .8125rem; line-height: 1rem; }
 .sphere-access-request__copy { min-width: 0; display: grid; gap: 4px; }
 .sphere-access-request__copy > p { margin: 0; color: var(--muted-foreground); text-wrap: pretty; }
 .sphere-access-request__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 
-.app-layout--dark .app-main--with-profile > .business-access-page { padding-top: 44px; }
 .app-layout--dark .app-main--with-profile > .business-marketplace-page { padding-top: 0; }
 .business-marketplace-page {
   width: min(100%, 1120px);
@@ -4221,40 +4215,50 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .business-marketplace-card__business > span { min-width: 0; display: grid; gap: 1px; }
 .business-marketplace-card__business :is(strong, small) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .business-marketplace-card__business small { color: var(--muted-foreground); font-size: .8125rem; line-height: 1rem; }
-.business-access-page { display: grid; gap: 44px; }
-.business-access-page__header { max-width: 760px; display: grid; gap: 12px; }
-.business-access-page__header .eyebrow { margin: 0; }
-.business-access-page__header .eyebrow > svg { width: 16px; height: 16px; }
-.business-access-page__header h1 { margin: 0; font-family: var(--font-heading); font-size: 2.25rem; line-height: 2.5rem; font-weight: 650; letter-spacing: -.035em; }
-.business-access-page__header p,
-.business-access-page__section-heading p { margin: 0; color: var(--muted-foreground); text-wrap: pretty; }
+.business-access-page__header > [data-page-action] { margin-block-start: var(--layout-inline-gap); }
 .business-access-page__section { min-width: 0; display: grid; gap: var(--layout-page-gap); }
-.business-access-page__section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
-.business-access-page__section-heading h2 { margin: 0; font-family: var(--font-heading); font-size: 1.5rem; line-height: 2rem; font-weight: 620; }
-.business-access-page__search { width: min(100%, 360px); flex: 0 0 auto; }
-.business-access-page__search [data-slot="input-group-addon"][data-align="inline-start"] { padding-left: 14px; padding-right: 10px; }
-.business-access-page__search [data-slot="input-group-addon"] > svg { width: 19px; height: 19px; color: var(--muted-foreground); }
-.business-access-page__search input { min-height: 48px; padding-left: 0; }
-.business-access-page__people {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--card);
-  color: var(--card-foreground);
+.business-access-card__body {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--layout-inline-gap);
+  padding: 8px;
 }
-.business-access-person {
-  display: grid;
-  padding: 16px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
+.business-access-card__body > [data-slot="badge"] {
+  max-width: 100%;
+  height: auto;
+  min-height: 1.25rem;
+  white-space: normal;
 }
-.business-access-person + .business-access-person { border-block-start: 1px solid var(--border); }
-.business-access-person__grants { grid-column: 1 / -1; display: grid; gap: 8px; min-width: 0; }
-.business-access-person__grants > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.business-access-card__caption {
+  max-width: 100%;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  overflow-wrap: anywhere;
+}
+.business-access-card__scope {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.business-access-card__scope > span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.business-access-card__scope svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  align-self: center;
+}
+.business-access-person__grants { display: grid; gap: var(--layout-inline-gap); min-width: 0; }
+.business-access-person__grants > div { display: flex; flex-wrap: wrap; gap: var(--layout-inline-gap); }
 .business-access-page__status {
   min-height: var(--layout-control-size);
   padding: 12px 16px;
@@ -4266,16 +4270,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   color: var(--muted-foreground);
 }
 .business-access-page__status > svg { width: 22px; height: 22px; }
-.business-access-page__requests { display: grid; gap: 8px; }
-.business-access-request {
-  padding: 14px 16px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, .7fr) minmax(0, .65fr);
-  align-items: center;
-  gap: 16px;
-}
-.business-access-request__scope { min-width: 0; display: grid; gap: 2px; }
-.business-access-request__scope > span { color: var(--muted-foreground); font-size: .8125rem; line-height: 1rem; }
-.business-access-request__action { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .business-access-form { min-height: 0; display: flex; flex: 1; flex-direction: column; }
 .business-access-form__person { padding: 12px; border-radius: 16px; background: var(--muted); }
 .business-access-form textarea { min-height: 112px; }
@@ -4286,23 +4280,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   .sphere-access-request { grid-template-columns: 1fr; }
   .sphere-access-request__actions { justify-content: stretch; }
   .sphere-access-request__actions > button { flex: 1; }
-  .business-access-page { gap: 34px; }
-  .business-access-page__section-heading { align-items: stretch; flex-direction: column; gap: 12px; }
-  .business-access-page__search { width: 100%; }
-  .business-access-request { grid-template-columns: minmax(0, 1fr) auto; }
-  .business-access-request__scope { grid-column: 1; }
-  .business-access-request > .business-access-request__action {
-    grid-column: 2;
-    grid-row: 1 / 3;
-    flex-direction: column;
-    align-items: flex-end;
-  }
   .business-marketplace-grid { grid-template-columns: minmax(0, 1fr); }
-}
-
-@media (max-width: 560px) {
-  .business-access-person { grid-template-columns: minmax(0, 1fr); }
-  .business-access-person .business-access-request__action { justify-content: flex-start; }
 }
 
 @media (min-width: 761px) and (max-width: 1040px) {
@@ -5897,7 +5875,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   align-items: center;
   gap: var(--layout-inline-gap);
 }
-.contacts-sphere__search {
+:is(.contacts-sphere__search, .business-access-page__search) {
   width: 100%;
   height: 50px;
   margin: 0;
@@ -5908,11 +5886,11 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   border: 0;
   background: color-mix(in oklch, var(--foreground) 5%, transparent);
 }
-.contacts-sphere__search [data-slot="input-group-addon"][data-align="inline-start"] {
+:is(.contacts-sphere__search, .business-access-page__search) [data-slot="input-group-addon"][data-align="inline-start"] {
   padding-left: 16px;
   padding-right: 10px;
 }
-.contacts-sphere__search [data-slot="input-group-addon"] > svg {
+:is(.contacts-sphere__search, .business-access-page__search) [data-slot="input-group-addon"] > svg {
   width: 19px;
   height: 19px;
   color: var(--muted-foreground);
@@ -5926,6 +5904,10 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   background: transparent;
   box-shadow: none;
   font-size: 15px;
+}
+.app-layout--dark .business-access-page__search [data-slot="input"] {
+  height: 100%;
+  background: transparent;
 }
 .contacts-sphere__search-clear {
   color: var(--muted-foreground);
@@ -5997,6 +5979,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .business-catalog-grid { list-style: none; }
 .business-catalog-card { --directory-card-accent: #7d83ea; }
 .contact-card,
+.business-access-card,
 .business-catalog-card {
   min-width: 0;
   min-height: 268px;
@@ -6141,6 +6124,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   white-space: nowrap;
 }
 .contact-card__identity,
+.business-access-card__identity,
 .business-catalog-card__identity {
   min-width: 0;
   margin-top: 18px;
@@ -6155,6 +6139,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   gap: 7px;
 }
 .contact-card__identity strong,
+.business-access-card__identity strong,
 .business-catalog-card__identity strong {
   width: auto;
   max-width: 100%;
@@ -6219,6 +6204,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   -webkit-box-orient: vertical;
 }
 .contact-card__footer,
+.business-access-card__footer,
 .business-catalog-card__footer {
   margin-top: auto;
   padding: 9px 8px 4px;
@@ -6237,7 +6223,22 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   text-align: end;
 }
 .contact-card__footer :is(button, a),
-.business-catalog-card__footer button { pointer-events: auto; }
+.business-catalog-card__footer button,
+.business-access-card__footer { pointer-events: auto; }
+.business-access-card__footer {
+  flex-direction: column;
+  align-items: stretch;
+}
+.business-access-card__footer > [data-slot="button"] { width: 100%; }
+.business-access-card__footer [data-slot="button"] {
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--layout-control-size);
+  padding-inline: var(--layout-inline-gap);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.business-access-card__footer [data-slot="button"] > span:not([data-slot="spinner"]) { min-width: 0; }
 .contact-card__footer {
   align-items: center;
   justify-content: flex-start;
@@ -6581,16 +6582,16 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
   .contacts-sphere__reset { grid-column: 1 / -1; }
   .contacts-sphere__result-meta { margin-bottom: 13px; }
   .contacts-grid { gap: 10px; }
-  .contact-card, .business-catalog-card { min-height: 238px; padding: 8px; border-radius: 21px; }
-  .contact-card__body, .business-catalog-card__profile { padding: 7px; }
+  .contact-card, .business-access-card, .business-catalog-card { min-height: 238px; padding: 8px; border-radius: 21px; }
+  .contact-card__body, .business-access-card__body, .business-catalog-card__profile { padding: 7px; }
   .contact-card__top { min-height: 54px; grid-template-columns: 54px minmax(0, 1fr); gap: 9px; }
   .contact-card__avatar-wrap, .business-catalog-card__avatar[data-slot="avatar"] { --contact-avatar-size: 54px; }
   .contact-card__avatar { font-size: 17px; }
   .contact-card__category { max-width: min(100%, 78px); min-height: 26px; padding: 0 7px; font-size: 13px; }
-  .contact-card__identity, .business-catalog-card__identity { margin-top: 13px; }
-  .contact-card__identity strong, .business-catalog-card__identity strong { font-size: 16px; line-height: 21px; }
+  .contact-card__identity, .business-access-card__identity, .business-catalog-card__identity { margin-top: 13px; }
+  .contact-card__identity strong, .business-access-card__identity strong, .business-catalog-card__identity strong { font-size: 16px; line-height: 21px; }
   .contact-card__bio { min-height: 36px; margin: 9px 0 12px; font-size: 13px; line-height: 18px; }
-  .contact-card__footer, .business-catalog-card__footer { padding-inline: 6px; }
+  .contact-card__footer, .business-access-card__footer, .business-catalog-card__footer { padding-inline: 6px; }
   .contact-card__footer .contact-card__details { font-size: 13px; }
   .contact-social-link { width: 30px; padding: 0; justify-content: center; }
   .contact-social-link__label { display: none; }

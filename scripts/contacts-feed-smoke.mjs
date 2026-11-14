@@ -43,7 +43,7 @@ try {
         return encodeCanvas.apply(this, args);
       };
     });
-    await page.route('**/api/**', (route) => { errors.push('Unexpected API request'); return route.abort(); });
+    await page.route('**/api/**', (route) => { errors.push(`Unexpected API request: ${route.request().method()} ${new URL(route.request().url()).pathname}`); return route.abort(); });
     await page.goto(`${origin}/__contacts-feed`, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForFunction(() => document.querySelectorAll('.contact-card').length === 48);
     await page.evaluate(() => document.fonts.ready);

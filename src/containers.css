@@ -55,7 +55,6 @@
   .app-layout--dark .settings-form { max-width: var(--layout-form-width); }
   .sphere-access-requests { width: min(var(--layout-collection-width), calc(100% - 2 * var(--layout-page-inset))); }
   .business-access-page__header { max-width: var(--layout-text-width); }
-  .business-access-page__search { width: min(100%, var(--layout-menu-wide-width)); }
 
   /* A drawer's axis still comes from shadcn. Only its product width is chosen
      here, so utility defaults cannot silently turn a 576px form into 384px. */

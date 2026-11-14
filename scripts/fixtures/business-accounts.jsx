@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { MemoryRouter } from "react-router-dom";
-import { BusinessClientAccessActions } from "@/components/business-client-access-actions";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card } from "@/components/ui/card";
+import { BrowserRouter } from "react-router-dom";
+import App from "@/App.jsx";
+import { api } from "@/api.js";
 import { createRoot } from "react-dom/client";
 import { RegistrationAccountFields } from "@/components/registration-account-fields";
 import { BusinessRequestScopeFields } from "@/components/business-request-scope-fields";
@@ -22,27 +21,6 @@ function Fixture() {
   const [section, setSection] = useState(SPHERE_SECTIONS[sphere][0]);
   const [submitted, setSubmitted] = useState(null);
   const request = query.has("request");
-  if (query.has("clients")) {
-    const seller = { ...account, businessCategory: "seller", sellerSpace: "products" };
-    return <MemoryRouter><main className="app-page business-access-page rollapp-body">
-      <div className="business-access-page__people">
-        <Card className="business-access-person">
-          <Avatar className="avatar avatar--md !size-12"><AvatarFallback>К</AvatarFallback></Avatar>
-          <span><strong>Клиент с доступом</strong><small>@shared-client</small></span>
-          <BusinessClientAccessActions account={seller} person={{ name: "Клиент с доступом", username: "shared-client" }} sections={[
-            { sphere: "wishlist", section: "products" },
-            { sphere: "wishlist", section: "wishlist" },
-          ]} />
-        </Card>
-        <Card className="business-access-person">
-          <Avatar className="avatar avatar--md !size-12"><AvatarFallback>К</AvatarFallback></Avatar>
-          <span><strong>Клиент без доступа</strong><small>@new-client</small></span>
-          <BusinessClientAccessActions account={seller} person={{ name: "Клиент без доступа", username: "new-client" }} sections={[]} onRequest={() => setSubmitted("new-client")} />
-        </Card>
-      </div>
-      <output hidden data-submitted>{JSON.stringify(submitted)}</output>
-    </main></MemoryRouter>;
-  }
   return <div className="auth-page rollapp-body"><div className="auth-panel">
     <form className="auth-form" onSubmit={(event) => { event.preventDefault(); setSubmitted(request ? { sphere, section } : value); }}>
       <div><span className="eyebrow">{request ? "Бизнес-аккаунт" : "Новый аккаунт"}</span><h1>{request ? "Запросить доступ" : "Создать свой Rollapp"}</h1></div>
@@ -59,4 +37,37 @@ function Fixture() {
   </div></div>;
 }
 
-createRoot(document.getElementById("root")).render(<Fixture />);
+const root = createRoot(document.getElementById("root"));
+if (new URLSearchParams(location.search).has("clients")) {
+  const seller = { id: "seller-account", name: "Мой магазин", username: "seller-profile", accountType: "business", businessCategory: "seller", sellerSpace: "products" };
+  const shared = { id: "shared-client", name: "Александр Соколов", username: "shared-client" };
+  const pending = { id: "pending-client", name: "Алёна Воронцова", username: "pending-client" };
+  const prospect = { id: "new-client", name: "Виктория Александрова-Рождественская", username: "long-username-with-many-characters" };
+  const people = [shared, pending, prospect, { id: "fourth-client", name: "Инна Крылова", username: "fourth-client" }];
+  const shares = ["products", "wishlist"].map(section => ({ owner: shared, sphere: "wishlist", section }));
+  let requests = [{ id: "initial-request", owner: pending, sphere: "wishlist", section: "products", status: "pending" }];
+  window.clientAccessCalls = [];
+  api.get = async (path) => {
+    if (path === "/me") return { user: seller };
+    if (path === "/business-access/requests") return { shares, requests };
+    if (path.startsWith("/business-access/users")) {
+      const query = new URL(path, location.origin).searchParams.get("search")?.toLowerCase() || "";
+      return { people: people.filter(person => `${person.name} ${person.username}`.toLowerCase().includes(query)) };
+    }
+    return {};
+  };
+  api.post = async (path, body) => {
+    if (path !== "/business-access/requests") throw new Error(`Unexpected request: ${path}`);
+    window.clientAccessCalls.push(body);
+    requests = [...requests, { id: "new-request", owner: prospect, sphere: body.sphere, section: body.section, status: "pending" }];
+  };
+  api.delete = async (path) => {
+    if (path !== "/business-access/requests/initial-request") throw new Error(`Unexpected request: ${path}`);
+    window.clientAccessCalls.push(path);
+    requests = requests.filter(request => request.id !== "initial-request");
+  };
+  history.replaceState({}, "", "/app/business/access");
+  root.render(<BrowserRouter><App /></BrowserRouter>);
+} else {
+  root.render(<Fixture />);
+}

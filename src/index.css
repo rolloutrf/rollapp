@@ -505,10 +505,17 @@
     font-size: 1.1875rem;
   }
 
-  .contacts-sphere__search [data-slot="input-group-control"] {
+  .business-access-card__footer [data-slot="button"] {
+    height: auto;
+    padding-block: 0.25rem;
+    border-radius: calc(var(--layout-control-size) / 2);
+    white-space: normal;
+  }
+
+  :is(.contacts-sphere__search, .business-access-page__search) [data-slot="input-group-control"] {
     padding-inline: 0 0.5rem;
   }
-  .contacts-sphere__search input[type="search"]::-webkit-search-cancel-button {
+  :is(.contacts-sphere__search, .business-access-page__search) input[type="search"]::-webkit-search-cancel-button {
     -webkit-appearance: none;
     appearance: none;
     display: none;

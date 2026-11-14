@@ -30,6 +30,7 @@ api.get = async (path) => {
   const page = Number(query.get('page')), pageSize = Number(query.get('pageSize'));
   return { contacts: matches.slice((page - 1) * pageSize, page * pageSize).map((item) => ({ ...item })), total: matches.length, favoriteTotal: contacts.filter((item) => item.favorite).length, page, pageSize, hasMore: page * pageSize < matches.length, facets: { companies: [...new Set(contacts.map((item) => item.company))].map(company => ({ company, count: 1 })) } };
 };
+api.resolveContactAvatar = async () => { throw new Error('В браузерном стенде нет фото из соцсети'); };
 api.patch = async (path, body) => {
   await new Promise((resolve) => setTimeout(resolve, 80));
   if (window.feedTest.failPatch) throw new Error('Не удалось сохранить');

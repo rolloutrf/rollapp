@@ -8,6 +8,7 @@ import { BUSINESS_CATEGORIES } from "../shared/business-accounts.js";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS } from "../shared/sphere-sharing.js";
 
 const output = "/tmp/rollapp-business-categories";
+const clientsOnly = process.argv.includes("--clients-only");
 await mkdir(output, { recursive: true });
 const server = await createServer({ cacheDir: "node_modules/.vite-business-accounts", server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "business-account-layout", configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
@@ -37,14 +38,7 @@ async function geometry(page, label) {
   }
 }
 
-try {
-  for (const [width, height] of [[320, 844], [390, 844], [768, 844], [820, 844], [1024, 844], [1440, 900], [1920, 1080], [390, 400]]) {
-    const page = await browser.newPage({ viewport: { width, height } });
-    page.setDefaultTimeout(30_000);
-    const errors = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.route("**/api/**", (route) => { errors.push(`Unexpected API request: ${route.request().method()}`); return route.abort(); });
-    const label = `${width}x${height}`;
+async function checkRegistrationAndRequestForms(page, label) {
     await page.goto(`${origin}/__business-accounts`);
     await page.getByRole("radio", { name: /^Личный/ }).waitFor();
     await page.evaluate(() => document.fonts.ready);
@@ -115,22 +109,91 @@ try {
       assert.deepEqual(JSON.parse(await page.locator("[data-submitted]").textContent()), { sphere: category.sphere, section: eligibleSections.at(-1) });
       await geometry(page, `${label} request ${category.id}`);
     }
+}
+
+try {
+  for (const [width, height] of [[320, 844], [390, 844], [768, 844], [820, 844], [1024, 844], [1440, 900], [1920, 1080], [390, 400]]) {
+    const page = await browser.newPage({ viewport: { width, height } });
+    page.setDefaultTimeout(30_000);
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", (route) => { errors.push(`Unexpected API request: ${route.request().method()}`); return route.abort(); });
+    const label = `${width}x${height}`;
+    if (!clientsOnly) await checkRegistrationAndRequestForms(page, label);
     await page.goto(`${origin}/__business-accounts?clients=1`);
-    const grantedCard = page.locator(".business-access-person").filter({ hasText: "@shared-client" });
+    const users = page.getByRole("list", { name: "Пользователи", exact: true });
+    const grantedCard = users.getByRole("listitem").filter({ hasText: "@shared-client" });
     const openProducts = grantedCard.getByRole("link", { name: "Товары", exact: true });
     await openProducts.waitFor();
     assert.equal(await openProducts.count(), 1);
     assert.equal(await openProducts.getAttribute("href"), "/shared-client/products");
     assert.equal(await grantedCard.getByRole("button", { name: /Запросить/ }).count(), 0);
-    await page.getByRole("button", { name: "Запросить доступ" }).click();
-    assert.equal(JSON.parse(await page.locator("[data-submitted]").textContent()), "new-client");
+    const shares = page.getByRole("region", { name: "Открытые разделы", exact: true });
+    assert.equal(await shares.getByRole("link", { name: "Открыть «Товары» — Александр Соколов" }).getAttribute("href"), "/shared-client/products");
+    const requests = page.getByRole("region", { name: "Мои запросы", exact: true });
+    await requests.getByText("Ожидает ответа").waitFor();
     await geometry(page, `${label} client access`);
-    for (const card of await page.locator(".business-access-person").all()) {
-      assert(await card.evaluate(element => element.scrollWidth <= element.clientWidth + 1), `${label}: client card overflow`);
+    const columns = width <= 350 ? 1 : width <= 760 ? 2 : width <= 1080 ? 3 : 4;
+    assert.equal(await users.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(" ").length), columns);
+    const search = page.getByRole("searchbox", { name: "Найти пользователя", exact: true });
+    const searchFits = await search.evaluate(node => {
+      const searchBox = node.closest('[data-slot="input-group"]').getBoundingClientRect();
+      const section = node.closest("section").getBoundingClientRect();
+      return searchBox.left >= section.left && searchBox.right <= section.right;
+    });
+    assert(searchFits, `${label}: search overflows the section`);
+    for (const card of await page.locator(".business-access-card").all()) {
+      const overflow = await card.evaluate(element => {
+        if (element.scrollWidth <= element.clientWidth + 1) return null;
+        const cardBounds = element.getBoundingClientRect();
+        return {
+          text: element.innerText,
+          size: [element.clientWidth, element.scrollWidth],
+          descendants: [...element.querySelectorAll("*")].map(node => ({
+            name: node.className,
+            width: node.clientWidth,
+            scroll: node.scrollWidth,
+            right: node.getBoundingClientRect().right - cardBounds.right,
+          })).filter(node => node.right > 0 || node.scroll > node.width + 1),
+        };
+      });
+      assert.equal(overflow, null, `${label}: client card overflow ${JSON.stringify(overflow)}`);
+      for (const action of await card.locator('[data-slot="button"]').all()) {
+        assert((await action.boundingBox()).height >= 48, `${label}: small card action`);
+        assert(await action.evaluate(element =>
+          element.scrollWidth <= element.clientWidth + 1 &&
+          parseFloat(getComputedStyle(element).borderTopLeftRadius) >= 24 &&
+          [...element.children].every(child => child.scrollWidth <= child.clientWidth + 1)
+        ), `${label}: card action radius or text`);
+      }
     }
-    await page.screenshot({ path: `${output}/${label}-client-access.png`, animations: "disabled" });
+    if ([390, 1440].includes(width) && height >= 800) {
+      await page.screenshot({ path: `${output}/${label}-client-access.png`, fullPage: true, animations: "disabled" });
+      await users.screenshot({ path: `${output}/${label}-client-grid.png`, animations: "disabled" });
+    }
+    await search.fill("нет совпадений");
+    await page.getByText("Пользователи не найдены", { exact: true }).waitFor();
+    const clear = page.getByRole("button", { name: "Очистить поиск", exact: true });
+    assert.equal(await clear.count(), 1);
+    await clear.press("Enter");
+    await openProducts.waitFor();
+    assert.equal(await search.inputValue(), "");
+    await search.fill("long-username");
+    const prospect = users.getByRole("listitem").filter({ hasText: "@long-username-with-many-characters" });
+    await prospect.waitFor();
+    await page.waitForFunction(() => document.querySelectorAll('ul[aria-label="Пользователи"] > li').length === 1);
+    await prospect.getByRole("button", { name: "Запросить доступ", exact: true }).click();
+    await page.getByRole("heading", { name: "Разделы и доступ", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Отправить запрос" }).click();
+    await prospect.getByText("Есть запрос", { exact: true }).waitFor();
+    await requests.getByRole("listitem").filter({ hasText: "@pending-client" }).getByRole("button", { name: "Отменить", exact: true }).click();
+    await requests.getByText("@pending-client").waitFor({ state: "detached" });
+    assert.deepEqual(await page.evaluate(() => window.clientAccessCalls), [
+      { ownerId: "new-client", sphere: "wishlist", section: "products", message: "" },
+      "/business-access/requests/initial-request",
+    ]);
     assert.deepEqual(errors, [], `${label}: runtime errors or API requests`);
     await page.close();
-    console.log(`PASS ${label}: registration, required/reset category, keyboard, five scoped request forms, scroll reachability; no API requests`);
+    console.log(`PASS ${label}: ${clientsOnly ? "" : "registration, categories, five scoped request forms, "}client cards, search and access actions; no API requests`);
   }
 } finally { await browser.close(); await server.close(); }

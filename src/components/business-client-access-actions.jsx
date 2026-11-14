@@ -18,12 +18,12 @@ export function BusinessClientAccessActions({ account, person, sections, onReque
     <>
       {!alreadyGranted && (
         <Button type="button" variant="outline" onClick={onRequest}>
-          {sections.length ? "Запросить ещё" : "Запросить доступ"}
+          <span>{sections.length ? "Запросить ещё" : "Запросить доступ"}</span>
         </Button>
       )}
       {sections.length > 0 && (
         <nav className="business-access-person__grants" aria-label={`Доступные разделы пользователя ${person.name}`}>
-          <small>Доступ уже открыт</small>
+          <small className="business-access-card__caption">Доступ уже открыт</small>
           <div>
             {visibleSections.map(({ sphere, section }) => {
               const target = sphere === "wishlist" && section === "wishlist" && fixedSellerSpace ? fixedSellerSpace : section;
@@ -31,9 +31,10 @@ export function BusinessClientAccessActions({ account, person, sections, onReque
                 <Link
                   key={`${sphere}:${section}`}
                   to={sphereSectionPath({ ownerUsername: person.username, sphere, section: target })}
+                  data-slot="button"
                   className={buttonVariants({ variant: "outline" })}
                 >
-                  {SPHERE_SECTION_LABELS[target] || target}
+                  <span>{SPHERE_SECTION_LABELS[target] || target}</span>
                 </Link>
               );
             })}
