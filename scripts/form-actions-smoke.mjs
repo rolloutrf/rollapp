@@ -113,6 +113,18 @@ try {
           assert(parts.every((part, i) => !i || part.left >= parts[i - 1].right), "Contact avatar, name and favorite overlap");
           assert.equal(await page.getByRole('button', { name: 'Удалить фото', exact: true }).count(), 0);
           assert.equal(await page.getByRole('button', { name: 'Удалить', exact: true }).count(), 0, "Ambiguous Delete action");
+          const linkRow = page.locator('.contact-detail__edit-link');
+          assert.equal(await linkRow.getByRole('textbox').count(), 1);
+          const url = await linkRow.getByRole('textbox', { name: 'Адрес ссылки 1' }).boundingBox();
+          const removeButton = linkRow.getByRole('button', { name: 'Удалить ссылку 1' });
+          const removeLink = await removeButton.boundingBox();
+          assert(await removeButton.evaluate(button => parseFloat(getComputedStyle(button).borderRadius) >= button.offsetHeight / 2), 'Remove link must be circular');
+          assert.equal(url.height, 48);
+          assert.deepEqual([removeLink.width, removeLink.height], [48, 48]);
+          assert(Math.abs(url.y - removeLink.y) < 1 && Math.abs(removeLink.x - (url.x + url.width) - 8) < 1, 'Contact URL and Delete must share one row with an 8px gap');
+          if ([320, 390, 1440].includes(width)) {
+            await linkRow.screenshot({ path: `/tmp/rollapp-contact-link-${width}-${height}.png`, animations: 'disabled' });
+          }
           const footer = page.locator('.contact-detail__edit-actions');
           assert.equal(await footer.locator('xpath=ancestor::*[@data-slot="scroll-area-viewport"]').count(), 0, "Contact actions scroll with the fields");
           if (width >= 768) {
@@ -216,7 +228,8 @@ try {
           }
           if (name === "contact") {
             await screen.getByRole("button", { name: "Добавить ссылку", exact: true }).click();
-            assert.equal(await screen.getByRole("textbox", { name: "Название ссылки 2", exact: true }).count(), 1, "Contact link did not add a field");
+            assert.equal(await screen.getByRole("textbox", { name: "Адрес ссылки 2", exact: true }).count(), 1, "Contact link did not add a URL field");
+            assert.equal(await screen.locator(".contact-detail__edit-link").getByRole("textbox").count(), 2, "New link added more than one field");
             assert.equal((await geometry(page)).y, before.y, "Adding contact fields moved the action row");
             // Base UI may retain inline overflow:scroll; only an actual overflow
             // would create a competing vertical scroll owner on the native page.
@@ -331,6 +344,33 @@ try {
       }
     }
   }
+  const contactPage = await browser.newPage({ viewport: { width: 1440, height: 844 } });
+  const savedLinks = [];
+  await contactPage.route("**/api/**", route => {
+    const request = route.request();
+    if (request.method() !== "PATCH" || new URL(request.url()).pathname !== "/api/contacts/unsaved-contact") return route.abort();
+    const body = request.postDataJSON();
+    savedLinks.push(body.links);
+    return route.fulfill({ json: { contact: { id: "unsaved-contact", ...body } } });
+  });
+  await contactPage.goto(`${origin}/__form-actions?form=contact`);
+  const addLink = contactPage.getByRole("button", { name: "Добавить ссылку", exact: true });
+  await addLink.click();
+  await contactPage.getByRole("textbox", { name: "Адрес ссылки 2", exact: true }).fill("https://t.me/example");
+  await addLink.click();
+  await contactPage.getByRole("textbox", { name: "Адрес ссылки 3", exact: true }).fill("https://www.example.org/about");
+  await addLink.click();
+  await contactPage.getByRole("button", { name: "Удалить ссылку 4", exact: true }).click();
+  await contactPage.getByRole("button", { name: "Сохранить", exact: true }).click();
+  await contactPage.locator(".contact-detail__edit-form").waitFor({ state: "hidden" });
+  assert.deepEqual(savedLinks, [[
+    { label: "Ссылка", url: "https://example.com" },
+    { label: "Telegram", url: "https://t.me/example" },
+    { label: "example.org", url: "https://www.example.org/about" },
+  ]]);
+  console.log("PASS contact URL-only save, retained label, inferred social/site labels and remove");
+  await contactPage.close();
+
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.route("**/api/**", route => route.abort());
   await page.goto(`${origin}/__form-actions?flow=1`);

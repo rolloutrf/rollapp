@@ -2272,6 +2272,17 @@ const contactCountNoun = (count) => {
 const ALL_CONTACT_COMPANIES = "__rollapp_all_contact_companies__";
 const ALL_CONTACT_CATEGORIES = "__rollapp_all_contact_categories__";
 const contactAccent = (company = "") => CONTACT_ACCENTS[[...company].reduce((sum, character) => sum + character.codePointAt(0), 0) % CONTACT_ACCENTS.length];
+function contactLinkPayload(link) {
+  const url = link.url.trim();
+  const originalLabel = url === link.originalUrl && link.label?.trim();
+  if (originalLabel) return { label: originalLabel, url };
+  const platform = contactSocialPlatform({ url });
+  if (platform !== "website") return { label: CONTACT_SOCIAL_PLATFORMS[platform].label, url };
+  let hostname = "";
+  try { hostname = new URL(url).hostname.replace(/^www\./iu, ""); } catch { /* Native URL and API validation handle invalid input. */ }
+  return { label: hostname.slice(0, 40) || CONTACT_SOCIAL_PLATFORMS.website.label, url };
+}
+
 const contactFormFrom = (contact) => ({
   name: contact?.name || "",
   company: contact?.company || "",
@@ -2279,7 +2290,7 @@ const contactFormFrom = (contact) => ({
   category: contact?.category || "",
   status: contact?.status || "",
   avatarUrl: contact?.avatarSourceUrl || "",
-  links: (contact?.links || []).map((link) => ({ label: link.label || "", url: link.url || "" })),
+  links: (contact?.links || []).map((link) => ({ label: link.label || "", url: link.url || "", originalUrl: link.url?.trim() })),
   notes: contact?.notes || "",
 });
 
@@ -2323,9 +2334,9 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
   const previewAvatarUrl = form.avatarUrl || contact?.avatarUrl || "";
   const busy = saving || deleting || imageUploading || avatarResolving;
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
-  const setLink = (index, field, value) => setForm((current) => ({
+  const setLinkUrl = (index, url) => setForm((current) => ({
     ...current,
-    links: current.links.map((link, linkIndex) => linkIndex === index ? { ...link, [field]: value } : link),
+    links: current.links.map((link, linkIndex) => linkIndex === index ? { ...link, url } : link),
   }));
   const removeLink = (index) => setForm((current) => ({
     ...current,
@@ -2430,7 +2441,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
     try {
       const payload = {
         ...form,
-        links: form.links.map((link) => ({ label: link.label.trim(), url: link.url.trim() })),
+        links: form.links.map(contactLinkPayload),
       };
       const result = creating
         ? await api.post("/contacts", payload)
@@ -2555,14 +2566,13 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
             <div className="contact-detail__edit-links">
               {form.links.map((link, index) => (
                 <div className="contact-detail__edit-link" key={index}>
-                  <Input aria-label={`Название ссылки ${index + 1}`} value={link.label} maxLength={40} required placeholder="Facebook" onChange={(event) => setLink(index, "label", event.target.value)} />
-                  <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} />
-                  <ShadcnButton type="button" variant="destructive" size="icon" aria-label={`Удалить ссылку ${link.label || index + 1}`} onClick={() => removeLink(index)}><Trash2 /></ShadcnButton>
+                  <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLinkUrl(index, event.target.value)} />
+                  <ShadcnButton type="button" variant="destructive" size="icon" className="rounded-full" aria-label={`Удалить ссылку ${index + 1}`} onClick={() => removeLink(index)}><Trash2 aria-hidden="true" /></ShadcnButton>
                 </div>
               ))}
               {!form.links.length && <p>Ссылок пока нет.</p>}
             </div>
-            {form.links.length < 12 && <ShadcnButton type="button" variant="ghost" className="contact-detail__add-link" onClick={() => setForm((current) => ({ ...current, links: [...current.links, { label: "", url: "" }] }))}><Plus />Добавить ссылку</ShadcnButton>}
+            {form.links.length < 12 && <ShadcnButton type="button" variant="ghost" className="contact-detail__add-link" onClick={() => setForm((current) => ({ ...current, links: [...current.links, { url: "" }] }))}><Plus />Добавить ссылку</ShadcnButton>}
           </section>
           <Field className="contact-detail__edit-notes">
             <FieldLabel htmlFor={`${contactFieldId}-notes`}>Заметки</FieldLabel>

@@ -317,7 +317,10 @@ Removal is labelled “Удалить фото” in the named photo group below
 `node scripts/contact-photo-smoke.mjs` checks automatic lookup, stale responses,
 manual replacement and native mouse/keyboard file selection at eight viewports,
 using explicit fixture transport and rejecting unrelated API requests.
-The body owns section spacing with `--layout-page-gap`. The full editor fixture
+Each link row has a URL input and an independent destructive removal button.
+Saving keeps existing labels for unchanged addresses and derives new labels from
+the social platform or hostname. The body owns section spacing with
+`--layout-page-gap`. The full editor fixture
 includes its actual right-hand Drawer, close toolbar and photo state.
 `test:form-actions` checks header collisions, distinct delete labels, desktop
 scroll/footer separation, and mobile scroll/keyboard action geometry.
