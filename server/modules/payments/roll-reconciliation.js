@@ -1,3 +1,4 @@
+import { hasAutomaticRewardConfirmation } from "../loyalty/need-reward-settlement-terms.js";
 import { openMarketplaceReserves, openRewardReserves, readRollAccountingSources, rollWalletEntries } from "./roll-accounting.js";
 
 const noIssues = "SELECT NULL::text AS id,NULL::jsonb AS detail WHERE FALSE";
@@ -62,8 +63,8 @@ const rewardAttention = `
   SELECT id::text,'reward_expiry_due',reward,expires_at FROM reward_need_offers
     WHERE status='offered' AND expires_at<=transaction_timestamp()
   UNION ALL
-  SELECT id::text,'reward_claimable',reward,claim_at FROM reward_need_offers
-    WHERE status='confirmed' AND claim_at<=transaction_timestamp()
+  SELECT id::text,CASE WHEN ${hasAutomaticRewardConfirmation} THEN 'reward_automatic_due' ELSE 'reward_claimable' END,
+    reward,claim_at FROM reward_need_offers o WHERE status='confirmed' AND claim_at<=transaction_timestamp()
 `;
 
 const marketplaceAttention = `

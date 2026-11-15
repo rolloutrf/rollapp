@@ -46,7 +46,7 @@ import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
 import { registerCdekRoutes } from "./modules/delivery/cdek-routes.js";
 import { registerPersonalOfferRoutes } from "./personal-offers.js";
 import { registerBusinessMarketplaceRoutes } from "./modules/catalog-marketplace/business-marketplace.js";
-import { registerNeedRewardsRoutes, startNeedRewardExpiryWorker } from "./modules/loyalty/need-rewards.js";
+import { registerNeedRewardsRoutes, startNeedRewardSettlementWorker } from "./modules/loyalty/need-rewards.js";
 import { checkRewardProofRuntime, startRewardProofWorker } from "./modules/loyalty/reward-proof-queue.js";
 
 import { registerPlanningRoutes } from "./modules/planning/planning.js";
@@ -3502,14 +3502,14 @@ if (databaseInitialization === "verify") console.log("Existing PostgreSQL schema
 let telegramPoller;
 let tonPaymentPoller;
 let rewardProofWorker;
-let needRewardExpiryWorker;
+let needRewardSettlementWorker;
 if (!sphereApplication) {
   await checkRewardProofRuntime();
   if (!isMemoryDatabase) memberAnchor = await startMemberTonAnchor({ pool });
   telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });
   tonPaymentPoller = startTonPaymentPolling({ query, transaction });
   rewardProofWorker = startRewardProofWorker({ transaction });
-  needRewardExpiryWorker = startNeedRewardExpiryWorker({ query, transaction });
+  needRewardSettlementWorker = startNeedRewardSettlementWorker({ query, transaction });
   if (isProduction && diskSyncAvailable) diskSyncWorker = startYandexDiskSync({ query, transaction, track: trackBackgroundTask });
 }
 
@@ -3522,7 +3522,7 @@ async function shutdown() {
   telegramPoller?.stop();
   tonPaymentPoller?.stop();
   rewardProofWorker?.stop();
-  needRewardExpiryWorker?.stop();
+  needRewardSettlementWorker?.stop();
   diskSyncWorker?.stop();
   server.close(async () => {
     if (backgroundTasks.size) {
