@@ -118,7 +118,24 @@ export async function ensureRollWallet(client, userId) {
 export async function transferRolls(client, senderId, input) {
   const parsed = rollTransferSchema.safeParse(input);
   if (!parsed.success) throw new RollsError("Укажите получателя, целое количество роллов и комментарий до 280 символов", "INVALID_TRANSFER");
-  const { recipientId, amount, note, idempotencyKey } = parsed.data;
+  return transferRollsWithKey(client, senderId, parsed.data);
+}
+
+export async function reverseRollTransfer(client, { senderId, recipientId, amount, idempotencyKey, note }) {
+  const { rows: [original] } = await client.query(
+    `SELECT id FROM roll_transactions WHERE kind='transfer'
+     AND sender_id=$1 AND recipient_id=$2 AND amount=$3 AND idempotency_key=$4`,
+    [senderId, recipientId, amount, idempotencyKey],
+  );
+  if (!original) throw new RollsError("Исходный перевод по заказу не найден", "ORDER_PAYMENT_NOT_FOUND", 409);
+  return transferRollsWithKey(client, recipientId, {
+    recipientId: senderId, amount, note, idempotencyKey: `reverse:${original.id}`,
+  });
+}
+
+// A public transfer uses a UUID. Internal reversals use a reserved namespace
+// which callers of the public transfer endpoint cannot submit.
+async function transferRollsWithKey(client, senderId, { recipientId, amount, note, idempotencyKey }) {
   if (senderId === recipientId) throw new RollsError("Выберите другого участника", "SELF_TRANSFER");
   const recipient = await client.query("SELECT id FROM users WHERE id=$1", [recipientId]);
   if (!recipient.rowCount) throw new RollsError("Участник не найден", "RECIPIENT_NOT_FOUND", 404);

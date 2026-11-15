@@ -17,8 +17,8 @@
 | 05 | [Карточка](05-card.md) | Сниппеты и детали желаний, товаров и предложений | [Клиент](../../src/modules/card/) |
 | 06 | [Доставка](06-delivery.md) | СДЭК, выбор ПВЗ, снимок доставки заказа | [Клиент](../../src/modules/delivery/) · [Сервер](../../server/modules/delivery/) |
 | 07 | [2FA](07-2fa.md) | Будущий второй фактор | Запланирован |
-| 08 | [Платежи](08-payments.md) | Роллы, переводы, Telegram Stars, TON и проведение покупок | [Клиент](../../src/modules/payments/) · [Сервер](../../server/modules/payments/) · [Общий код](../../shared/modules/payments/) |
-| 09 | [Чекаут](09-checkout.md) | Подтверждение покупки и возврат | [Клиент](../../src/modules/checkout/) · [Сервер](../../server/modules/checkout/) |
+| 08 | [Платежи](08-payments.md) | Роллы, переводы, Telegram Stars, TON и сверка кошельков, карт и резервов | [Клиент](../../src/modules/payments/) · [Сервер](../../server/modules/payments/) · [Общий код](../../shared/modules/payments/) |
+| 09 | [Чекаут](09-checkout.md) | Подтверждение покупок и возврат из исходного источника | [Клиент](../../src/modules/checkout/) · [Сервер](../../server/modules/checkout/) |
 | 10 | [История операций](10-history.md) | История роллов и заказы | [Клиент](../../src/modules/history/) · [Сервер](../../server/modules/history/) |
 | 11 | [PFM](11-pfm.md) | Будущая аналитика личных финансов | Запланирован |
 | 12 | [Лояльность](12-loyalty.md) | Приветствие и награды за желания | [Клиент](../../src/modules/loyalty/) · [Сервер](../../server/modules/loyalty/) |

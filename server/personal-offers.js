@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { refundPersonalOffer } from "./modules/checkout/personal-offer-refunds.js";
 import { RollsError, transferRolls } from "./modules/payments/rolls.js";
 import { canManageWishlistSpace } from "../shared/modules/wishlist/wishlist-business.js";
 import { BUSINESS_OFFER_SPHERES, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
@@ -70,11 +71,15 @@ export async function createPersonalOfferItem(client, businessId, input) {
   return { id, replayed: false };
 }
 
+export function personalOfferStatus(row) {
+  return row.refunded_at ? "refunded" : row.purchase_id ? "paid" : row.expired ? "expired" : "active";
+}
+
 export function personalOfferFromRow(row) {
   return { id: row.id, itemId: row.wishlist_item_id || row.item_id, itemSource: row.wishlist_item_id ? "wishlist" : "marketplace", title: row.item_title,
     priceRolls: Number(row.price_rolls), expiresAt: row.expires_at,
     createdAt: row.created_at, purchaseId: row.purchase_id,
-    status: row.purchase_id ? "paid" : row.expired ? "expired" : "active",
+    status: personalOfferStatus(row),
     business: { id: row.business_user_id, name: row.business_name },
     recipient: { id: row.recipient_id, name: row.recipient_name } };
 }
@@ -125,7 +130,10 @@ export async function payPersonalOffer(client, recipientId, offerId) {
   const result = await client.query("SELECT * FROM business_personal_offers WHERE id=$1 AND recipient_id=$2 FOR UPDATE", [offerId, recipientId]);
   if (!result.rowCount) throw new RollsError("Счёт не найден", "OFFER_NOT_FOUND", 404);
   const offer = result.rows[0];
-  if (offer.purchase_id) return { id: offer.purchase_id, replayed: true };
+  if (offer.purchase_id) {
+    const { rows: [order] } = await client.query("SELECT refunded_at FROM roll_store_purchases WHERE id=$1", [offer.purchase_id]);
+    return { id: offer.purchase_id, replayed: true, ...(order?.refunded_at && { refundedAt: order.refunded_at }) };
+  }
   const checkExpiry = async () => {
     const valid = await client.query("SELECT id FROM business_personal_offers WHERE id=$1 AND expires_at > clock_timestamp()", [offerId]);
     if (!valid.rowCount) throw new RollsError("Срок оффера истёк", "OFFER_EXPIRED", 409);
@@ -184,9 +192,10 @@ export function registerPersonalOfferRoutes(app, { requireAuth, query, transacti
     if (!parsed.success) throw new RollsError("Проверьте параметры списка счетов", "INVALID_OFFER_PAGE");
     const { offset, sphere } = parsed.data;
     const result = await query(`SELECT o.*,b.name AS business_name,r.name AS recipient_name,
-      o.expires_at <= clock_timestamp() AS expired FROM business_personal_offers o
+      o.expires_at <= clock_timestamp() AS expired,p.refunded_at FROM business_personal_offers o
       JOIN users b ON b.id=o.business_user_id JOIN users r ON r.id=o.recipient_id
       LEFT JOIN business_marketplace_items i ON i.id=o.item_id
+      LEFT JOIN roll_store_purchases p ON p.id=o.purchase_id
       WHERE (o.recipient_id=$1 OR o.business_user_id=$1)
         AND ($3::text IS NULL OR i.sphere=$3 OR ($3='career' AND i.sphere='contacts'))
       ORDER BY o.created_at DESC,o.id DESC LIMIT 101 OFFSET $2`, [req.user.id, offset, sphere ?? null]);
@@ -199,5 +208,9 @@ export function registerPersonalOfferRoutes(app, { requireAuth, query, transacti
   app.post("/api/personal-offers/:id/pay", requireAuth, handle(async (req, res) => {
     const purchase = await transaction((client) => payPersonalOffer(client, req.user.id, req.params.id));
     res.status(purchase.replayed ? 200 : 201).json({ purchase });
+  }));
+  app.post("/api/personal-offers/:id/refund", requireAuth, handle(async (req, res) => {
+    const purchase = await transaction((client) => refundPersonalOffer(client, req.user.id, req.params.id));
+    res.json({ purchase });
   }));
 }

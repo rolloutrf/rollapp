@@ -53,7 +53,8 @@ test("funded need rewards on verified production PostgreSQL; all writes rolled b
       first = await createRewardOffer(client, business, need.id, input);
       assert.equal((await createRewardOffer(client, business, need.id, input)).id, first.id);
       await reject(() => createRewardOffer(client, business, need.id, { ...input, reward: 1 }), "IDEMPOTENCY_CONFLICT");
-      const wallet = await readRollWallet(client, business, { needRewards: true });
+      const wallet = await readRollWallet(client, business);
+      assert.equal(wallet.balances.reservedRewards, "60");
       assert.equal(wallet.balance, 40);
       assert(wallet.transactions.some(row => row.kind === "need_reserve" && row.amount === 60 && row.direction === "outgoing"));
       assert.equal((await readRewardNeeds(client, other)).needs.length, 0);
@@ -91,7 +92,7 @@ test("funded need rewards on verified production PostgreSQL; all writes rolled b
       } finally { await client.query("ROLLBACK TO SAVEPOINT balance_limit_check"); }
       await actOnRewardOffer(client, owner, first.id, { action: "claim" });
       assert.equal((await actOnRewardOffer(client, owner, first.id, { action: "claim" })).replayed, true);
-      const wallet = await readRollWallet(client, owner, { needRewards: true });
+      const wallet = await readRollWallet(client, owner);
       assert.equal(wallet.balance, 160);
       assert.equal(wallet.transactions.filter(row => row.kind === "need_reward").length, 1);
       assert.equal((await balances()).reduce((sum, row) => sum + Number(row.balance), 0), 400);

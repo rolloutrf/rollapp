@@ -108,9 +108,35 @@ try {
       if (scenario === "empty") await page.getByText("Здесь появятся персональные счета от бизнеса.").waitFor();
       if (scenario === "error") { await page.getByText("Не удалось загрузить счета").waitFor(); await page.getByRole("button", { name: "Повторить" }).click(); }
       if (scenario === "loading") await page.getByText("Загружаем счета…").waitFor();
-      if (scenario === "seller") { await page.getByText("Ожидает оплаты").waitFor(); assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0); }
+      if (scenario === "seller") {
+        await page.getByText("Ожидает оплаты").waitFor();
+        assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);
+        const refund = page.getByRole("button", { name: "Вернуть роллы", exact: true });
+        await refund.click();
+        await page.getByRole("button", { name: "Отмена" }).click();
+        assert.equal((await page.evaluate(() => window.offerCalls)).length, 0);
+        await refund.click();
+        const confirmation = page.getByRole("alertdialog");
+        const confirm = confirmation.getByRole("button", { name: "Подтвердить возврат" });
+        await confirm.click();
+        await confirmation.getByText("Повторите возврат").waitFor();
+        const popup = await confirmation.boundingBox();
+        assert(popup.x >= 0 && popup.y >= 0 && popup.x + popup.width <= width + 1 && popup.y + popup.height <= height + 1);
+        if ([390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${output}/refund-${width}.png` });
+        await confirm.click();
+        await confirmation.waitFor({ state: "hidden" });
+        await page.getByRole("status").filter({ hasText: "Роллы возвращены" }).waitFor();
+        assert.equal(await refund.count(), 0);
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), Array.from({length: 2}, () => ({ path: "/personal-offers/paid/refund", body: {} })));
+      }
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${scenario} overflow`);
     }
+    await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=wallet-page`);
+    await page.getByText("В резерве для наград", { exact: true }).waitFor();
+    await page.locator('[data-rolls-transaction="purchase"]').getByText("Покупка · Товар магазина").waitFor();
+    await page.locator('[data-rolls-transaction="refund"]').getByText("Возврат · Товар магазина").waitFor();
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Wallet breakdown overflow");
+    if ([390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${output}/accounting-${width}.png`, fullPage: true });
     await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=business`);
     await page.getByText("У вашего бизнеса пока нет активных товаров или услуг.").waitFor();
     assert.deepEqual(await page.getByRole("button", { name: "Добавить товар" }).evaluate(button => [button.offsetWidth, button.offsetHeight]), [48, 48]);

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { createPersonalOffer } from "../../personal-offers.js";
+import { createPersonalOffer, personalOfferStatus } from "../../personal-offers.js";
 import { RollsError } from "../payments/rolls.js";
 import { WISHLIST_SPACE_IDS, canManageWishSales, canManageWishlistSpace } from "../../../shared/modules/wishlist/wishlist-business.js";
 
@@ -243,9 +243,13 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
  app.get(`${base}/offers`,requireAuth,scope,route(async(req,res) => {
    const result=await query(`${itemSelect.replace("SELECT i.*", "SELECT i.*,o.id AS offer_id")} JOIN wishlist_business_offers o ON o.item_id=i.id WHERE o.buyer_user_id=$1 AND i.space=$2 AND NOT o.dismissed AND i.active AND p.published AND ${eligible} AND ${consent} ORDER BY o.created_at DESC,o.id LIMIT 200`,[req.user.id,req.params.space]);
    const ids=result.rows.map(row=>row.id);
-   const invoices=ids.length?await query(`SELECT DISTINCT ON (wishlist_item_id) id,wishlist_item_id,item_title,price_rolls,expires_at,purchase_id,expires_at<=clock_timestamp() AS expired FROM business_personal_offers WHERE recipient_id=$1 AND wishlist_item_id=ANY($2::text[]) ORDER BY wishlist_item_id,created_at DESC,id DESC`,[req.user.id,ids]):{rows:[]};
+   const invoices=ids.length?await query(`SELECT DISTINCT ON (o.wishlist_item_id) o.id,o.wishlist_item_id,o.item_title,o.price_rolls,o.expires_at,
+     o.purchase_id,o.expires_at<=clock_timestamp() AS expired,p.refunded_at
+     FROM business_personal_offers o LEFT JOIN roll_store_purchases p ON p.id=o.purchase_id
+     WHERE o.recipient_id=$1 AND o.wishlist_item_id=ANY($2::text[])
+     ORDER BY o.wishlist_item_id,o.created_at DESC,o.id DESC`,[req.user.id,ids]):{rows:[]};
    const byItem=new Map(invoices.rows.map(row=>[row.wishlist_item_id,row]));
-   res.json({items:result.rows.map(row=>{const invoice=byItem.get(row.id);return {...clean(row),title:invoice?.item_title||row.title,personalOffer:invoice?{id:invoice.id,title:invoice.item_title,priceRolls:Number(invoice.price_rolls),expiresAt:invoice.expires_at,status:invoice.purchase_id?"paid":invoice.expired?"expired":"active",business:{id:row.business_user_id,name:row.business_name}}:null};})});
+   res.json({items:result.rows.map(row=>{const invoice=byItem.get(row.id);return {...clean(row),title:invoice?.item_title||row.title,personalOffer:invoice?{id:invoice.id,title:invoice.item_title,priceRolls:Number(invoice.price_rolls),expiresAt:invoice.expires_at,status:personalOfferStatus(invoice),business:{id:row.business_user_id,name:row.business_name}}:null};})});
  }));
  app.delete(`${base}/offers/:offerId`,requireAuth,scope,route(async(req,res) => {
    await query(`UPDATE wishlist_business_offers o SET dismissed=TRUE FROM wishlist_business_items i WHERE o.id=$1 AND o.buyer_user_id=$2 AND i.id=o.item_id AND i.space=$3`,[req.params.offerId,req.user.id,req.params.space]);

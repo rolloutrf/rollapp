@@ -42,6 +42,7 @@ test("production gift-card lifecycle is atomic, scoped, replayable and rollback-
     assert.equal(Number((await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [sender])).rows[0].balance), 50);
     const sourceWallet = await readRollWallet(client, sender);
     assert.equal(sourceWallet.balance, 50);
+    assert.equal(sourceWallet.balances.giftCards, "50");
     const topups = sourceWallet.transactions.filter((entry) => entry.kind === "gift_topup");
     assert.equal(topups.length, 1);
     assert.equal(topups[0].direction, "outgoing");
@@ -52,6 +53,8 @@ test("production gift-card lifecycle is atomic, scoped, replayable and rollback-
     assert.equal((await changeGiftCard(client, sender, card.id, "send", send)).replayed, true);
     assert.equal((await listGiftCards(client.query.bind(client), sender)).length, 0);
     assert.equal((await listGiftCards(client.query.bind(client), recipient))[0].balance, 50);
+    assert.equal((await readRollWallet(client, sender)).balances.giftCards, "0");
+    assert.equal((await readRollWallet(client, recipient)).balances.giftCards, "50");
     await assert.rejects(changeGiftCard(client, sender, card.id, "topup", { amount: 1, idempotencyKey: randomUUID() }), { code: "GIFT_CARD_NOT_FOUND" });
     const [offer, wrongOffer] = [randomUUID(), randomUUID()];
     for (const [id, merchant] of [[offer, business], [wrongOffer, otherBusiness]]) await client.query("INSERT INTO business_marketplace_items(id,business_user_id,sphere,kind,title,price_rolls) VALUES($1,$2,'career','store','Rollback offer',20)", [id, merchant]);

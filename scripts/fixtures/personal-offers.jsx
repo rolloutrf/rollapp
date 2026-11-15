@@ -25,6 +25,8 @@ let itemFailed = false;
 let paid = false;
 let creationFailed = false;
 let paymentFailed = false;
+let refunded = false;
+let refundFailed = false;
 window.offerCalls = [];
 const wishlistItem = { id:"wishlist-item",title:"Wishlist товар",description:"Описание товара",price:"999 RUB",active:true,brand:"Бренд",business:{id:"seller",name:"Продавец",username:"seller",pageTitle:"Магазин"} };
 const client = {
@@ -48,14 +50,17 @@ const client = {
       return path.includes("offset=100") ? { offers: [first, older], nextOffset: null } : { offers: [first], nextOffset: 100 };
     }
     if (path === "/rolls/gift-cards") return { cards: [] };
-    if (path === "/rolls") return { balance: 100, transactions: [], features: {}, nextOffset: null };
+    if (path === "/rolls") return { balance: 100, transactions: scenario === "wallet-page" ? [
+      { id: "purchase:shop", kind: "purchase", direction: "outgoing", amount: 50, productTitle: "Товар магазина", createdAt: base.expiresAt },
+      { id: "refund:shop", kind: "refund", direction: "incoming", amount: 50, productTitle: "Товар магазина", createdAt: base.expiresAt },
+    ] : [], balances: { giftCards: "300", reservedRewards: "70" }, features: {}, nextOffset: null };
     if (path === "/business-access/requests") return { requests: [] };
     if (path === "/personal-offers/items") return { items: scenario === "business-page" ? [item] : createdItem ? [createdItem] : [] };
     if (path.startsWith("/business-access/users") || path.startsWith("/personal-offers/recipients")) return { people: [{ id: "buyer", name: scenario === "long-recipient" ? "И".repeat(80) : "Получатель", username: scenario === "long-recipient" ? "w".repeat(32) : "buyer" }] };
     if (scenario === "empty") return { offers: [] };
     if (scenario === "error") throw new Error("Не удалось загрузить счета");
     if (scenario === "loading") return new Promise(() => {});
-    return { offers: [ { ...base, id: "active", title: "Активный оффер", status: paid ? "paid" : "active" }, { ...base, id: "expired", title: "Истёкший оффер", status: "expired", expiresAt: new Date(0).toISOString() }, { ...base, id: "paid", title: "Оплаченный оффер", status: "paid" } ] };
+    return { offers: [ { ...base, id: "active", title: "Активный оффер", status: paid ? "paid" : "active" }, { ...base, id: "expired", title: "Истёкший оффер", status: "expired", expiresAt: new Date(0).toISOString() }, { ...base, id: "paid", title: "Оплаченный оффер", status: refunded ? "refunded" : "paid" } ] };
   },
   async post(path, body) {
     window.offerCalls.push({ path, body });
@@ -67,6 +72,11 @@ const client = {
     if(path.startsWith("/wishlist-business/")){if(!creationFailed){creationFailed=true;throw new Error("Повторите рекомендацию");}return{sent:true,personalOfferId:"wishlist-invoice"};}
     if (path === "/personal-offers/items") { if (!itemFailed) { itemFailed = true; throw new Error("Повторите сохранение"); } createdItem = { id: "new-item", title: body.title }; return { item: createdItem }; }
     if (path === "/personal-offers") { if (!creationFailed) { creationFailed = true; throw new Error("Повторите создание"); } return { offer: { id: "created" } }; }
+    if (path.endsWith("/refund")) {
+      if (!refundFailed) { refundFailed = true; throw new Error("Повторите возврат"); }
+      refunded = true;
+      return { purchase: { id: "purchase", refundedAt: base.expiresAt } };
+    }
     if (!paymentFailed) { paymentFailed = true; throw new Error("Недостаточно роллов"); }
     paid = true; return { purchase: { id: "purchase" } };
   },

@@ -141,6 +141,15 @@ reader на восьми размерах, но остаётся diagnostic. `ch
 
 ## Команды
 
+Для сверки выпусков, кошельков, подарочных карт и резервов наград используйте
+`node scripts/reconcile-rolls.mjs`. Команда проверяет настроенный production
+PostgreSQL в одной транзакции READ ONLY. Результат содержит только агрегаты
+и код завершения. Код 1 означает расхождение баланса, карты или общей суммы.
+`npm run test:offers:production`, `npm run test:gifts:production` и
+`npm run test:need-rewards:production` проходят по имеющейся схеме с полным
+откатом фикстур. `npm run test:offers` проверяет страницы счетов, возврат
+продавцом и разбивку кошелька на восьми размерах окна.
+
 Синхронизация копии на Яндекс Диск: перед выпуском отдельно установить
 `scripts/sql/yandex-disk-sync.sql` на проверенной production PostgreSQL.
 Startup выполняет `verifyYandexDiskSyncSchema` в режиме READ ONLY.

@@ -5,6 +5,10 @@ import { createPersonalOffer, payPersonalOffer, createPersonalOfferItem, registe
 import { registerWishlistBusinessRoutes } from "./modules/wishlist/wishlist-business.js";
 import { ensureRollWallet } from "./modules/payments/rolls.js";
 import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
+import { readRollWallet } from "./modules/history/wallet-history.js";
+import { readRollOrders } from "./modules/history/order-history.js";
+import { reconcileRollAccounting } from "./modules/payments/roll-accounting.js";
+import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 
 test("personal offers on existing production schema: every test write is rolled back", { skip: process.env.ROLLAPP_TEST_PERSONAL_OFFERS !== "1" }, async t => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");
@@ -128,6 +132,44 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal(expiredPayment.status, 409); assert.equal(expiredPayment.body.code, "OFFER_EXPIRED");
           assert.equal(await buyerBalance(), "99");
           assert.equal((await client.query("SELECT count(*)::int AS count FROM roll_store_purchases WHERE user_id=$1", [buyer])).rows[0].count, 1);
+          const refundPath = `/${created.body.offer.id}/refund`;
+          for (const id of [buyer, other]) {
+            const denied = await post(refundPath, id);
+            assert.equal(denied.status, 404);
+            assert.equal(denied.body.code, "OFFER_NOT_FOUND");
+          }
+          assert.equal((await post(`/${expensive.body.offer.id}/refund`, seller)).body.code, "OFFER_NOT_PAID");
+          await client.query("SAVEPOINT refund_recipient_capacity");
+          try {
+            await client.query("UPDATE roll_wallets SET balance=$1 WHERE user_id=$2", [ROLLS_MAX_BALANCE, buyer]);
+            const limit = await post(refundPath, seller);
+            assert.equal(limit.status, 409);
+            assert.equal(limit.body.code, "RECIPIENT_BALANCE_LIMIT");
+            assert.equal((await readRollWallet(client, seller)).balance, 101);
+            assert.equal((await readRollOrders(client, buyer)).orders[0].status, "placed");
+          } finally { await client.query("ROLLBACK TO SAVEPOINT refund_recipient_capacity"); }
+
+          const refunded = await post(refundPath, seller);
+          assert.equal(refunded.status, 200);
+          assert.equal(refunded.body.purchase.replayed, false);
+          assert.equal((await post(refundPath, seller)).body.purchase.replayed, true);
+          assert.equal((await post(`/${created.body.offer.id.toUpperCase()}/refund`, seller)).body.purchase.replayed, true);
+          const paidReplay = await post(path, buyer);
+          assert.equal(paidReplay.body.purchase.refundedAt, refunded.body.purchase.refundedAt);
+          for (const userId of [buyer, seller]) {
+            const response = await fetch(`http://127.0.0.1:${server.address().port}/api/personal-offers`, { headers: { "x-test-user": userId } });
+            const { offers } = await response.json();
+            assert.equal(offers.find(({ id }) => id === created.body.offer.id).status, "refunded");
+            const wallet = await readRollWallet(client, userId);
+            assert.equal(wallet.balance, 100);
+            assert.equal(wallet.transactions.filter(({ note }) => note.startsWith("Возврат по счёту")).length, 1);
+            assert.equal(wallet.transactions.some(({ kind }) => kind === "purchase" || kind === "refund"), false, "Invoice transfers must not be counted again as store orders");
+          }
+          assert.equal((await readRollOrders(client, buyer)).orders[0].status, "refunded");
+          const audit = await reconcileRollAccounting(client);
+          assert.equal(audit.unaccountedRolls, "0");
+          assert.equal(audit.walletMismatches, 0);
+          assert.equal(audit.cardMismatches, 0);
         } finally { await client.query("ROLLBACK TO SAVEPOINT http_invoice_lifecycle"); }
         await client.query("SAVEPOINT wishlist_checkout");
         try {
@@ -159,6 +201,8 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal((await request(`/personal-offers/${paymentId}/pay`,{})).status,200);
           assert.equal((await client.query("SELECT balance::text FROM roll_wallets WHERE user_id=$1",[buyer])).rows[0].balance,'60');
           assert.equal((await request('/wishlist-business/products/offers')).body.items[0].personalOffer.status,'paid');
+          assert.equal((await request(`/personal-offers/${paymentId}/refund`, {}, seller)).status, 200);
+          assert.equal((await request('/wishlist-business/products/offers')).body.items[0].personalOffer.status, 'refunded');
           const subscribed = await request(path, {...terms, idempotencyKey: randomUUID()},seller);
           assert.equal(subscribed.status,200);
         } finally { await client.query("ROLLBACK TO SAVEPOINT wishlist_checkout"); }

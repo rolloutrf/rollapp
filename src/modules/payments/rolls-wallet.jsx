@@ -25,6 +25,20 @@ import { RollsHistory } from "../history/rolls-history.jsx";
 
 const TonWallet = lazy(() => import("@/modules/payments/ton-wallet.jsx").then((module) => ({ default: module.TonWallet })));
 
+function RollsBalanceBreakdown({ balances }) {
+  const breakdown = [
+    ["Подарочные карты", balances.giftCards],
+    ["В резерве для наград", balances.reservedRewards],
+  ].filter(([, value]) => value && value !== "0");
+  if (!breakdown.length) return null;
+  return <dl className="flex w-full min-w-0 flex-wrap justify-center gap-x-6 gap-y-2" aria-label="Роллы вне доступного баланса">
+    {breakdown.map(([label, value]) => <div key={label} className="min-w-0">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="wrap-anywhere font-medium tabular-nums">{formatRolls(BigInt(value))}</dd>
+    </div>)}
+  </dl>;
+}
+
 function RollsHeroIcon() {
   return <div className="rolls-hero-icon flex shrink-0 items-center justify-center rounded-full border border-border bg-card/60">
     <Coins className="size-3/5 text-amber-300" aria-hidden="true" />
@@ -250,12 +264,16 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
           </form>
         </section> : <>
           <section className="rolls-balance flex min-w-0 flex-col items-center gap-3 text-center" aria-label="Баланс роллов">
-            {wallet ? <div className="rolls-balance__value" aria-live="polite" aria-atomic="true" data-rolls-balance>
-              {new Intl.NumberFormat("ru-RU").format(wallet.balance)}
+            {wallet ? <div className="flex w-full min-w-0 flex-col gap-1">
+              <div className="rolls-balance__value max-w-full wrap-anywhere !whitespace-normal" aria-live="polite" aria-atomic="true" data-rolls-balance>
+                {new Intl.NumberFormat("ru-RU").format(wallet.balance)}
+              </div>
+              <span className="text-caption text-muted-foreground">Доступно</span>
             </div> : <div className="flex min-h-15 items-center justify-center gap-2 text-base text-muted-foreground" role="status" aria-live="polite" aria-atomic="true" data-rolls-balance>
               {loading && <Spinner />}
               <span>{loading ? "Загружаем баланс…" : "Баланс недоступен"}</span>
             </div>}
+            {wallet?.balances && <RollsBalanceBreakdown balances={wallet.balances} />}
             <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" aria-label="Действия с роллами">
               {wallet?.features?.starsPurchases && <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>}
               <Button ref={transferOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => {

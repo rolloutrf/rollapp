@@ -55,13 +55,14 @@ test("payment is private and paid retries never touch balances, including after 
   const other = scripted([[/recipient_id=\$2 FOR UPDATE/, []]]);
   await reject(payPersonalOffer(other, "other", id), "OFFER_NOT_FOUND");
   assert.deepEqual(other.calls[0].params, [id, "other"]); other.done();
-  const paid = scripted([[/FOR UPDATE/, [{ purchase_id: "purchase" }]]]);
+  const paid = scripted([[/FOR UPDATE/, [{ purchase_id: "purchase" }]], [/SELECT refunded_at/, [{ refunded_at: null }]]]);
   assert.deepEqual(await payPersonalOffer(paid, "buyer", id), { id: "purchase", replayed: true }); paid.done();
   await reject(payPersonalOffer(scripted([]), "buyer", "invalid"), "OFFER_NOT_FOUND");
 });
 test("status gives paid priority over expiry and does not expose request keys", () => {
   const row = { id: randomUUID(), price_rolls: "50", expired: true, purchase_id: "purchase", idempotency_key: "secret" };
   assert.equal(personalOfferFromRow(row).status, "paid");
+  assert.equal(personalOfferFromRow({ ...row, refunded_at: "2026-11-16" }).status, "refunded");
   assert.equal(personalOfferFromRow({ ...row, purchase_id: null }).status, "expired");
   assert.equal(personalOfferFromRow({ ...row, purchase_id: null, expired: false }).status, "active");
   assert.equal(personalOfferFromRow(row).idempotencyKey, undefined);
