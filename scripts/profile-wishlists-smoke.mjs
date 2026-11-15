@@ -18,7 +18,11 @@ async function assertProfileHeading(hero, { owner }) {
   assert.equal(await friends.count(), owner ? 1 : 0);
   if (!owner) return;
   assert.equal(await friends.getAttribute('href'), '/app/friends');
-  const geometry = await friends.evaluate(link => {
+  const friendsIcon = friends.locator('svg[aria-hidden="true"]');
+  // The owner row can become visible before its glyph after a profile route change.
+  await friendsIcon.waitFor({ state: 'visible' });
+  const geometry = await friendsIcon.evaluate(glyph => {
+    const link = glyph.parentElement;
     const nav = link.parentElement;
     const name = nav.previousElementSibling;
     const linkBox = link.getBoundingClientRect();
@@ -30,7 +34,7 @@ async function assertProfileHeading(hero, { owner }) {
       return [style.fontSize, style.lineHeight, style.fontWeight, style.color];
     };
     const nameBox = name.getBoundingClientRect();
-    const icon = link.querySelector('svg[aria-hidden="true"]').getBoundingClientRect();
+    const icon = glyph.getBoundingClientRect();
     return {
       nameTag: name.tagName,
       gap: linkBox.top - nameBox.bottom,
