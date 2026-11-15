@@ -135,7 +135,8 @@ try {
     await page.getByRole("alertdialog").waitFor({ state:"hidden" });
     assert.equal(await page.evaluate(() => giftHarness.cards[0].balance), 5);
     assert.equal(await page.evaluate(() => giftHarness.balance), 100);
-    assert.deepEqual(await page.evaluate(() => giftHarness.calls[0]), await page.evaluate(() => giftHarness.calls[1]));
+    assert(await page.evaluate(() => giftHarness.calls.length === 1 &&
+      giftHarness.checkoutChecks.length === 1 && giftHarness.checkoutChecks[0] === giftHarness.calls[0].payload.idempotencyKey));
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({path:`/tmp/rollapp-business-profile-${width}.png`,fullPage:true});
     assert.deepEqual(errors, []);

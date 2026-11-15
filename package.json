@@ -73,6 +73,7 @@
     "test:drawers": "DRAWER_REAL_FORMS=1 node scripts/drawer-smoke.mjs",
     "test:purchase-history": "node scripts/purchase-history-smoke.mjs",
     "test:purchase-history:production": "ROLLAPP_TEST_WISH_HISTORY=1 node --test server/wish-history-import.integration.test.js",
+    "test:checkout-recovery:production": "ROLLAPP_TEST_CHECKOUT_RECOVERY=1 node --test server/checkout-recovery.integration.test.js",
     "test:marketplace-settlements:production": "ROLLAPP_TEST_MARKETPLACE_SETTLEMENTS=1 node --test server/marketplace-settlements.integration.test.js",
     "test:orders": "node scripts/orders-drawer-smoke.mjs",
     "rolls:grant": "node scripts/grant-welcome-rolls.mjs",

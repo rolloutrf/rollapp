@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { MARKETPLACE_REVIEW_DAYS, marketplaceOrderActions } from "../../../shared/modules/checkout/marketplace-settlements.js";
 import { marketplaceOrderActionSchema, resolveMarketplaceDispute, settleMarketplaceOrder } from "./marketplace-settlements.js";
-import { purchaseBusinessMarketplaceItem } from "../catalog-marketplace/business-marketplace.js";
+import { purchaseBusinessMarketplaceItem, readBusinessPurchaseStatus } from "../catalog-marketplace/business-marketplace.js";
 
 const now = new Date("2026-11-16T09:00:00.000Z");
 const future = new Date(now.getTime() + 60_000);
@@ -49,13 +49,25 @@ test("missing schema fails before any wallet write, and detached checkout replay
   const missing = scripted([[/to_regclass/, [{ orders: false, events: false }]]]);
   await assert.rejects(purchaseBusinessMarketplaceItem(missing, "buyer", "career", keys(), { protectedCheckout: true }), { code: "MARKETPLACE_SETTLEMENT_UNAVAILABLE" });
   missing.done();
-  const order = { id: fixture.id, item_id: "item", sphere: "career", amount: "70", gift_card_id: null };
+  const order = { id: fixture.id, item_id: "item", sphere: "career", amount: "70", gift_card_id: null, status: "reserved" };
   const replay = scripted([installed, ...walletLock,
     [/FROM roll_marketplace_orders WHERE buyer_id/, [order]], [/SELECT balance/, [{ balance: "80" }]],
   ]);
   assert.deepEqual(await purchaseBusinessMarketplaceItem(replay, "buyer", "career", keys(), { verifySchema: true }),
-    { id: fixture.id, balance: 80, replayed: true, protected: true });
+    { id: fixture.id, balance: 80, replayed: true, protected: true, status: "reserved", amount: 70 });
   replay.done();
+});
+
+test("protected purchase recovery checks the original buyer and key without wallet writes", async () => {
+  const requestKey = randomUUID();
+  const order = { id: fixture.id, item_id: "item", sphere: "career", amount: "70", gift_card_id: card.id, status: "disputed" };
+  const client = scripted([installed, [/FROM roll_marketplace_orders WHERE buyer_id/, [order], (args) => {
+    assert.deepEqual(args, ["buyer", requestKey]);
+  }]]);
+  const purchase = await readBusinessPurchaseStatus(client, "buyer", "career", requestKey);
+  assert.deepEqual(purchase, { id: order.id, itemId: "item", sphere: "career", amount: 70,
+    giftCardId: card.id, status: "disputed", protected: true });
+  client.done();
 });
 
 test("stale quote fails before debit; a card reserve writes a protected order without legacy purchase metadata", async () => {
@@ -63,7 +75,7 @@ test("stale quote fails before debit; a card reserve writes a protected order wi
   const lookup = [installed, ...walletLock,
     [/FROM roll_marketplace_orders WHERE buyer_id/, []], [/FROM roll_store_purchases/, []],
     [/to_regclass\('business_gift_card_events'\)/, [{ events: "business_gift_card_events" }]],
-    [/FROM business_gift_card_events WHERE actor_id/, []], [/FROM business_marketplace_items/, [item]],
+    [/FROM business_gift_card_events e[\s\S]+WHERE e.actor_id/, []], [/FROM business_marketplace_items/, [item]],
   ];
   const stale = scripted([...lookup]);
   await assert.rejects(purchaseBusinessMarketplaceItem(stale, "buyer", "career", { ...keys(), expectedPrice: 69 }, { protectedCheckout: true }), { code: "PRICE_CHANGED" });

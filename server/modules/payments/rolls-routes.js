@@ -2,7 +2,7 @@ import { registerRollActivityRoutes } from "../pfm/roll-activity-routes.js";
 import { settleMarketplaceOrder } from "../checkout/marketplace-settlements.js";
 import { registerGiftCardRoutes } from "../loyalty/gift-cards.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
-import { purchaseWithRolls, refundRollPurchase } from "../checkout/roll-purchases.js";
+import { purchaseWithRolls, readCatPurchaseStatus, refundRollPurchase } from "../checkout/roll-purchases.js";
 import { readRollOrders } from "../history/order-history.js";
 import { readRollReceipt, rollReceiptParams } from "../history/roll-receipts.js";
 import { readRollWallet } from "../history/wallet-history.js";
@@ -93,6 +93,15 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
       return { transfer, ...await readRollWallet(client, req.user.id) };
     });
     res.status(result.transfer.replayed ? 200 : 201).json({ ...result, features: features() });
+  }));
+
+  app.get("/api/rolls/purchases/:requestKey", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const purchase = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readCatPurchaseStatus(client, req.user.id, req.params.requestKey);
+    });
+    res.json({ purchase });
   }));
 
   app.post("/api/rolls/purchases", requireAuth, transferLimit, handle(async (req, res) => {

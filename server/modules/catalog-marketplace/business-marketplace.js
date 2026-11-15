@@ -78,6 +78,53 @@ export async function listBusinessMarketplaceItems(query, params) {
   return result.rows.map(itemFromRow);
 }
 
+function purchaseConflict() {
+  return new RollsError("Этот запрос уже использован для другой покупки", "IDEMPOTENCY_CONFLICT", 409);
+}
+
+async function findBusinessPurchase(client, userId, requestKey, settlementReady) {
+  if (settlementReady) {
+    const { rows: [row] } = await client.query(
+      "SELECT id,item_id,sphere,amount,gift_card_id,status FROM roll_marketplace_orders WHERE buyer_id=$1 AND request_key=$2",
+      [userId, requestKey],
+    );
+    if (row) return { id: row.id, itemId: row.item_id, sphere: row.sphere, amount: Number(row.amount),
+      giftCardId: row.gift_card_id, status: row.status, protected: true };
+  }
+  const { rows: [order] } = await client.query(
+    "SELECT * FROM roll_store_purchases WHERE user_id=$1 AND idempotency_key=$2", [userId, requestKey],
+  );
+  if (order) {
+    if (!order.product_id?.startsWith("business:") || !order.delivery?.sphere) throw purchaseConflict();
+    return { id: order.id, itemId: order.product_id.slice("business:".length), sphere: order.delivery.sphere,
+      amount: Number(order.amount), giftCardId: order.delivery.giftCardId || null,
+      status: order.refunded_at ? "refunded" : "placed", protected: false };
+  }
+  const { rows: [giftSchema] } = await client.query("SELECT to_regclass('business_gift_card_events')::text AS events");
+  if (giftSchema?.events) {
+    const { rows: [event] } = await client.query(`
+      SELECT e.*,r.created_at AS refunded_at FROM business_gift_card_events e
+      LEFT JOIN business_gift_card_events r ON r.purchase_id=e.id AND r.kind='refund'
+      WHERE e.actor_id=$1 AND e.request_key=$2`, [userId, requestKey]);
+    if (event) {
+      if (event.kind !== "spend" || !event.purchase?.productId?.startsWith("business:") || !event.purchase?.delivery?.sphere) {
+        throw purchaseConflict();
+      }
+      return { id: event.id, itemId: event.purchase.productId.slice("business:".length), sphere: event.purchase.delivery.sphere,
+        amount: Number(event.amount), giftCardId: event.card_id, status: event.refunded_at ? "refunded" : "placed", protected: false };
+    }
+  }
+  return null;
+}
+
+export async function readBusinessPurchaseStatus(client, userId, sphere, requestKey) {
+  const key = z.uuid().safeParse(requestKey);
+  if (!key.success) throw new RollsError("Проверьте номер запроса покупки", "INVALID_PURCHASE_REQUEST");
+  const purchase = await findBusinessPurchase(client, userId, key.data, await hasMarketplaceSettlementSchema(client));
+  if (purchase && purchase.sphere !== sphere) throw purchaseConflict();
+  return purchase;
+}
+
 export async function purchaseBusinessMarketplaceItem(client, userId, sphere, input, { protectedCheckout = false, verifySchema = false } = {}) {
   if (!BUSINESS_MARKETPLACE_SPHERES.includes(sphere)) {
     throw new RollsError("Раздел бизнеса не найден", "MARKETPLACE_NOT_FOUND", 404);
@@ -88,43 +135,12 @@ export async function purchaseBusinessMarketplaceItem(client, userId, sphere, in
   const settlementReady = (protectedCheckout || verifySchema) && await hasMarketplaceSettlementSchema(client);
   if (protectedCheckout && !settlementReady) throw new RollsError("Защищённая оплата временно недоступна", "MARKETPLACE_SETTLEMENT_UNAVAILABLE", 503);
   await ensureRollWallet(client, userId);
-  if (settlementReady) {
-    const { rows: [existing] } = await client.query(
-      "SELECT id,item_id,sphere,amount,gift_card_id FROM roll_marketplace_orders WHERE buyer_id=$1 AND request_key=$2",
-      [userId, idempotencyKey],
-    );
-    if (existing) {
-      if (existing.item_id !== itemId || existing.sphere !== sphere || Number(existing.amount) !== expectedPrice ||
-          existing.gift_card_id !== (giftCardId ?? null)) {
-        throw new RollsError("Этот запрос уже использован для другой покупки", "IDEMPOTENCY_CONFLICT", 409);
-      }
-      const { rows: [wallet] } = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
-      return { id: existing.id, replayed: true, balance: Number(wallet.balance), protected: true };
-    }
-  }
-  const previous = await client.query(
-    "SELECT * FROM roll_store_purchases WHERE user_id=$1 AND idempotency_key=$2",
-    [userId, idempotencyKey],
-  );
-  if (previous.rowCount) {
-    const row = previous.rows[0];
-    if (row.product_id !== `business:${itemId}` || row.delivery?.sphere !== sphere || (row.delivery?.giftCardId || null) !== (giftCardId || null)) {
-      throw new RollsError("Этот запрос уже использован для другой покупки", "IDEMPOTENCY_CONFLICT", 409);
-    }
-    const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
-    return { id: row.id, replayed: true, balance: Number(wallet.rows[0].balance) };
-  }
-  const giftSchema = await client.query("SELECT to_regclass('business_gift_card_events')::text AS events");
-  if (giftSchema.rows[0]?.events) {
-    const previousGift = await client.query("SELECT * FROM business_gift_card_events WHERE actor_id=$1 AND request_key=$2", [userId, idempotencyKey]);
-    if (previousGift.rowCount) {
-      const row = previousGift.rows[0];
-      if (row.kind !== "spend" || row.card_id !== giftCardId || row.purchase?.productId !== `business:${itemId}` || row.purchase?.delivery?.sphere !== sphere) {
-        throw new RollsError("Этот запрос уже использован для другой покупки", "IDEMPOTENCY_CONFLICT", 409);
-      }
-      const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
-      return { id: row.id, replayed: true, balance: Number(wallet.rows[0].balance) };
-    }
+  const previous = await findBusinessPurchase(client, userId, idempotencyKey, settlementReady);
+  if (previous) {
+    if (previous.itemId !== itemId || previous.sphere !== sphere || previous.giftCardId !== (giftCardId ?? null) ||
+        ((previous.protected || expectedPrice !== undefined) && previous.amount !== expectedPrice)) throw purchaseConflict();
+    const { rows: [wallet] } = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
+    return { id: previous.id, replayed: true, balance: Number(wallet.balance), status: previous.status, amount: previous.amount, ...(previous.protected && { protected: true }) };
   }
   if (settlementReady && !protectedCheckout) {
     throw new RollsError("Новые покупки временно приостановлены", "MARKETPLACE_SETTLEMENT_UNAVAILABLE", 503);
@@ -203,6 +219,14 @@ export function registerBusinessMarketplaceRoutes(app, { requireAuth, query, tra
     : res.status(404).json({ error: "Раздел бизнеса не найден", code: "MARKETPLACE_NOT_FOUND" });
   app.get("/api/business-marketplace/:sphere/store", requireAuth, availableSphere, handle(async (req, res) => {
     res.json({ items: await listBusinessMarketplaceItems(query, { sphere: req.params.sphere, kind: "store" }), protectedCheckout });
+  }));
+  app.get("/api/business-marketplace/:sphere/purchases/:requestKey", requireAuth, availableSphere, limit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const purchase = await transaction(async (client) => {
+      await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
+      return readBusinessPurchaseStatus(client, req.user.id, req.params.sphere, req.params.requestKey);
+    });
+    res.json({ purchase });
   }));
   app.post("/api/business-marketplace/:sphere/purchases", requireAuth, availableSphere, limit, handle(async (req, res) => {
     res.set("Cache-Control", "no-store");

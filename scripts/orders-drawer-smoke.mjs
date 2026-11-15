@@ -39,9 +39,17 @@ try {
       errors.push("The fixture must never call the API");
       return route.abort();
     });
-    await page.addInitScript(() => {
+    const marketplaceMiss = height < 500 || width === 1440;
+    await page.addInitScript((marketplaceMiss) => {
       const fixture = window.ordersDrawerFixture = { mode: "loading", reads: 0, unexpected: [], submittedActions: [] };
       const user = { id: "orders-smoke", username: "orders-smoke", name: "Покупатель", accountType: "personal", canDiscoverSpheres: true };
+      const point = { code: "PICKUP-TEST", city: "Москва", address: "Улица проверки, 1" };
+      const catKey = "23ecb1bb-45d7-4ebe-beff-ad3344d1f11c";
+      const catReceipt = { id: "cat-recovered", amount: 1000, productId: "cat:white",
+        status: "placed", delivery: { provider: "cdek", point } };
+      fixture.catIntent = { cat: { id: "white" }, pickupPoint: point, idempotencyKey: catKey, submitted: true };
+      fixture.catChecks = [];
+      fixture.catSends = [];
       const fulfilled = {
         id: "650bc77a-2829-449f-86af-51d4439bd080", productTitle: "Получение консультации", amount: 50,
         createdAt: "2026-11-12T10:00:00Z", status: "fulfilled",
@@ -63,6 +71,10 @@ try {
           if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, owner: user, people: [], requests: [] };
           if (path === "/business-marketplace/career/store") return { items: [item], protectedCheckout: true };
           if (path === "/rolls/gift-cards") return { cards: [{ id: "test-card", balance: 80, business: { id: "seller" } }] };
+          if (path.startsWith("/rolls/purchases/")) {
+            fixture.catChecks.push(path.split("/").at(-1));
+            return { purchase: marketplaceMiss ? null : catReceipt };
+          }
           if (path.startsWith("/rolls/receipts/order/")) {
             const id = path.split("/").at(-1);
             const order = [fulfilled, reserved].find(item => item.id === id);
@@ -72,6 +84,17 @@ try {
             if (id === "abcdef12-7") return { receipt: { id, kind: "order", role: "buyer", amount: "1000",
               createdAt: "2026-09-24T12:00:00Z", closedAt: "2026-09-25T12:00:00Z", status: "refunded", source: "gift",
               subject: "Синий кот — Уставший (8)" } };
+          }
+          if (path.startsWith("/business-marketplace/career/purchases/")) {
+            const key = path.split("/").at(-1);
+            const attempts = JSON.parse(sessionStorage.getItem("marketplace-browser-attempts") || "[]");
+            const checks = JSON.parse(sessionStorage.getItem("marketplace-browser-checks") || "[]");
+            sessionStorage.setItem("marketplace-browser-checks", JSON.stringify([...checks, key]));
+            const original = attempts[0];
+            return { purchase: original?.idempotencyKey === key && (!marketplaceMiss || attempts.length > 1)
+              ? { id: fulfilled.id, itemId: original.itemId, sphere: "career", amount: 50, giftCardId: original.giftCardId,
+                status: "reserved", protected: true }
+              : null };
           }
           if (path !== "/rolls/orders") {
             fixture.unexpected.push(path);
@@ -93,6 +116,10 @@ try {
           })) };
         },
         post(path, input) {
+          if (path === "/rolls/purchases") {
+            fixture.catSends.push(input);
+            return { purchase: catReceipt };
+          }
           if (path === "/business-marketplace/career/purchases") {
             const attempts = JSON.parse(sessionStorage.getItem("marketplace-browser-attempts") || "[]");
             attempts.push(input);
@@ -122,7 +149,7 @@ try {
           throw new Error("Unexpected action in orders fixture");
         },
       };
-    });
+    }, marketplaceMiss);
 
     try {
       const store = `${storeUrl}?from=smoke#store`;
@@ -286,13 +313,51 @@ try {
       await confirmation.getByRole("combobox", { name: "Оплатить покупку" }).click();
       await page.getByRole("option", { name: "Карта · 80 роллов" }).click();
       await confirmation.getByRole("button", { name: "Подтвердить", exact: true }).click();
-      await confirmation.getByText("Результат оплаты пока неизвестен.", { exact: false }).waitFor();
+      await confirmation.getByText("Ответ об оплате пока не получен.", { exact: false }).waitFor();
       await page.reload();
+      await confirmation.getByText("Исходная подарочная карта.", { exact: false }).waitFor();
       await confirmation.getByRole("button", { name: "Проверить оплату" }).click();
+      const submitted = () => page.evaluate(() => JSON.parse(sessionStorage.getItem("marketplace-browser-attempts")));
+      if (marketplaceMiss) {
+        await confirmation.getByText("В журнале пока нет покупки.").waitFor();
+        assert.equal((await submitted()).length, 1);
+        const sendAgain = confirmation.getByRole("button", { name: "Оплатить снова" });
+        assert.equal((await sendAgain.boundingBox()).height, 48);
+        if (height < 500 || width === 1440) await page.screenshot({ path: join(screenshots, `checkout-recovery-${width}x${height}.png`) });
+        await sendAgain.click();
+      }
       await confirmation.waitFor({ state: "hidden" });
-      const attempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem("marketplace-browser-attempts")));
-      assert.equal(attempts.length, 2);
-      assert.deepEqual(attempts[0], attempts[1]);
+      const attempts = await submitted();
+      assert.equal(attempts.length, marketplaceMiss ? 2 : 1);
+      if (marketplaceMiss) assert.deepEqual(attempts[0], attempts[1]);
+      assert.deepEqual(await page.evaluate(() => JSON.parse(sessionStorage.getItem("marketplace-browser-checks"))), [attempts[0].idempotencyKey]);
+      await page.evaluate(() => sessionStorage.setItem("rollapp:pending-cat-purchase:orders-smoke", JSON.stringify(window.ordersDrawerFixture.catIntent)));
+      await page.goto(storeUrl);
+      const catDialog = page.getByRole("dialog", { name: "Подтвердите покупку" });
+      await catDialog.getByText("Улица проверки, 1", { exact: false }).waitFor();
+      await catDialog.getByRole("button", { name: "Позже", exact: true }).click();
+      await catDialog.waitFor({ state: "hidden" });
+      assert.equal(await page.evaluate(() => window.ordersDrawerFixture.catChecks.length), 0);
+      await page.getByRole("button", { name: "Проверить покупку", exact: true }).click();
+      await catDialog.getByText("Улица проверки, 1", { exact: false }).waitFor();
+      await catDialog.getByRole("button", { name: "Проверить покупку", exact: true }).click();
+      if (marketplaceMiss) {
+        await catDialog.getByText("В журнале пока нет покупки.").waitFor();
+        assert.equal(await page.evaluate(() => window.ordersDrawerFixture.catSends.length), 0);
+        const retryCat = catDialog.getByRole("button", { name: "Оплатить снова" });
+        assert.equal((await retryCat.boundingBox()).height, 48);
+        await retryCat.click();
+      }
+      const bought = page.getByRole("dialog", { name: "Кот куплен" });
+      await bought.getByText("Заказ № cat-recovered").waitFor();
+      const catRequest = await page.evaluate(() => window.ordersDrawerFixture.catIntent);
+      assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.catChecks), [catRequest.idempotencyKey]);
+      assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.catSends), marketplaceMiss
+        ? [{ productId: "cat:white", pickupPointCode: catRequest.pickupPoint.code, expectedPrice: 1000, idempotencyKey: catRequest.idempotencyKey }]
+        : []);
+      await bought.getByRole("button", { name: "Готово" }).click();
+      await bought.waitFor({ state: "hidden" });
+      assert.equal(await page.evaluate(() => sessionStorage.getItem("rollapp:pending-cat-purchase:orders-smoke")), null);
       assert.deepEqual({ ...attempts[0], idempotencyKey: undefined }, {
         itemId: "protected-offer", expectedPrice: 50, giftCardId: "test-card", idempotencyKey: undefined,
       });

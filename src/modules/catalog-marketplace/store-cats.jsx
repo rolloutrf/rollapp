@@ -1,4 +1,5 @@
-
+import { CAT_STORE_PRICE } from "../../../shared/modules/checkout/cat-store-price.js";
+import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 
 export const STORE_CATS = [
   { id: "red", name: "Красный", mood: "Злой", image: "/store/cats/red-angry.webp", accent: "#f23849" },
@@ -9,4 +10,4 @@ export const STORE_CATS = [
   { id: "gold", name: "Золотой", mood: "", image: "/store/cats/gold.png", accent: "#c9a06f" },
 ];
 
-export const STORE_CAT_PRICE = "1 000 ролл";
+export const STORE_CAT_PRICE = formatRolls(CAT_STORE_PRICE);

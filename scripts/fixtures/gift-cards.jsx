@@ -14,7 +14,7 @@ const business = { id: "business", name: "Мастерская подарков 
 const user = { id: "owner", name: "Владелец" };
 const friend = { id: "friend", name: "Получатель подарочной карты", username: "friend" };
 const params = new URLSearchParams(location.search);
-const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], requests: new Map(), lost: false };
+const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], checkoutChecks: [], requests: new Map(), lost: false };
 state.reads = [];
 if (params.has("wallet-error")) {
   state.cards[1].balance = 0;
@@ -102,6 +102,11 @@ api.get = async (path) => {
   }
   if (params.has("store-only") && path === "/rolls/orders") return { orders: [] };
   if (params.has("store-only") && path === "/delivery/cdek/cities") return { cities: [] };
+  if (path.startsWith("/business-marketplace/career/purchases/") && params.has("offers")) {
+    const key = path.split("/").at(-1);
+    state.checkoutChecks.push(key);
+    return { purchase: clone(state.requests.get(key)?.purchase ?? null) };
+  }
   if (path.startsWith("/rolls/recipients?q=")) return { people: [friend] };
   throw new Error(`Unexpected fixture read: ${path}`);
 };
@@ -162,7 +167,8 @@ api.post = async (path, payload) => {
   } else if (path.endsWith("/send")) state.cards = [];
   else throw new Error(`Unexpected fixture mutation: ${path}`);
   const result = path.includes("/purchases")
-    ? { purchase: { id: crypto.randomUUID(), balance: state.balance } }
+    ? { purchase: { id: crypto.randomUUID(), balance: state.balance, itemId: payload.itemId,
+        sphere: "career", amount: 20, giftCardId: payload.giftCardId ?? null, status: "placed", protected: false } }
     : { card: { id: card.id } };
   state.requests.set(payload.idempotencyKey, result);
   if ((path.endsWith("/topup") || path.includes("/purchases")) && !state.lost) { state.lost = true; throw new Error("Simulated lost response"); }

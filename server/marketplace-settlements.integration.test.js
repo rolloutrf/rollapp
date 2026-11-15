@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { purchaseBusinessMarketplaceItem } from "./modules/catalog-marketplace/business-marketplace.js";
+import { purchaseBusinessMarketplaceItem, readBusinessPurchaseStatus } from "./modules/catalog-marketplace/business-marketplace.js";
 import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
 import { settleMarketplaceOrder, resolveMarketplaceDispute } from "./modules/checkout/marketplace-settlements.js";
 import { hasMarketplaceSettlementSchema, verifyMarketplaceSettlementSchema } from "./modules/checkout/marketplace-settlements-schema.js";
@@ -56,6 +56,11 @@ test("protected marketplace orders on the existing production schema", { skip: p
         assert(await wallet(buyer).then(({transactions}) => transactions.some((entry) => entry.kind === "market_reserve")));
         await client.query("UPDATE business_marketplace_items SET active=FALSE WHERE id=$1", [itemId]);
         assert.equal((await buy(quote)).id, purchase.id);
+        const recovered = await readBusinessPurchaseStatus(client, buyer, "career", quote.idempotencyKey);
+        assert.equal(recovered.id, purchase.id);
+        assert.equal(recovered.status, "reserved");
+        assert.equal(recovered.protected, true);
+        assert.equal(await readBusinessPurchaseStatus(client, seller, "career", quote.idempotencyKey), null);
         assert.equal((await purchaseBusinessMarketplaceItem(client, buyer, "career", quote, { verifySchema: true })).replayed, true);
         await client.query("UPDATE business_marketplace_items SET active=TRUE WHERE id=$1", [itemId]);
         await assert.rejects(act(purchase.id, other, "accept"), { code: "ORDER_NOT_FOUND" });
