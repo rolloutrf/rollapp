@@ -1,3 +1,5 @@
+import { SPHERE_APPLICATIONS } from "../shared/applications.js";
+import { applicationRedirect, platformLink, sphereLink } from "./applications/location.js";
 import { IDENTITY_TABS, CAREER_TABS, EDUCATION_TABS, HEALTH_TABS } from "../shared/sphere-tabs.js";
 import { NOTE_TASKS_REQUEST_EVENT } from "@/lib/planning-assistant";
 import { AssistantNoteTasks, createNoteTaskRows } from "@/components/assistant-note-tasks";
@@ -9,8 +11,6 @@ import { WishlistBusinessManager, WishlistBusinessListing, WishSalesPage, wishSa
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
-import { HealthTracker } from "@/components/health-tracker";
-import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/identity-reports-page";
 
 import { Avatar } from "@/components/profile-avatar";
 import { ProfileMoodSettings } from "@/components/profile-mood-settings";
@@ -24,7 +24,7 @@ import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { EXTERNAL_WISHLIST_PROVIDERS, EXTERNAL_WISHLIST_URL_MAX_LENGTH, externalWishlistUrl } from "../shared/external-wishlists.js";
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useMatch, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
@@ -61,7 +61,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AboutMe } from "@/components/about-me";
 import { BusinessPersonalOffers, PersonalOffers } from "@/components/personal-offers";
 import { BusinessMarketplacePage, SphereBusinessControls } from "@/components/business-marketplace-page";
 import { RegistrationAccountFields } from "@/components/registration-account-fields";
@@ -72,28 +71,9 @@ import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { WishlistSnippet } from "@/components/wishlist-snippet";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CharacterTraits } from "@/components/character-traits";
-import { CoachingSessions } from "@/components/coaching-sessions";
-import { Conferences } from "@/components/conferences";
-import { Courses } from "@/components/courses";
-import { DevelopmentPlan } from "@/components/development-plan";
-import { Domain } from "@/components/domain";
-import { CvResume } from "@/components/cv-resume";
-import { FourQuestions } from "@/components/four-questions";
-import { GallupProfile } from "@/components/gallup-profile";
-import {
-  IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportOverview,
-  IdentityReportStatus,
-} from "@/components/identity-report-manager";
-import { PersonalDevelopmentPlan } from "@/components/personal-development-plan";
-import { EditableLifeStrategy } from "@/components/editable-life-strategy";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
 import { GroupDialog } from "@/components/group-dialog";
 import { WishGroupHeader } from "@/components/wish-group-fundraiser";
-import { LabResults } from "@/components/lab-results";
-import { Medications } from "@/components/medications";
-import { Mission } from "@/components/mission";
-import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { InvitesManager } from "@/components/invites-manager";
 import { ProfileAccounts } from "@/components/profile-accounts";
@@ -104,10 +84,6 @@ import { useDiskSyncSettings } from "@/components/disk-sync-settings";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
-import { PerformanceReview } from "@/components/performance-review";
-import { Principles, Theses } from "@/components/theses";
-import { Values } from "@/components/values";
-import { Workouts } from "@/components/workouts";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerSectionHeader, DrawerTitle, DrawerTrigger,
 } from "@/components/form-surface";
@@ -633,6 +609,9 @@ function SphereSwitcher({ docked = false }) {
   const [open, setOpen] = useState(false);
   const [incomingShares, setIncomingShares] = useState([]);
   const activeService = activeServiceFromPath(pathname);
+  const serviceHref = path => window.Telegram?.WebApp?.initData
+    ? path
+    : sphereLink(path, window.location);
   const sharedOwner = new URLSearchParams(location.search).get("owner");
   const visibleServices = [
     ...serviceSwitcherItemsForUser(SERVICE_SWITCHER_ITEMS, user),
@@ -679,7 +658,7 @@ function SphereSwitcher({ docked = false }) {
             return (
               <Link
                 key={id}
-                to={path}
+                to={serviceHref(path)}
                 className={buttonVariants({
                   variant: active ? "secondary" : "ghost",
                   className: "sphere-switcher__item !h-auto !min-h-12 !justify-start !gap-4 !font-normal !whitespace-normal !rounded-xl !px-4 !py-3",
@@ -708,7 +687,7 @@ function SphereSwitcher({ docked = false }) {
               return (
                 <Link
                   key={`${share.owner.id}:${share.sphere}:${share.section}`}
-                  to={path}
+                  to={serviceHref(path)}
                   className={buttonVariants({
                     variant: active ? "secondary" : "ghost",
                     className: "sphere-switcher__item !h-auto !min-h-12 !justify-start !gap-4 !font-normal !whitespace-normal !rounded-xl !px-4 !py-3",
@@ -2071,38 +2050,12 @@ function AppShell({ children, friendsContext = false, collectionChrome = false, 
   );
 }
 
-function SpherePage({ sphereId }) {
-  const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
-  const Icon = sphere?.icon || Sparkles;
-  if (!sphere) return <Navigate to={APP_HOME} replace />;
-  return (
-    <div className="app-page sphere-page typeset typeset-rollapp">
-      <div className="sphere-page__content">
-        <span className="sphere-page__icon" style={{ "--sphere-color": sphere.color }}><Icon aria-hidden="true" /></span>
-        <p className="sphere-page__eyebrow">Сферы</p>
-        <h1>{sphere.label}</h1>
-        <p>Раздел уже доступен в переключателе. Содержимое этой сферы появится здесь.</p>
-      </div>
-    </div>
-  );
-}
-
-function GeneratedHoganReport({ report }) {
-  return <IdentityGeneratedDocuments report={report} />;
-}
-
-function HoganReport({ reportState: { state, error, load } }) {
-  if (state.mode === "loading" || state.mode === "error") {
-    return <IdentityReportStatus mode={state.mode} error={error} onRetry={load} />;
-  }
-  return state.mode === "generated"
-    ? <GeneratedHoganReport report={state.report} />
-    : <IdentityReportEmpty label="Hogan" />;
-}
-
-function IdentityReportsPage() {
-  return <CustomIdentityReportsPage renderGallup={reportState => <GallupProfile reportState={reportState} />} renderHogan={reportState => <HoganReport reportState={reportState} />} />;
-}
+const sphereSections = {
+  identity: lazy(() => import("./applications/identity/sections.jsx")),
+  career: lazy(() => import("./applications/career/sections.jsx")),
+  education: lazy(() => import("./applications/education/sections.jsx")),
+  health: lazy(() => import("./applications/health/sections.jsx")),
+};
 
 function TabbedSpherePage({ sphereId, tabs }) {
   const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
@@ -2116,6 +2069,7 @@ function TabbedSpherePage({ sphereId, tabs }) {
   const legacyIdentityReportTab = sphereId === "identity" && ["gallup", "hogan"].includes(requestedTab);
   const activeTab = legacyIdentityReportTab ? "identity-reports" : tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0].id;
   const activeTabConfig = tabs.find((tab) => tab.id === activeTab);
+  const Section = sphereSections[sphereId];
   const selectTab = (tabId) => {
     const search = new URLSearchParams(location.search);
     search.set("tab", tabId);
@@ -2135,68 +2089,11 @@ function TabbedSpherePage({ sphereId, tabs }) {
     <div data-read-only={access.readOnly ? "true" : undefined} className={`app-page sphere-page sphere-page--tabbed typeset typeset-rollapp${activeTabConfig?.layout === "full-width" ? " sphere-page--full-width" : ""}`}>
       <div className="sphere-page__content tabbed-sphere">
         <Tabs value={activeTab} onValueChange={selectTab} className="sphere-tabs">
-          {[activeTabConfig].map((tab) => (
-            <TabsContent key={tab.id} value={tab.id} className="sphere-tabs__content">
-              {sphere.id === "identity" && tab.id === "four-questions"
-                ? <FourQuestions />
-                : sphere.id === "identity" && tab.id === "theses"
-                  ? <Theses />
-                : sphere.id === "identity" && tab.id === "principles"
-                  ? <Principles />
-              : sphere.id === "identity" && tab.id === "identity-reports"
-                ? <IdentityReportsPage />
-                    : sphere.id === "identity" && tab.id === "values"
-                      ? <Values />
-                      : sphere.id === "identity" && tab.id === "character"
-                        ? <CharacterTraits />
-                        : sphere.id === "identity" && tab.id === "mission"
-                          ? <Mission />
-                          : sphere.id === "identity" && tab.id === "ideal-state"
-                            ? <IdealState />
-                          : sphere.id === "identity" && tab.id === "personal-development-plan"
-                            ? <PersonalDevelopmentPlan />
-                          : sphere.id === "identity" && tab.id === "life-strategy"
-                            ? <EditableLifeStrategy />
-                            : sphere.id === "education" && tab.id === "courses"
-                              ? <Courses />
-                              : sphere.id === "education" && tab.id === "conferences"
-                                ? <Conferences />
-                                : sphere.id === "education" && tab.id === "coaching"
-                                  ? <CoachingSessions />
-                                  : sphere.id === "health" && tab.id === "lab-results"
-                                    ? <LabResults />
-                                    : sphere.id === "health" && tab.id === "sport"
-                                      ? <Workouts />
-                                      : sphere.id === "health" && ["sleep", "nutrition"].includes(tab.id)
-                                        ? <HealthTracker key={tab.id} tracker={tab.id} />
-                                      : sphere.id === "health" && tab.id === "medications"
-                                        ? <Medications />
-                                : sphere.id === "career" && tab.id === "cv"
-                                  ? <CvResume />
-                          : sphere.id === "career" && tab.id === "about"
-                            ? <AboutMe />
-                          : sphere.id === "career" && tab.id === "performance"
-                              ? <PerformanceReview />
-                          : sphere.id === "career" && tab.id === "development-plan"
-                            ? <DevelopmentPlan />
-                          : sphere.id === "career" && tab.id === "domain"
-                            ? <Domain />
-                    : sphere.id === "health"
-                      ? <Empty className="min-h-64 border" aria-labelledby={`${sphere.id}-tab-${tab.id}`}>
-                        <EmptyHeader>
-                          <EmptyMedia variant="icon"><HeartPulse aria-hidden="true" /></EmptyMedia>
-                          <EmptyTitle><h2 id={`${sphere.id}-tab-${tab.id}`} className="m-0! text-lg! leading-7! font-semibold!">{tab.label}</h2></EmptyTitle>
-                          <EmptyDescription>{tab.description}</EmptyDescription>
-                        </EmptyHeader>
-                        <EmptyContent><Badge variant="secondary">Скоро</Badge></EmptyContent>
-                      </Empty>
-                      : <section aria-labelledby={`${sphere.id}-tab-${tab.id}`}>
-                  <h2 id={`${sphere.id}-tab-${tab.id}`}>{tab.label}</h2>
-                  <p>{tab.description}</p>
-                  <span className="sphere-tabs__placeholder">Содержимое раздела появится здесь.</span>
-                </section>}
-            </TabsContent>
-          ))}
+          <TabsContent key={activeTab} value={activeTab} className="sphere-tabs__content">
+            <Suspense fallback={<LoadingScreen compact />}>
+              <Section tab={activeTabConfig} />
+            </Suspense>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
@@ -3614,7 +3511,7 @@ function ProtectedWishlistBusiness({ listings = false }) {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}${location.hash}`))}`} replace />;
   if (listings) {
     const space = wishlistSpace(location.search);
     const business = new URLSearchParams(location.search).get("business") || "";
@@ -3632,7 +3529,7 @@ function WishlistSectionLayout() {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}${location.hash}`))}`} replace />;
   return <AppShell wishlistChrome><Outlet /></AppShell>;
 }
 
@@ -3775,12 +3672,44 @@ function MessengerRoute({ user }) {
   return <Navigate to={messagesHostPath(user)} replace state={{ messengerOpen: true, messengerConversationId: conversationId || null }} />;
 }
 
-function ProtectedApp() {
+const privateSpherePages = {
+  identity: () => <TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} />,
+  career: CareerSpherePage,
+  education: () => <TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} />,
+  health: () => <TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} />,
+};
+
+function ProtectedApp({ application }) {
   const location = useLocation();
   const { user, loading, refresh } = useSession();
   if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="private-notes" element={<PrivateNotes key={user.id} ownerId={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="member-number" element={<MemberNumberPage key={user.id} user={user} onDrawn={refresh} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/catalog" element={<PrivateSphereRoute><SphereBusinessCatalogRoute /></PrivateSphereRoute>} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes></AppShell>;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}${location.hash}`))}`} replace />;
+  const pages = application ? [[application, privateSpherePages[application]]] : Object.entries(privateSpherePages);
+  const home = application ? SPHERE_APPLICATIONS[application].home : APP_HOME;
+  return (
+    <AppShell>
+      <Routes>
+        {!application && <>
+          <Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} />
+          <Route path="planning" element={<PlanningSpace key={user.id} />} />
+          <Route path="private-notes" element={<PrivateNotes key={user.id} ownerId={user.id} />} />
+          <Route path="rolls" element={<RollsWallet key={user.id} user={user} />} />
+          <Route path="member-number" element={<MemberNumberPage key={user.id} user={user} onDrawn={refresh} />} />
+          <Route path="business/access" element={<BusinessAccessPage />} />
+          <Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} />
+          <Route path="friends/:section" element={<FriendsPage />} />
+          <Route path="settings" element={<Navigate to={APP_HOME} replace />} />
+        </>}
+        <Route path="spheres/:sphereId/business/catalog" element={<PrivateSphereRoute><SphereBusinessCatalogRoute /></PrivateSphereRoute>} />
+        <Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} />
+        {pages.map(([id, Page]) => (
+          <Route key={id} path={`spheres/${id}`} element={<PrivateSphereRoute><Page /></PrivateSphereRoute>} />
+        ))}
+        {(!application || application === "career") && <Route path="spheres/contacts" element={<LegacyContactsRedirect />} />}
+        <Route path="*" element={<Navigate to={home} replace />} />
+      </Routes>
+    </AppShell>
+  );
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -7470,7 +7399,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
   const yandexLinkNext = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}`);
   const accountReturnPath = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}${location.hash}`);
   const addAccountHref = `/login?${new URLSearchParams({ add_account: "1", next: accountReturnPath })}`;
-  const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
+  const yandexLinkHref = platformLink(yandexAuthStartPath(yandexLinkNext, { link: true }), window.location);
   const diskSync = useDiskSyncSettings({
     active: section === "yandex" && yandexDiskSyncEnabled && !yandexSettingsBlocked && !changed,
     ownerId: user.id, next: yandexLinkNext, callback: diskSyncCallback, onNavigate: (path) => leaveSettingsFor(path),
@@ -8432,10 +8361,21 @@ function AppPlanningSpaces({ children }) {
   return <PlanningSpacesProvider enabled={Boolean(user)}>{children}</PlanningSpacesProvider>;
 }
 
-export default function App() {
+function ApplicationRedirect({ to }) {
+  useEffect(() => { window.location.replace(to); }, [to]);
+  return <LoadingScreen />;
+}
+
+export default function App({ application = null }) {
   useVisualViewport();
-  const { pathname, search } = useLocation();
+  const { pathname, search, hash } = useLocation();
+  const redirect = applicationRedirect({
+    application, pathname, search, hash,
+    hostname: window.location.hostname,
+    telegram: Boolean(window.Telegram?.WebApp?.initData),
+  });
   const linkingResult = pathname === "/login" && new URLSearchParams(search).get("auth_success") === "YANDEX_LINKED";
+  if (redirect) return <ApplicationRedirect to={redirect} />;
   return (
     <ToastProvider>
       <SessionProvider>
@@ -8447,35 +8387,39 @@ export default function App() {
           {!linkingResult && <GlobalAppChrome />}
           {!linkingResult && <PlanningFab />}
           <Routes>
-            <Route path="/" element={<RootRoute />} />
-            <Route path="/login" element={<AuthPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<AuthPage recovery="forgot" />} />
-            <Route path="/reset-password" element={<AuthPage recovery="reset" />} />
-            <Route path="/ideas" element={<Navigate to={APP_HOME} replace />} />
-            <Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} />
-            <Route path="/s/:token" element={<PublicProfile shared />} />
-            <Route path={APP_CATALOG_ITEM_ROUTE_PATH} element={<CatalogItemPage />} />
-            <Route element={<WishlistSectionLayout />}>
-              <Route path={APP_HOME} element={<WishlistHomeRoute />} />
-              <Route path={APP_WISH_CATALOG_PATH} element={<WishCatalogPage />} />
-              <Route path={APP_STORE_PATH} element={<WishlistStoreRoute />} />
-              <Route path={APP_ORDERS_PATH} element={<WishlistStoreRoute ordersOpen />} />
-              <Route path={APP_WISH_OFFERS_PATH} element={<WishlistOffersRoute />} />
-              <Route path={APP_WISH_SALES_PATH} element={<WishlistSalesRoute />} />
-            </Route>
-            <Route path={APP_CLASSIFIEDS_PATH} element={<LegacyClassifiedsRedirect />} />
-            <Route path={APP_WISH_LISTINGS_PATH} element={<ProtectedWishlistBusiness listings />} />
-            <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness />} />
-            <Route path={APP_ASSISTANT_PATH} element={<AssistantRoute />} />
-            <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp />} />
-            <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
-            <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />
-            <Route path="/:username" element={<PublicProfile />} />
-            <Route path="/:username/calendar/book" element={<PublicBookingPage />} />
-            <Route path="/:username/:space" element={<PublicProfile />} />
-            <Route path="/:username/lists/:listId" element={<PublicProfile />} />
-            <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
+            {!application && <>
+              <Route path="/" element={<RootRoute />} />
+              <Route path="/login" element={<AuthPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<AuthPage recovery="forgot" />} />
+              <Route path="/reset-password" element={<AuthPage recovery="reset" />} />
+              <Route path="/ideas" element={<Navigate to={APP_HOME} replace />} />
+              <Route path={APP_ASSISTANT_PATH} element={<AssistantRoute />} />
+              <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
+              <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />
+              <Route path="/:username" element={<PublicProfile />} />
+              <Route path="/:username/calendar/book" element={<PublicBookingPage />} />
+              <Route path="/:username/:space" element={<PublicProfile />} />
+              <Route path="/:username/lists/:listId" element={<PublicProfile />} />
+              <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
+            </>}
+            {(!application || application === "wishlist") && <>
+              <Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} />
+              <Route path="/s/:token" element={<PublicProfile shared />} />
+              <Route path={APP_CATALOG_ITEM_ROUTE_PATH} element={<CatalogItemPage />} />
+              <Route element={<WishlistSectionLayout />}>
+                <Route path={APP_HOME} element={<WishlistHomeRoute />} />
+                <Route path={APP_WISH_CATALOG_PATH} element={<WishCatalogPage />} />
+                <Route path={APP_STORE_PATH} element={<WishlistStoreRoute />} />
+                <Route path={APP_ORDERS_PATH} element={<WishlistStoreRoute ordersOpen />} />
+                <Route path={APP_WISH_OFFERS_PATH} element={<WishlistOffersRoute />} />
+                <Route path={APP_WISH_SALES_PATH} element={<WishlistSalesRoute />} />
+              </Route>
+              <Route path={APP_CLASSIFIEDS_PATH} element={<LegacyClassifiedsRedirect />} />
+              <Route path={APP_WISH_LISTINGS_PATH} element={<ProtectedWishlistBusiness listings />} />
+              <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness />} />
+            </>}
+            {application !== "wishlist" && <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp application={application} />} />}
             <Route path="*" element={<NotFound />} />
           </Routes>
           </AppPlanningSpaces>

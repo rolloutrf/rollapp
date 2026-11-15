@@ -301,6 +301,10 @@ jobs:
             fi
           done
 
+      - name: Verify HTTPS and version for each sphere application
+        timeout-minutes: 8
+        run: node scripts/check-sphere-production.mjs "$GITHUB_SHA"
+
       - name: Configure Telegram Mini App
         env:
           YC_LOCKBOX_SOURCE: iam

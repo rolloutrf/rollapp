@@ -1,0 +1,43 @@
+import { setTimeout } from "node:timers/promises";
+import { SPHERE_APPLICATIONS } from "../shared/applications.js";
+
+const version = process.argv[2];
+if (!/^[a-f0-9]{40}$/.test(version || "")) throw new Error("Pass the expected production commit SHA");
+const attempts = Number(process.env.ROLLAPP_SPHERE_HEALTH_ATTEMPTS || 36);
+
+async function verify(id, { host, home }) {
+  const url = `https://${host}`;
+  const request = path => fetch(`${url}${path}`, { redirect: "error", signal: AbortSignal.timeout(10_000) });
+  const [healthResponse, homeResponse, deepResponse, accountResponse] = await Promise.all([
+    request("/api/healthz"), request("/"), request(home), request("/api/me"),
+  ]);
+  if (![healthResponse, homeResponse, deepResponse, accountResponse].every(response => response.ok)) {
+    throw new Error(`${id} returned HTTP ${[healthResponse, homeResponse, deepResponse, accountResponse].map(response => response.status).join("/")}`);
+  }
+  const [health, homeHtml, deepHtml, account] = await Promise.all([
+    healthResponse.json(), homeResponse.text(), deepResponse.text(), accountResponse.json(),
+  ]);
+  if (!(health.ok === true && health.service === `rollapp-${id}` && health.version === version)) {
+    throw new Error(`${id} reports ${health.service} ${health.version}`);
+  }
+  const marker = `name="rollapp-application" content="${id}"`;
+  if (!homeHtml.includes(marker) || !deepHtml.includes(marker) || account.user !== null) {
+    throw new Error(`${id} served an unexpected app entry or anonymous session`);
+  }
+}
+
+const pending = new Map(Object.entries(SPHERE_APPLICATIONS));
+for (let attempt = 1; pending.size && attempt <= attempts; attempt++) {
+  const checks = [...pending].map(async ([id, sphere]) => {
+    try {
+      await verify(id, sphere);
+      pending.delete(id);
+      console.log(`${sphere.host} serves rollapp-${id} at ${version}`);
+    } catch (error) {
+      console.log(`Attempt ${attempt} for ${id}: ${error.message}`);
+    }
+  });
+  await Promise.all(checks);
+  if (pending.size && attempt < attempts) await setTimeout(5_000);
+}
+if (pending.size) throw new Error(`Production sphere verification failed: ${[...pending.keys()].join(", ")}`);

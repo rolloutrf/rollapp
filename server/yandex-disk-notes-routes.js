@@ -51,11 +51,12 @@ export async function writeDiskNote(disk, token, row, { revision, markdown }) {
 }
 
 export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit, query, transaction,
-  syncAvailable = () => false, wakeSync = () => {},
+  syncAvailable = () => false, wakeSync = () => {}, cookieDomain,
 }) {
   const cookieOptions = {
     httpOnly: true, sameSite: "lax", path: CALLBACK,
     secure: process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "false",
+    ...(cookieDomain && { domain: cookieDomain }),
   };
 
   function route(handler) {

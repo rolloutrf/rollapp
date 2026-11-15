@@ -1,17 +1,3 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import App from "./App.jsx";
-import "./styles.css";
-import "./index.css";
-import { loadTelegramWebAppSdk } from "./telegram.js";
+import { mountApplication } from "./applications/mount.jsx";
 
-await loadTelegramWebAppSdk();
-
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>,
-);
+await mountApplication();

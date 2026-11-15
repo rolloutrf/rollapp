@@ -41,15 +41,33 @@ export function requireExpectedAccount(req, res, next) {
   next();
 }
 
-export function createAccountSessions({ query, sessionCookieOptions }) {
+export function createAccountSessions({ query, sessionCookieOptions, domainCookies = null }) {
+  const activeName = domainCookies?.active || sessionCookie;
+  const savedName = domainCookies?.saved || savedSessionsCookie;
+  const cookieOptions = path => ({
+    ...sessionCookieOptions(path),
+    ...(domainCookies && { domain: domainCookies.domain }),
+  });
+
+  function clearLegacyCookies(res) {
+    if (domainCookies) {
+      res.clearCookie(sessionCookie, sessionCookieOptions("/"));
+      res.clearCookie(savedSessionsCookie, sessionCookieOptions("/api/auth"));
+    }
+  }
+
+  function clearActiveSession(res) {
+    res.clearCookie(activeName, cookieOptions("/"));
+    clearLegacyCookies(res);
+  }
   function setSessionCookie(res, { token, expiresAt }) {
-    res.cookie(sessionCookie, token, { ...sessionCookieOptions("/"), expires: expiresAt });
+    res.cookie(activeName, token, { ...cookieOptions("/"), expires: expiresAt });
   }
 
   function writeSavedSessions(res, sessions) {
-    const options = sessionCookieOptions("/api/auth");
-    if (!sessions.length) return res.clearCookie(savedSessionsCookie, options);
-    return res.cookie(savedSessionsCookie, sessions.map(({ token }) => token).join("."), {
+    const options = cookieOptions("/api/auth");
+    if (!sessions.length) return res.clearCookie(savedName, options);
+    return res.cookie(savedName, sessions.map(({ token }) => token).join("."), {
       ...options,
       expires: new Date(Math.max(...sessions.map(({ expiresAt }) => expiresAt.getTime()))),
     });
@@ -72,6 +90,17 @@ export function createAccountSessions({ query, sessionCookieOptions }) {
       }
     }
     setSessionCookie(res, session);
+    clearLegacyCookies(res);
+  }
+
+  async function promoteLegacySession(req, res) {
+    if (!domainCookies || req.cookies[activeName] || !req.user) return;
+    const sessions = await browserAccountSessions(req);
+    const active = sessions.find(entry => entry.token === req.cookies[sessionCookie]);
+    if (!active) return;
+    writeSavedSessions(res, sessions.filter(entry => entry !== active).slice(0, maxSavedSessions));
+    setSessionCookie(res, active);
+    clearLegacyCookies(res);
   }
 
   function registerAccountRoutes(app, { requireAuth, asyncRoute }) {
@@ -102,6 +131,7 @@ export function createAccountSessions({ query, sessionCookieOptions }) {
       if (accountId !== req.user.id) {
         writeSavedSessions(res, sessions.filter((entry) => entry !== selected));
         setSessionCookie(res, selected);
+        clearLegacyCookies(res);
       }
       return res.json({ ok: true });
     }));
@@ -120,11 +150,11 @@ export function createAccountSessions({ query, sessionCookieOptions }) {
       const tokens = [req.cookies[sessionCookie], ...sessionTokens(req.cookies[savedSessionsCookie])]
         .filter((token) => typeof token === "string" && token.length === 43);
       if (tokens.length) await query("DELETE FROM sessions WHERE token_hash=ANY($1::text[])", [tokens.map(hashToken)]);
-      res.clearCookie(sessionCookie, sessionCookieOptions("/"));
+      clearActiveSession(res);
       if (req.cookies[savedSessionsCookie]) writeSavedSessions(res, []);
       res.json({ ok: true });
     }));
   }
 
-  return { setAuthenticatedSession, registerAccountRoutes };
+  return { setAuthenticatedSession, registerAccountRoutes, promoteLegacySession, clearActiveSession };
 }

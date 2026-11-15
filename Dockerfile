@@ -3,7 +3,7 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY index.html vite.config.js ./
+COPY *.html vite.config.js ./
 COPY public ./public
 COPY src ./src
 COPY shared ./shared
@@ -40,7 +40,9 @@ RUN PYTHONDONTWRITEBYTECODE=1 /opt/rollapp-ots/bin/python server/reward-proof-co
 COPY shared ./shared
 COPY contracts ./contracts
 COPY certs ./certs
-COPY Caddyfile /etc/caddy/Caddyfile
+COPY Caddyfile deploy/platform.caddy /etc/caddy/
+COPY deploy/render-caddy.mjs ./deploy/
+RUN node deploy/render-caddy.mjs > /etc/caddy/sphere-applications.caddy
 
 EXPOSE 80 443 8080
 

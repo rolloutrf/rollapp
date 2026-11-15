@@ -1,11 +1,16 @@
 version: "3.7"
 
+x-sphere-service: &sphere-service
+  image: "__IMAGE__"
+  restart: always
+  command: ["/sbin/tini", "-g", "--", "node", "server/start.js"]
+
 services:
   rollapp:
     container_name: rollapp
     image: "__IMAGE__"
     restart: always
-    environment:
+    environment: &platform-environment
       NODE_ENV: production
       DEMO_MODE: "false"
       # Ordinary releases only verify the existing schema; migrations are explicit.
@@ -16,6 +21,7 @@ services:
       ROLLAPP_OTS_PYTHON: "/opt/rollapp-ots/bin/python"
       PORT: "8080"
       COOKIE_SECURE: "true"
+      ROLLAPP_SESSION_DOMAIN: "xn--80avakiab.xn--p1ai"
       APP_VERSION: "__VERSION__"
       PGHOST: "c-c9q73m0flac0ai0kj468.rw.mdb.yandexcloud.net"
       PGPORT: "6432"
@@ -79,6 +85,7 @@ services:
       YC_OPENROUTER_PROXY_SECRET_KEY: "proxy_url"
       YC_USER_CREDENTIALS_LOCKBOX_SECRET_ID: "e6qr4ur1fhbthc7ecujj"
       YC_USER_CREDENTIALS_SECRET_KEY: "encryption_secret"
+      ROLLAPP_CADDY_APPLICATIONS: "/etc/caddy/sphere-applications.caddy"
       PUBLIC_HOST: "xn--80avakiab.xn--p1ai"
       REDIRECT_HOSTS: "rollapp.130-193-58-26.sslip.io, www.xn--80avakiab.xn--p1ai"
     ports:
@@ -87,3 +94,37 @@ services:
     volumes:
       - /var/lib/rollapp-caddy:/data
       - /var/lib/rollapp-caddy-config:/config
+
+  rollapp-identity:
+    <<: *sphere-service
+    environment: &sphere-environment
+      <<: *platform-environment
+      PUBLIC_HOST: ""
+      PG_POOL_SIZE: "2"
+      ROLLAPP_APPLICATION: "identity"
+
+  rollapp-health:
+    <<: *sphere-service
+    environment:
+      <<: *sphere-environment
+      ROLLAPP_APPLICATION: "health"
+
+  rollapp-career:
+    <<: *sphere-service
+    environment:
+      <<: *sphere-environment
+      ROLLAPP_APPLICATION: "career"
+
+  rollapp-education:
+    <<: *sphere-service
+    environment:
+      <<: *sphere-environment
+      ROLLAPP_APPLICATION: "education"
+
+  rollapp-wishlist:
+    <<: *sphere-service
+    # Marketplace metadata uses the product preview browser configured in the image.
+    command: ["/sbin/tini", "-g", "--", "xvfb-run", "-a", "-s", "-screen 0 1280x1024x24 -nolisten tcp -ac", "node", "server/start.js"]
+    environment:
+      <<: *sphere-environment
+      ROLLAPP_APPLICATION: "wishlist"

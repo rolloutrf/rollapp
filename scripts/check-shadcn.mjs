@@ -31,7 +31,7 @@ const [configText, packageText, app, agents, coachingSessionsSource, conferences
   read("src/typeset.css"),
   read("src/styles.css"),
   read("index.html"),
-  read("src/main.jsx"),
+  read("src/applications/mount.jsx"),
   read("vite.config.js"),
   read("jsconfig.json"),
 ]);
@@ -196,7 +196,12 @@ for (const surface of [
 ]) {
   assert(app.includes(surface), `Non-Wishlist surface is missing canonical body typography: ${surface}`);
 }
-assert((app.match(/app-page[^"`]*typeset typeset-rollapp/g) || []).length >= 4, "Sphere, contacts, and friends pages must use the Rollapp content preset");
+for (const page of ["TabbedSpherePage", "ContactsSpherePage", "FriendsPage"]) {
+  const start = app.indexOf(`function ${page}(`);
+  assert.notEqual(start, -1, `Missing ${page} composition`);
+  const end = app.indexOf("\nfunction ", start + 1);
+  assert.match(app.slice(start, end), /app-page[^"`]*typeset typeset-rollapp/, `${page} must use the Rollapp content preset`);
+}
 assert.match(legacyStyles, /\.contact-card__bio-text\s*\{[\s\S]*?white-space:\s*normal;[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?text-wrap:\s*pretty;/, "Contact roles must wrap inside their cards");
 assert.match(legacyStyles, /\.contact-card__avatar\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?justify-self:\s*start;/, "Contact avatars must stay aligned to the left edge of every card");
 for (const match of app.matchAll(/className=(?:"([^"]*wishes-page[^"]*)"|\{`([^`]*wishes-page[^`]*)`\})/g)) {
@@ -359,7 +364,7 @@ assert.doesNotMatch(labResultsSource, /className="[^"]*\blab-(?:results|overview
 const laboratoryAccordionClasses = labResultsSource.match(/<AccordionItem\s+className="([^"]*)"/)?.[1].split(/\s+/) || [];
 assert(laboratoryAccordionClasses.includes("not-last:data-open:border-b-0"), "An open laboratory section must not keep a redundant bottom divider");
 assert.doesNotMatch(legacyStyles, /\.lab-(?:results|overview|attention|trend|report|status|section)\b/, "The retired laboratory CSS skin must not return");
-const healthPlaceholderSource = app.slice(app.indexOf('sphere.id === "health"'), app.indexOf(': <section aria-labelledby', app.indexOf('sphere.id === "health"')));
+const healthPlaceholderSource = await read("src/applications/health/sections.jsx");
 for (const component of ["Empty", "EmptyHeader", "EmptyMedia", "EmptyTitle", "EmptyDescription", "EmptyContent", "Badge"]) {
   assert(new RegExp(`<${component}\\b`).test(healthPlaceholderSource), `Health placeholders must compose the official shadcn ${component}`);
 }
@@ -415,7 +420,7 @@ assert.equal(new Set(Object.values(listColorTokens)).size, 5, "List cover colors
 
 assert.match(html, /<html[^>]*class=["'][^"']*\bdark\b/, "The official dark theme must be active on <html>");
 assert.match(html, /<meta[^>]*name=["']color-scheme["'][^>]*content=["']dark["']/, "The document must announce its dark color scheme");
-assert.equal((main.match(/["']\.\/index\.css["']/g) ?? []).length, 1, "The canonical shadcn theme must be imported exactly once");
+assert.equal((main.match(/["']\.\.\/index\.css["']/g) ?? []).length, 1, "The canonical shadcn theme must be imported exactly once");
 assert(!main.includes("shadcn.css"), "The legacy shadcn.css skin must not be imported");
 assert.match(
   legacyStyles,
@@ -905,8 +910,10 @@ for (const file of sourceFiles) {
 
 console.log(`shadcn audit passed (${installedUiFiles.size} UI primitives; ${sourceFiles.filter((file) => /\.[jt]sx$/.test(file) && !file.startsWith(`${uiDir}${path.sep}`)).length} application JSX sources scanned).`);
 
-const appRootSource = app.slice(app.indexOf("export default function App()"));
-assert(appRootSource.indexOf("<MobileFormPages>") < appRootSource.indexOf("<ProfileEditorProvider>"), "Profile settings must share MobileFormPages with stories before opening a native form");
+const appRootStart = app.indexOf("export default function App(");
+assert.notEqual(appRootStart, -1, "Missing App composition");
+const appRootSource = app.slice(appRootStart);
+assert(appRootSource.indexOf("<MobileFormPages>") >= 0 && appRootSource.indexOf("<MobileFormPages>") < appRootSource.indexOf("<ProfileEditorProvider>"), "Profile settings must share MobileFormPages with stories before opening a native form");
 
 const publicProfileSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function LegacyProfileRedirect"));
 assert(!/<StoryAvatar\b/.test(publicProfileSource), "Public profile avatars must retain profile behavior without a stories entry");
