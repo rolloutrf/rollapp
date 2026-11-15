@@ -113,6 +113,115 @@ async function checkActivity(page, viewport, surface) {
   await report.waitFor({ state: "hidden" });
 }
 
+async function checkTransfers(page, { width, height, surface, expectRetry = false }) {
+  const persistedKey = "rollapp:pending-roll-transfer:purchase-history";
+  const readFixture = () => page.evaluate(() => window.readTransferFixture());
+  const stored = () => page.evaluate(key => JSON.parse(sessionStorage.getItem(key)), persistedKey);
+  const opener = page.getByRole("button", { name: "Отправить роллы", exact: true });
+  await opener.click();
+  await page.getByRole("textbox", { name: "Получатель" }).fill("Иван");
+  await page.getByRole("button", { name: /Иван.*@ivan/ }).click();
+  const amount = page.getByRole("textbox", { name: "Сколько роллов" });
+  await amount.fill("12");
+  const memo = "Тестовое назначение. ".repeat(12).trim();
+  await page.getByRole("textbox", { name: /Комментарий/ }).fill(memo);
+  const next = page.getByRole("button", { name: "Продолжить" });
+  const dialog = page.getByRole("alertdialog");
+  await next.press("Enter");
+  await dialog.getByRole("heading", { name: "Перевести 12 роллов?" }).waitFor();
+  await dialog.getByText(/Иван · @ivan.*Комиссия/).waitFor();
+  assert.deepEqual((await readFixture()).attempts, []);
+  assert.equal(await stored(), null);
+  await dialog.getByRole("button", { name: "Назад", exact: true }).click();
+  await dialog.waitFor({ state: "hidden" });
+  assert.equal(await amount.inputValue(), "12");
+  await amount.fill("13");
+  await next.click();
+  await dialog.getByRole("heading", { name: "Перевести 13 роллов?" }).waitFor();
+  await dialog.getByRole("button", { name: "Перевести", exact: true }).click();
+  await dialog.getByText(/Ответ о переводе пока не получен/).waitFor();
+  const before = await readFixture();
+  assert.equal(before.attempts.length, 1);
+  const [initial] = before.attempts;
+  assert.equal(initial.amount, 13);
+  assert.equal(initial.note, memo);
+  assert.equal(initial.recipientId, "transfer-fixture-recipient");
+  assert.deepEqual((await stored()).payload, initial);
+
+  if (surface === "wallet") await page.reload({ waitUntil: "commit" });
+  else {
+    await dialog.getByRole("button", { name: "Позже", exact: true }).click();
+    await dialog.waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "К кошельку", exact: true }).click();
+    await page.getByText("Ожидает проверки перевод · 13 роллов").waitFor();
+    const checkOpener = page.getByRole("button", { name: "Проверить перевод", exact: true });
+    assert(await checkOpener.evaluate(node => node === document.activeElement));
+    await checkOpener.click();
+  }
+  await dialog.getByRole("heading", { name: "Проверить перевод" }).waitFor();
+  await dialog.getByText("Сумма · 13 роллов").waitFor();
+  assert(await page.locator("#rolls-amount").isDisabled());
+  assert.deepEqual((await readFixture()).checks, [], "Opening or reloading must not check or send by itself");
+  assert.deepEqual((await readFixture()).attempts, [initial]);
+
+  const check = dialog.getByRole("button", { name: "Проверить перевод", exact: true });
+  if (expectRetry && height < 500) {
+    await page.evaluate(() => { window.failTransferStatusOnce = true; });
+    await check.click();
+    await dialog.getByText("Войдите снова").waitFor();
+    assert.deepEqual((await stored()).payload, initial);
+  }
+  await check.click();
+  if (expectRetry) {
+    const missingStatus = dialog.getByText("В журнале пока нет перевода.", { exact: true });
+    await missingStatus.waitFor();
+    assert(await missingStatus.evaluate(node => node.getBoundingClientRect().bottom <= node.closest(".overflow-y-auto").getBoundingClientRect().bottom + 1));
+    assert.deepEqual((await readFixture()).attempts, [initial], "Check must not post an unrecorded transfer");
+    assert.deepEqual((await stored()).payload, initial);
+    const retry = dialog.getByRole("button", { name: "Повторить отправку", exact: true });
+    const bounds = await dialog.boundingBox();
+    for (const button of [retry, check, dialog.getByRole("button", { name: "Позже" })]) {
+      const box = await button.boundingBox();
+      assert.equal(box.height, 48);
+      assert(box.y >= bounds.y && box.y + box.height <= bounds.y + bounds.height + 1);
+    }
+    if (activityScreenshots && (width === 390 || width === 1440)) {
+      await page.screenshot({ path: join(activityScreenshots, `transfer-${width}x${height}.png`) });
+    }
+    await retry.click();
+  }
+  await dialog.waitFor({ state: "hidden" });
+  await page.locator("[data-rolls-balance]").getByText("15", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Квитанция · Иван", exact: true }).waitFor();
+  assert.equal(await stored(), null);
+  const after = await readFixture();
+  assert.deepEqual(after.attempts, expectRetry ? [initial, initial] : [initial]);
+  assert.deepEqual(after.checks, expectRetry && height < 500 ? [initial.idempotencyKey, initial.idempotencyKey] : [initial.idempotencyKey]);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  if (surface === "wallet" && width === 1024) {
+    await opener.click();
+    await page.getByRole("textbox", { name: "Получатель" }).fill("Иван");
+    await page.getByRole("button", { name: /Иван.*@ivan/ }).click();
+    await page.getByRole("textbox", { name: "Сколько роллов" }).fill("3");
+    await page.getByRole("button", { name: "Продолжить" }).click();
+    await dialog.getByRole("heading", { name: "Перевести 3 ролла?" }).waitFor();
+    const outstanding = { recipient: { id: initial.recipientId, name: "Иван", username: "ivan" },
+      payload: { ...initial, amount: 4, idempotencyKey: "6e9874be-23a7-4a4d-8029-e9094efba925" } };
+    await page.evaluate(([key, intent]) => sessionStorage.setItem(key, JSON.stringify(intent)), [persistedKey, outstanding]);
+    await dialog.getByRole("button", { name: "Перевести", exact: true }).click();
+    await dialog.getByText("Сумма · 4 ролла").waitFor();
+    assert.deepEqual((await readFixture()).attempts, after.attempts, "An outstanding request in the same tab must not be overwritten");
+    assert.deepEqual(await stored(), outstanding);
+    await page.evaluate(() => { window.transferStatusOverride = { id: "existing-transfer", recipientId: "other", amount: 4, note: "" }; });
+    await dialog.getByRole("button", { name: "Проверить перевод", exact: true }).click();
+    await dialog.getByText(/По этому номеру уже проведён перевод/).waitFor();
+    await dialog.getByRole("button", { name: "Закрыть запрос", exact: true }).click();
+    await dialog.waitFor({ state: "hidden" });
+    assert.equal(await stored(), null);
+    assert.deepEqual((await readFixture()).attempts, after.attempts, "Retiring a conflicting local intent must not post a transfer");
+  }
+}
+
 try {
   const generator = await browser.newPage();
   await generator.setContent("<p>09.11.2026 11:20 -350.00 RUB Book Store</p><p>09.11.2026 11:25 +1000.00 RUB Deposit</p>");
@@ -135,6 +244,8 @@ try {
     await page.getByRole("button", { name: "Профиль", exact: true }).click();
     await page.getByRole("button", { name: "Финансы", exact: true }).click();
     await checkActivity(page, { width, height }, "drawer");
+    await checkTransfers(page, { width, height, surface: "drawer" });
+    await page.evaluate(() => sessionStorage.removeItem("purchase-history-transfer-fixture"));
     const open = page.getByRole("button", { name: "Импорт покупок" });
     const trigger = await open.evaluate((node) => {
       const css = getComputedStyle(node);
@@ -253,9 +364,12 @@ try {
     await open.waitFor();
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Импорт покупок");
     assert.deepEqual(errors, []);
-    await page.goto(smokeOrigin(server) + fixture + "?wallet", { waitUntil: "commit" });
+    const expectRetry = width === 390 || width === 1440;
+    await page.goto(smokeOrigin(server) + fixture + `?wallet${expectRetry ? "&transferMiss" : ""}`, { waitUntil: "commit" });
     await checkActivity(page, { width, height }, "wallet");
-    console.log(`PASS ${width}×${height}: roll receipts and statements in wallet and profile, native import and shared controls`);
+    await checkTransfers(page, { width, height, surface: "wallet", expectRetry });
+    assert.deepEqual(errors, []);
+    console.log(`PASS ${width}×${height}: confirmed transfers, private status, roll receipts and statements, native import`);
     await page.close();
   }
 } finally {

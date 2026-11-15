@@ -122,6 +122,17 @@ export async function transferRolls(client, senderId, input) {
   return transferRollsWithKey(client, senderId, parsed.data);
 }
 
+export async function readRollTransferStatus(client, senderId, requestKey) {
+  const key = z.uuid().safeParse(requestKey);
+  if (!key.success) throw new RollsError("Проверьте номер запроса перевода", "INVALID_TRANSFER_REQUEST");
+  const { rows: [row] } = await client.query(`
+    SELECT id,recipient_id,amount,note,created_at
+    FROM roll_transactions WHERE kind='transfer' AND sender_id=$1 AND idempotency_key=$2`, [senderId, key.data]);
+  return row ? {
+    id: row.id, recipientId: row.recipient_id, amount: Number(row.amount), note: row.note, createdAt: row.created_at,
+  } : null;
+}
+
 export async function reverseRollTransfer(client, { senderId, recipientId, amount, idempotencyKey, note }) {
   const { rows: [original] } = await client.query(
     `SELECT id FROM roll_transactions WHERE kind='transfer'

@@ -19,7 +19,23 @@ let dashboardReads = 0;
 let failedActivityPage = false;
 let failedActivitySummary = false;
 let failedReceipt = false;
-const standalone = new URLSearchParams(window.location.search).has("wallet");
+const fixtureParams = new URLSearchParams(window.location.search);
+const standalone = fixtureParams.has("wallet");
+const transferFixtureKey = "purchase-history-transfer-fixture";
+const transferRecipient = { id: "transfer-fixture-recipient", name: "Иван", username: "ivan" };
+const transferFixture = () => JSON.parse(sessionStorage.getItem(transferFixtureKey) ?? '{"attempts":[],"checks":[],"transfer":null}');
+window.readTransferFixture = transferFixture;
+function walletFixture() {
+  const { transfer } = transferFixture();
+  const transactions = [{
+    id: "transfer-wallet", direction: "incoming", amount: 28, kind: "transfer",
+    person: { id: "fixture-sender", name: "Мария", username: "maria" }, createdAt: "2026-11-15T22:30:00Z",
+  }];
+  if (transfer) transactions.unshift({
+    ...transfer, direction: "outgoing", kind: "transfer", person: transferRecipient,
+  });
+  return { balance: 28 - (transfer?.amount ?? 0), transactions, features: { rollActivity: true } };
+}
 const asOf = "2026-11-15T23:00:00.842461Z";
 const periodFor = (days) => ({ days, startsOn: { 7: "2026-11-10", 30: "2026-10-18", 90: "2026-08-19" }[days], endsOn: "2026-11-16", timeZone: "Europe/Moscow", asOf });
 const firstActivityCursor = { before: "2026-11-14T12:23:10.824521Z", beforeId: "refund:invoice" };
@@ -29,11 +45,19 @@ window.purchaseImportRequests = [];
 window.wishlistRefreshes = 0;
 api.get = async (path) => {
   if (path === "/auth/yandex/config") return { enabled: false };
-  if (path === "/rolls") return {
-    balance: 28, features: { rollActivity: true },
-    transactions: [{ id: "transfer-wallet", direction: "incoming", amount: 28, kind: "transfer",
-      person: { id: "fixture-sender", name: "Мария", username: "maria" }, createdAt: "2026-11-15T22:30:00Z" }],
-  };
+  if (path === "/rolls") return walletFixture();
+  if (path.startsWith("/rolls/recipients?")) return { people: [transferRecipient] };
+  if (path.startsWith("/rolls/transfers/")) {
+    const state = transferFixture();
+    const key = path.split("/").at(-1);
+    state.checks.push(key);
+    sessionStorage.setItem(transferFixtureKey, JSON.stringify(state));
+    if (window.failTransferStatusOnce) {
+      window.failTransferStatusOnce = false;
+      throw Object.assign(new Error("Войдите снова"), { status: 401 });
+    }
+    return { transfer: window.transferStatusOverride ?? (key === state.attempts[0]?.idempotencyKey ? state.transfer : null) };
+  }
   if (path === "/rolls/receipts/transfer/transfer-wallet") return { receipt: {
     id: "transfer-wallet", kind: "transfer", status: "recorded", amount: "28", direction: "incoming",
     createdAt: "2026-11-15T22:30:00Z", participant: { name: "Мария", username: "maria" },
@@ -90,6 +114,16 @@ api.get = async (path) => {
   throw new Error(`Unexpected fixture read: ${path}`);
 };
 api.post = async (path, body) => {
+  if (path === "/rolls/transfers") {
+    const state = transferFixture();
+    state.attempts.push(body);
+    if (state.attempts.length > 1 || !fixtureParams.has("transferMiss")) state.transfer = {
+      id: "transfer-posted", recipientId: body.recipientId, amount: body.amount, note: body.note, createdAt: asOf,
+    };
+    sessionStorage.setItem(transferFixtureKey, JSON.stringify(state));
+    if (state.attempts.length === 1) throw new Error("Соединение прервано");
+    return { ...walletFixture(), transfer: { id: state.transfer.id, replayed: false } };
+  }
   if (path !== "/wishes/import-history") throw new Error(`Unexpected fixture write: ${path}`);
   window.purchaseImportRequests.push(body);
   if (window.rejectPurchaseSave && !window.removedDestination) {

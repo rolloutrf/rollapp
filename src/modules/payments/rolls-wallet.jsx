@@ -16,6 +16,7 @@ import { MakiIcon } from "@/components/maki-icon";
 import { PageActionButton } from "@/components/page-action-button";
 import { PurchaseHistoryImport } from "@/modules/history/purchase-history-import.jsx";
 import { RollsTopup } from "@/modules/payments/rolls-topup.jsx";
+import { clearRollTransfer, restoreRollTransfer, rollTransferMatches, rollTransferWasRejected } from "./roll-transfer-intent.js";
 import { PersonalOffers } from "@/components/personal-offers";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
@@ -57,20 +58,10 @@ function PersonAvatar({ person }) {
   </Avatar>;
 }
 
-function restoredTransfer(storageKey) {
-  try {
-    const value = JSON.parse(sessionStorage.getItem(storageKey));
-    return value?.recipient?.id === value?.payload?.recipientId
-      && typeof value?.recipient?.name === "string"
-      && typeof value?.payload?.idempotencyKey === "string"
-      && Number.isSafeInteger(value?.payload?.amount) ? value : null;
-  } catch { return null; }
-}
-
 export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const transferFormId = useId();
   const storageKey = `rollapp:pending-roll-transfer:${user.id}`;
-  const [pending, setPending] = useState(() => restoredTransfer(storageKey));
+  const [pending, setPending] = useState(() => restoreRollTransfer(storageKey));
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -87,8 +78,10 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const [activityOpen, setActivityOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const importOpener = useRef(null);
-  const [busy, setBusy] = useState(false);
+  const [requestMode, setRequestMode] = useState(null);
+  const busy = requestMode !== null;
   const [transferError, setTransferError] = useState("");
+  const [verification, setVerification] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const mounted = useRef(false);
   const busyRef = useRef(false);
@@ -96,12 +89,13 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const amountInput = useRef(null);
   const walletScrollArea = useRef(null);
   const transferOpener = useRef(null);
+  const pendingTransferOpener = useRef(null);
   const restoreTransferFocus = useRef(false);
 
   useLayoutEffect(() => {
     if (transferView || !restoreTransferFocus.current) return;
     restoreTransferFocus.current = false;
-    transferOpener.current?.focus();
+    (pendingTransferOpener.current ?? transferOpener.current)?.focus({ preventScroll: true });
   }, [transferView]);
 
   const refresh = useCallback(async ({ quiet = false } = {}) => {
@@ -162,48 +156,125 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const insufficient = validAmount && wallet && numericAmount > wallet.balance;
   const canReview = wallet && recipient && validAmount && !insufficient && !busy;
 
-  const sendTransfer = async () => {
-    if (busyRef.current || (!pending && !canReview)) return;
+  function restoreOutstandingTransfer() {
+    const saved = !pending && restoreRollTransfer(storageKey);
+    if (!saved) return false;
+    setPending(saved);
+    setRecipient(saved.recipient);
+    setAmount(String(saved.payload.amount));
+    setNote(saved.payload.note);
+    return true;
+  }
+
+  function openTransferReview() {
+    restoreOutstandingTransfer();
+    setTransferError("");
+    setVerification(null);
+    setConfirmOpen(true);
+  }
+
+  function returnToWallet() {
+    // Keep focus inside the drawer while React removes its footer.
+    walletScrollArea.current?.focus({ preventScroll: true });
+    restoreTransferFocus.current = true;
+    setConfirmOpen(false);
+    setTransferView(false);
+  }
+
+  function resetTransferForm() {
+    setPending(null);
+    setAmount("");
+    setNote("");
+    setRecipient(null);
+    setQuery("");
+    returnToWallet();
+  }
+
+  function completeTransfer(intent, updatedWallet) {
+    clearRollTransfer(storageKey, intent.payload.idempotencyKey);
+    if (!mounted.current) return;
+    if (updatedWallet) setWallet(updatedWallet);
+    setLoadError("");
+    resetTransferForm();
+    toast.success(`${formatRolls(intent.payload.amount)} переведено · ${intent.recipient.name}`);
+  }
+
+  function closeConflictingTransfer() {
+    if (!pending || verification !== "conflict" || busyRef.current) return;
+    clearRollTransfer(storageKey, pending.payload.idempotencyKey);
+    resetTransferForm();
+    void refresh({ quiet: true });
+  }
+
+  function startTransferRequest(mode) {
+    busyRef.current = true;
+    revision.current += 1;
+    setRequestMode(mode);
+    setTransferError("");
+  }
+
+  function finishTransferRequest() {
+    busyRef.current = false;
+    if (mounted.current) { setRequestMode(null); setLoading(false); }
+  }
+
+  async function sendTransfer() {
+    if (busyRef.current || (!pending && !canReview) || restoreOutstandingTransfer()) return;
     const intent = pending || {
       recipient,
       payload: { recipientId: recipient.id, amount: numericAmount, note: note.trim(), idempotencyKey: crypto.randomUUID() },
     };
-    // Persist the same request before sending, so a lost response or page reload
-    // can be retried without creating a second transfer.
-    try { sessionStorage.setItem(storageKey, JSON.stringify(intent)); } catch {
-      setTransferError("Разрешите хранение данных для Rollapp, чтобы безопасно повторять переводы.");
-      return;
+    if (!pending) {
+      try { sessionStorage.setItem(storageKey, JSON.stringify(intent)); } catch {
+        setTransferError("Разрешите хранение данных для Rollapp, чтобы безопасно повторять переводы.");
+        return;
+      }
+      setPending(intent);
     }
-    setPending(intent);
-    busyRef.current = true;
-    revision.current += 1;
-    setBusy(true);
-    setTransferError("");
+    startTransferRequest("send");
+    setVerification(null);
     try {
       const result = await api.post("/rolls/transfers", intent.payload);
-      sessionStorage.removeItem(storageKey);
-      if (!mounted.current) return;
-      setPending(null);
-      setWallet(result);
-      setLoadError("");
-      setConfirmOpen(false);
-      setAmount("");
-      setNote("");
-      setRecipient(null);
-      setQuery("");
-      setTransferView(false);
-      toast.success(`${formatRolls(intent.payload.amount)} переведено ${intent.recipient.name}`);
+      if (!result.transfer?.id || !Number.isSafeInteger(result.balance) || !Array.isArray(result.transactions)) {
+        throw new Error("Неполный ответ о переводе");
+      }
+      completeTransfer(intent, result);
     } catch (error) {
-      const definiteRejection = error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status);
-      if (definiteRejection) sessionStorage.removeItem(storageKey);
+      const rejected = rollTransferWasRejected(error);
+      if (rejected) clearRollTransfer(storageKey, intent.payload.idempotencyKey);
       if (!mounted.current) return;
-      if (definiteRejection) setPending(null);
-      setTransferError(definiteRejection ? error.message : "Ответ о переводе пока не получен. Нажмите «Проверить перевод» — повторного списания не будет.");
+      if (rejected) setPending(null);
+      if (error.code === "IDEMPOTENCY_CONFLICT") setVerification("conflict");
+      setTransferError(rejected || error.code === "IDEMPOTENCY_CONFLICT" ? error.message
+        : "Ответ о переводе пока не получен. Можно проверить, появился ли он в журнале.");
+    } finally { finishTransferRequest(); }
+  }
+
+  async function checkTransfer() {
+    if (!pending || busyRef.current) return;
+    const intent = pending;
+    startTransferRequest("check");
+    setVerification(null);
+    let posted = false;
+    try {
+      const result = await api.get(`/rolls/transfers/${encodeURIComponent(intent.payload.idempotencyKey)}`);
+      if (!mounted.current) return;
+      if (result.transfer === null) setVerification("missing");
+      else if (!result.transfer?.id || typeof result.transfer.recipientId !== "string" ||
+          !Number.isSafeInteger(result.transfer.amount) || typeof result.transfer.note !== "string") {
+        throw new Error("Не удалось проверить перевод.");
+      }
+      else if (rollTransferMatches(result.transfer, intent.payload)) {
+        posted = true;
+        completeTransfer(intent);
+      } else setVerification("conflict");
+    } catch (error) {
+      if (mounted.current) setTransferError(error.message || "Не удалось проверить перевод.");
     } finally {
-      busyRef.current = false;
-      if (mounted.current) { setBusy(false); setLoading(false); }
+      finishTransferRequest();
+      if (posted && mounted.current) void refresh({ quiet: true });
     }
-  };
+  }
 
   const loadMore = async () => {
     if (loadingMore || wallet?.nextOffset == null) return;
@@ -235,7 +306,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             <RollsHeroIcon />
             <h1 id="rolls-transfer-title" className="rolls-balance__value">Перевод</h1>
           </header>
-          <form id={transferFormId} className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); if (pending || canReview) { setTransferError(""); sendTransfer(); } }}>
+          <form id={transferFormId} className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); if (pending || canReview) openTransferReview(); }}>
               <Field>
                 <FieldLabel htmlFor="rolls-recipient">Получатель</FieldLabel>
                 {recipient ? <div className="flex min-w-0 items-center gap-3 rounded-xl border p-3">
@@ -266,9 +337,16 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
                 <Textarea id="rolls-note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={280} rows={2} placeholder="Спасибо за помощь!" disabled={busy || Boolean(pending)} />
               </Field>
               {pending && <Alert><AlertDescription>У вас есть перевод, результат которого нужно проверить.</AlertDescription></Alert>}
-              {!embedded && transferSubmit}
+              {!embedded && <div className="flex flex-col gap-2">
+                {transferSubmit}
+                <PageActionButton variant="ghost" type="button" onClick={returnToWallet} disabled={busy}>К кошельку</PageActionButton>
+              </div>}
           </form>
         </section> : <>
+          {pending && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>Ожидает проверки перевод · {formatRolls(pending.payload.amount)}</span>
+            <PageActionButton ref={pendingTransferOpener} variant="outline" onClick={() => { setTransferView(true); openTransferReview(); }}>Проверить перевод</PageActionButton>
+          </AlertDescription></Alert>}
           <section className="rolls-balance flex min-w-0 flex-col items-center gap-3 text-center" aria-label="Баланс роллов">
             {wallet ? <div className="flex w-full min-w-0 flex-col gap-1">
               <div className="rolls-balance__value max-w-full wrap-anywhere !whitespace-normal" aria-live="polite" aria-atomic="true" data-rolls-balance>
@@ -289,7 +367,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
                 walletScrollArea.current?.focus({ preventScroll: true });
                 setTransferError("");
                 setTransferView(true);
-              }} disabled={!wallet || busy}><ArrowRight aria-hidden="true" /></Button>
+              }} disabled={!wallet || busy || Boolean(pending)}><ArrowRight aria-hidden="true" /></Button>
             </div>
           </section>
 
@@ -338,13 +416,41 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
       }}
     />}
 
-    <AlertDialog open={confirmOpen} onOpenChange={(open) => { if (!busy) setConfirmOpen(open); }}>
-      <AlertDialogContent className="rollapp-body">
-        <AlertDialogHeader><AlertDialogTitle>{pending ? "Проверить перевод" : `Перевести ${formatRolls(numericAmount || 0)}?`}</AlertDialogTitle><AlertDialogDescription>{recipient ? `${recipient.name} · @${recipient.username}` : ""}. Комиссия — 0 роллов.</AlertDialogDescription></AlertDialogHeader>
-        {note.trim() && <p className="whitespace-pre-wrap break-words">{note.trim()}</p>}
-        {pending && <p>Сумма: {formatRolls(pending.payload.amount)}. Повторная проверка не спишет роллы ещё раз.</p>}
-        {transferError && <Alert variant="destructive"><AlertDescription>{transferError}</AlertDescription></Alert>}
-        <AlertDialogFooter><AlertDialogCancel disabled={busy}>{pending ? "Позже" : "Назад"}</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={sendTransfer}>{busy ? <Spinner /> : <Check aria-hidden="true" />}{busy ? "Проверяем…" : pending ? "Проверить перевод" : "Перевести"}</AlertDialogAction></AlertDialogFooter>
+    <AlertDialog open={confirmOpen} onOpenChange={(open) => { if (!busyRef.current) setConfirmOpen(open); }}>
+      <AlertDialogContent className="rollapp-body flex w-[calc(100%-2rem)] flex-col overflow-hidden" data-roll-transfer-review="">
+        <AlertDialogHeader className="shrink-0">
+          <AlertDialogTitle>{pending ? "Проверить перевод" : `Перевести ${formatRolls(numericAmount || 0)}?`}</AlertDialogTitle>
+          <AlertDialogDescription className="wrap-anywhere">
+            {recipient && `${recipient.name}${recipient.username ? ` · @${recipient.username}` : ""}.`} Комиссия — 0 роллов.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {(note.trim() || pending || transferError || insufficient) && <div className="grid min-h-0 min-w-0 gap-2 overflow-y-auto overscroll-contain px-px">
+          {pending && <p>Сумма · {formatRolls(pending.payload.amount)}</p>}
+          {verification === "missing" && <div className="grid gap-1" role="status">
+            <p>В журнале пока нет перевода.</p>
+            <p className="text-xs text-muted-foreground">Повторная отправка сохранит реквизиты. Роллы спишутся только один раз.</p>
+          </div>}
+          {verification === "conflict" && <Alert variant="destructive"><AlertDescription>По этому номеру уже проведён перевод с другими реквизитами. Сверьте его в истории.</AlertDescription></Alert>}
+          {!pending && insufficient && <Alert variant="destructive"><AlertDescription>На балансе недостаточно роллов.</AlertDescription></Alert>}
+          {transferError && <Alert variant="destructive"><AlertDescription>{transferError}</AlertDescription></Alert>}
+          {note.trim() && <p className="wrap-anywhere whitespace-pre-wrap">{note.trim()}</p>}
+        </div>}
+        <AlertDialogFooter className="shrink-0 flex-row flex-wrap justify-end">
+          <AlertDialogCancel className="rounded-full" disabled={busy}>{pending ? "Позже" : "Назад"}</AlertDialogCancel>
+          {pending && verification === "missing" && <Button variant="outline" className="rounded-full" disabled={busy}
+            aria-label="Повторить отправку" onClick={() => void sendTransfer()}>
+            <span className="sm:hidden">Отправить снова</span><span className="hidden sm:inline">Повторить отправку</span>
+          </Button>}
+          {pending && verification === "conflict" && <Button variant="outline" className="rounded-full"
+            disabled={busy} onClick={closeConflictingTransfer}>Закрыть запрос</Button>}
+          <AlertDialogAction className="rounded-full" disabled={busy || (!pending && !canReview)} onClick={(event) => {
+            event.preventDefault();
+            void (pending ? checkTransfer() : sendTransfer());
+          }}>
+            {busy ? <Spinner /> : !pending && <Check aria-hidden="true" />}
+            {busy ? (requestMode === "send" ? "Отправляем…" : "Проверяем…") : pending ? "Проверить перевод" : "Перевести"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   </div>;
@@ -355,12 +461,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
     <DrawerFooter className="empty:hidden">
       {transferView && <>
         {transferSubmit}
-        <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={() => {
-          // Keep focus inside the drawer while React removes this footer button.
-          walletScrollArea.current?.focus({ preventScroll: true });
-          restoreTransferFocus.current = true;
-          setTransferView(false);
-        }}><Coins aria-hidden="true" /></Button>
+        <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={returnToWallet}><Coins aria-hidden="true" /></Button>
       </>}
     </DrawerFooter>
   </>;

@@ -6,7 +6,7 @@ import { purchaseWithRolls, refundRollPurchase } from "../checkout/roll-purchase
 import { readRollOrders } from "../history/order-history.js";
 import { readRollReceipt, rollReceiptParams } from "../history/roll-receipts.js";
 import { readRollWallet } from "../history/wallet-history.js";
-import { RollsError, transferRolls } from "./rolls.js";
+import { readRollTransferStatus, RollsError, transferRolls } from "./rolls.js";
 import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder } from "./roll-stars.js";
 import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS, ROLL_STAR_TERMS_VERSION } from "../../../shared/modules/payments/roll-stars.js";
 import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js";
@@ -76,6 +76,15 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
       [req.user.id, pattern, search],
     );
     res.json({ people: people.rows });
+  }));
+
+  app.get("/api/rolls/transfers/:requestKey", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const transfer = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readRollTransferStatus(client, req.user.id, req.params.requestKey);
+    });
+    res.json({ transfer });
   }));
 
   app.post("/api/rolls/transfers", requireAuth, transferLimit, handle(async (req, res) => {
