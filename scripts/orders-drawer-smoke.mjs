@@ -7,6 +7,7 @@ import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 import { APP_ORDERS_PATH, APP_STORE_PATH } from "../src/modules/shell/app-routing.js";
+import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-orders-drawer-smoke",
@@ -22,6 +23,8 @@ const server = await createServer({
 
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
+const ordersUrl = origin + localizedPageUrl(APP_ORDERS_PATH);
+const storeUrl = origin + localizedPageUrl(APP_STORE_PATH);
 const screenshots = await mkdtemp(join(tmpdir(), "rollapp-orders-drawer-"));
 let browser;
 try {
@@ -68,7 +71,7 @@ try {
     });
 
     try {
-      const store = `${origin}${APP_STORE_PATH}?from=smoke#store`;
+      const store = `${storeUrl}?from=smoke#store`;
       await page.goto(store);
       const trigger = page.getByRole("button", { name: "Заказы", exact: true });
       await trigger.scrollIntoViewIfNeeded();
@@ -81,7 +84,7 @@ try {
       const storeScroll = await page.evaluate(() => scrollY);
 
       await trigger.click();
-      await page.waitForURL(origin + APP_ORDERS_PATH);
+      await page.waitForURL(ordersUrl);
       const drawer = page.getByRole("dialog", { name: "Заказы", exact: true });
       const close = drawer.getByRole("button", { name: "Закрыть заказы" });
       await drawer.getByRole("status", { name: "Загрузка заказов" }).waitFor();
@@ -144,7 +147,7 @@ try {
       await drawer.waitFor({ state: "hidden" });
       assert.equal(page.url(), store);
 
-      await page.goto(origin + APP_ORDERS_PATH);
+      await page.goto(ordersUrl);
       await drawer.getByRole("status", { name: "Загрузка заказов" }).waitFor();
       await page.evaluate(() => {
         window.ordersDrawerFixture.mode = "error";
@@ -156,7 +159,7 @@ try {
       await retry.click();
       await drawer.getByText("Заказов пока нет").waitFor();
       await drawer.getByRole("button", { name: "В магазин" }).click();
-      await page.waitForURL(origin + APP_STORE_PATH);
+      await page.waitForURL(storeUrl);
       await drawer.waitFor({ state: "hidden" });
 
       assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.unexpected), []);
