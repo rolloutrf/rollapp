@@ -9,4 +9,5 @@
 - `npm test` — 1038 прошло, один условный пропуск. `npm run build` — пройдено, предупреждение о размере чанков сохраняется.
 - Настроенная production PostgreSQL прошла `initializeRuntimeDatabase` по TLS в `verify` и отдельную READ ONLY проверку таблицы снимков. `test:openrouter:production` — 7 проверок, транзакция с откатом. Постоянный dev-сервис здоров.
 - `npm audit` — 8 предупреждений, из них 2 high. `npm audit --omit=dev` — 2 high в дереве `@ton/ton → zod@3`. Последняя версия `@ton/ton` требует Zod 3, исправленная ветка Zod 4 уже используется приложением напрямую.
+- [Предыдущий workflow](https://github.com/rolloutrf/rollapp/actions/runs/43716128443) завершил полную проверку и выкладку образа, но достиг лимита 240 минут на этапе проверки health. Лимит production job поднят до 300 минут с сохранением полного набора проверок. [Лимиты GitHub Actions](https://docs.github.com/en/actions/reference/limits)
 - Для приёмки этого релиза требуется полный `check:comprehensive`, точный SHA на production и повторение поиска на нём. Физическое мобильное устройство вне проведённой проверки.

@@ -83,9 +83,9 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    # The last complete release took 155 minutes; coverage has grown since then.
-    # Preserve every assertion and allow headroom for the full browser matrices.
-    timeout-minutes: 240
+    # The full test and build step took nearly four hours on 2026-11-15.
+    # Leave time for the image rollout, exact-SHA health checks and Telegram setup.
+    timeout-minutes: 300
 
     steps:
       - name: Checkout
