@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
-import { registerPlanningRoutes } from './planning.js';
+import { registerPlanningRoutes } from './modules/planning/planning.js';
 
 test('note-task batches retain owner, source and date, reject stale notes and replay without duplicates', async () => {
   const handlers = new Map();

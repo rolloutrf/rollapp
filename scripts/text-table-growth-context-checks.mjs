@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {MarkdownManager} from '@tiptap/markdown';
-import {inlineEditorExtensions} from '../src/lib/inline-editor-extensions.js';
-import {IDENTITY_QUESTION_TITLES} from '../shared/identity-questions.js';
-import {identityFourQuestionsSchema} from '../server/identity-content-schema.js';
+import {inlineEditorExtensions} from '../src/modules/rich-documents/inline-editor-extensions.js';
+import {IDENTITY_QUESTION_TITLES} from '../shared/modules/identity/identity-questions.js';
+import {identityFourQuestionsSchema} from '../server/modules/identity/identity-content-schema.js';
 const manager=new MarkdownManager({extensions:inlineEditorExtensions()});
 const p=text=>({type:'paragraph',content:text?[{type:'text',text}]:[]});
 const simple='Before\n\n| A | B | C |\n|---|---|---|\n| D | E | F |\n| G | H | I |\n\nAfter';

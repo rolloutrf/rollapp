@@ -12,7 +12,7 @@ for (const file of new Set(files)) {
   // A same-named UI component is an implementation, not an authored data archive.
   if ((forbidden.test(file) && file !== "server/performance-review.js") || file === "server/lab-results-data.test.js") errors.push(`${file}: personal storage/archive path`);
 }
-for (const file of ["server/contacts.js", "server/planning-contacts.js", "server/lab-results.js"]) {
+for (const file of ["server/modules/contacts/contacts.js", "server/modules/planning/planning-contacts.js", "server/lab-results.js"]) {
   const source = await readFile(path.join(root, file), "utf8");
   if (/\b(?:CONTACTS|LAB_REPORTS|STATIC_CONTACT_AVATAR_IDS)\b/.test(source)) errors.push(`${file}: shared personal defaults`);
 }

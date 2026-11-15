@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { IDENTITY_QUESTION_TITLES } from "../shared/identity-questions.js";
+import { IDENTITY_QUESTION_TITLES } from "../shared/modules/identity/identity-questions.js";
 import { assertStableBlockSelection } from "./text-block-boundary-checks.mjs";
 
 export async function checkTextSparseBlocks(browser, origin) {

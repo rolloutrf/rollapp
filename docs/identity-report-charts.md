@@ -1,6 +1,6 @@
 # Шкалы из загруженных PDF
 
-`server/identity-report-source-layout.js` восстанавливает полосы и сегменты из
+`server/modules/identity/identity-report-source-layout.js` восстанавливает полосы и сегменты из
 реальных графических операций PDF. `identity-report-layout.js` связывает их с
 подписями и числами исходного документа. `IdentityGeneratedDocuments` отображает
 эти блоки на странице Hogan/Gallup рядом с извлечённым текстом.

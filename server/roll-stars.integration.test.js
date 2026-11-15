@@ -3,11 +3,12 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import express from "express";
 import { mkdir } from "node:fs/promises";
-import { createStarOrder, approveStarCheckout, settleStarPayment, createStarsUpdateHandler, getStarsConfig } from "./roll-stars.js";
-import { rollsSchema, readRollWallet } from "./rolls.js";
-import { ROLL_STAR_TERMS_VERSION } from "../shared/roll-stars.js";
-import { registerRollsRoutes } from "./rolls-routes.js";
-import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js";
+import { createStarOrder, approveStarCheckout, settleStarPayment, createStarsUpdateHandler, getStarsConfig } from "./modules/payments/roll-stars.js";
+import { rollsSchema } from "./modules/payments/rolls.js";
+import { readRollWallet } from "./modules/history/wallet-history.js";
+import { ROLL_STAR_TERMS_VERSION } from "../shared/modules/payments/roll-stars.js";
+import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
+import { registerStarInvoiceWorkerRoutes } from "./modules/payments/star-invoice-worker-routes.js";
 
 test("Stars orders on production PostgreSQL; all fixtures and schema changes rolled back", { skip: process.env.ROLLAPP_TEST_STARS !== "1" }, async (t) => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

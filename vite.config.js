@@ -4,7 +4,7 @@ import { zipSync } from "fflate";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { SPHERE_APPLICATIONS } from "./shared/applications.js";
+import { SPHERE_APPLICATIONS } from "./shared/modules/shell/applications.js";
 
 const backendPort = /^\d{1,5}$/.test(process.env.PORT || "") ? Number(process.env.PORT) : 8080;
 const extensionFileName = "rollapp-browser-extension.zip";

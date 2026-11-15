@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
-import { PlanningKanban } from '@/components/planning-kanban';
-import { movePlanningTask } from '../../shared/planning.js';
+import { PlanningKanban } from '@/modules/kanban/planning-kanban.jsx';
+import { movePlanningTask } from '../../shared/modules/planning/planning.js';
 import '../../src/styles.css';
 import '../../src/index.css';
-import '../../src/components/planning-space.css';
+import '../../src/modules/planning/planning-space.css';
 
 function Fixture() {
   const params = new URLSearchParams(location.search);

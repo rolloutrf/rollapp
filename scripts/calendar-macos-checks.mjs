@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { localDateKey } from "../shared/planning.js";
+import { localDateKey } from "../shared/modules/planning/planning.js";
 
 export async function openCalendarList(page) {
   const url = new URL(page.url());

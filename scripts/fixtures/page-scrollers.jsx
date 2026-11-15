@@ -2,9 +2,9 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { PlanningDayRibbon } from '@/components/planning-day-ribbon';
-import { EducationListNavigation } from '@/components/education-lists';
-import { IdentityReportNavigation } from '@/components/identity-reports-page';
-import { WishListNavigation } from '@/components/wish-list-navigation';
+import { EducationListNavigation } from '@/modules/education/education-lists.jsx';
+import { IdentityReportNavigation } from '@/modules/identity/identity-reports-page.jsx';
+import { WishListNavigation } from '@/modules/categories/wish-list-navigation.jsx';
 import '../../src/styles.css';
 import '../../src/index.css';
 

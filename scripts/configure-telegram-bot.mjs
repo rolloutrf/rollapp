@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { callTelegramBotApi, getTelegramBotRuntimeConfig } from "../server/telegram-bot.js";
-import { loadLockboxValue } from "../server/lockbox.js";
+import { callTelegramBotApi, getTelegramBotRuntimeConfig } from "../server/modules/runtime/telegram-bot.js";
+import { loadLockboxValue } from "../server/modules/runtime/lockbox.js";
 
 const secretId = process.env.YC_TELEGRAM_LOCKBOX_SECRET_ID;
 if (secretId && !process.env.TELEGRAM_BOT_TOKEN) {

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { test } from "node:test";
 import express from "express";
-import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
+import { registerWishlistBusinessRoutes } from "./modules/wishlist/wishlist-business.js";
 
 test("fulfilled wish sales on production PostgreSQL (all writes roll back)", {
   skip: process.env.ROLLAPP_TEST_WISH_SALES !== "1",

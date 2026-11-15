@@ -1,5 +1,5 @@
 import { UNSAFE_createBrowserHistory, createPath, parsePath } from "react-router-dom";
-import { internalPageUrl, localizedPageUrl } from "../../shared/page-urls.js";
+import { internalPageUrl, localizedPageUrl } from "../../shared/modules/shell/page-urls.js";
 
 export function createPageHistory(browser = window) {
   const history = UNSAFE_createBrowserHistory({ window: browser, v5Compat: true });

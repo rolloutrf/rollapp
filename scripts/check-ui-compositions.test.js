@@ -14,9 +14,9 @@ test("rejects native disclosures and handwritten static or conditional dialogs",
 
 test("only permits invisible file handles and immutable Typeset task markers", () => {
   checkUiComposition('<input className="sr-only" type="file" />', "src/components/upload.jsx");
-  checkUiComposition('<input type="checkbox" disabled readOnly aria-labelledby={id} />', "src/components/life-strategy.jsx");
+  checkUiComposition('<input type="checkbox" disabled readOnly aria-labelledby={id} />', "src/modules/identity/life-strategy.jsx");
   assert.throws(() => checkUiComposition('<input type="file" />', "src/components/upload.jsx"));
-  assert.throws(() => checkUiComposition('<input type="checkbox" readOnly aria-labelledby={id} />', "src/components/life-strategy.jsx"));
+  assert.throws(() => checkUiComposition('<input type="checkbox" readOnly aria-labelledby={id} />', "src/modules/identity/life-strategy.jsx"));
   assert.throws(() => checkUiComposition('<input type="checkbox" disabled readOnly aria-labelledby={id} />', "src/components/form.jsx"));
 });
 

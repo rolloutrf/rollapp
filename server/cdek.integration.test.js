@@ -4,9 +4,9 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import express from "express";
-import { registerCdekRoutes } from "./cdek-routes.js";
-import { registerRollsRoutes } from "./rolls-routes.js";
-import { ensureRollWallet, rollsSchema } from "./rolls.js";
+import { registerCdekRoutes } from "./modules/delivery/cdek-routes.js";
+import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
+import { ensureRollWallet, rollsSchema } from "./modules/payments/rolls.js";
 
 test("CDEK checkout against production PostgreSQL; fixture operations roll back", { skip: process.env.ROLLAPP_TEST_CDEK !== "1" }, async (t) => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { changeGiftCard, issueGiftCard, listGiftCards } from "./gift-cards.js";
-import { purchaseBusinessMarketplaceItem } from "./business-marketplace.js";
-import { readRollOrders, readRollWallet, refundRollPurchase } from "./rolls.js";
+import { changeGiftCard, issueGiftCard, listGiftCards } from "./modules/loyalty/gift-cards.js";
+import { purchaseBusinessMarketplaceItem } from "./modules/catalog-marketplace/business-marketplace.js";
+import { readRollOrders } from "./modules/history/order-history.js";
+import { readRollWallet } from "./modules/history/wallet-history.js";
+import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
 
 test("production gift-card lifecycle is atomic, scoped, replayable and rollback-only", { skip: process.env.ROLLAPP_TEST_GIFT_CARDS !== "1" }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { getSchema } from '@tiptap/core';
 import { MarkdownManager } from '@tiptap/markdown';
 import { Marked } from 'marked';
-import { inlineEditorExtensions } from '../src/lib/inline-editor-extensions.js';
+import { inlineEditorExtensions } from '../src/modules/rich-documents/inline-editor-extensions.js';
 import { assertStableBlockSelection } from './text-block-boundary-checks.mjs';
 
 const extensions = inlineEditorExtensions(), schema = getSchema(extensions);

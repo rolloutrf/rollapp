@@ -1,9 +1,9 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {BrowserRouter} from 'react-router-dom';
-import '../../src/components/inline-rich-text-editor.jsx';
+import '../../src/modules/rich-documents/inline-rich-text-editor.jsx';
 import {AppShell,GlobalAppChrome,PlanningFab,SessionContext,ToastContext,CollectionNavigationContext} from '@/App.jsx?notes-smoke';
-import {PlanningNotes} from '@/components/planning-notes';
+import {PlanningNotes} from '@/modules/planning/planning-notes.jsx';
 import {MobileFormPages} from '@/components/mobile-form-pages';
 import {useVisualViewport} from '@/hooks/use-visual-viewport';
 import '../../src/styles.css';

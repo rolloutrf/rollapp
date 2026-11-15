@@ -1,8 +1,8 @@
 import { beginCell, Cell, external, internal, loadTransaction, SendMode, storeMessage } from "@ton/core";
 import { mnemonicToPrivateKey } from "@ton/crypto";
 import { TonClient, WalletContractV4 } from "@ton/ton";
-import { TON_MAINNET } from "../shared/ton.js";
-import { tonFetch } from "./ton-network.js";
+import { TON_MAINNET } from "../shared/modules/payments/ton.js";
+import { tonFetch } from "./modules/payments/ton-network.js";
 
 export const memberTonComment = receiptHash => `rollapp-member-v1:${receiptHash}`;
 

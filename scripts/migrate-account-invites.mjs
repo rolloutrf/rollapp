@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { inviteSchema, MEMBER_LIMIT } from "../server/invites.js";
+import { inviteSchema, MEMBER_LIMIT } from "../server/modules/auth/invites.js";
 import dotenv from "dotenv";
 
 dotenv.config({ path: ".env.local", override: false, quiet: true });

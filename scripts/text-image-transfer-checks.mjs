@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { imageFixturePNG } from "./text-image-checks.mjs";
 import { getSchema } from "@tiptap/core";
-import { inlineEditorExtensions } from "../src/lib/inline-editor-extensions.js";
-import { blockHTML } from "../src/lib/inline-table-markdown.js";
+import { inlineEditorExtensions } from "../src/modules/rich-documents/inline-editor-extensions.js";
+import { blockHTML } from "../src/modules/rich-documents/inline-table-markdown.js";
 const schema = getSchema(inlineEditorExtensions());
 // Browser transport returns JSON objects; model attrs use a null prototype.
 // Compare their complete serialized schema values, not JS realm/prototypes.

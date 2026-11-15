@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InputGroupTextarea } from "@/components/ui/input-group";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MEAL_TYPES } from "../../shared/health-trackers.js";
+import { MEAL_TYPES } from "../../shared/modules/health/health-trackers.js";
 
 const number = value => value == null ? "—" : new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(value);
 const completed = entry => entry.completed !== false;

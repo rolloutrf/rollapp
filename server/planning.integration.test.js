@@ -4,10 +4,10 @@ import { test } from "node:test";
 import express from "express";
 import cookieParser from "cookie-parser";
 import { z } from "zod";
-import { contactMeetingNotes } from "./planning-contacts.js";
-import { registerPlanningRoutes } from "./planning.js";
-import { hashToken } from "./security.js";
-import { localDateKey } from "../shared/planning.js";
+import { contactMeetingNotes } from "./modules/planning/planning-contacts.js";
+import { registerPlanningRoutes } from "./modules/planning/planning.js";
+import { hashToken } from "./modules/auth/security.js";
+import { localDateKey } from "../shared/modules/planning/planning.js";
 
 test("planning persists both views and isolates owners on production PostgreSQL", { skip: process.env.ROLLAPP_TEST_PLANNING !== "1" }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

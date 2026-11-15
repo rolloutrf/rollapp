@@ -5,18 +5,18 @@ import { MoreHorizontal, Plus, X } from "lucide-react";
 import { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext, WishGroupDialog } from "@/App.jsx?controls-smoke";
 import { AddFab } from "@/components/add-fab";
 import { ControlBar } from "@/components/control-bar";
-import { PlanningCalendar } from "@/components/planning-calendar";
-import { PlanningDailyTodo } from "@/components/planning-daily-todo";
-import { PlanningKanban } from "@/components/planning-kanban";
-import { PlanningSpacesProvider } from "@/components/planning-space-switcher";
-import { TaskEditor } from "@/components/planning-space.jsx?controls-smoke";
+import { PlanningCalendar } from "@/modules/calendar/planning-calendar.jsx";
+import { PlanningDailyTodo } from "@/modules/daily-todo/planning-daily-todo.jsx";
+import { PlanningKanban } from "@/modules/kanban/planning-kanban.jsx";
+import { PlanningSpacesProvider } from "@/modules/planning/planning-space-switcher.jsx";
+import { TaskEditor } from "@/modules/planning/planning-space.jsx?controls-smoke";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { Button } from "@/components/ui/button";
 import { PageActionButton } from "@/components/page-action-button";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import "../../src/styles.css";
 import "../../src/index.css";
-import "../../src/components/planning-space.css";
+import "../../src/modules/planning/planning-space.css";
 
 function Fixture() {
   useVisualViewport();

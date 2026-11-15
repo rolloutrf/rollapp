@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { MarkdownManager } from '@tiptap/markdown';
-import { inlineEditorExtensions } from '../src/lib/inline-editor-extensions.js';
+import { inlineEditorExtensions } from '../src/modules/rich-documents/inline-editor-extensions.js';
 const manager=new MarkdownManager({extensions:inlineEditorExtensions()});
 const p=text=>({type:'paragraph',content:[{type:'text',text,marks:[{type:'bold'}]}]});
 const cell=(text,attrs={})=>({type:'tableCell',attrs:{colwidth:Array(attrs.colspan||1).fill(100),blockColor:'blue_background',...attrs},content:[p(text),p('Detail '+text)]});

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '@/api';
+import { api } from '@/modules/runtime/api.js';
 
 export function useUserStories(username) {
   const [stories, setStories] = useState([]);

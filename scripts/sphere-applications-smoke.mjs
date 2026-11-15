@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright-core";
-import { internalPageUrl, localizedPageUrl } from "../shared/page-urls.js";
-import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../shared/applications.js";
+import { internalPageUrl, localizedPageUrl } from "../shared/modules/shell/page-urls.js";
+import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../shared/modules/shell/applications.js";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 
 const dist = path.resolve(import.meta.dirname, "../dist");

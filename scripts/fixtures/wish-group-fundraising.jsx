@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { api } from "../../src/api";
+import { api } from "../../src/modules/runtime/api.js";
 import { GroupDialog } from "../../src/components/group-dialog";
-import { RollsWallet } from "../../src/components/rolls-wallet";
+import { RollsWallet } from "../../src/modules/payments/rolls-wallet.jsx";
 import { WishGroupHeader } from "../../src/components/wish-group-fundraiser";
 import { useVisualViewport } from "../../src/hooks/use-visual-viewport";
 import "../../src/styles.css";

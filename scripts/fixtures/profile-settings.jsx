@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App, { ProfileSettingsModal, SessionContext, ToastContext } from "/src/App.jsx?profile-settings-fixture";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
-import { api } from "@/api";
+import { api } from "@/modules/runtime/api.js";
 import "../../src/styles.css";
 import "../../src/index.css";
 

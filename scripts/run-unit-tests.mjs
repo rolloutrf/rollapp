@@ -6,8 +6,8 @@ import path from "node:path";
 // release unit suite. Production integration checks run explicitly with rollback.
 const legacyDatabaseTests = new Set([
   "server/db.test.js",
-  "server/default-friend.test.js",
-  "server/wish-groups.test.js",
+  "server/modules/social/default-friend.test.js",
+  "server/modules/wishlist/wish-groups.test.js",
 ]);
 async function testsIn(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

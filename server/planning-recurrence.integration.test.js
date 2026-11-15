@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { registerPlanningRoutes } from "./planning.js";
-import { expandRecurringTasks } from "../shared/planning-recurrence.js";
+import { registerPlanningRoutes } from "./modules/planning/planning.js";
+import { expandRecurringTasks } from "../shared/modules/planning/planning-recurrence.js";
 
 test("recurrence API persists in configured production PostgreSQL; every fixture rolls back", { skip: process.env.ROLLAPP_TEST_PLANNING !== "1" }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

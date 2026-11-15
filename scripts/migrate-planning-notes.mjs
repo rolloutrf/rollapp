@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { notesSchema } from "../server/notes.js";
+import { notesSchema } from "../server/modules/planning/notes.js";
 
 // Run only with explicit approval, separately from ordinary UI releases.
 const db = await productionRollsDatabase();

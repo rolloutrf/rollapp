@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { IDENTITY_QUESTION_TITLES } from "../shared/identity-questions.js";
+import { IDENTITY_QUESTION_TITLES } from "../shared/modules/identity/identity-questions.js";
 
 export async function checkTextBlockConversion(browser, origin) {
   for (const [width,height] of [[320,844],[390,844],[390,400],[768,844],[820,844],[1024,844],[1440,844],[1920,844]]) {

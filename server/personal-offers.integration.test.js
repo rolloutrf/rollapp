@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { createPersonalOffer, payPersonalOffer, createPersonalOfferItem, registerPersonalOfferRoutes } from "./personal-offers.js";
-import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
-import { ensureRollWallet, refundRollPurchase } from "./rolls.js";
+import { registerWishlistBusinessRoutes } from "./modules/wishlist/wishlist-business.js";
+import { ensureRollWallet } from "./modules/payments/rolls.js";
+import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
 
 test("personal offers on existing production schema: every test write is rolled back", { skip: process.env.ROLLAPP_TEST_PERSONAL_OFFERS !== "1" }, async t => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

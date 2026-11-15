@@ -1,6 +1,6 @@
 import { setTimeout } from "node:timers/promises";
-import { localizedPageUrl } from "../shared/page-urls.js";
-import { SPHERE_APPLICATIONS } from "../shared/applications.js";
+import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
+import { SPHERE_APPLICATIONS } from "../shared/modules/shell/applications.js";
 
 const version = process.argv[2];
 if (!/^[a-f0-9]{40}$/.test(version || "")) throw new Error("Pass the expected production commit SHA");

@@ -1,5 +1,6 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { grantRolls, rollsSchema } from "../server/rolls.js";
+import { grantRolls } from "../server/modules/loyalty/roll-rewards.js";
+import { rollsSchema } from "../server/modules/payments/rolls.js";
 
 const args = Object.fromEntries(process.argv.slice(2).filter((arg) => arg.startsWith("--") && arg.includes("="))
   .map((arg) => arg.slice(2).split(/=(.*)/s, 2)));

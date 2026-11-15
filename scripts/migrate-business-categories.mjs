@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { businessCategorySchema } from "../server/business-accounts.js";
+import { businessCategorySchema } from "../server/modules/catalog-marketplace/business-accounts.js";
 import "dotenv/config";
 import dotenv from "dotenv";
 import { productionConnectionMode } from "./production-dev-config.mjs";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Coins, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { api } from "@/api";
+import { api } from "@/modules/runtime/api.js";
 import { FundraiserVirtualCard } from "@/components/fundraiser-virtual-card";
 import { GroupDialogHeader } from "@/components/group-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { formatRolls, ROLLS_MAX_TRANSFER } from "../../shared/rolls.js";
+import { formatRolls, ROLLS_MAX_TRANSFER } from "../../shared/modules/payments/rolls.js";
 
 function restorePending(key) {
   try {

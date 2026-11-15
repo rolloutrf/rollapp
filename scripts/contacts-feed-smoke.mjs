@@ -17,7 +17,7 @@ async function assertVerificationActionSpacing(card, precedingAction) {
 
 const server = await createServer({ cacheDir: 'node_modules/.vite-contacts-smoke', server: { host: '127.0.0.1', port: smokePort(process.env.CONTACTS_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'contacts-feed-fixture', enforce: 'pre',
-  transform(source, id) { if (id.includes('/src/App.jsx?contacts-feed-test-export')) return `${source}\nexport { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorProvider, PersistentProfileHero, PublicProfile, CollectionNavigationProvider };`; },
+  transform(source, id) { if (id.includes('/src/App.jsx?contacts-feed-test-export')) return `${source}\nexport { ContactsSpherePage } from \"./modules/contacts/contacts-page.jsx\";\nexport { ToastProvider } from \"./modules/shell/toast.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ProfileEditorProvider } from \"./modules/profile/profile-editor.jsx\";\nexport { PersistentProfileHero } from \"./modules/profile/profile-hero.jsx\";\nexport { PublicProfile } from \"./modules/wishlist/public-wishlist.jsx\";\nexport { CollectionNavigationProvider } from \"./modules/categories/collection-navigation.jsx\";`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/__contacts-feed')) return next();
     res.setHeader('Content-Type', 'text/html');

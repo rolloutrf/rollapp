@@ -1,27 +1,27 @@
-import { wishlistBusinessSchema } from "./wishlist-business.js";
-import { profileAliasesSchema } from "./profile-aliases.js";
+import { wishlistBusinessSchema } from "./modules/wishlist/wishlist-business.js";
+import { profileAliasesSchema } from "./modules/profile/profile-aliases.js";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { backfillDefaultFriend } from "./default-friend.js";
-import { isReservedProfileUsername } from "./profile-paths.js";
-import { hashPassword } from "./security.js";
+import { backfillDefaultFriend } from "./modules/social/default-friend.js";
+import { isReservedProfileUsername } from "./modules/profile/profile-paths.js";
+import { hashPassword } from "./modules/auth/security.js";
 import { isMemoryDatabase, query, transaction } from "./db.js";
-import { backfillWishGroupSpaces } from "./wish-groups.js";
+import { backfillWishGroupSpaces } from "./modules/wishlist/wish-groups.js";
 import { wishParticipantsSchema } from "./wish-participants.js";
-import { externalCatalogBrandsSchema } from "./external-catalog-brands.js";
-import { rollsSchema } from "./rolls.js";
-import { businessMarketplaceSchema } from "./business-marketplace.js";
+import { externalCatalogBrandsSchema } from "./modules/catalog-marketplace/external-catalog-brands.js";
+import { rollsSchema } from "./modules/payments/rolls.js";
+import { businessMarketplaceSchema } from "./modules/catalog-marketplace/business-marketplace.js";
 import { personalOffersSchema } from "./personal-offers.js";
-import { giftCardsSchema } from "./gift-cards-schema.js";
-import { planningSchema } from "./planning.js";
-import { profileWishlistLinksColumn } from "./profile-wishlists.js";
-import { notesSchema } from "./notes.js";
-import { noteGroupsSchema } from "./note-groups.js";
+import { giftCardsSchema } from "./modules/loyalty/gift-cards-schema.js";
+import { planningSchema } from "./modules/planning/planning.js";
+import { profileWishlistLinksColumn } from "./modules/profile/profile-wishlists.js";
+import { notesSchema } from "./modules/planning/notes.js";
+import { noteGroupsSchema } from "./modules/planning/note-groups.js";
 import { privateDataSchema } from "./private-data-schema.js";
-import { businessCategorySchema } from "./business-accounts.js";
+import { businessCategorySchema } from "./modules/catalog-marketplace/business-accounts.js";
 
 import { wishGroupFundraisingSchema } from "./wish-group-fundraising-schema.js";
-import { inviteSchema } from "./invites.js";
+import { inviteSchema } from "./modules/auth/invites.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (

@@ -83,11 +83,11 @@ Unicode payload и media guards на production PostgreSQL с обязатель
 | Текст и семантические роли | `src/typeset.css`, токены `src/index.css` | `docs/typography.md` |
 | Отступы, навигация, размер контролов | `src/spacing.css`, `ControlBar`, `PageActionButton` | `docs/spacing-system.md` |
 | Максимальные ширины | `src/containers.css` | `docs/container-system.md` |
-| Лимит аккаунтов, инвайты и номера TON | `server/invites.js`, `server/member-ton-anchor.js` | `docs/account-invitations.md` |
+| Лимит аккаунтов, инвайты и номера TON | `server/modules/auth/invites.js`, `server/member-ton-anchor.js` | `docs/account-invitations.md` |
 | Порталы, safe area, клавиатура | `src/overlays.css`, `use-visual-viewport.js` | `docs/mobile-overlays.md` |
-| Серверная механика обеспеченных наград | `server/need-rewards.js`, `shared/need-rewards.js` | `docs/need-rewards.md` |
+| Серверная механика обеспеченных наград | `server/modules/loyalty/need-rewards.js`, `shared/modules/loyalty/need-rewards.js` | `docs/need-rewards.md` |
 | Мобильные формы и действия | `MobileFormPages`, `MobileFormFooter`, `ContentPageActions` | `docs/mobile-overlays.md` |
-| Бизнес-регистрация и категории доступа | `shared/business-accounts.js`, `RegistrationAccountFields`, `BusinessRequestScopeFields` | `docs/business-accounts.md` |
+| Бизнес-регистрация и категории доступа | `shared/modules/catalog-marketplace/business-accounts.js`, `RegistrationAccountFields`, `BusinessRequestScopeFields` | `docs/business-accounts.md` |
 
 При изменении контракта синхронно обновлять реализацию, соответствующий документ, `AGENTS.md` и проверку поведения. Новый локальный CSS не должен переопределять общий контракт ради одного экрана.
 
@@ -185,7 +185,7 @@ Startup выполняет `verifyYandexDiskSyncSchema` в режиме READ ONL
 | Команда | Назначение |
 | --- | --- |
 | `npm test`, `npm run test:unit` | Только тесты без БД; runner исключает integration и старые memory-fixtures, проверяет прямые импорты БД |
-| `node --test server/mcp-http.test.js scripts/mcp/mcp.test.js` | Обмен MCP по Streamable HTTP и stdio, выпуск и отзыв токенов, scope и изоляция REST. Входит в `npm test`. CI проверяет `/mcp` после появления точного SHA на production. [Проверка живого MCP](mcp.md#проверка) |
+| `node --test server/modules/runtime/mcp-http.test.js scripts/mcp/mcp.test.js` | Обмен MCP по Streamable HTTP и stdio, выпуск и отзыв токенов, scope и изоляция REST. Входит в `npm test`. CI проверяет `/mcp` после появления точного SHA на production. [Проверка живого MCP](mcp.md#проверка) |
 | `npm run test:gifts` | Публичный бизнес-профиль, выпуск/пополнение/отправка и оплата у бизнеса карты, повтор после потерянного ответа, mobile/desktop футер. Из профиля проверяются выбор карты, ошибка кошелька, независимый повтор, смена карты и возврат фокуса. Входит в `check:release`; только UI transport, реальные API запрещены. Контракт описан в `docs/business-gift-cards.md` |
 | `npm run check:release:gift-cards` | Ручной `verification=gift-cards` только по явному запросу без полного аудита: unit, shadcn, обязательный `test:controls`, `test:gifts`, build. Default release остаётся полным |
 | Ручной `verification=drawers` | Целевой выпуск штор по явному запросу без полного аудита. После локальных smoke-проверок затронутых форм и реальной read-only проверки схемы CI запускает guard шаблона и старта БД, shadcn, полный `test:controls`, Docker build и сверку production SHA. |
@@ -365,7 +365,7 @@ container declaration остаются обязательными. Скрипт 
 на GitHub runner. Используется официальный Payload.Get, без перенаправлений,
 вывода payload/токена или повторов после сетевой ошибки. VM runtime по умолчанию
 по-прежнему получает собственный токен из metadata; CLI остаётся только явным
-локальным режимом. `server/lockbox.test.js` проверяет изоляцию источников,
+локальным режимом. `server/modules/runtime/lockbox.test.js` проверяет изоляцию источников,
 ошибки/таймауты, отсутствие утечек и неоднозначные/пустые/binary entries.
 
 - Публиковать только проверенный commit и immutable image с его полным SHA. Не собирать релиз из dirty-workspace и не включать чужие изменения в коммит. Сохранить SHA предыдущего работающего образа для отката.
@@ -887,7 +887,7 @@ close/Escape/outside/focus, прямые ссылки, поиск, открыт�
 плоский список пресетов, вставка подсказки по Tab, карточка
 из поиска магазина и автозаполнение формы по ссылке.
 Ответ модели не выполняет действий; успешное сохранение форм
-проверяется только в фикстуре. `server/messenger-assistant.test.js` проверяет
+проверяется только в фикстуре. `server/modules/assistant/messenger-assistant.test.js` проверяет
 авторизацию, валидацию, выборку планирования только владельца и фильтрацию
 предложений через изолированный transport OpenRouter.
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { MarkdownManager } from '@tiptap/markdown';
-import { inlineEditorExtensions } from '../src/lib/inline-editor-extensions.js';
+import { inlineEditorExtensions } from '../src/modules/rich-documents/inline-editor-extensions.js';
 const p=value=>({type:'paragraph',content:[{type:'text',text:value}]});
 const sourceFor=(tall=false,rows=4)=>new MarkdownManager({extensions:inlineEditorExtensions()}).serialize({type:'doc',content:[...Array.from({length:10},(_,i)=>p(`Вводный абзац ${i+1}`)),{type:'table',content:Array.from({length:rows},(_,row)=>({type:'tableRow',content:Array.from({length:3},(_,col)=>({type:row===0?'tableHeader':'tableCell',content:[p(`R${row}C${col}`),p(`Деталь ${row}:${col}`),...(tall&&row===0?Array.from({length:18},(_,i)=>p(`Длинный заголовок ${i+1}`)):[])]}))}))},...Array.from({length:20},(_,i)=>p(`Абзац после таблицы ${i+1}`))]});
 const overlaps=(a,b)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;

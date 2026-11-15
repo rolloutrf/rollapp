@@ -10,7 +10,7 @@ assert(process.argv.slice(2).every(arg=>arg==='--diagnostic'),'Unknown snippets 
 const exportsByFile = {courses:['CourseCard','COURSE_STATUS'],conferences:['ConferenceCard','CONFERENCE_STATUS'],'coaching-sessions':['CoachingSessionCard','SESSION_STATUS'],workouts:['WorkoutCard','WORKOUT_STATUS'],medications:['MedicationCard','MEDICATION_STATUS']};
 const server = await createServer({cacheDir:'node_modules/.vite-snippets-smoke',server:{host:'127.0.0.1',port:smokePort(),strictPort:true,hmr:false,watch:null},plugins:[{
  name:'snippet-audit',enforce:'pre',transform(source,id){
-  if(id.replace(/\?.*$/,'').endsWith('/src/lib/sphere-sharing.jsx')) return source+'\nexport { SphereSharingContext };';
+  if(id.replace(/\?.*$/,'').endsWith('/src/modules/access/sphere-sharing.jsx')) return source+'\nexport { SphereSharingContext };';
   if(id.includes('?snippet-audit')){const file=id.split('/').at(-1).split('.jsx')[0];return source+`\nexport { ${exportsByFile[file].join(',')} };`;}
  },configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
   if(req.url.startsWith('/snippet-destination')){res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>Snippet destination</title><p>Read-only destination</p>');return;}

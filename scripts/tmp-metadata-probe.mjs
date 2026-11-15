@@ -1,5 +1,5 @@
 // Временный диагностический скрипт: что отдают сайты жилья штатному fetchPublicHtml.
-import { fetchPublicHtml } from "../server/metadata-fetch.js";
+import { fetchPublicHtml } from "../server/modules/media-import/metadata-fetch.js";
 
 const seeds = [
   "https://sutochno.ru/metro-143",

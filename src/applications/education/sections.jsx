@@ -1,6 +1,6 @@
-import { CoachingSessions } from "@/components/coaching-sessions";
-import { Conferences } from "@/components/conferences";
-import { Courses } from "@/components/courses";
+import { CoachingSessions } from "@/modules/education/coaching-sessions.jsx";
+import { Conferences } from "@/modules/education/conferences.jsx";
+import { Courses } from "@/modules/education/courses.jsx";
 
 const sections = {
   coaching: CoachingSessions,

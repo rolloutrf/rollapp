@@ -2,17 +2,11 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import express from "express";
-import { registerRollsRoutes } from "./rolls-routes.js";
-import {
-  enrollWishRewards,
-  ensureRollWallet,
-  grantRolls,
-  grantWishReward,
-  readRollWallet,
-  rollsSchema,
-  transferRolls,
-} from "./rolls.js";
-import { ROLLS_MAX_BALANCE } from "../shared/rolls.js";
+import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
+import { enrollWishRewards, grantRolls, grantWishReward } from "./modules/loyalty/roll-rewards.js";
+import { ensureRollWallet, rollsSchema, transferRolls } from "./modules/payments/rolls.js";
+import { readRollWallet } from "./modules/history/wallet-history.js";
+import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 
 test("rolls transactions on configured production PostgreSQL, with every write rolled back", { skip: process.env.ROLLAPP_TEST_ROLLS !== "1" }, async (t) => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

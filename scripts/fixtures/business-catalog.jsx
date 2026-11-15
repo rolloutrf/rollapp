@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { BusinessCatalogList, BusinessCatalogProvider } from "@/components/catalog-brands";
-import { api } from "@/api";
+import { BusinessCatalogList, BusinessCatalogProvider } from "@/modules/catalog-marketplace/catalog-brands.jsx";
+import { api } from "@/modules/runtime/api.js";
 import "../../src/styles.css";
 import "../../src/index.css";
 

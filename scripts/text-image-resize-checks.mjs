@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { MarkdownManager } from "@tiptap/markdown";
-import { inlineEditorExtensions } from "../src/lib/inline-editor-extensions.js";
-import { IDENTITY_QUESTION_TITLES } from "../shared/identity-questions.js";
+import { inlineEditorExtensions } from "../src/modules/rich-documents/inline-editor-extensions.js";
+import { IDENTITY_QUESTION_TITLES } from "../shared/modules/identity/identity-questions.js";
 
 const frames = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 const source = 'Lead\n\n<div data-inline-block="true"><img src="/__resize-image.svg" alt="Diagram" title="Original title" width="240" height="120" data-width-number="true" data-height-number="true" /></div>\n\nTail';

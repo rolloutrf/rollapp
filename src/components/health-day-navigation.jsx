@@ -1,11 +1,11 @@
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
-import { PlanningDatePicker } from "@/components/planning-date-picker";
+import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { PlanningDayRibbon } from "@/components/planning-day-ribbon";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { addCalendarDays, dateFromKey } from "../../shared/planning-calendar.js";
-import "./planning-daily-todo.css";
+import { addCalendarDays, dateFromKey } from "../../shared/modules/calendar/planning-calendar.js";
+import "../modules/daily-todo/planning-daily-todo.css";
 
 const compactDate = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", weekday: "short" });
 

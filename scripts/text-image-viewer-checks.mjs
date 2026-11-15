@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { MarkdownManager } from "@tiptap/markdown";
-import { inlineEditorExtensions } from "../src/lib/inline-editor-extensions.js";
+import { inlineEditorExtensions } from "../src/modules/rich-documents/inline-editor-extensions.js";
 const manager = new MarkdownManager({ extensions: inlineEditorExtensions() });
 const frames = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 export async function checkImageViewer(browser, origin) {

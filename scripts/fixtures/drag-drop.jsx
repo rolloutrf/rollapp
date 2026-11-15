@@ -4,14 +4,14 @@ import { flushSync } from 'react-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { WishesPage, ProfileEditorProvider, SessionContext, ToastContext, PublicWishGrid } from '../../src/App.jsx?drag-drop-test-export';
-import { api } from '../../src/api.js';
+import { api } from '../../src/modules/runtime/api.js';
 import { CardDragHandle } from '../../src/components/card-drag-handle';
-import { WorkoutCard } from '../../src/components/workouts.jsx?collection-badges-export';
+import { WorkoutCard } from '../../src/modules/health/workouts.jsx?collection-badges-export';
 import { useCardReorder } from '../../src/hooks/use-card-reorder';
-import { PlanningCalendar } from '../../src/components/planning-calendar';
+import { PlanningCalendar } from '../../src/modules/calendar/planning-calendar.jsx';
 import '../../src/styles.css';
 import '../../src/index.css';
-import '../../src/components/planning-space.css';
+import '../../src/modules/planning/planning-space.css';
 
 let params = new URLSearchParams(location.search);
 let mode = params.get('mode') || 'wishes';

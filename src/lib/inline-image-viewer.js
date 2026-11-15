@@ -1,4 +1,4 @@
-import { safeImageSource } from "./inline-image-intent.js";
+import { safeImageSource } from "../modules/rich-documents/inline-image-intent.js";
 
 // Viewing media never dispatches a transaction or changes its selection. The
 // caller retains the exact instance, document, native node and access owner.

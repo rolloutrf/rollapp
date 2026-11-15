@@ -2,7 +2,7 @@ import "dotenv/config";
 import dotenv from "dotenv";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
-import { loadLockboxValue } from "./lockbox.js";
+import { loadLockboxValue } from "./modules/runtime/lockbox.js";
 
 dotenv.config({ path: ".env.local", override: false, quiet: true });
 

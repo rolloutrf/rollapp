@@ -1,0 +1,248 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ExternalLink, LoaderCircle } from "lucide-react";
+import { api } from "@/modules/runtime/api.js";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { MarketplaceLogo } from "@/modules/card/marketplace-logo.jsx";
+import { marketplaceOfferMatchesWish, marketplaceOffersForWish, mergeMarketplaceOffers } from "@/modules/assistant/marketplace-offers.js";
+import { refreshMarketplaceOffers } from "@/modules/assistant/marketplace-offer-stream.js";
+
+const MARKETPLACE_MARK_CLASSES = {
+  ozon: "bg-sky-500/15 text-sky-400",
+  wildberries: "bg-fuchsia-500/15 text-fuchsia-400",
+  "yandex-market": "bg-yellow-400/15 text-yellow-300",
+  megamarket: "bg-blue-500/15 text-blue-400",
+  dns: "bg-orange-500/15 text-orange-400",
+  amazon: "bg-amber-500/15 text-amber-300",
+  aliexpress: "bg-red-500/15 text-red-400",
+  avito: "bg-violet-500/15 text-violet-400",
+  mvideo: "bg-red-500/15 text-red-400",
+  samokat: "bg-[#ef425c] text-white",
+  lavka: "bg-[#ffd635] text-black",
+  lenta: "bg-[#123b8e] text-[#ffd53d]",
+  vkusvill: "bg-[#0c9f36] text-white",
+  "auto-ru": "bg-[#ff3b30] text-white",
+  "avito-auto": "bg-[#00aaff] text-white",
+  drom: "bg-[#d71920] text-white",
+  source: "bg-muted text-muted-foreground",
+};
+
+function marketplaceMark(offer) {
+  if (offer.mark) return offer.mark;
+  if (offer.marketplaceId === "wildberries") return "WB";
+  if (offer.marketplaceId === "yandex-market") return "Я";
+  if (offer.marketplaceId === "dns") return "DNS";
+  if (offer.marketplaceId === "auto-ru") return "A";
+  if (offer.marketplaceId === "avito-auto") return "A";
+  if (offer.marketplaceId === "drom") return "D";
+  return String(offer.marketplace || "М").slice(0, 1).toUpperCase();
+}
+
+function retryAfterLabel(seconds) {
+  if (seconds >= 60) return `${Math.ceil(seconds / 60)} мин`;
+  return `${Math.max(1, seconds)} сек`;
+}
+
+export function MarketplaceOffers({ wish, owner = false, formatPrice, renderAction, compactAction = false }) {
+  const savedOffers = useMemo(() => marketplaceOffersForWish(wish), [wish]);
+  const [aiConfigured, setAiConfigured] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
+  const [warning, setWarning] = useState("");
+  const [retryAt, setRetryAt] = useState(0);
+  const [clock, setClock] = useState(() => Date.now());
+  const refreshControllerRef = useRef(null);
+  const resultsRef = useRef(null);
+  const initialLoadRef = useRef(null);
+  const revealResultsRef = useRef(false);
+
+  useEffect(() => {
+    setAiConfigured(null);
+    setSnapshot(null);
+    setPreview(null);
+    setLoading(false);
+    setStatusMessage("");
+    setWarning("");
+    setError("");
+    setErrorCode("");
+    setRetryAt(0);
+    if (!owner) return undefined;
+    let active = true;
+    const initialLoad = { superseded: false };
+    initialLoadRef.current = initialLoad;
+    api.get(`/wishes/${encodeURIComponent(wish.id)}/marketplace-offers`).then((payload) => {
+      if (!active) return;
+      setAiConfigured(Boolean(payload.aiConfigured ?? payload.configured));
+      if (!initialLoad.superseded) setSnapshot(payload.snapshot || null);
+    }).catch((loadError) => {
+      if (active && !initialLoad.superseded) setError(loadError.message || "Не удалось загрузить предложения");
+    });
+    return () => {
+      active = false;
+      refreshControllerRef.current?.abort();
+      refreshControllerRef.current = null;
+      revealResultsRef.current = false;
+    };
+  }, [owner, wish.id]);
+
+  useEffect(() => {
+    if (!retryAt) return undefined;
+    const updateClock = () => {
+      const currentTime = Date.now();
+      setClock(currentTime);
+      if (currentTime >= retryAt) {
+        setRetryAt(0);
+        setError("");
+        setErrorCode("");
+      }
+    };
+    updateClock();
+    const timer = window.setInterval(updateClock, 1_000);
+    return () => window.clearInterval(timer);
+  }, [retryAt]);
+
+  useLayoutEffect(() => {
+    if (!revealResultsRef.current || (!preview && loading)) return;
+    revealResultsRef.current = false;
+    resultsRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [preview, loading]);
+
+  useEffect(() => {
+    if (!loading) return undefined;
+    const cancelReveal = () => { revealResultsRef.current = false; };
+    window.addEventListener("wheel", cancelReveal, { passive: true });
+    window.addEventListener("touchmove", cancelReveal, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", cancelReveal);
+      window.removeEventListener("touchmove", cancelReveal);
+    };
+  }, [loading]);
+
+  const refresh = async () => {
+    if (initialLoadRef.current) initialLoadRef.current.superseded = true;
+    refreshControllerRef.current?.abort();
+    const controller = new AbortController();
+    refreshControllerRef.current = controller;
+    revealResultsRef.current = true;
+    setLoading(true);
+    setPreview(null);
+    setStatusMessage("Ищем предложения…");
+    if (compactAction) resultsRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    setError("");
+    setErrorCode("");
+    setWarning("");
+    try {
+      await refreshMarketplaceOffers(wish.id, {
+        signal: controller.signal,
+        onMessage: ({ event, data }) => {
+          if (refreshControllerRef.current !== controller) return;
+          if (event === "status") {
+            setStatusMessage(data.message || "Ищем актуальные предложения…");
+          }
+          if (event === "offers") {
+            setPreview(data.offers);
+            setStatusMessage("Показываем найденные предложения. Поиск продолжается…");
+          }
+          if (event === "done") {
+            setPreview(null);
+            setSnapshot(data.snapshot || null);
+            setRetryAt(0);
+            setStatusMessage("Предложения обновлены");
+          }
+          if (event === "warning") {
+            setWarning(data.warning || "Нейропоиск недоступен. Найденные карточки можно открыть в магазинах.");
+          }
+          if (event === "error") {
+            const streamError = new Error(data.error || "Не удалось обновить предложения");
+            streamError.code = data.code || "";
+            throw streamError;
+          }
+        },
+      });
+    } catch (refreshError) {
+      if (refreshControllerRef.current === controller && refreshError.name !== "AbortError") {
+        setStatusMessage("");
+        setError(refreshError.message || "Не удалось обновить предложения");
+        setErrorCode(refreshError.code || "");
+        if (refreshError.status === 429 && refreshError.retryAfterSeconds > 0) {
+          setRetryAt(Date.now() + refreshError.retryAfterSeconds * 1_000);
+          setClock(Date.now());
+        }
+      }
+    } finally {
+      if (refreshControllerRef.current === controller) {
+        refreshControllerRef.current = null;
+        setLoading(false);
+      }
+    }
+  };
+
+  const latestOffers = preview ?? snapshot?.offers;
+  const aiOffers = (Array.isArray(latestOffers) ? latestOffers : [])
+    .filter((offer) => marketplaceOfferMatchesWish(wish, offer));
+  const offers = mergeMarketplaceOffers(aiOffers, savedOffers);
+  if (!offers.length && !owner) return null;
+  const bestLiveOfferIndex = preview ? -1 : offers.findIndex((offer) => !offer.source);
+  const retrySeconds = retryAt ? Math.max(0, Math.ceil((retryAt - clock) / 1_000)) : 0;
+  const visibleError = errorCode === "marketplace_offers_rate_limited" && retrySeconds > 0
+    ? `Для этого товара поиск запускался слишком часто. Повторить можно через ${retryAfterLabel(retrySeconds)}.`
+    : error;
+  const actionLabel = loading ? (aiConfigured === false ? "Ищем в магазинах" : "Ищем") : retrySeconds > 0 ? `Через ${retryAfterLabel(retrySeconds)}` : aiConfigured === false ? (aiOffers.length ? "Обновить из магазинов" : "Найти в магазинах") : aiOffers.length ? "Обновить" : "Найти лучшие";
+  const actionText = compactAction && !loading && !retrySeconds ? (aiOffers.length ? "Обновить" : "Найти лучшие") : compactAction && loading ? "Ищем" : actionLabel;
+  const accessibleActionLabel = compactAction && aiConfigured === false && !loading && !retrySeconds ? `${actionText} предложения в магазинах` : actionLabel;
+  const refreshAction = <Button className="w-full min-w-0 flex-1" type="button" size="sm" variant="secondary" disabled={loading || retrySeconds > 0} aria-label={accessibleActionLabel} aria-busy={loading || undefined} onClick={refresh}>
+    {loading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+    {actionText}
+  </Button>;
+
+  return (
+    <section ref={resultsRef} className="mx-auto grid min-w-0 w-full max-w-(--layout-compact-width) grid-cols-1 gap-3" aria-label="Предложения">
+
+      {visibleError && <p className={`text-sm ${errorCode === "marketplace_offers_not_found" ? "text-muted-foreground" : "text-destructive"}`} role={errorCode === "marketplace_offers_not_found" ? "status" : "alert"}>{visibleError}</p>}
+      {statusMessage && !visibleError && <p className="text-sm text-muted-foreground" role="status">{statusMessage}</p>}
+      {warning && <p className="text-sm text-muted-foreground" role="status">{warning}</p>}
+      {owner && aiConfigured === false && !visibleError && !warning && <p className="text-sm text-muted-foreground" role="status">Нейропоиск не настроен. Сейчас доступны только предложения из прямых каталогов магазинов.</p>}
+      {offers.length > 0 ? <div className="grid min-w-0 grid-cols-1 gap-2" role="list">
+        {offers.map((offer, index) => (
+          <a
+            key={offer.id || `${offer.marketplaceId}:${offer.url}`}
+            href={offer.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            role="listitem"
+            className="group flex min-h-16 min-w-0 w-full max-w-full items-center gap-2.5 rounded-2xl border bg-card px-3 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            aria-label={`${offer.exact ? "Открыть предложение" : "Найти товар"} на ${offer.marketplace}`}
+          >
+            <MarketplaceLogo
+              marketplaceId={offer.marketplaceId}
+              fallback={marketplaceMark(offer)}
+              fallbackClassName={MARKETPLACE_MARK_CLASSES[offer.marketplaceId] || MARKETPLACE_MARK_CLASSES.source}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <strong className="truncate text-sm font-semibold">{offer.marketplace}</strong>
+                {aiOffers.length > 0 && index === bestLiveOfferIndex && <Badge variant="secondary" className="shrink-0">Лучшее</Badge>}
+              </span>
+              {aiOffers.length > 0 && <small className="block break-words text-sm text-muted-foreground">{offer.title}</small>}
+              {aiOffers.length > 0 && (offer.delivery || offer.seller) && <small className="block truncate text-muted-foreground">{[offer.seller, offer.delivery].filter(Boolean).join(" · ")}</small>}
+            </span>
+            <span className="shrink-0 text-right">
+              <strong className="block whitespace-nowrap text-sm font-semibold tabular-nums">
+                {offer.price == null ? "Смотреть" : formatPrice(offer.price, offer.currency)}
+              </strong>
+              <small className="text-muted-foreground">{offer.price == null ? "цены" : offer.available === true ? "в наличии" : "наличие?"}</small>
+            </span>
+            <ExternalLink className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" aria-hidden="true" />
+          </a>
+        ))}
+      </div> : <p className="rounded-xl border border-dashed px-3 py-4 text-sm text-muted-foreground">Конкретные предложения пока не найдены.</p>}
+
+      {owner && (renderAction ? renderAction(refreshAction) : <div className="flex">{refreshAction}</div>)}
+
+    </section>
+  );
+}

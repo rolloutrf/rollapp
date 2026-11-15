@@ -5,9 +5,9 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { z } from "zod";
-import { registerCalendarDeviceRoutes } from "./calendar-device.js";
-import { registerPlanningRoutes } from "./planning.js";
-import { hashToken } from "./security.js";
+import { registerCalendarDeviceRoutes } from "./modules/calendar/calendar-device.js";
+import { registerPlanningRoutes } from "./modules/planning/planning.js";
+import { hashToken } from "./modules/auth/security.js";
 
 test("device Calendar intake persists read-only events with scoped, revocable credentials on production schema", { skip: process.env.ROLLAPP_TEST_PLANNING !== "1" }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

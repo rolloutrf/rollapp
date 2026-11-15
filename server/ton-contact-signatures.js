@@ -3,8 +3,8 @@ import { Address, Cell, contractAddress, loadStateInit } from "@ton/core";
 import { signVerify } from "@ton/crypto";
 import { KNOWN_WALLET_CODE_HASHES } from "./ton-wallet-code-hashes.js";
 import { z } from "zod";
-import { publicContactCard } from "../shared/contact-card.js";
-import { CONTACT_CARD_NETWORK, CONTACT_CARD_PURPOSE, contactCardClaimText } from "../shared/ton-contact-card.js";
+import { publicContactCard } from "../shared/modules/contacts/contact-card.js";
+import { CONTACT_CARD_NETWORK, CONTACT_CARD_PURPOSE, contactCardClaimText } from "../shared/modules/contacts/ton-contact-card.js";
 
 export const sha256 = (value) => createHash("sha256").update(value).digest();
 const text = (max) => z.string().min(1).max(max);

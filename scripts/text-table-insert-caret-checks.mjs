@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {MarkdownManager} from '@tiptap/markdown';
-import {inlineEditorExtensions} from '../src/lib/inline-editor-extensions.js';
+import {inlineEditorExtensions} from '../src/modules/rich-documents/inline-editor-extensions.js';
 const p=text=>({type:'paragraph',content:text?[{type:'text',text}]:[]});
 const source=new MarkdownManager({extensions:inlineEditorExtensions()}).serialize({type:'doc',content:[p('Before'),{type:'table',content:Array.from({length:24},(_,r)=>({type:'tableRow',content:Array.from({length:3},(_,c)=>({type:r===0?'tableHeader':'tableCell',attrs:{colwidth:[400]},content:[p(`${r}:${c}`)]}))}))},p('After')]});
 const frames=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));

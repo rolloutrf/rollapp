@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { profilePublicationsSchema } from "../server/profile-publications.js";
+import { profilePublicationsSchema } from "../server/modules/profile/profile-publications.js";
 
 // Default to a read-only preflight. Applying DDL is a separate release operation.
 const args = process.argv.slice(2);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ContactCardButton } from '../../src/components/contact-card-dialog.jsx';
+import { ContactCardButton } from '../../src/modules/contacts/contact-card-dialog.jsx';
 import { useVisualViewport } from '../../src/hooks/use-visual-viewport.js';
 import '../../src/styles.css';
 import '../../src/index.css';

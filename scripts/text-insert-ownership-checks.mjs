@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {MarkdownManager} from '@tiptap/markdown';
-import {inlineEditorExtensions} from '../src/lib/inline-editor-extensions.js';
-import {IDENTITY_QUESTION_TITLES} from '../shared/identity-questions.js';
+import {inlineEditorExtensions} from '../src/modules/rich-documents/inline-editor-extensions.js';
+import {IDENTITY_QUESTION_TITLES} from '../shared/modules/identity/identity-questions.js';
 const p=text=>({type:'paragraph',content:text?[{type:'text',text}]:[]});
 const code={type:'codeBlock',content:[{type:'text',text:Array.from({length:80},(_,i)=>`Code line ${i+1}`).join('\n')}]};
 const table={type:'table',content:Array.from({length:32},(_,r)=>({type:'tableRow',content:Array.from({length:3},(_,c)=>({type:r?'tableCell':'tableHeader',attrs:{colwidth:[96]},content:[p(`Cell ${r}:${c}`)]}))}))};

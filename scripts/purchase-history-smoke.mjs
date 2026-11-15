@@ -14,7 +14,7 @@ const server = await createServer({
     name: "purchase-history-fixture",
     enforce: "pre",
     transform(source, id) {
-      if (id.endsWith("/src/App.jsx?purchase-history-smoke")) return `${source}\nexport { ProfileSettingsModal, SessionContext, ToastContext, WishlistSectionNavigation };`;
+      if (id.endsWith("/src/App.jsx?purchase-history-smoke")) return `${source}\nexport { ProfileSettingsModal } from \"./modules/profile/profile-settings.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";\nexport { WishlistSectionNavigation } from \"./modules/wishlist/wish-navigation.jsx\";`;
     },
     configureServer(vite) {
       vite.middlewares.use(async (req, res, next) => {

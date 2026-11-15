@@ -46,13 +46,13 @@ JSON вместо HTML страницы, CORS, поля приложения и 
 
 Список кошельков в `public/tonconnect-wallets.json` взят из официального реестра
 `https://config.ton.org/wallets-v2.json` 12 сентября 2026 года. При обновлении списка
-синхронно обновляйте `TON_CONNECT_BRIDGE_ORIGINS` в `server/ton-connect.js`:
+синхронно обновляйте `TON_CONNECT_BRIDGE_ORIGINS` в `server/modules/payments/ton-connect.js`:
 production CSP разрешает соединения только с перечисленными мостами и своим origin.
 Добавление произвольных кошельков требует проверки их bridge origin.
 
 ## Проверка
 
-`node --test server/ton-connect.test.js src/lib/ton-connect.test.js` проверяет
+`node --test server/modules/payments/ton-connect.test.js src/modules/payments/ton-connect.test.js` проверяет
 изолированное хранение сессий, выбор транспорта, конфигурацию, публичный манифест,
 CORS и соответствие реестра CSP. Эти проверки не используют базу данных.
 

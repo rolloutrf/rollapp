@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import cookieParser from "cookie-parser";
 import express from "express";
-import { createAccountSessions, requireExpectedAccount, savedSessionsCookie, sessionCookie } from "./account-sessions.js";
-import { createSessionToken, hashToken } from "./security.js";
+import { createAccountSessions, requireExpectedAccount, savedSessionsCookie, sessionCookie } from "./modules/auth/account-sessions.js";
+import { createSessionToken, hashToken } from "./modules/auth/security.js";
 
 test("account sessions use only this browser's valid production session rows", {
   skip: process.env.ROLLAPP_TEST_ACCOUNT_SESSIONS !== "1",

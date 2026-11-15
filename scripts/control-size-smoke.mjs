@@ -14,12 +14,12 @@ await mkdir("/tmp/rollapp-control-sizes", { recursive: true });
 const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: smokePort(process.env.CONTROL_SIZE_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "control-size-fixture", enforce: "pre",
   transform(source, id) {
-    if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext, WishGroupDialog };`;
-    if (id.endsWith("/src/components/planning-space.jsx?controls-smoke")) return `${source}\nexport { TaskEditor };`;
-    if (id.endsWith("/src/lib/planning-related-items.js")) return source.replace("export async function loadRelatedItems() {", "export async function loadRelatedItems() { return { items: [], failedKinds: [] };");
+    if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome } from \"./modules/shell/app-chrome.jsx\";\nexport { PlanningFab } from \"./modules/planning/planning-fab.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";\nexport { CollectionNavigationContext } from \"./modules/categories/collection-navigation.jsx\";\nexport { WishGroupDialog } from \"./modules/wishlist/wish-group.jsx\";`;
+    if (id.endsWith("/src/modules/planning/planning-space.jsx?controls-smoke")) return `${source}\nexport { TaskEditor };`;
+    if (id.endsWith("/src/modules/planning/planning-related-items.js")) return source.replace("export async function loadRelatedItems() {", "export async function loadRelatedItems() { return { items: [], failedKinds: [] };");
     // Supply presentation state at the hook boundary. API requests are rejected
     // below; no database or API-response fixtures are substituted.
-    if (id.endsWith("/src/hooks/use-planning-spaces.js")) return `export function usePlanningSpaces(kind) { return {spaces:[{id:'main',kind,title:kind==='calendar'?'Основной календарь с длинным названием':kind==='todo'?'Основной To Do-лист с длинным названием':'Рабочая доска с длинным названием'}],setSpaces(){},loading:false,error:'',reload(){}}; }`;
+    if (id.endsWith("/src/modules/planning/use-planning-spaces.js")) return `export function usePlanningSpaces(kind) { return {spaces:[{id:'main',kind,title:kind==='calendar'?'Основной календарь с длинным названием':kind==='todo'?'Основной To Do-лист с длинным названием':'Рабочая доска с длинным названием'}],setSpaces(){},loading:false,error:'',reload(){}}; }`;
   },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith("/app/")) return next();

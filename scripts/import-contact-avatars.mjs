@@ -1,8 +1,8 @@
 import { parseArgs } from "node:util";
 import sharp from "sharp";
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { createContactAvatarLoader, facebookProfileUrl } from "../server/contact-avatars.js";
-import { contactFromOverride } from "../server/contacts.js";
+import { createContactAvatarLoader, facebookProfileUrl } from "../server/modules/contacts/contact-avatars.js";
+import { contactFromOverride } from "../server/modules/contacts/contacts.js";
 import { storePrivateImage } from "../server/private-data-import.js";
 
 const { values } = parseArgs({ options: { username: { type: "string" }, limit: { type: "string", default: "100" }, refresh: { type: "boolean", default: false }, apply: { type: "boolean", default: false } } });

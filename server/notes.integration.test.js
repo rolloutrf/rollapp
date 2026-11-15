@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import express from "express";
 import cookieParser from "cookie-parser";
-import { hashToken } from "./security.js";
-import { registerNotesRoutes } from "./notes.js";
-import { verifyNoteGroupsSql } from "./note-groups.js";
-import { imageIsInUse } from "./image-usage.js";
+import { hashToken } from "./modules/auth/security.js";
+import { registerNotesRoutes } from "./modules/planning/notes.js";
+import { verifyNoteGroupsSql } from "./modules/planning/note-groups.js";
+import { imageIsInUse } from "./modules/media-import/image-usage.js";
 
 // Explicit production check only. Never creates a schema or commits test records.
 // The first query validates the existing notes table before any fixture writes.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { IDENTITY_QUESTION_TITLES } from '../shared/identity-questions.js';
-import { identityFourQuestionsSchema } from '../server/identity-content-schema.js';
+import { IDENTITY_QUESTION_TITLES } from '../shared/modules/identity/identity-questions.js';
+import { identityFourQuestionsSchema } from '../server/modules/identity/identity-content-schema.js';
 
 const source = 'До\n\n| A | B |\n| --- | --- |\n| C | D |\n\nПосле';
 export async function checkTextTables(browser, origin) {

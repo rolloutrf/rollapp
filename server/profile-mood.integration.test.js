@@ -5,7 +5,7 @@ import { Writable } from "node:stream";
 import { gunzipSync } from "node:zlib";
 import { writeAccountBackup } from "./account-backup.js";
 import { productionRollsDatabase } from "../scripts/rolls-database.mjs";
-import { checkProfileMoodSchema, publicMood, readProfileMood, saveProfileMood } from "./profile-mood.js";
+import { checkProfileMoodSchema, publicMood, readProfileMood, saveProfileMood } from "./modules/profile/profile-mood.js";
 
 test("production mood journal: owner isolation, ordering, pagination, replay and visibility (rollback only)", { skip: process.env.ROLLAPP_TEST_MOOD !== "1" }, async () => {
   const { pool } = await productionRollsDatabase();

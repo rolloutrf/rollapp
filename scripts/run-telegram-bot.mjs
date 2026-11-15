@@ -1,6 +1,6 @@
-import { loadLockboxValue } from "../server/lockbox.js";
-import { forwardTelegramPaymentUpdate, getTelegramBotRuntimeConfig, startTelegramBotPolling } from "../server/telegram-bot.js";
-import { startStarInvoiceWorker } from "../server/star-invoice-worker.js";
+import { loadLockboxValue } from "../server/modules/runtime/lockbox.js";
+import { forwardTelegramPaymentUpdate, getTelegramBotRuntimeConfig, startTelegramBotPolling } from "../server/modules/runtime/telegram-bot.js";
+import { startStarInvoiceWorker } from "../server/modules/payments/star-invoice-worker.js";
 
 const secretId = String(process.env.YC_TELEGRAM_LOCKBOX_SECRET_ID || "").trim();
 if (!process.env.TELEGRAM_BOT_TOKEN) {

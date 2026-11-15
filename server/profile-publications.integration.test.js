@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import express from "express";
 import { ZodError } from "zod";
-import { registerProfilePublicationRoutes } from "./profile-publications.js";
+import { registerProfilePublicationRoutes } from "./modules/profile/profile-publications.js";
 
 test("profile publications and booking ownership on production PostgreSQL", {
   skip: process.env.ROLLAPP_TEST_PROFILE_PUBLICATIONS !== "1",

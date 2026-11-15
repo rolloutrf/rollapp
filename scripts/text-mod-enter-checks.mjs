@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { MarkdownManager } from '@tiptap/markdown';
-import { inlineEditorExtensions } from '../src/lib/inline-editor-extensions.js';
+import { inlineEditorExtensions } from '../src/modules/rich-documents/inline-editor-extensions.js';
 
 const text = value => ({ type: 'text', text: value });
 const p = value => ({ type: 'paragraph', content: [text(value)] });

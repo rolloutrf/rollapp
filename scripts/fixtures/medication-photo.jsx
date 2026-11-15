@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { MedicationDrawer, MedicationCard } from "@/components/medications.jsx?medication-photo-fixture";
+import { MedicationDrawer, MedicationCard } from "@/modules/health/medications.jsx?medication-photo-fixture";
 import { MobileFormPages } from "@/components/mobile-form-pages";
-import { SphereSharingContext } from "@/lib/sphere-sharing";
+import { SphereSharingContext } from "@/modules/access/sphere-sharing.jsx";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { Button } from "@/components/ui/button";
 import "../../src/styles.css";

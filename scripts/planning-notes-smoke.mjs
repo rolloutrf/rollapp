@@ -5,7 +5,7 @@ import {browserLaunchOptions} from './browser-runtime.mjs';
 import {listenSmokeServer,smokePort,smokeOrigin} from './smoke-server.mjs';
 import {smokeBaseUiDependencies} from './smoke-dependencies.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-notes-smoke',optimizeDeps:{include:smokeBaseUiDependencies},server:{host:'127.0.0.1',port:smokePort(),strictPort:true,hmr:false,watch:null},plugins:[{
- name:'notes-fixture',enforce:'pre',transform(source,id){if(id.endsWith('/src/App.jsx?notes-smoke'))return source+'\nexport {AppShell,GlobalAppChrome,PlanningFab,SessionContext,ToastContext,CollectionNavigationContext};';},
+ name:'notes-fixture',enforce:'pre',transform(source,id){if(id.endsWith('/src/App.jsx?notes-smoke'))return source+'\nexport { AppShell } from \"./modules/shell/app-shell.jsx\";\nexport { GlobalAppChrome } from \"./modules/shell/app-chrome.jsx\";\nexport { PlanningFab } from \"./modules/planning/planning-fab.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";\nexport { CollectionNavigationContext } from \"./modules/categories/collection-navigation.jsx\";';},
  configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/app/'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/planning-notes.jsx"></script></body></html>'));});}
 }]});
 await listenSmokeServer(server);const origin=smokeOrigin(server),browser=await chromium.launch(browserLaunchOptions());

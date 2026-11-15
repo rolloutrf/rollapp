@@ -5,7 +5,7 @@ import { createPageHistory } from "./page-history.js";
 import App from "../App.jsx";
 import "../styles.css";
 import "../index.css";
-import { loadTelegramWebAppSdk } from "../telegram.js";
+import { loadTelegramWebAppSdk } from "../modules/identification/telegram.js";
 
 export async function mountApplication(application = null) {
   await loadTelegramWebAppSdk();

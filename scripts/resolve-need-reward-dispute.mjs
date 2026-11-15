@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { resolveRewardDispute } from "../server/need-rewards.js";
+import { resolveRewardDispute } from "../server/modules/loyalty/need-rewards.js";
 
 const [offerId, outcome, reason, confirmation] = process.argv.slice(2);
 if (!offerId || !["reward", "refund"].includes(outcome) || !reason || confirmation !== "--apply") {

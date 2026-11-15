@@ -12,7 +12,7 @@ const server = await createServer({
   server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null },
   plugins: [{ name: "date-page-fixture",
     transform(source, id) {
-      if (id.includes("App.jsx?date-fields-export")) return `${source}\nexport { ProfileSettingsModal, WishModal, SessionContext, ToastContext };`;
+      if (id.includes("App.jsx?date-fields-export")) return `${source}\nexport { ProfileSettingsModal } from \"./modules/profile/profile-settings.jsx\";\nexport { WishModal } from \"./modules/wishlist/wish-editor.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
       const name = new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');
       if (name && /^[A-Z][A-Za-z]+$/.test(name) && id.includes('/src/') && !source.includes(`export function ${name}`)) return `${source}\nexport { ${name} };`;
     },

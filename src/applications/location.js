@@ -1,6 +1,6 @@
-import { PLATFORM_HOST, SPHERE_APPLICATIONS, spherePageOwner } from "../../shared/applications.js";
-import { localizedPageUrl } from "../../shared/page-urls.js";
-import { safeNextPath } from "../lib/auth.js";
+import { PLATFORM_HOST, SPHERE_APPLICATIONS, spherePageOwner } from "../../shared/modules/shell/applications.js";
+import { localizedPageUrl } from "../../shared/modules/shell/page-urls.js";
+import { safeNextPath } from "../modules/auth/auth.js";
 
 const platformOrigin = `https://${PLATFORM_HOST}`;
 

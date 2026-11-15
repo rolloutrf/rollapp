@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
-import { WorkoutCard } from '../../src/components/workouts.jsx?snippet-badge-test';
+import { WorkoutCard } from '../../src/modules/health/workouts.jsx?snippet-badge-test';
 import { CardDragHandle } from '../../src/components/card-drag-handle';
 import '../../src/styles.css';
 import '../../src/index.css';

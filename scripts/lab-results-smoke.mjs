@@ -11,7 +11,7 @@ const server = await createServer({
   optimizeDeps: { include: smokeBaseUiDependencies },
   server: { host: '127.0.0.1', port: smokePort(process.env.LAB_RESULTS_PORT), strictPort: true, hmr: false, watch: null },
   plugins: [{ name: 'lab-results-fixture', transform(source, id) {
-    if (id.endsWith('/src/lib/sphere-sharing.jsx')) return `${source}\nexport { SphereSharingContext };`;
+    if (id.endsWith('/src/modules/access/sphere-sharing.jsx')) return `${source}\nexport { SphereSharingContext };`;
   }, configureServer(vite) {
     vite.middlewares.use(async (req, res, next) => {
       if (!req.url.startsWith('/__lab-results')) return next();

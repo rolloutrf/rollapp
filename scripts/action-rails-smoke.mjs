@@ -4,8 +4,8 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
-  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { ContactsProfileControls, WishesProfileControls, WishesPage, AppShell, ProfileEditorProvider, SessionContext, ToastContext };`;
-  if(id.endsWith('/src/lib/sphere-sharing.jsx'))return `${source}\nexport { SphereSharingContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
+  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { ContactsProfileControls } from \"./modules/contacts/contacts-page.jsx\";\nexport { WishesProfileControls } from \"./modules/wishlist/wish-navigation.jsx\";\nexport { WishesPage } from \"./modules/wishlist/wishes-page.jsx\";\nexport { AppShell } from \"./modules/shell/app-shell.jsx\";\nexport { ProfileEditorProvider } from \"./modules/profile/profile-editor.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
+  if(id.endsWith('/src/modules/access/sphere-sharing.jsx'))return `${source}\nexport { SphereSharingContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
     res.setHeader('Content-Type','text/html');
     res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/action-rails.jsx"></script></body></html>'));

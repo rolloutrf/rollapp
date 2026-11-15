@@ -2,10 +2,10 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MobileFormPages } from "@/components/mobile-form-pages";
-import { api } from "@/api";
+import { api } from "@/modules/runtime/api.js";
 import App, { PersistentProfileHero, ProfileEditorProvider, SessionProvider, ToastContext, useSession } from "@/App.jsx?profile-mood-smoke";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
-import { highlightedMood } from "../../shared/profile-mood.js";
+import { highlightedMood } from "../../shared/modules/profile/profile-mood.js";
 import "../../src/styles.css";
 import "../../src/index.css";
 

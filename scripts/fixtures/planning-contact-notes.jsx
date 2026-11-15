@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { TaskEditor } from "@/components/planning-space.jsx?drawer-smoke-export=TaskEditor";
+import { TaskEditor } from "@/modules/planning/planning-space.jsx?drawer-smoke-export=TaskEditor";
 import { ContactEditForm, ToastContext } from "@/App.jsx?planning-contact-notes";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { Drawer, DrawerContent, DrawerTitle, DrawerClose } from "@/components/form-surface";

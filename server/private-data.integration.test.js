@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 import express from "express";
 import { archivePrivateFile, importPrivateRecords, privateAssetId, sha256 } from "./private-data-import.js";
 import { registerPrivateFiles } from "./private-files.js";
-import { listContacts } from "./contacts.js";
-import { planningContacts } from "./planning-contacts.js";
+import { listContacts } from "./modules/contacts/contacts.js";
+import { planningContacts } from "./modules/planning/planning-contacts.js";
 
 test("production private import preserves edits and deletions, verifies bytes, isolates archives and rolls back", { skip: process.env.ROLLAPP_TEST_PRIVATE_DATA !== "1" }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

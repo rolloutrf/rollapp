@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { internalPageUrl, localizedPageUrl } from "../shared/modules/shell/page-urls.js";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
@@ -14,12 +15,12 @@ const server = await createServer({
     enforce: "pre",
     transform(source, id) {
       if (id.endsWith("/src/App.jsx?account-smoke")) {
-        return source + "\nexport { AppProfileButton, AuthPage, MobileFormPages, ProfileEditorProvider, SessionProvider, ToastProvider, useSession };";
+        return source + "\nexport { AppProfileButton } from \"./modules/shell/app-shell.jsx\";\nexport { AuthPage } from \"./modules/auth/auth-pages.jsx\";\nexport { MobileFormPages };\nexport { ProfileEditorProvider } from \"./modules/profile/profile-editor.jsx\";\nexport { SessionProvider, useSession } from \"./modules/auth/session.jsx\";\nexport { ToastProvider } from \"./modules/shell/toast.jsx\";";
       }
     },
     configureServer(vite) {
       vite.middlewares.use(async (req, res, next) => {
-        if (!/^\/(app\/wishes|login)?(?:\?|$)/.test(req.url)) return next();
+        if (!/^\/(app\/wishes|login)?(?:\?|$)/.test(internalPageUrl(req.url))) return next();
         res.setHeader("Content-Type", "text/html");
         res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/profile-accounts.jsx"></script></body></html>'));
       });
@@ -293,6 +294,7 @@ try {
     await home(page, business).waitFor();
     await stale.locator("#profile-editor-form").evaluate((element) => element.requestSubmit());
     await home(stale, business).waitFor();
+    assert.equal(new URL(stale.url()).pathname, localizedPageUrl("/app/wishes"));
     assert.equal(staleWrites(), 1);
     await stale.close();
     await openAccounts(page, business);

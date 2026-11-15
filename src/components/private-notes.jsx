@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Cloud, Download } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { api } from "@/api";
-import { EditableTextBlock } from "@/components/editable-text-block";
-import { InlineSaveStatus } from "@/components/inline-document";
+import { api } from "@/modules/runtime/api.js";
+import { EditableTextBlock } from "@/modules/rich-documents/editable-text-block.jsx";
+import { InlineSaveStatus } from "@/modules/rich-documents/inline-document.jsx";
 import { PageActionButton } from "@/components/page-action-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useInlineAutosave } from "@/hooks/use-inline-autosave";
+import { useInlineAutosave } from "@/modules/rich-documents/use-inline-autosave.js";
 
 export const PRIVATE_NOTES_PATH = "/app/private-notes";
 const API = "/private-notes";

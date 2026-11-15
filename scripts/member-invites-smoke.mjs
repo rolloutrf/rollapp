@@ -8,7 +8,7 @@ import { browserLaunchOptions } from "./browser-runtime.mjs";
 const server = await createServer({ server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "member-invites-fixture", enforce: "pre",
   transform(source, id) {
-    if (id.endsWith("/src/App.jsx?member-invites-smoke")) return `${source}\nexport { RegistrationForm, ProfileSettingsModal, SessionContext, ToastContext };`;
+    if (id.endsWith("/src/App.jsx?member-invites-smoke")) return `${source}\nexport { RegistrationForm } from \"./modules/auth/auth-pages.jsx\";\nexport { ProfileSettingsModal } from \"./modules/profile/profile-settings.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
   },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith("/member-fixture")) return next();

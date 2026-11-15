@@ -7,15 +7,15 @@ const root = new URL("../../", import.meta.url);
 test("plain sphere pages share one centered content rail", async () => {
   const [styles, careerContent, aboutMe, fourQuestions, theses, lifeStrategy, developmentPlan, domain, mission, editableLifeStrategy] = await Promise.all([
     readFile(new URL("src/styles.css", root), "utf8"),
-    readFile(new URL("src/components/career-content.jsx", root), "utf8"),
-    readFile(new URL("src/components/about-me.jsx", root), "utf8"),
-    readFile(new URL("src/components/four-questions.jsx", root), "utf8"),
-    readFile(new URL("src/components/theses.jsx", root), "utf8"),
-    readFile(new URL("src/components/life-strategy.jsx", root), "utf8"),
-    readFile(new URL("src/components/development-plan.jsx", root), "utf8"),
-    readFile(new URL("src/components/domain.jsx", root), "utf8"),
-    readFile(new URL("src/components/mission.jsx", root), "utf8"),
-    readFile(new URL("src/components/editable-life-strategy.jsx", root), "utf8"),
+    readFile(new URL("src/modules/career/career-content.jsx", root), "utf8"),
+    readFile(new URL("src/modules/career/about-me.jsx", root), "utf8"),
+    readFile(new URL("src/modules/identity/four-questions.jsx", root), "utf8"),
+    readFile(new URL("src/modules/identity/theses.jsx", root), "utf8"),
+    readFile(new URL("src/modules/identity/life-strategy.jsx", root), "utf8"),
+    readFile(new URL("src/modules/career/development-plan.jsx", root), "utf8"),
+    readFile(new URL("src/modules/career/domain.jsx", root), "utf8"),
+    readFile(new URL("src/modules/identity/mission.jsx", root), "utf8"),
+    readFile(new URL("src/modules/identity/editable-life-strategy.jsx", root), "utf8"),
   ]);
 
   assert.match(
@@ -77,8 +77,8 @@ test("plain sphere pages share one centered content rail", async () => {
 test("values and character traits share the centered checklist rail", async () => {
   const [containers, ...checklists] = await Promise.all([
     readFile(new URL("src/containers.css", root), "utf8"),
-    readFile(new URL("src/components/values.jsx", root), "utf8"),
-    readFile(new URL("src/components/character-traits.jsx", root), "utf8"),
+    readFile(new URL("src/modules/identity/values.jsx", root), "utf8"),
+    readFile(new URL("src/modules/identity/character-traits.jsx", root), "utf8"),
   ]);
   assert.match(containers, /\.identity-checklist[^{}]*\{[^}]*width:\s*100%;[^}]*max-width:\s*var\(--layout-form-width\);[^}]*margin-inline:\s*auto;/su);
   for (const checklist of checklists) {

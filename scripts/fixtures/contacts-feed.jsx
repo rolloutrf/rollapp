@@ -5,7 +5,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorProvider, PersistentProfileHero, PublicProfile, CollectionNavigationProvider } from '../../src/App.jsx?contacts-feed-test-export';
 import { MobileFormPages } from '../../src/components/mobile-form-pages.jsx';
 import { useVisualViewport } from '../../src/hooks/use-visual-viewport.js';
-import { api } from '../../src/api.js';
+import { api } from '../../src/modules/runtime/api.js';
 import '../../src/styles.css';
 import '../../src/index.css';
 const contacts = Array.from({ length: 145 }, (_, i) => ({ id: String(i), name: `Контакт ${String(i).padStart(3, '0')}`, company: 'Компания', role: 'Дизайнер', favorite: false, links: [] }));

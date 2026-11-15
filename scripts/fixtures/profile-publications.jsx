@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { api } from "../../src/api.js";
+import { api } from "../../src/modules/runtime/api.js";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MobileFormPages } from "../../src/components/mobile-form-pages.jsx";
-import { ProfilePublications } from "../../src/components/profile-publications.jsx";
+import { ProfilePublications } from "../../src/modules/profile/profile-publications.jsx";
 import { useVisualViewport } from "../../src/hooks/use-visual-viewport.js";
 import App from "../../src/App.jsx";
 import "../../src/styles.css";

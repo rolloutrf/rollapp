@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { ProductTitleInput } from "@/components/product-title-input";
+import { ProductTitleInput } from "@/modules/catalog-marketplace/product-title-input.jsx";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/form-surface";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { Button } from "@/components/ui/button";

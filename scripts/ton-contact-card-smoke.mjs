@@ -6,7 +6,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokePort, smokeOrigin } from './smoke-server.mjs';
-import { createContactCardSigning, registerTonContactCardRoutes } from '../server/ton-contact-cards.js';
+import { createContactCardSigning, registerTonContactCardRoutes } from '../server/modules/contacts/ton-contact-cards.js';
 import { verifySignedContactCard } from '../server/ton-contact-signatures.js';
 import { signedCardFixture } from './fixtures/signed-contact-card.js';
 

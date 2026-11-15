@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { checkProfileMoodSchema } from "../server/profile-mood.js";
+import { checkProfileMoodSchema } from "../server/modules/profile/profile-mood.js";
 import { productionRollsDatabase } from "./rolls-database.mjs";
 
 const args = process.argv.slice(2);

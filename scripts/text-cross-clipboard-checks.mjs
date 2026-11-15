@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { getSchema } from '@tiptap/core';
 import { MarkdownManager } from '@tiptap/markdown';
-import { inlineEditorExtensions } from '../src/lib/inline-editor-extensions.js';
-import { IDENTITY_QUESTION_TITLES } from '../shared/identity-questions.js';
+import { inlineEditorExtensions } from '../src/modules/rich-documents/inline-editor-extensions.js';
+import { IDENTITY_QUESTION_TITLES } from '../shared/modules/identity/identity-questions.js';
 const extensions = inlineEditorExtensions(),
   schema = getSchema(extensions),
   manager = new MarkdownManager({

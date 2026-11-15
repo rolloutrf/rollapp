@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { needRewardsSchema } from "../server/need-rewards-schema.js";
+import { needRewardsSchema } from "../server/modules/loyalty/need-rewards-schema.js";
 
 // Separate additive migration, never called by application startup or release.
 const db = await productionRollsDatabase();

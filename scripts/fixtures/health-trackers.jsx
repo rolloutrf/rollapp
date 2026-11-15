@@ -2,12 +2,12 @@ import React, { useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext } from "@/App.jsx?health-smoke";
-import { SphereSharingContext } from "@/lib/sphere-sharing";
+import { SphereSharingContext } from "@/modules/access/sphere-sharing.jsx";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { HealthTracker } from "@/components/health-tracker";
+import { HealthTracker } from "@/modules/health/health-tracker.jsx";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
-import { localDateKey } from "../../shared/planning.js";
+import { localDateKey } from "../../shared/modules/planning/planning.js";
 import "../../src/styles.css";
 import "../../src/index.css";
 

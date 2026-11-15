@@ -1,7 +1,7 @@
 import express from 'express';
 import { randomUUID } from 'node:crypto';
-import { createRateLimit } from './rate-limit.js';
-import { normalizeStoryVideo, STORY_MAX_BYTES } from './story-video.js';
+import { createRateLimit } from './modules/runtime/rate-limit.js';
+import { normalizeStoryVideo, STORY_MAX_BYTES } from './modules/profile/story-video.js';
 
 export function registerStoryRoutes(app, { requireAuth, query, asyncRoute, normalizeVideo = normalizeStoryVideo }) {
   const limit = createRateLimit({ windowMs: 15 * 60_000, max: 10, key: req => req.user.id });

@@ -2,10 +2,10 @@ import "dotenv/config";
 import dotenv from "dotenv";
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { OHMYWISHES_API_BASE, OHMYWISHES_SOURCE } from "../server/ohmywishes-catalog.js";
-import { ohMyWishesBrandItem } from "../server/ohmywishes-brands.js";
-import { externalCatalogBrandsSchema, getStoredCatalogBrandPage } from "../server/external-catalog-brands.js";
-import { CATALOG_BRAND_SLUGS } from "../shared/catalog-brands.js";
+import { OHMYWISHES_API_BASE, OHMYWISHES_SOURCE } from "../server/modules/catalog-marketplace/ohmywishes-catalog.js";
+import { ohMyWishesBrandItem } from "../server/modules/catalog-marketplace/ohmywishes-brands.js";
+import { externalCatalogBrandsSchema, getStoredCatalogBrandPage } from "../server/modules/catalog-marketplace/external-catalog-brands.js";
+import { CATALOG_BRAND_SLUGS } from "../shared/modules/catalog-marketplace/catalog-brands.js";
 
 // Import the same storefronts that the catalog publishes.
 export const BRAND_SLUGS = CATALOG_BRAND_SLUGS;
@@ -122,7 +122,7 @@ export async function productionDatabase() {
   }
   process.env.DEMO_MODE = "false";
   if (!process.env.PGPASSWORD && !process.env.DATABASE_URL && process.env.YC_LOCKBOX_SECRET_ID) {
-    const { loadLockboxValue } = await import("../server/lockbox.js");
+    const { loadLockboxValue } = await import("../server/modules/runtime/lockbox.js");
     process.env.PGPASSWORD = await loadLockboxValue(process.env.YC_LOCKBOX_SECRET_ID, process.env.YC_LOCKBOX_SECRET_KEY || "postgresql_password");
   }
   const database = await import("../server/db.js");

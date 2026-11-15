@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { profileWishlistLinksColumn } from "../server/profile-wishlists.js";
+import { profileWishlistLinksColumn } from "../server/modules/profile/profile-wishlists.js";
 
 // Deliberate additive migration, separate from development startup and release.
 const db = await productionRollsDatabase();

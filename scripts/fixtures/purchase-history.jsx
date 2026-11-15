@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { api } from "../../src/api.js";
+import { api } from "../../src/modules/runtime/api.js";
 import { MobileFormPages } from "../../src/components/mobile-form-pages.jsx";
 import { ProfileSettingsModal, SessionContext, ToastContext, WishlistSectionNavigation } from "../../src/App.jsx?purchase-history-smoke";
 import "../../src/styles.css";

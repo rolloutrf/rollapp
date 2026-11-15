@@ -5,7 +5,7 @@ import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
-import { MOOD_LEVELS, NEUTRAL_MOOD_LEVEL } from "../shared/profile-mood.js";
+import { MOOD_LEVELS, NEUTRAL_MOOD_LEVEL } from "../shared/modules/profile/profile-mood.js";
 
 const screenshotDir = process.env.ROLLAPP_MOOD_SCREENSHOTS;
 if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
@@ -41,7 +41,7 @@ const server = await createServer({
   server: { host: "127.0.0.1", port: 0, hmr: false, watch: null },
   plugins: [{ name: "profile-mood-fixture", enforce: "pre", transform(source, id) {
     if (!id.endsWith("/src/App.jsx?profile-mood-smoke")) return;
-    return `${source}\nexport { PersistentProfileHero, ProfileEditorProvider, SessionProvider, ToastContext, useSession };`;
+    return `${source}\nexport { PersistentProfileHero } from \"./modules/profile/profile-hero.jsx\";\nexport { ProfileEditorProvider } from \"./modules/profile/profile-editor.jsx\";\nexport { SessionProvider, useSession } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
   }, configureServer(vite) {
     vite.middlewares.use(async (req, res, next) => {
       if (!req.url.startsWith("/__profile-mood")) return next();

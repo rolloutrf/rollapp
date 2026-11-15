@@ -12,7 +12,7 @@ assert(executablePath, 'Install Chrome or set CHROME_PATH');
 const server = await createServer({ cacheDir: 'node_modules/.vite-contact-photo', server: { host: '127.0.0.1', port: smokePort(process.env.CONTACT_PHOTO_TEST_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'contact-photo-fixture',
   transform(source, id) {
-    if (id.endsWith('/src/App.jsx?form-actions')) return `${source}\nexport { ContactEditForm, ListModal, ToastContext, WishModal };`;
+    if (id.endsWith('/src/App.jsx?form-actions')) return `${source}\nexport { ContactEditForm } from \"./modules/contacts/contacts-page.jsx\";\nexport { ListModal, WishModal } from \"./modules/wishlist/wish-editor.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
     const name = new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');
     if (name && /^[A-Z][A-Za-z]+$/.test(name) && id.includes('/src/') && !source.includes(`export function ${name}`)) return `${source}\nexport { ${name} };`;
   },

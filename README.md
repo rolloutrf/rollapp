@@ -1,5 +1,7 @@
 # Rollapp
 
+Feature code is grouped under `src/modules`, `server/modules` and `shared/modules`. See the [Rollapp module map](docs/modules/README.md) for entry points and verification.
+
 Rollapp is a full-stack wishlist service: users collect wishes, share lists, follow friends, and reserve gifts without spoiling the surprise.
 
 The product is an independent functional alternative to popular wishlist services. It does not reuse Oh My Wishes branding, code, editorial content, or visual assets.
@@ -130,7 +132,7 @@ Buying a cat in `/app/store` first opens CDEK pickup selection, then a purchase 
 
 `GET /api/delivery/cdek/cities` returns unique cities with region labels to distinguish namesakes. `GET /api/delivery/cdek/points?cityCode=...&q=...&offset=0` returns that city’s pickup points; an empty address returns all its points. Both endpoints require authentication. The server reads the persisted PostgreSQL catalog, refreshes it on demand after 24 hours and retries failed refreshes after five minutes. A previous snapshot is usable for at most seven days with an explicit stale notice; older data or a missing catalog returns an error. Malformed, empty or unexpectedly small feeds never replace the saved catalog. The purchase endpoint rejects unknown or expired pickup points before debiting rolls. No delivery shipment, shipping tariff or carrier label is created by this selection mechanism.
 
-Run `node --test server/cdek.test.js server/rolls.test.js` for parsing and request-validation checks. `npm run test:cdek:production` verifies real catalog search, purchase persistence, insufficient balance and idempotency using production PostgreSQL with all fixture writes rolled back. After `npm run build`, `npm run test:cdek:visual` additionally checks desktop/mobile layout, cancellation and lost-response recovery in Chrome; screenshots are written to `/tmp/rollapp-cdek-checks`.
+Run `node --test server/modules/delivery/cdek.test.js server/modules/payments/rolls.test.js` for parsing and request-validation checks. `npm run test:cdek:production` verifies real catalog search, purchase persistence, insufficient balance and idempotency using production PostgreSQL with all fixture writes rolled back. After `npm run build`, `npm run test:cdek:visual` additionally checks desktop/mobile layout, cancellation and lost-response recovery in Chrome; screenshots are written to `/tmp/rollapp-cdek-checks`.
 
 After building, `node scripts/rolls-visual-preview.mjs --rollback-preview` opens a local-only verification server at `http://127.0.0.1:5184/app/rolls`. Two fixture users and their operations exist only inside an uncommitted production PostgreSQL transaction. The server uses the real wallet routes, never authenticates as an existing user, and restricts transfers to the two fixtures. Stop it with Ctrl+C to roll everything back; it also shuts down automatically after ten minutes. This is a UI test harness, not the application server.
 

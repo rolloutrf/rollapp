@@ -1,4 +1,4 @@
-import { localizedPageUrl } from "../shared/page-urls.js";
+import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";

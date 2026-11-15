@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import "dotenv/config";
 import { createProductionDatabaseEnvironment, readTunnelConfig } from "./production-db-tunnel.mjs";
-import { loadLockboxValue } from "../server/lockbox.js";
-import { findProfileByUsername, lockProfileUsernames, preserveProfileUsername } from "../server/profile-aliases.js";
+import { loadLockboxValue } from "../server/modules/runtime/lockbox.js";
+import { findProfileByUsername, lockProfileUsernames, preserveProfileUsername } from "../server/modules/profile/profile-aliases.js";
 
 const origin = process.env.SHARING_CHECK_URL || "http://127.0.0.1:8188";
 const username = process.env.SHARING_CHECK_USERNAME;

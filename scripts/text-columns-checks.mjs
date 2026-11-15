@@ -66,7 +66,7 @@ export async function checkDocumentColumns(browser, origin) {
 }
 
 export async function checkDocumentColumnContexts(browser,origin){
-  const [{MarkdownManager},{inlineEditorExtensions},{IDENTITY_QUESTION_TITLES},{identityFourQuestionsSchema}]=await Promise.all([import('@tiptap/markdown'),import('../src/lib/inline-editor-extensions.js'),import('../shared/identity-questions.js'),import('../server/identity-content-schema.js')]);
+  const [{MarkdownManager},{inlineEditorExtensions},{IDENTITY_QUESTION_TITLES},{identityFourQuestionsSchema}]=await Promise.all([import('@tiptap/markdown'),import('../src/modules/rich-documents/inline-editor-extensions.js'),import('../shared/modules/identity/identity-questions.js'),import('../server/modules/identity/identity-content-schema.js')]);
   const p=text=>({type:'paragraph',content:[{type:'text',text}]}),column=(width,content)=>({type:'column',attrs:{width},content});
   const source=new MarkdownManager({extensions:inlineEditorExtensions()}).serialize({type:'doc',content:[{type:'columns',content:[column(1.2,[p('Left peer: '+('Text beside the table must stay readable. '.repeat(9)))]),column(.8,[p('Middle'),{type:'table',content:Array.from({length:3},(_,r)=>({type:'tableRow',content:Array.from({length:3},(_,c)=>({type:r===0?'tableHeader':'tableCell',content:[p(`${r}:${c}`)]}))}))}]),column(1,[p('Right peer')])]}]});
   for(const [width,height] of [[390,400],[1024,844],[1440,400]]){

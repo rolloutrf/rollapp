@@ -1,9 +1,9 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { IdentityReportsPage } from '@/components/identity-reports-page';
+import { IdentityReportsPage } from '@/modules/identity/identity-reports-page.jsx';
 import { MobileFormPages } from '@/components/mobile-form-pages';
-import { SphereSharingContext } from '@/lib/sphere-sharing';
+import { SphereSharingContext } from '@/modules/access/sphere-sharing.jsx';
 import '../../src/styles.css';
 import '../../src/index.css';
 

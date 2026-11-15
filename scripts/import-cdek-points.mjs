@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { cdekSchema, fetchCdekPoints, saveCdekCatalog } from "../server/cdek.js";
+import { cdekSchema, fetchCdekPoints, saveCdekCatalog } from "../server/modules/delivery/cdek.js";
 
 const db = await productionRollsDatabase();
 try {

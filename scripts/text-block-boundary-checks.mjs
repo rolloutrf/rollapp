@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { IDENTITY_QUESTION_TITLES } from "../shared/identity-questions.js";
+import { IDENTITY_QUESTION_TITLES } from "../shared/modules/identity/identity-questions.js";
 
 export async function assertStableBlockSelection(editor) {
  const samples=await editor.evaluate(el=>new Promise(resolve=>{

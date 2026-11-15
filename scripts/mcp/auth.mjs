@@ -2,7 +2,7 @@ import { mkdir, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { Writable } from "node:stream";
-import { createRollappApi, mcpConfig, mcpTokenPattern } from "../../server/mcp-api.js";
+import { createRollappApi, mcpConfig, mcpTokenPattern } from "../../server/modules/runtime/mcp-api.js";
 import { readSession, saveSession } from "./session.js";
 
 async function readCredentials(origin) {

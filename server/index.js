@@ -1,95 +1,97 @@
-import { sphereApiOwner } from "../shared/applications.js";
-import { localizedPageUrl } from "../shared/page-urls.js";
-import { applicationSessionCookies, readBrowserSessionCookies, sphereSessionDestination } from "./application-sessions.js";
-import { applicationRuntime, requireApplicationApi } from "./application-runtime.js";
+import { listSpaceValues } from "./modules/categories/wish-spaces.js";
+import { sphereApiOwner } from "../shared/modules/shell/applications.js";
+import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
+import { applicationSessionCookies, readBrowserSessionCookies, sphereSessionDestination } from "./modules/auth/application-sessions.js";
+import { applicationRuntime, requireApplicationApi } from "./modules/runtime/application-runtime.js";
 import { registerMessengerRoutes } from "./messenger.js";
 
-import { registerAssistantWishlistSortRoute } from "./assistant-wishlist-sort.js";
-import { registerMessengerAssistantRoute } from "./messenger-assistant.js";
+import { registerAssistantWishlistSortRoute } from "./modules/assistant/assistant-wishlist-sort.js";
+import { registerMessengerAssistantRoute } from "./modules/assistant/messenger-assistant.js";
 
 import { registerStoryRoutes } from "./stories.js";
-import { DiskNotesError, getYandexDiskConfig } from "./yandex-disk.js";
-import { createDiskProfileStorage, editableProfile, patchEditableProfile, profileDiskConflict, profileDiskEnabled } from "./yandex-disk-profile.js";
-import { registerYandexDiskNotesRoutes } from "./yandex-disk-notes-routes.js";
-import { registerYandexDiskSyncRoutes, startYandexDiskSync, verifyYandexDiskSyncSchema } from "./yandex-disk-sync.js";
-import { initializeRuntimeDatabase } from "./database-startup.js";
-import { publicMood, registerProfileMoodRoutes, verifyProfileMoodAvailability } from "./profile-mood.js";
-import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
+import { DiskNotesError, getYandexDiskConfig } from "./modules/runtime/yandex-disk.js";
+import { createDiskProfileStorage, editableProfile, patchEditableProfile, profileDiskConflict, profileDiskEnabled } from "./modules/profile/yandex-disk-profile.js";
+import { registerYandexDiskNotesRoutes } from "./modules/planning/yandex-disk-notes-routes.js";
+import { registerYandexDiskSyncRoutes, startYandexDiskSync, verifyYandexDiskSyncSchema } from "./modules/runtime/yandex-disk-sync.js";
+import { initializeRuntimeDatabase } from "./modules/runtime/database-startup.js";
+import { publicMood, registerProfileMoodRoutes, verifyProfileMoodAvailability } from "./modules/profile/profile-mood.js";
+import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/modules/identification/telegram-waitlist.js";
 import { registerPrivateFiles } from "./private-files.js";
-import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup.js";
-import { imageIsInUse } from "./image-usage.js";
-import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
-import { profileWishlistLinksPatchSchema } from "./profile-wishlists.js";
-import { externalWishlistLinks } from "../shared/external-wishlists.js";
+import { createYandexBackupJobs, uploadYandexBackup } from "./modules/profile/yandex-disk-backup.js";
+import { imageIsInUse } from "./modules/media-import/image-usage.js";
+import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./modules/profile/profile-aliases.js";
+import { profileWishlistLinksPatchSchema } from "./modules/profile/profile-wishlists.js";
+import { externalWishlistLinks } from "../shared/modules/profile/external-wishlists.js";
 
 import "dotenv/config";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
-import { registerTonConnectRoutes, TON_CONNECT_BRIDGE_ORIGINS } from "./ton-connect.js";
-import { registerTonContactCardRoutes } from "./ton-contact-cards.js";
-import { registerTonBalanceRoutes } from "./ton-balance.js";
-import { registerTonRollsRoutes, startTonPaymentPolling } from "./roll-ton.js";
+import { registerTonConnectRoutes, TON_CONNECT_BRIDGE_ORIGINS } from "./modules/payments/ton-connect.js";
+import { registerTonContactCardRoutes } from "./modules/contacts/ton-contact-cards.js";
+import { registerTonBalanceRoutes } from "./modules/payments/ton-balance.js";
+import { registerTonRollsRoutes, startTonPaymentPolling } from "./modules/payments/roll-ton.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
 import { isMemoryDatabase, pool, query, transaction } from "./db.js";
-import { addDefaultFriend } from "./default-friend.js";
-import { enrollWishRewards, ensureRollWallet } from "./rolls.js";
-import { registerRollsRoutes } from "./rolls-routes.js";
+import { addDefaultFriend } from "./modules/social/default-friend.js";
+import { enrollWishRewards } from "./modules/loyalty/roll-rewards.js";
+import { ensureRollWallet } from "./modules/payments/rolls.js";
+import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
 
-import { registerCdekRoutes } from "./cdek-routes.js";
+import { registerCdekRoutes } from "./modules/delivery/cdek-routes.js";
 import { registerPersonalOfferRoutes } from "./personal-offers.js";
-import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
-import { registerNeedRewardsRoutes, startNeedRewardExpiryWorker } from "./need-rewards.js";
-import { checkRewardProofRuntime, startRewardProofWorker } from "./reward-proof-queue.js";
+import { registerBusinessMarketplaceRoutes } from "./modules/catalog-marketplace/business-marketplace.js";
+import { registerNeedRewardsRoutes, startNeedRewardExpiryWorker } from "./modules/loyalty/need-rewards.js";
+import { checkRewardProofRuntime, startRewardProofWorker } from "./modules/loyalty/reward-proof-queue.js";
 
-import { registerPlanningRoutes } from "./planning.js";
-import { createRollappMcpHttp } from "./mcp-http.js";
-import { registerNotesRoutes } from "./notes.js";
-import { registerCalendarDeviceRoutes } from "./calendar-device.js";
-import { registerProfilePublicationRoutes } from "./profile-publications.js";
-import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
-import { sendAccountInviteEmail } from "./email.js";
-import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, lockMembership, membershipHasCapacity } from "./invites.js";
+import { registerPlanningRoutes } from "./modules/planning/planning.js";
+import { createRollappMcpHttp } from "./modules/runtime/mcp-http.js";
+import { registerNotesRoutes } from "./modules/planning/notes.js";
+import { registerCalendarDeviceRoutes } from "./modules/calendar/calendar-device.js";
+import { registerProfilePublicationRoutes } from "./modules/profile/profile-publications.js";
+import { getEmailConfig, sendPasswordResetEmail } from "./modules/auth/email.js";
+import { sendAccountInviteEmail } from "./modules/auth/email.js";
+import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, lockMembership, membershipHasCapacity } from "./modules/auth/invites.js";
 import { startMemberTonAnchor } from "./member-ton-anchor.js";
 
-import { externalCatalogItemFromRow } from "./external-catalog.js";
+import { externalCatalogItemFromRow } from "./modules/catalog-marketplace/external-catalog.js";
 
-import { resolveOhMyWishesItem } from "./ohmywishes-brands.js";
+import { resolveOhMyWishesItem } from "./modules/catalog-marketplace/ohmywishes-brands.js";
 
-import { canonicalCatalogUrl, catalogActionKey, catalogIdentityKey, externalCatalogReference } from "./wish-catalog.js";
+import { canonicalCatalogUrl, catalogActionKey, catalogIdentityKey, externalCatalogReference } from "./modules/catalog-marketplace/wish-catalog.js";
 
-import { vehicleCatalog } from "./vehicle-catalog.js";
-import { fetchPublicHtml, fetchPublicJson } from "./metadata-fetch.js";
+import { vehicleCatalog } from "./modules/catalog-marketplace/vehicle-catalog.js";
+import { fetchPublicHtml, fetchPublicJson } from "./modules/media-import/metadata-fetch.js";
 
-import { resolveRetailerMetadata } from "./retailer-metadata.js";
+import { resolveRetailerMetadata } from "./modules/media-import/retailer-metadata.js";
 
-import { userCredentialsConfigured } from "./user-credentials.js";
+import { userCredentialsConfigured } from "./modules/auth/user-credentials.js";
 import { resolveAiCredential, sharedAiConfigured } from "./ai-provider.js";
 
-import { yandexAiConfig } from "./yandex-ai.js";
+import { yandexAiConfig } from "./modules/assistant/yandex-ai.js";
 
-import { readOpenRouterCredential, registerOpenRouterRoutes } from "./openrouter-routes.js";
-import { createRateLimit } from "./rate-limit.js";
+import { readOpenRouterCredential, registerOpenRouterRoutes } from "./modules/assistant/openrouter-routes.js";
+import { createRateLimit } from "./modules/runtime/rate-limit.js";
 
-import { contactFromOverride } from "./contacts.js";
+import { contactFromOverride } from "./modules/contacts/contacts.js";
 import {
   mergeLabReportsByDate,
 } from "./lab-results.js";
-import { LAB_PDF_MAX_BYTES } from "./lab-pdf.js";
-import { identityReportForDisplay, parseIdentityPdf } from "./identity-report-pdf.js";
-import { IDENTITY_PDF_LAYOUT_VERSION } from "./identity-report-layout.js";
+import { LAB_PDF_MAX_BYTES } from "./modules/health/lab-pdf.js";
+import { identityReportForDisplay, parseIdentityPdf } from "./modules/identity/identity-report-pdf.js";
+import { IDENTITY_PDF_LAYOUT_VERSION } from "./modules/identity/identity-report-layout.js";
 
 import {
   previewBackfillPatch,
   resolvePreviewBackfillMetadata,
   selectPreviewBackfillCandidates,
-} from "./preview-backfill.js";
-import { parseVkVideoEmbedThumbnail, parseVkVideoEmbedUrl, parseVkVideoMetadata, parseYandexMapsMetadata, vkVideoOembedUrl } from "./metadata.js";
+} from "./modules/wishlist/preview-backfill.js";
+import { parseVkVideoEmbedThumbnail, parseVkVideoEmbedUrl, parseVkVideoMetadata, parseYandexMapsMetadata, vkVideoOembedUrl } from "./modules/media-import/metadata.js";
 import {
   createOtpCode,
   digestIp,
@@ -102,25 +104,25 @@ import {
   PHONE_OTP_CODE_LENGTH,
   requirePhoneAuthSecret,
   verifyOtpDigest,
-} from "./phone-auth.js";
-import { isReservedProfileUsername, legacyProfileTarget, profileUsernameCandidates } from "./profile-paths.js";
-import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./security.js";
-import { createAccountSessions, requireExpectedAccount, savedSessionsCookie, sessionCookie } from "./account-sessions.js";
-import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./trusted-origins.js";
-import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/sphere-sharing.js";
-import { BUSINESS_CATEGORIES, BUSINESS_OFFER_SPHERES, businessCategoryForSection, canBusinessAccessSection } from "../shared/business-accounts.js";
-import { registrationAccountSchema } from "./business-accounts.js";
-import { readBusinessAccessSnapshot } from "./business-access.js";
-import { wishlistProfileGrant, wishlistWishVisibility } from "./wishlist-profile-access.js";
-import { getSmsConfig, sendSms } from "./sms.js";
+} from "./modules/identification/phone-auth.js";
+import { isReservedProfileUsername, legacyProfileTarget, profileUsernameCandidates } from "./modules/profile/profile-paths.js";
+import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./modules/auth/security.js";
+import { createAccountSessions, requireExpectedAccount, savedSessionsCookie, sessionCookie } from "./modules/auth/account-sessions.js";
+import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./modules/runtime/trusted-origins.js";
+import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/modules/access/sphere-sharing.js";
+import { BUSINESS_CATEGORIES, BUSINESS_OFFER_SPHERES, businessCategoryForSection, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
+import { registrationAccountSchema } from "./modules/catalog-marketplace/business-accounts.js";
+import { readBusinessAccessSnapshot } from "./modules/access/business-access.js";
+import { wishlistProfileGrant, wishlistWishVisibility } from "./modules/wishlist/wishlist-profile-access.js";
+import { getSmsConfig, sendSms } from "./modules/identification/sms.js";
 import {
   getTelegramAuthConfig,
   safeSecretEqual,
   TelegramInitDataError,
   validateTelegramInitData,
-} from "./telegram-auth.js";
-import { getTelegramBotRuntimeConfig, startTelegramBotPolling, telegramLaunchReply } from "./telegram-bot.js";
-import { createStarsUpdateHandler } from "./roll-stars.js";
+} from "./modules/identification/telegram-auth.js";
+import { getTelegramBotRuntimeConfig, startTelegramBotPolling, telegramLaunchReply } from "./modules/runtime/telegram-bot.js";
+import { createStarsUpdateHandler } from "./modules/payments/roll-stars.js";
 import {
   createYandexAuthorization,
   exchangeYandexCode,
@@ -130,7 +132,7 @@ import {
   safeOauthReturnPath,
   yandexRegistrationReturnPath,
   YandexAuthError,
-} from "./yandex-auth.js";
+} from "./modules/identification/yandex-auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -164,7 +166,6 @@ const birthdaySchema = z.string().date().refine(
   (value) => value <= new Date().toISOString().slice(0, 10),
   { message: "Дата рождения не может быть в будущем" },
 );
-const listSpaceValues = ["products", "places", "events", "media", "food", "transport"];
 const phoneRequestSchema = z.object({
   phone: z.string().trim().min(10).max(64),
 }).strict();
@@ -3394,7 +3395,7 @@ if (splitPlatform) {
 }
 
 if (servesSphere("identity")) {
-  const { registerIdentityRoutes } = await import("./applications/identity.js");
+  const { registerIdentityRoutes } = await import("./modules/identity/identity.js");
   registerIdentityRoutes(app, {
     asyncRoute, identityReportPayload, labPdfUploadBody, labPdfUploadRateLimit,
     lockCustomIdentityReport, parseStoredJson, pdfUploadFilename, requireAuth,
@@ -3402,7 +3403,7 @@ if (servesSphere("identity")) {
   });
 }
 if (servesSphere("health")) {
-  const { registerHealthRoutes } = await import("./applications/health.js");
+  const { registerHealthRoutes } = await import("./modules/health/health.js");
   registerHealthRoutes(app, {
     asyncRoute, educationItemListMoveSchema, educationListBelongsToUser, educationListIdSchema,
     educationListsForUser, formatEventDate, labPdfUploadBody, labPdfUploadRateLimit,
@@ -3412,7 +3413,7 @@ if (servesSphere("health")) {
   });
 }
 if (servesSphere("career")) {
-  const { registerCareerRoutes } = await import("./applications/career.js");
+  const { registerCareerRoutes } = await import("./modules/career/career.js");
   registerCareerRoutes(app, {
     asyncRoute, contactFavoriteIds, contactForUser, contactOverrides,
     labPdfUploadBody, labPdfUploadRateLimit, pdfUploadFilename, requireAuth,
@@ -3421,7 +3422,7 @@ if (servesSphere("career")) {
   });
 }
 if (servesSphere("education")) {
-  const { registerEducationRoutes } = await import("./applications/education.js");
+  const { registerEducationRoutes } = await import("./modules/education/education.js");
   registerEducationRoutes(app, {
     asyncRoute, courseGroupMoveSchema, courseGroupPatchSchema, detachCourseFromEducationGroup,
     detachEducationItemFromGroup, educationCourseGroupsForUser, educationItemGroupsForUser, educationItemListMoveSchema,
@@ -3431,7 +3432,7 @@ if (servesSphere("education")) {
   });
 }
 if (servesSphere("wishlist")) {
-  const { registerWishlistRoutes } = await import("./applications/wishlist.js");
+  const { registerWishlistRoutes } = await import("./modules/wishlist/wishlist.js");
   registerWishlistRoutes(app, {
     asyncRoute, backfillWishPreviews, canViewWish, cleanUser,
     decorateCatalogItems, formatEventDate, getLists, getSharedWishes,

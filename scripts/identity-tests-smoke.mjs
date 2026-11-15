@@ -3,7 +3,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
-const server = await createServer({ cacheDir: 'node_modules/.vite-custom-identity', server: { host: '127.0.0.1', port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: 'identity-tests-fixture', transform(source,id) { if(id.endsWith('/src/lib/sphere-sharing.jsx')) return source+'\nexport { SphereSharingContext };'; }, configureServer(vite) {
+const server = await createServer({ cacheDir: 'node_modules/.vite-custom-identity', server: { host: '127.0.0.1', port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: 'identity-tests-fixture', transform(source,id) { if(id.endsWith('/src/modules/access/sphere-sharing.jsx')) return source+'\nexport { SphereSharingContext };'; }, configureServer(vite) {
   vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/__identity-tests')) return next();
     res.setHeader('Content-Type', 'text/html');

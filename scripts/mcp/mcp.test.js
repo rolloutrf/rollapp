@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { createRollappApi, mcpConfig } from "../../server/mcp-api.js";
+import { createRollappApi, mcpConfig } from "../../server/modules/runtime/mcp-api.js";
 import { readSession, saveSession } from "./session.js";
 
 const token = "a".repeat(43);

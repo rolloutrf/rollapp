@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { IdentityGeneratedDocuments } from '@/components/identity-report-manager';
+import { IdentityGeneratedDocuments } from '@/modules/identity/identity-report-manager.jsx';
 import '../../src/styles.css';
 import '../../src/index.css';
 

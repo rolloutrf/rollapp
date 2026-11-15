@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
 import { checkMacCalendar, openCalendarList } from "./calendar-macos-checks.mjs";
-import { localDateKey } from "../shared/planning.js";
+import { localDateKey } from "../shared/modules/planning/planning.js";
 
 export async function runPlanningVisualChecks({ origin, token }) {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });

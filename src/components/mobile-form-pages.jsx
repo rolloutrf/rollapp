@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScreenPortal } from "@/components/ui/screen-portal";
 import { ControlBar } from "@/components/control-bar";
-import { internalPageSearch } from "../../shared/page-urls.js";
+import { internalPageSearch } from "../../shared/modules/shell/page-urls.js";
 import { cn } from "@/lib/utils";
 
 const MobileFormsContext = createContext(null);

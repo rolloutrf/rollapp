@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { noteGroupsSchema, verifyNoteGroupsSql } from "../server/note-groups.js";
+import { noteGroupsSchema, verifyNoteGroupsSql } from "../server/modules/planning/note-groups.js";
 
 const apply = process.argv.includes("--apply");
 const db = await productionRollsDatabase();

@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ListTileContent } from "@/components/list-tile-content";
-import { addCalendarDays, dateFromKey } from "../../shared/planning-calendar.js";
+import { addCalendarDays, dateFromKey } from "../../shared/modules/calendar/planning-calendar.js";
 const dateLabel = key => new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(key)).replace(/^./u, letter => letter.toUpperCase());
 const weekdayLabel = new Intl.DateTimeFormat("ru-RU", { weekday: "short" });
 const monthLabel = new Intl.DateTimeFormat("ru-RU", { month: "long" });

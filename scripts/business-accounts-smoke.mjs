@@ -4,8 +4,8 @@ import { chromium } from "playwright-core";
 import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
-import { BUSINESS_CATEGORIES } from "../shared/business-accounts.js";
-import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS } from "../shared/sphere-sharing.js";
+import { BUSINESS_CATEGORIES } from "../shared/modules/catalog-marketplace/business-accounts.js";
+import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS } from "../shared/modules/access/sphere-sharing.js";
 
 const output = "/tmp/rollapp-business-categories";
 const clientsOnly = process.argv.includes("--clients-only");

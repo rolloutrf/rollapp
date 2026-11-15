@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {MarkdownManager} from '@tiptap/markdown';
-import {inlineEditorExtensions} from '../src/lib/inline-editor-extensions.js';
+import {inlineEditorExtensions} from '../src/modules/rich-documents/inline-editor-extensions.js';
 const p=(text,marks)=>({type:'paragraph',content:text?[{type:'text',text,...(marks?{marks}:{})}]:[]});
 const manager=new MarkdownManager({extensions:inlineEditorExtensions()});
 const source=manager.serialize({type:'doc',content:[p('Before'),{type:'columns',content:[{type:'column',attrs:{width:1.3},content:[{type:'heading',attrs:{level:3,blockColor:'blue'},content:[{type:'text',text:'Left heading'}]},p('Literal  left\ntext ',[{type:'bold'},{type:'inlineStyle',attrs:{color:'red'}}])]},{type:'column',attrs:{width:.7},content:[{type:'taskList',content:[{type:'taskItem',attrs:{checked:true},content:[p('Checked task'),{type:'bulletList',content:[{type:'listItem',content:[p('Nested child')]}]}]}]},{type:'details',attrs:{open:true},content:[{type:'detailsSummary',content:[{type:'text',text:'Toggle'}]},{type:'detailsContent',content:[p('Toggle child')]}]}]}]},p('After')]});

@@ -1,4 +1,4 @@
-import { maxWishParticipants } from "../shared/wish-participants.js";
+import { maxWishParticipants } from "../shared/modules/wishlist/wish-participants.js";
 
 export const wishParticipantsSchema = `
   CREATE TABLE IF NOT EXISTS wish_participants (

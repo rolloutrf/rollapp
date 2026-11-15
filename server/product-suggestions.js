@@ -1,4 +1,4 @@
-import { createRateLimit } from "./rate-limit.js";
+import { createRateLimit } from "./modules/runtime/rate-limit.js";
 
 const API_URL = "https://www.wikidata.org/w/api.php";
 const CACHE_MS = 5 * 60_000;

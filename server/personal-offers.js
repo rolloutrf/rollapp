@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { RollsError, transferRolls } from "./rolls.js";
-import { canManageWishlistSpace } from "../shared/wishlist-business.js";
-import { BUSINESS_OFFER_SPHERES, canBusinessAccessSection } from "../shared/business-accounts.js";
-import { SPHERE_SECTIONS } from "../shared/sphere-sharing.js";
+import { RollsError, transferRolls } from "./modules/payments/rolls.js";
+import { canManageWishlistSpace } from "../shared/modules/wishlist/wishlist-business.js";
+import { BUSINESS_OFFER_SPHERES, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
+import { SPHERE_SECTIONS } from "../shared/modules/access/sphere-sharing.js";
 
 export const personalOffersSchema = `
   CREATE TABLE IF NOT EXISTS business_personal_offers (

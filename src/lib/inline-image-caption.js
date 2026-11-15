@@ -2,10 +2,10 @@ import { Node } from "@tiptap/core";
 import { Fragment } from "@tiptap/pm/model";
 import { NodeSelection, Plugin, TextSelection } from "@tiptap/pm/state";
 import { closeHistory } from "@tiptap/pm/history";
-import { blockHTML } from "./inline-table-markdown.js";
-import { canReloadNestedBlocks } from "./inline-block-depth.js";
-import { requestInlineCaretReveal } from "./inline-caret-intent.js";
-import { safeImageSource } from "./inline-image-intent.js";
+import { blockHTML } from "../modules/rich-documents/inline-table-markdown.js";
+import { canReloadNestedBlocks } from "../modules/rich-documents/inline-block-depth.js";
+import { requestInlineCaretReveal } from "../modules/rich-documents/inline-caret-intent.js";
+import { safeImageSource } from "../modules/rich-documents/inline-image-intent.js";
 
 export function validCaptionFigureDOM(element) {
   const children = [...(element?.children || [])];

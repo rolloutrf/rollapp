@@ -1,5 +1,5 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { giftCardsSchema } from "../server/gift-cards-schema.js";
+import { giftCardsSchema } from "../server/modules/loyalty/gift-cards-schema.js";
 
 // Read-only by default. --apply is a separate, explicitly authorized operation.
 const args = process.argv.slice(2);

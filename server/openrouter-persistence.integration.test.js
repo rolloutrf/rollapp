@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import express from "express";
 import cookieParser from "cookie-parser";
-import { registerOpenRouterRoutes, readOpenRouterCredential } from "./openrouter-routes.js";
-import { OpenRouterSettingsError } from "./openrouter-settings.js";
-import { decryptUserCredential } from "./user-credentials.js";
-import { hashToken } from "./security.js";
+import { registerOpenRouterRoutes, readOpenRouterCredential } from "./modules/assistant/openrouter-routes.js";
+import { OpenRouterSettingsError } from "./modules/assistant/openrouter-settings.js";
+import { decryptUserCredential } from "./modules/auth/user-credentials.js";
+import { hashToken } from "./modules/auth/security.js";
 
 test("personal OpenRouter settings survive new sessions and HTTP server recreation on production PostgreSQL", {
   skip: process.env.ROLLAPP_TEST_OPENROUTER !== "1",

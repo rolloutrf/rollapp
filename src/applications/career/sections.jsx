@@ -1,8 +1,8 @@
-import { AboutMe } from "@/components/about-me";
-import { CvResume } from "@/components/cv-resume";
-import { DevelopmentPlan } from "@/components/development-plan";
-import { Domain } from "@/components/domain";
-import { PerformanceReview } from "@/components/performance-review";
+import { AboutMe } from "@/modules/career/about-me.jsx";
+import { CvResume } from "@/modules/career/cv-resume.jsx";
+import { DevelopmentPlan } from "@/modules/career/development-plan.jsx";
+import { Domain } from "@/modules/career/domain.jsx";
+import { PerformanceReview } from "@/modules/career/performance-review.jsx";
 
 const sections = {
   about: AboutMe,

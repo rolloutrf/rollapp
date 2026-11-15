@@ -1,8 +1,8 @@
 import { HeartPulse } from "lucide-react";
-import { HealthTracker } from "@/components/health-tracker";
-import { LabResults } from "@/components/lab-results";
-import { Medications } from "@/components/medications";
-import { Workouts } from "@/components/workouts";
+import { HealthTracker } from "@/modules/health/health-tracker.jsx";
+import { LabResults } from "@/modules/health/lab-results.jsx";
+import { Medications } from "@/modules/health/medications.jsx";
+import { Workouts } from "@/modules/health/workouts.jsx";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 

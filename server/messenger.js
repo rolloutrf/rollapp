@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { createRateLimit } from './rate-limit.js';
+import { createRateLimit } from './modules/runtime/rate-limit.js';
 
 export const messageInput = z.object({ clientId: z.string().uuid(), body: z.string().trim().min(1).max(4000) });
 const uuid = z.string().uuid();

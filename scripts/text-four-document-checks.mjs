@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { IDENTITY_QUESTION_TITLES } from '../shared/identity-questions.js';
-import { identityFourQuestionsSchema } from '../server/identity-content-schema.js';
+import { IDENTITY_QUESTION_TITLES } from '../shared/modules/identity/identity-questions.js';
+import { identityFourQuestionsSchema } from '../server/modules/identity/identity-content-schema.js';
 
 export async function checkFourQuestionDocument(browser, origin) {
   const original = { questions: IDENTITY_QUESTION_TITLES.map((title, index) => ({ title, paragraphs: [`Ответ ${index + 1}: первый абзац.`, `Второй абзац ${index + 1}.`] })) };

@@ -1,5 +1,10 @@
 # Rollapp workspace instructions
 
+## Modules
+
+- Consult [the Rollapp module map](docs/modules/README.md) when changing a feature or reusing it. Keep feature code in its owner folder under `src/modules`, `server/modules` or `shared/modules`. Application entry points compose these modules and retain the existing routing and access contracts. Update the module instructions when ownership or integration points change.
+
+
 ## Central design-system ownership
 
 - List and day tiles share `ListTileContent` and `data-list-tile` CSS in `src/index.css`; never duplicate inline tile geometry or label/count font styles. Page actions retain 24px padding on both sides even with inline icons or loading spinners.
@@ -76,7 +81,7 @@
 
 ## Business accounts
 
-- New business registration requires one category from `shared/business-accounts.js`: psychologist/coach → identity, doctor → health, seller → wishlist, teacher → education, career consultant → career. Persist `businessCategory` in `users.business_category`; personal registrations cannot carry a business category. Keep `docs/business-accounts.md` synchronized.
+- New business registration requires one category from `shared/modules/catalog-marketplace/business-accounts.js`: psychologist/coach → identity, doctor → health, seller → wishlist, teacher → education, career consultant → career. Persist `businessCategory` in `users.business_category`; personal registrations cannot carry a business category. Keep `docs/business-accounts.md` synchronized.
 - A category limits eligible client spheres; it never replaces owner consent or read-only grants. Enforce the category on the server for requests, approval, direct grants and private reading, including Wishlist. Preserve existing uncategorized business accounts and existing grants without automatic backfill. Unknown categories fail closed.
 - Run the full `npm run test:business-accounts` matrix for registration/category/scope changes. Schema verification checks the category column read-only; adding it remains a separately authorized `business:categories:migrate -- --apply` operation, never a startup side effect.
 

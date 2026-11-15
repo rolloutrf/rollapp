@@ -1,7 +1,7 @@
-import { localizedPageUrl } from "../../shared/page-urls.js";
+import { localizedPageUrl } from "../../shared/modules/shell/page-urls.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../../shared/applications.js";
+import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../../shared/modules/shell/applications.js";
 import { applicationRedirect, platformLink, sharePageUrl, sphereLink } from "./location.js";
 
 test("sphere roots, deep links and service switches keep the destination query and anchor", () => {

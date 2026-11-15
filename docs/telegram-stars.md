@@ -29,7 +29,7 @@ For webhook delivery, run the updated `npm run telegram:configure` against the i
 ## Verification
 
 ```sh
-node --test server/roll-stars.test.js server/telegram-bot.test.js server/rolls.test.js
+node --test server/modules/payments/roll-stars.test.js server/modules/runtime/telegram-bot.test.js server/modules/payments/rolls.test.js
 npm run test:ui
 npm run build
 npm run test:stars:production

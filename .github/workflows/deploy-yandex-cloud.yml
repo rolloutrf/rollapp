@@ -166,7 +166,7 @@ jobs:
       - name: Verify targeted drawer release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'drawers'
         run: |
-          node --test scripts/deploy-vm-metadata.test.js server/database-startup.test.js
+          node --test scripts/deploy-vm-metadata.test.js server/modules/runtime/database-startup.test.js
           npm run test:ui
           npm run test:controls
 

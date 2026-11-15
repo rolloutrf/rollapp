@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { link, mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { sessionTokenPattern } from "../../server/mcp-api.js";
+import { sessionTokenPattern } from "../../server/modules/runtime/mcp-api.js";
 
 export async function readSession({ origin, sessionPath }) {
   let file;

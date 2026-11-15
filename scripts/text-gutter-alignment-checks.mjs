@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {getSchema} from "@tiptap/core";
-import {inlineEditorExtensions} from "../src/lib/inline-editor-extensions.js";
-import {blockHTML} from "../src/lib/inline-table-markdown.js";
+import {inlineEditorExtensions} from "../src/modules/rich-documents/inline-editor-extensions.js";
+import {blockHTML} from "../src/modules/rich-documents/inline-table-markdown.js";
 const extensions=inlineEditorExtensions(),schema=getSchema(extensions);
 const p=text=>({type:"paragraph",content:text?[{type:"text",text}]:[]});
 const content=[...[1,2,3,4,5,6].map(level=>({type:"heading",attrs:{level},content:[{type:"text",text:`Заголовок ${level}: Расскажи про свой самый крутой проект? Почему он?`}]})),p("Обычный абзац с длинным текстом, который переносится на несколько строк, чтобы ручка оставалась рядом с первой строкой, а не с центром всего блока. ".repeat(3)),p(""),{type:"nestedBlock",content:[{type:"heading",attrs:{level:3},content:[{type:"text",text:"Родитель с дочерним текстом"}]},p("Дочерний абзац")]},{type:"columns",content:[{type:"column",content:[{type:"heading",attrs:{level:2},content:[{type:"text",text:"Левая колонка"}]}]},{type:"column",content:[p("Правая колонка")]}]}];

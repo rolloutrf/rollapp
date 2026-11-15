@@ -5,9 +5,9 @@ import { randomUUID } from "node:crypto";
 import express from "express";
 import path from "node:path";
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { ensureRollWallet } from "../server/rolls.js";
-import { rollStarsSchema } from "../server/roll-stars-schema.js";
-import { registerRollsRoutes } from "../server/rolls-routes.js";
+import { ensureRollWallet } from "../server/modules/payments/rolls.js";
+import { rollStarsSchema } from "../server/modules/payments/roll-stars-schema.js";
+import { registerRollsRoutes } from "../server/modules/payments/rolls-routes.js";
 
 if (!process.argv.includes("--rollback-preview")) throw new Error("Use --rollback-preview for the temporary PostgreSQL UI test.");
 const db = await productionRollsDatabase();

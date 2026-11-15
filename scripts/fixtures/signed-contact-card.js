@@ -3,8 +3,8 @@ import { beginCell, storeStateInit } from "@ton/core";
 import { WalletContractV4 } from "@ton/ton";
 import { keyPairFromSeed, sign } from "@ton/crypto";
 import { createHash } from "node:crypto";
-import { publicContactCard } from "../../shared/contact-card.js";
-import { contactCardClaimText } from "../../shared/ton-contact-card.js";
+import { publicContactCard } from "../../shared/modules/contacts/contact-card.js";
+import { contactCardClaimText } from "../../shared/modules/contacts/ton-contact-card.js";
 const hash = (value) => createHash('sha256').update(value).digest();
 export function signedCardFixture({ now = 1800000000, claim: suppliedClaim, payload, domain = 'cards.example', seed = 1 } = {}) {
   const key = keyPairFromSeed(Buffer.alloc(32, seed));

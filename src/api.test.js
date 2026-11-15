@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { api } from './api.js';
+import { api } from './modules/runtime/api.js';
 
 test('story upload uses a bare container MIME with the original blob and authenticated credentials', async () => {
   const originalFetch = globalThis.fetch;

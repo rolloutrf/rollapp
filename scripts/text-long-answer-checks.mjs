@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { IDENTITY_QUESTION_TITLES } from '../shared/identity-questions.js';
-import { identityFourQuestionsSchema } from '../server/identity-content-schema.js';
+import { IDENTITY_QUESTION_TITLES } from '../shared/modules/identity/identity-questions.js';
+import { identityFourQuestionsSchema } from '../server/modules/identity/identity-content-schema.js';
 
 export async function checkLongQuestionAnswers(browser, origin) {
   const original = { questions: IDENTITY_QUESTION_TITLES.map((title, index) => ({ title, paragraphs: [index === 0 ? Array.from({ length: 30 }, (_, i) => `Абзац ${i + 1}`).join('\n\n') : `Соседний ответ ${index + 1}`] })) };

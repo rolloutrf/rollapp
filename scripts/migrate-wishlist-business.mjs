@@ -1,7 +1,7 @@
 import "dotenv/config";
 import dotenv from "dotenv";
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { wishlistBusinessSchema } from "../server/wishlist-business.js";
+import { wishlistBusinessSchema } from "../server/modules/wishlist/wishlist-business.js";
 if(process.argv.slice(2).some(arg=>arg!=="--apply"))throw new Error("Use node scripts/migrate-wishlist-business.mjs [--apply]");
 dotenv.config({path:".env.local",override:false,quiet:true});
 process.env.PG_POOL_SIZE="1";

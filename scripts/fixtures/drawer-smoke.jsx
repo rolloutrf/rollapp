@@ -69,7 +69,7 @@ function Fixture() {
 const formName = new URLSearchParams(location.search).get('form');
 if (formName) {
   const [, file, name, props] = drawerCases.find(([key]) => key === formName);
-  const path = `/src/components/${file}.jsx?drawer-smoke-export=${name}`;
+  const path = `${file}?drawer-smoke-export=${name}`;
   const module = await import(/* @vite-ignore */ path);
   const Component = module[name];
   function RealForm() {

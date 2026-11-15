@@ -7,7 +7,7 @@ test("wish edits preserve singleton groups on production PostgreSQL; all fixture
 }, async (t) => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");
   const db = await productionRollsDatabase();
-  const { syncWishGroupMemberships } = await import("./wish-groups.js");
+  const { syncWishGroupMemberships } = await import("./modules/wishlist/wish-groups.js");
   const client = await db.pool.connect();
   try {
     await client.query("BEGIN");

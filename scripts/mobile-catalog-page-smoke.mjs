@@ -5,7 +5,7 @@ import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:"node_modules/.vite-mobile-page-smoke",server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
   name:'mobile-page-fixture',enforce:'pre',
-  transform(source,id){if(id.includes('/src/App.jsx?mobile-page-test-export'))return `${source}\nexport { AppShell, CatalogBusinessDirectoryScope, CatalogWishDetailsContent, CollectionNavigationProvider, GlobalAppChrome, SessionContext, WishCatalogPage };`;},
+  transform(source,id){if(id.includes('/src/App.jsx?mobile-page-test-export'))return `${source}\nexport { AppShell } from \"./modules/shell/app-shell.jsx\";\nexport { CatalogBusinessDirectoryScope } from \"./modules/catalog-marketplace/catalog-scope.jsx\";\nexport { CatalogWishDetailsContent, WishCatalogPage } from \"./modules/catalog-marketplace/wish-catalog.jsx\";\nexport { CollectionNavigationProvider } from \"./modules/categories/collection-navigation.jsx\";\nexport { GlobalAppChrome } from \"./modules/shell/app-chrome.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";`;},
   configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__mobile-page-smoke')&&!req.url.startsWith('/app/wishes/catalog'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/mobile-catalog-page.jsx"></script></body></html>'));});}
 }]});
 await listenSmokeServer(server);

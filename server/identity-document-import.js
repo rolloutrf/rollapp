@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { identityContentSchemas } from "./identity-content-schema.js";
+import { identityContentSchemas } from "./modules/identity/identity-content-schema.js";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 

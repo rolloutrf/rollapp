@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { RollsError, transferRolls } from "./rolls.js";
-import { ROLLS_MAX_TRANSFER } from "../shared/rolls.js";
-import { createRateLimit } from "./rate-limit.js";
+import { RollsError, transferRolls } from "./modules/payments/rolls.js";
+import { ROLLS_MAX_TRANSFER } from "../shared/modules/payments/rolls.js";
+import { createRateLimit } from "./modules/runtime/rate-limit.js";
 
 export const fundraiserTargetSchema = z.object({ target: z.number().int().min(1).max(ROLLS_MAX_TRANSFER) }).strict();
 export const fundraiserUpdateSchema = fundraiserTargetSchema.extend({ accepting: z.boolean() }).strict();

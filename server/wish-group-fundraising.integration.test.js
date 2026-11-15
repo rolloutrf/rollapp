@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import { registerWishGroupFundraisingRoutes } from "./wish-group-fundraising.js";
-import { ROLLS_MAX_BALANCE } from "../shared/rolls.js";
+import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 
 test("group fundraising uses existing production schema; all test data and transfers roll back", { skip: process.env.ROLLAPP_TEST_GROUP_FUNDRAISING !== "1" }, async t => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

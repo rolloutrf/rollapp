@@ -53,9 +53,9 @@ TON Center; при росте нагрузки нужен ключ соотве�
 
 ## Проверки
 
-`node --test server/ton-balance.test.js server/roll-ton.test.js`
+`node --test server/modules/payments/ton-balance.test.js server/modules/payments/roll-ton.test.js`
 проверяет точность сумм, ошибки, кеширование, сеть, цену и проверку сообщений.
-`ROLLAPP_TEST_TON=1 node --test server/roll-ton.test.js` использует настроенную
+`ROLLAPP_TEST_TON=1 node --test server/modules/payments/roll-ton.test.js` использует настроенную
 production PostgreSQL и откатывает все тестовые записи и начисления.
 Проверены идемпотентность, неверные сумма/адрес/сеть/время, запрет самооплаты
 и откат начисления при повторном хеше транзакции. Проверен разбор реальных

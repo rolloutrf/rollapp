@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { MarkdownManager } from '@tiptap/markdown';
-import { inlineEditorExtensions } from '../src/lib/inline-editor-extensions.js';
+import { inlineEditorExtensions } from '../src/modules/rich-documents/inline-editor-extensions.js';
 const p = value => ({ type:'paragraph',content:[{type:'text',text:value}] });
 const chain = (depth, value) => depth ? { type:'nestedBlock',content:[p('Родитель'),chain(depth-1,value)] } : p(value);
 const source = new MarkdownManager({extensions:inlineEditorExtensions()}).serialize({type:'doc',content:[chain(55,'Перемещаемый'),chain(55,'Назначение'),p('Сосед')]});

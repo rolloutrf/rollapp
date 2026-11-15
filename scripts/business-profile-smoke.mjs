@@ -3,7 +3,7 @@ import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
-import { APP_ORDERS_PATH } from "../src/lib/app-routing.js";
+import { APP_ORDERS_PATH } from "../src/modules/shell/app-routing.js";
 
 const salesOnly = process.argv.includes("--sales-only");
 const announcementsOnly = process.argv.includes("--announcements-only");

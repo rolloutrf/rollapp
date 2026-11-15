@@ -25,7 +25,7 @@ export function checkUiComposition(source, file) {
     // File handles have a visible shadcn Button. GFM task markers are immutable
     // document content and deliberately follow the shadcn Typeset contract.
     const hiddenFile = /type=["']file["']/.test(tag) && /className=["'][^"']*\bsr-only\b/.test(tag);
-    const documentTask = file === "src/components/life-strategy.jsx"
+    const documentTask = file === "src/modules/identity/life-strategy.jsx"
       && /type=["']checkbox["']/.test(tag)
       && /\bdisabled\b/.test(tag) && /\breadOnly\b/.test(tag)
       && /aria-labelledby=/.test(tag);

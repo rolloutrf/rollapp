@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { EXTERNAL_WISHLIST_PROVIDERS, externalWishlistUrl } from "../shared/external-wishlists.js";
-import { fetchPublicHtml, fetchPublicJson } from "./metadata-fetch.js";
-import { decodeHtmlEntities } from "./metadata.js";
-import { OHMYWISHES_API_BASE } from "./ohmywishes-catalog.js";
+import { EXTERNAL_WISHLIST_PROVIDERS, externalWishlistUrl } from "../shared/modules/profile/external-wishlists.js";
+import { fetchPublicHtml, fetchPublicJson } from "./modules/media-import/metadata-fetch.js";
+import { decodeHtmlEntities } from "./modules/media-import/metadata.js";
+import { OHMYWISHES_API_BASE } from "./modules/catalog-marketplace/ohmywishes-catalog.js";
 
 const ohMyWishes = EXTERNAL_WISHLIST_PROVIDERS.find(({ id }) => id === "ohmywishes");
 const ohMyWishesPath = /^(?:\/(?:ru|en))?\/users\/([\w.-]{1,128})(?:\/lists\/([\w.-]{1,256}))?\/?$/i;

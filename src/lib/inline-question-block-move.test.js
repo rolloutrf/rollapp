@@ -4,11 +4,11 @@ import { getSchema } from "@tiptap/core";
 import { EditorState, NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { history, undo } from "@tiptap/pm/history";
 import { CellSelection } from "@tiptap/pm/tables";
-import { inlineEditorExtensions } from "./inline-editor-extensions.js";
-import { BlockSelection } from "./inline-block-selection.js";
-import { canMoveTextBlock, moveTextBlock, selectedBlockPosition } from "./inline-blocks.js";
-import { createFourQuestionAdapter, questionScopes, validQuestionDocument } from "./four-question-document.js";
-import { IDENTITY_QUESTION_TITLES } from "../../shared/identity-questions.js";
+import { inlineEditorExtensions } from "../modules/rich-documents/inline-editor-extensions.js";
+import { BlockSelection } from "../modules/rich-documents/inline-block-selection.js";
+import { canMoveTextBlock, moveTextBlock, selectedBlockPosition } from "../modules/rich-documents/inline-blocks.js";
+import { createFourQuestionAdapter, questionScopes, validQuestionDocument } from "../modules/identity/four-question-document.js";
+import { IDENTITY_QUESTION_TITLES } from "../../shared/modules/identity/identity-questions.js";
 
 function fixture(groups) {
   const adapter=createFourQuestionAdapter(),schema=getSchema([...inlineEditorExtensions(undefined,adapter.documentExtension),...adapter.extensions]);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { BUSINESS_CATEGORIES, canBusinessAccessSection } from "../shared/business-accounts.js";
+import { BUSINESS_CATEGORIES, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
 
 test("production business categories persist and enforce account/category constraints inside rollback only", { skip: process.env.ROLLAPP_TEST_BUSINESS_CATEGORIES !== "1" }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

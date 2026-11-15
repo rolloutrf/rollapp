@@ -14,7 +14,7 @@ const videoFixture=await readFile(`${output}/fixture-story.mp4`);
 const server = await createServer({ cacheDir: process.env.STORIES_CACHE_DIR || 'node_modules/.vite-stories', optimizeDeps: { entries: ['scripts/fixtures/stories.jsx', 'scripts/fixtures/story-navigation.jsx'], include: [...smokeBaseUiDependencies, 'date-fns/locale', 'next-themes', 'qrcode', 'react-day-picker', 'sonner', 'zod'] }, server: { host: '127.0.0.1', port: 0, hmr: false, watch: null }, plugins: [{
   name: 'story-presentation', enforce: 'pre',
   transform(source, id) {
-    if(id.endsWith('/src/App.jsx?story-navigation')) return source+'\nexport { PersistentProfileHero, ProfileEditorContext, ToastContext };';
+    if(id.endsWith('/src/App.jsx?story-navigation')) return source+'\nexport { PersistentProfileHero } from \"./modules/profile/profile-hero.jsx\";\nexport { ProfileEditorContext } from \"./modules/profile/profile-editor.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";';
     if (id.endsWith('/src/hooks/use-user-stories.js')) return `import {useEffect,useState} from 'react'; export function useUserStories(username) {
       const [stories,setStories]=useState([]);
       useEffect(()=>{const update=()=>setStories(window.__activeStory ? [{id:'fixture',expiresAt:new Date(Date.now()+86400000).toISOString(),videoUrl:'/fixture-story.mp4'}] : []);update();window.addEventListener('rollapp:stories',update);return()=>window.removeEventListener('rollapp:stories',update)},[]);

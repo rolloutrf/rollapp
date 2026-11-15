@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { planningSpaceSchema } from "./planning.js";
+import { planningSpaceSchema } from "./modules/planning/planning.js";
 
 test("planning spaces accept dedicated To Do lists alongside existing tools", () => {
   for (const kind of ["todo", "calendar", "kanban"]) {

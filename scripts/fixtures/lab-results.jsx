@@ -1,9 +1,9 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { LabReportPanel, LabResults } from '@/components/lab-results';
-import { api } from '@/api';
-import { SphereSharingContext } from '@/lib/sphere-sharing';
+import { LabReportPanel, LabResults } from '@/modules/health/lab-results.jsx';
+import { api } from '@/modules/runtime/api.js';
+import { SphereSharingContext } from '@/modules/access/sphere-sharing.jsx';
 import '../../src/styles.css';
 import '../../src/index.css';
 

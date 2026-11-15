@@ -11,7 +11,7 @@ const server = await createServer({
   plugins: [{
     name: 'wish-group-fixture', enforce: 'pre',
     transform(source, id) {
-      if (id.includes('/src/App.jsx?wish-group-test-export')) return `${source}\nexport { WishGroupTile };`;
+      if (id.includes('/src/App.jsx?wish-group-test-export')) return `${source}\nexport { WishGroupTile } from \"./modules/wishlist/wish-group.jsx\";`;
     },
     configureServer(vite) {
       vite.middlewares.use(async (req, res, next) => {

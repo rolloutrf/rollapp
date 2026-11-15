@@ -10,8 +10,8 @@ const output = "/tmp/rollapp-health-trackers";
 await mkdir(output, { recursive: true });
 // Prebundle the transformed fixture and shared app chrome dependencies on cold startup.
 const server = await createServer({ cacheDir: "node_modules/.vite-health-smoke", optimizeDeps: { entries: ["scripts/fixtures/health-trackers.jsx"], include: [...smokeBaseUiDependencies, "next-themes", "qrcode", "sonner"] }, server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: "health-fixture", enforce: "pre", transform(source, id) {
-  if (id.endsWith("/src/lib/sphere-sharing.jsx")) return `${source}\nexport { SphereSharingContext };`;
-  if (id.endsWith("/src/App.jsx?health-smoke")) return `${source}\nexport { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext };`;
+  if (id.endsWith("/src/modules/access/sphere-sharing.jsx")) return `${source}\nexport { SphereSharingContext };`;
+  if (id.endsWith("/src/App.jsx?health-smoke")) return `${source}\nexport { GlobalAppChrome } from \"./modules/shell/app-chrome.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";\nexport { CollectionNavigationContext } from \"./modules/categories/collection-navigation.jsx\";`;
 }, configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
   if (!req.url.startsWith("/app/")) return next();
   res.setHeader("Content-Type", "text/html");

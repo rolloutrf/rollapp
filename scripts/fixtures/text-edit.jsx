@@ -1,18 +1,18 @@
 // Load the editor module before fixture navigation completes. The app keeps
 // its lazy boundary; browser interaction tests must not race Vite module fetches.
-import "../../src/components/inline-rich-text-editor.jsx";
-import { identityFourQuestionsSchema } from "../../server/identity-content-schema.js";
-import { InlineTextField } from "@/components/inline-text-field";
+import "../../src/modules/rich-documents/inline-rich-text-editor.jsx";
+import { identityFourQuestionsSchema } from "../../server/modules/identity/identity-content-schema.js";
+import { InlineTextField } from "@/modules/rich-documents/inline-text-field.jsx";
 import React, { lazy, Suspense, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { createRoot } from "react-dom/client";
-import { DevelopmentPlan } from "@/components/development-plan";
-import { InlineDocument } from "@/components/inline-document";
-import { FourQuestionDocument } from "@/components/four-questions.jsx?text-edit";
+import { DevelopmentPlan } from "@/modules/career/development-plan.jsx";
+import { InlineDocument } from "@/modules/rich-documents/inline-document.jsx";
+import { FourQuestionDocument } from "@/modules/identity/four-questions.jsx?text-edit";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
-import { IDENTITY_QUESTION_TITLES } from "../../shared/identity-questions.js";
-import { Principles, Theses } from "@/components/theses";
-import { MarkdownDocument } from "@/components/life-strategy";
+import { IDENTITY_QUESTION_TITLES } from "../../shared/modules/identity/identity-questions.js";
+import { Principles, Theses } from "@/modules/identity/theses.jsx";
+import { MarkdownDocument } from "@/modules/identity/life-strategy.jsx";
 import { Button } from "@/components/ui/button";
 import "../../src/styles.css";
 import "../../src/index.css";

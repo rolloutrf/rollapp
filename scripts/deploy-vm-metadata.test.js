@@ -154,7 +154,7 @@ test("targeted snippet releases require an explicit manual choice and retain con
   assert.match(workflow, /name: Verify targeted profile release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'profile'\s+run: npm run check:release:profile/);
   assert(workflow.indexOf('run: npm run check:release:profile') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:profile', 'build']) assert(packageJson.scripts['check:release:profile'].split(' && ').includes(`npm run ${command}`));
-  assert.match(workflow, /name: Verify targeted drawer release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'drawers'\s+run: \|\s+node --test scripts\/deploy-vm-metadata\.test\.js server\/database-startup\.test\.js\s+npm run test:ui\s+npm run test:controls/);
+  assert.match(workflow, /name: Verify targeted drawer release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'drawers'\s+run: \|\s+node --test scripts\/deploy-vm-metadata\.test\.js server\/modules\/runtime\/database-startup\.test\.js\s+npm run test:ui\s+npm run test:controls/);
   assert(workflow.indexOf('name: Verify targeted drawer release') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   assert.match(workflow, /name: Install WebKit for native time field checks\s+if: github.event_name != 'workflow_dispatch' \|\| inputs.verification == 'full'/);
   assert(workflow.includes("if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'"));

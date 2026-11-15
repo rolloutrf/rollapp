@@ -1,14 +1,14 @@
-import { CharacterTraits } from "@/components/character-traits";
-import { EditableLifeStrategy } from "@/components/editable-life-strategy";
-import { FourQuestions } from "@/components/four-questions";
-import { GallupProfile } from "@/components/gallup-profile";
-import { IdealState } from "@/components/ideal-state";
-import { IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportStatus } from "@/components/identity-report-manager";
-import { IdentityReportsPage } from "@/components/identity-reports-page";
-import { Mission } from "@/components/mission";
-import { PersonalDevelopmentPlan } from "@/components/personal-development-plan";
-import { Principles, Theses } from "@/components/theses";
-import { Values } from "@/components/values";
+import { CharacterTraits } from "@/modules/identity/character-traits.jsx";
+import { EditableLifeStrategy } from "@/modules/identity/editable-life-strategy.jsx";
+import { FourQuestions } from "@/modules/identity/four-questions.jsx";
+import { GallupProfile } from "@/modules/identity/gallup-profile.jsx";
+import { IdealState } from "@/modules/identity/ideal-state.jsx";
+import { IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportStatus } from "@/modules/identity/identity-report-manager.jsx";
+import { IdentityReportsPage } from "@/modules/identity/identity-reports-page.jsx";
+import { Mission } from "@/modules/identity/mission.jsx";
+import { PersonalDevelopmentPlan } from "@/modules/identity/personal-development-plan.jsx";
+import { Principles, Theses } from "@/modules/identity/theses.jsx";
+import { Values } from "@/modules/identity/values.jsx";
 
 function HoganReport({ reportState: { state, error, load } }) {
   if (state.mode === "loading" || state.mode === "error") {

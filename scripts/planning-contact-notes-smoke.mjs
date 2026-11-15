@@ -5,7 +5,7 @@ import { browserLaunchOptions } from "./browser-runtime.mjs";
 const server = await createServer({ cacheDir: "node_modules/.vite-contact-notes", server: { host: "127.0.0.1", port: 5397, strictPort: false, hmr: false, watch: null }, plugins: [{
   name: "planning-contact-notes", transform(source, id) {
     if (id.includes("planning-space.jsx?drawer-smoke-export=TaskEditor")) return `${source}\nexport { TaskEditor };`;
-    if (id.includes("App.jsx?planning-contact-notes")) return `${source}\nexport { ContactEditForm, ToastContext };`;
+    if (id.includes("App.jsx?planning-contact-notes")) return `${source}\nexport { ContactEditForm } from \"./modules/contacts/contacts-page.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
   }, configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith("/__contact-notes")) return next();
     res.setHeader("Content-Type", "text/html");

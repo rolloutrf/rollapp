@@ -1,6 +1,6 @@
 import "dotenv/config";
 import dotenv from "dotenv";
-import { loadLockboxValue } from "../server/lockbox.js";
+import { loadLockboxValue } from "../server/modules/runtime/lockbox.js";
 
 export async function productionRollsDatabase() {
   dotenv.config({ path: ".env.local", override: false, quiet: true });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUp, MessageCircle, Search, Send, X } from 'lucide-react';
-import { ASSISTANT_MESSAGE_LIMIT } from '../../shared/messenger-assistant.js';
-import { api } from '../api.js';
+import { ASSISTANT_MESSAGE_LIMIT } from '../../shared/modules/assistant/messenger-assistant.js';
+import { api } from '../modules/runtime/api.js';
 import { ComposerField } from './composer-field';
 import { ControlBar } from './control-bar';
 import { Button } from './ui/button';

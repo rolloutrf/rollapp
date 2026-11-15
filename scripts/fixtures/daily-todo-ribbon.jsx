@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, useSearchParams } from 'react-router-dom';
-import { RelatedChoiceCard } from '@/components/planning-related-card';
-import { PlanningDailyTodo } from '@/components/planning-daily-todo';
-import { PlanningCalendar } from '@/components/planning-calendar';
-import { PlanningSpaceCreator, PlanningSpaceMenu } from '@/components/planning-space-switcher';
-import { TaskEditor } from '@/components/planning-space.jsx?drawer-smoke-export=TaskEditor';
+import { RelatedChoiceCard } from '@/modules/planning/planning-related-card.jsx';
+import { PlanningDailyTodo } from '@/modules/daily-todo/planning-daily-todo.jsx';
+import { PlanningCalendar } from '@/modules/calendar/planning-calendar.jsx';
+import { PlanningSpaceCreator, PlanningSpaceMenu } from '@/modules/planning/planning-space-switcher.jsx';
+import { TaskEditor } from '@/modules/planning/planning-space.jsx?drawer-smoke-export=TaskEditor';
 import { MobileFormPages } from '@/components/mobile-form-pages';
 import { useVisualViewport } from '@/hooks/use-visual-viewport';
-import { localDateKey } from '../../shared/planning.js';
+import { localDateKey } from '../../shared/modules/planning/planning.js';
 import '../../src/styles.css';
 import '../../src/index.css';
-import '../../src/components/planning-space.css';
+import '../../src/modules/planning/planning-space.css';
 function RelatedCardsFixture(){
  const [selected,setSelected]=useState(true);
  const [previewIds,setPreviewIds]=useState(Array.from({length:12},(_,i)=>i));

@@ -1,15 +1,15 @@
 import React, { useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import App from "@/App.jsx";
-import { api } from "@/api.js";
+import { api } from "@/modules/runtime/api.js";
 import { createRoot } from "react-dom/client";
-import { RegistrationAccountFields } from "@/components/registration-account-fields";
-import { BusinessRequestScopeFields } from "@/components/business-request-scope-fields";
+import { RegistrationAccountFields } from "@/modules/auth/registration-account-fields.jsx";
+import { BusinessRequestScopeFields } from "@/modules/access/business-request-scope-fields.jsx";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { businessRequestSpheres } from "../../shared/business-accounts.js";
-import { SPHERE_SECTIONS } from "../../shared/sphere-sharing.js";
+import { businessRequestSpheres } from "../../shared/modules/catalog-marketplace/business-accounts.js";
+import { SPHERE_SECTIONS } from "../../shared/modules/access/sphere-sharing.js";
 import "../../src/styles.css";
 import "../../src/index.css";
 

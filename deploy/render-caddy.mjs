@@ -1,4 +1,4 @@
-import { SPHERE_APPLICATIONS } from "../shared/applications.js";
+import { SPHERE_APPLICATIONS } from "../shared/modules/shell/applications.js";
 
 const common = `  encode zstd gzip
   header {

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getSchema } from "@tiptap/core";
 import { EditorState, NodeSelection, TextSelection } from "@tiptap/pm/state";
-import { inlineEditorExtensions } from "./inline-editor-extensions.js";
+import { inlineEditorExtensions } from "../modules/rich-documents/inline-editor-extensions.js";
 import { inlinePlaceholderDecorations } from "./inline-placeholder.js";
 
 const schema = getSchema(inlineEditorExtensions());

@@ -6,9 +6,9 @@ const root = new URL("../../", import.meta.url);
 
 test("identity reports keep their narrow-screen layout contract", async () => {
   const [styles, productStyles, gallup] = await Promise.all([
-    readFile(new URL("src/identity-reports.css", root), "utf8"),
+    readFile(new URL("src/modules/identity/identity-reports.css", root), "utf8"),
     readFile(new URL("src/index.css", root), "utf8"),
-    readFile(new URL("src/components/gallup-profile.jsx", root), "utf8"),
+    readFile(new URL("src/modules/identity/gallup-profile.jsx", root), "utf8"),
   ]);
   const phoneStyles = styles.slice(
     styles.indexOf("@media (max-width: 760px)"),

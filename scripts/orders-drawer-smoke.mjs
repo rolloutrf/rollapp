@@ -6,7 +6,7 @@ import { chromium } from "playwright-core";
 import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
-import { APP_ORDERS_PATH, APP_STORE_PATH } from "../src/lib/app-routing.js";
+import { APP_ORDERS_PATH, APP_STORE_PATH } from "../src/modules/shell/app-routing.js";
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-orders-drawer-smoke",
@@ -15,7 +15,7 @@ const server = await createServer({
     name: "orders-drawer-fixture",
     enforce: "pre",
     transform(code, id) {
-      if (id.endsWith("/src/api.js")) return code + "\nObject.assign(api, window.ordersDrawerFixture.api);";
+      if (id.endsWith("/src/modules/runtime/api.js")) return code + "\nObject.assign(api, window.ordersDrawerFixture.api);";
     },
   }],
 });

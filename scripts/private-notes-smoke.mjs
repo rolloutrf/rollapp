@@ -12,7 +12,7 @@ const server = await createServer({
     name: "private-notes-fixture",
     transform(source, id) {
       if (id.endsWith("/src/App.jsx?notes-chrome")) {
-        return source + "\nexport { AppShell, CollectionNavigationContext, GlobalAppChrome, SessionContext, ToastContext };";
+        return source + "\nexport { AppShell } from \"./modules/shell/app-shell.jsx\";\nexport { CollectionNavigationContext } from \"./modules/categories/collection-navigation.jsx\";\nexport { GlobalAppChrome } from \"./modules/shell/app-chrome.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";";
       }
     },
     configureServer(vite) {

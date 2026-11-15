@@ -9,7 +9,7 @@ import { smokeMode } from "./smoke-mode.mjs";
 import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import {checkLinkIntent} from "./text-link-intent-checks.mjs";
 import { checkQuoteStyles, checkStatementAlignment } from "./text-quote-style-checks.mjs";
-import {blockTypes} from "../src/lib/inline-block-types.js";
+import {blockTypes} from "../src/modules/rich-documents/inline-block-types.js";
 import {checkImageTransfer} from "./text-image-transfer-checks.mjs";
 import {checkImageResize} from "./text-image-resize-checks.mjs";
 import {checkImages,checkImageLayout,checkImageReaders,checkImageContexts,imageFixturePNG} from "./text-image-checks.mjs";
@@ -65,7 +65,7 @@ const only = smokeMode(process.argv.slice(2), ["--statement-alignment-only", "--
 const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", ...smokeBaseUiDependencies, "date-fns/locale", "next-themes", "react-day-picker", "qrcode", "@ui-sdk/core", "@ui-sdk/react/agent", "@ui-sdk/react/primitive"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
-    if (id.endsWith('/src/api.js')) {
+    if (id.endsWith('/src/modules/runtime/api.js')) {
       const start = source.indexOf('  uploadImage: ');
       const end = source.indexOf('  resolveContactAvatar:', start);
       assert(start >= 0 && end > start, 'Cannot locate the image upload method in the API fixture');
@@ -79,8 +79,8 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
       return source.replace('delete: (path) => request(path, { method: "DELETE" }),',`delete: path => {if(window.inlineImageFixture&&path.startsWith('/uploads/images/')){window.inlineImageFixture.releases.push(path);return Promise.resolve({ok:true});}return request(path,{method:'DELETE'});},`);
     }
 
-    if (id.endsWith("/src/App.jsx?text-chrome")) return `${source}\nexport { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext, TabbedSpherePage, IDENTITY_TABS };`;
-    if (id.endsWith("/src/components/career-content.jsx")) {
+    if (id.endsWith("/src/App.jsx?text-chrome")) return `${source}\nexport { GlobalAppChrome } from \"./modules/shell/app-chrome.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";\nexport { CollectionNavigationContext } from \"./modules/categories/collection-navigation.jsx\";\nexport { TabbedSpherePage } from \"./modules/shell/sphere-page.jsx\";\nexport { IDENTITY_TABS };`;
+    if (id.endsWith("/src/modules/career/career-content.jsx")) {
       const start = source.indexOf("export function useCareerContent(");
       const end = source.indexOf("export function CareerContentError", start);
       return source.slice(0, start) + `export function useCareerContent(section, fallback) {
@@ -96,10 +96,10 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
         return { content, loading, error: "", retry() {}, save: async value => { window.inlineTest.saves.push(value); window.inlineTest.saved = value; setContent(value); return value; } };
       }\n` + source.slice(end);
     }
-    if (id.endsWith("/src/lib/sphere-sharing.jsx")) return source
+    if (id.endsWith("/src/modules/access/sphere-sharing.jsx")) return source
       .replace("owner: null,", 'owner: { id: "inline-fixture" },')
       .replace("readOnly: false,", 'readOnly: new URLSearchParams(location.search).has("statement-readonly"),');
-    if (id.endsWith("/src/components/four-questions.jsx?text-edit")) return `${source}\nexport { FourQuestionDocument };`; },
+    if (id.endsWith("/src/modules/identity/four-questions.jsx?text-edit")) return `${source}\nexport { FourQuestionDocument };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (req.url === "/__inline-image.png") { res.setHeader("Content-Type","image/png");res.end(imageFixturePNG);return; }
     if (!req.url.startsWith("/__text-edit") && !(/^\/app\/spheres\/(?:career|identity)\?/.test(req.url) && new URL(req.url,"http://127.0.0.1").searchParams.has("__text_fixture"))) return next();

@@ -6,11 +6,14 @@ import {browserLaunchOptions} from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-navigation-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
  name:'navigation-fixture',enforce:'pre',
  transform(source,id){
-  if(!id.endsWith('/src/App.jsx?navigation-smoke'))return;
+  if(!id.endsWith('/src/App.jsx?navigation-smoke') && !id.endsWith('/src/modules/social/friends-page.jsx'))return;
+  if(id.endsWith('/src/modules/social/friends-page.jsx')){
   // Exercise the real FriendsPage with empty presentation data and no API.
   const fixture=source.replace(/api\.get\(`\/people\?scope=[^\n]+\)/,'Promise.resolve({ people: [] })');
   assert.notEqual(fixture,source,'Friends loader was not isolated');
-  return fixture+'\nexport {FriendsPage,GlobalAppChrome,PlanningFab,SessionContext,ToastContext,CollectionNavigationContext};';
+  return fixture;
+  }
+  return source+'\nexport { FriendsPage } from \"./modules/social/friends-page.jsx\";\nexport { GlobalAppChrome } from \"./modules/shell/app-chrome.jsx\";\nexport { PlanningFab } from \"./modules/planning/planning-fab.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";\nexport { CollectionNavigationContext } from \"./modules/categories/collection-navigation.jsx\";';
  },
  configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/app/'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/mobile-navigation.jsx"></script></body></html>'));});}
 }]});

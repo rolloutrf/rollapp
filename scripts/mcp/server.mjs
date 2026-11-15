@@ -1,7 +1,7 @@
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
-import { createRollappApi, mcpConfig } from "../../server/mcp-api.js";
+import { createRollappApi, mcpConfig } from "../../server/modules/runtime/mcp-api.js";
 import { readSession } from "./session.js";
-import { createRollappMcp } from "../../server/mcp-tools.js";
+import { createRollappMcp } from "../../server/modules/runtime/mcp-tools.js";
 
 try {
   const args = process.argv.slice(2);

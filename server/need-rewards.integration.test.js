@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
-import { ROLLS_MAX_BALANCE } from "../shared/rolls.js";
+import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 import { createHash } from "node:crypto";
-import { processRewardProof } from "./reward-proof-queue.js";
+import { processRewardProof } from "./modules/loyalty/reward-proof-queue.js";
 import express from "express";
-import { registerRollsRoutes } from "./rolls-routes.js";
-import { createRewardNeed, createRewardOffer, actOnRewardOffer, readRewardNeeds, closeRewardNeed, resolveRewardDispute, registerNeedRewardsRoutes, expireRewardOffer } from "./need-rewards.js";
-import { ensureRollWallet, readRollWallet } from "./rolls.js";
+import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
+import { createRewardNeed, createRewardOffer, actOnRewardOffer, readRewardNeeds, closeRewardNeed, resolveRewardDispute, registerNeedRewardsRoutes, expireRewardOffer } from "./modules/loyalty/need-rewards.js";
+import { ensureRollWallet } from "./modules/payments/rolls.js";
+import { readRollWallet } from "./modules/history/wallet-history.js";
 
 test("funded need rewards on verified production PostgreSQL; all writes rolled back, no schema initialization", { skip: process.env.ROLLAPP_TEST_NEED_REWARDS !== "1" }, async t => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

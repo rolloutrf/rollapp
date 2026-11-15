@@ -1,6 +1,7 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
-import { grantWelcomeRolls, rollsSchema } from "../server/rolls.js";
-import { ROLLS_WELCOME_AMOUNT } from "../shared/rolls.js";
+import { grantWelcomeRolls } from "../server/modules/loyalty/roll-rewards.js";
+import { rollsSchema } from "../server/modules/payments/rolls.js";
+import { ROLLS_WELCOME_AMOUNT } from "../shared/modules/payments/rolls.js";
 
 const db = await productionRollsDatabase();
 try {

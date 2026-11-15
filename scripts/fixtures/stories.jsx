@@ -1,10 +1,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { StoryAvatar } from '@/components/story-avatar';
+import { StoryAvatar } from '@/modules/profile/story-avatar.jsx';
 import { MobileFormPages } from '@/components/mobile-form-pages';
 import { useVisualViewport } from '@/hooks/use-visual-viewport';
-import { api } from '@/api';
+import { api } from '@/modules/runtime/api.js';
 import '../../src/styles.css';
 import '../../src/index.css';
 // Explicit test-only transport; never invoked outside this fixture. No API/DB calls.

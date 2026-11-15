@@ -107,7 +107,7 @@
     "test:gifts:production": "ROLLAPP_TEST_GIFT_CARDS=1 node --test server/gift-cards.integration.test.js",
     "check:release:gift-cards": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:gifts && npm run build",
     "test:stories": "node scripts/stories-smoke.mjs",
-    "test:need-rewards": "node --test server/need-rewards.test.js server/reward-blockchain-proof.test.js",
+    "test:need-rewards": "node --test server/modules/loyalty/need-rewards.test.js server/modules/loyalty/reward-blockchain-proof.test.js",
     "test:need-rewards:production": "ROLLAPP_TEST_NEED_REWARDS=1 node --test server/need-rewards.integration.test.js",
     "db:migrate:need-rewards": "node scripts/migrate-need-rewards.mjs",
     "test:reward-proofs": "node scripts/reward-proof-codec-check.mjs",

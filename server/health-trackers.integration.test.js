@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import express from "express";
-import { registerHealthTrackerRoutes } from "./health-trackers.js";
+import { registerHealthTrackerRoutes } from "./modules/health/health-trackers.js";
 
 test("health trackers persist, reload and isolate owners in a rollback-only production transaction", { skip: process.env.ROLLAPP_TEST_HEALTH !== "1" }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");

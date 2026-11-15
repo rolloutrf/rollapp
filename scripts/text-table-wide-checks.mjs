@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { MarkdownManager } from '@tiptap/markdown';
-import { inlineEditorExtensions } from '../src/lib/inline-editor-extensions.js';
+import { inlineEditorExtensions } from '../src/modules/rich-documents/inline-editor-extensions.js';
 const p=value=>({type:'paragraph',content:[{type:'text',text:value}]});
 const source=new MarkdownManager({extensions:inlineEditorExtensions()}).serialize({type:'doc',content:[p('Заметки'),p('Широкая таблица'),{type:'table',content:Array.from({length:4},(_,row)=>({type:'tableRow',content:Array.from({length:6},(_,col)=>({type:row===0?'tableHeader':'tableCell',attrs:{colwidth:[200],blockColor:col===1?'blue_background':null},content:[p(`R${row}C${col}`),p(`Деталь ${row}:${col}`)]}))}))},p('Сосед после таблицы')]});
 export async function checkWideTable(browser,origin){

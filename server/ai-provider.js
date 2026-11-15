@@ -1,7 +1,7 @@
-import { resolveOpenRouterCredential } from './openrouter-credential.js';
-import { resolveOpenRouterModel } from './openrouter-settings.js';
-import { DEFAULT_MODEL } from './openrouter-marketplace-offers.js';
-import { yandexAiConfig } from './yandex-ai.js';
+import { resolveOpenRouterCredential } from './modules/assistant/openrouter-credential.js';
+import { resolveOpenRouterModel } from './modules/assistant/openrouter-settings.js';
+import { DEFAULT_MODEL } from './modules/assistant/openrouter-marketplace-offers.js';
+import { yandexAiConfig } from './modules/assistant/yandex-ai.js';
 
 export function resolveAiCredential(credential, { userId, env = process.env } = {}) {
   const resolved = resolveOpenRouterCredential(credential, { userId, env, serverApiKey: env.OPENROUTER_API_KEY || '' });

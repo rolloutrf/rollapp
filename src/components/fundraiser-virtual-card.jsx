@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { formatRolls } from "../../shared/rolls.js";
+import { formatRolls } from "../../shared/modules/payments/rolls.js";
 import { issueVirtualCard, listVirtualCards, purchaseWithVirtualCard, syncVirtualCard } from "@/lib/virtual-card-emulator";
 
 export function FundraiserVirtualCard({ fundraiser, ownerId, groupTitle, busy, children }) {

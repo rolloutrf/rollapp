@@ -1,6 +1,6 @@
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
-import { api } from "@/api";
+import { api } from "@/modules/runtime/api.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,9 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ControlBar } from "@/components/control-bar";
-import { BUSINESS_CATEGORIES, canBusinessAccessSection } from "../../shared/business-accounts.js";
-import { SPHERE_SECTIONS } from "../../shared/sphere-sharing.js";
-import { formatRolls } from "../../shared/rolls.js";
+import { BUSINESS_CATEGORIES, canBusinessAccessSection } from "../../shared/modules/catalog-marketplace/business-accounts.js";
+import { SPHERE_SECTIONS } from "../../shared/modules/access/sphere-sharing.js";
+import { formatRolls } from "../../shared/modules/payments/rolls.js";
 
 export const durations = [["1", "1 час"], ["24", "24 часа"], ["72", "3 дня"], ["168", "7 дней"], ["720", "30 дней"]];
 const itemSpheres = BUSINESS_CATEGORIES.filter(({ sphere }) => sphere !== "wishlist").map(({ sphere, sphereLabel }) => [sphere, sphereLabel]);

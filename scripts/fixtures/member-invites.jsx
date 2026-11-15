@@ -1,8 +1,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { MemberNumberPage } from "@/components/member-number-page";
-import { InvitesManager } from "@/components/invites-manager";
+import { MemberNumberPage } from "@/modules/profile/member-number-page.jsx";
+import { InvitesManager } from "@/modules/auth/invites-manager.jsx";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { RegistrationForm, ProfileSettingsModal, SessionContext, ToastContext } from "@/App.jsx?member-invites-smoke";
 import "../../src/styles.css";

@@ -14,19 +14,19 @@ const readOptional = async (file) => {
   }
 };
 
-const [configText, packageText, app, agents, coachingSessionsSource, conferencesSource, coursesSource, lifeStrategySource, labResultsSource, performanceReviewSource, medicationsSource, workoutsSource, theme, typeset, legacyStyles, html, main, vite, jsconfigText] = await Promise.all([
+const [configText, packageText, appRouter, agents, coachingSessionsSource, conferencesSource, coursesSource, lifeStrategySource, labResultsSource, performanceReviewSource, medicationsSource, workoutsSource, theme, typeset, legacyStyles, html, main, vite, jsconfigText] = await Promise.all([
   read("components.json"),
   read("package.json"),
   read("src/App.jsx"),
   readOptional("AGENTS.md"),
-  read("src/components/coaching-sessions.jsx"),
-  read("src/components/conferences.jsx"),
-  read("src/components/courses.jsx"),
-  read("src/components/life-strategy.jsx"),
-  read("src/components/lab-results.jsx"),
-  read("src/components/performance-review.jsx"),
-  read("src/components/medications.jsx"),
-  read("src/components/workouts.jsx"),
+  read("src/modules/education/coaching-sessions.jsx"),
+  read("src/modules/education/conferences.jsx"),
+  read("src/modules/education/courses.jsx"),
+  read("src/modules/identity/life-strategy.jsx"),
+  read("src/modules/health/lab-results.jsx"),
+  read("src/modules/career/performance-review.jsx"),
+  read("src/modules/health/medications.jsx"),
+  read("src/modules/health/workouts.jsx"),
   read("src/index.css"),
   read("src/typeset.css"),
   read("src/styles.css"),
@@ -35,6 +35,66 @@ const [configText, packageText, app, agents, coachingSessionsSource, conferences
   read("vite.config.js"),
   read("jsconfig.json"),
 ]);
+const appSources = [
+  "src/modules/access/private-sphere-route.jsx",
+  "src/modules/access/sphere-access.jsx",
+  "src/modules/assistant/gift-suggestions.jsx",
+  "src/modules/auth/auth-pages.jsx",
+  "src/modules/auth/session.jsx",
+  "src/modules/card/price.jsx",
+  "src/modules/card/wish-card.jsx",
+  "src/modules/card/wish-details.jsx",
+  "src/modules/catalog-marketplace/catalog-page-header.jsx",
+  "src/modules/catalog-marketplace/catalog-scope.jsx",
+  "src/modules/catalog-marketplace/store-cats.jsx",
+  "src/modules/catalog-marketplace/wish-catalog.jsx",
+  "src/modules/categories/collection-navigation.jsx",
+  "src/modules/categories/wish-spaces.jsx",
+  "src/modules/checkout/store-page.jsx",
+  "src/modules/contacts/contacts-page.jsx",
+  "src/modules/identification/phone-otp.jsx",
+  "src/modules/loyalty/wish-reward.jsx",
+  "src/modules/planning/planning-fab.jsx",
+  "src/modules/profile/profile-editor.jsx",
+  "src/modules/profile/profile-hero.jsx",
+  "src/modules/profile/profile-portrait.jsx",
+  "src/modules/profile/profile-redirect.jsx",
+  "src/modules/profile/profile-settings.jsx",
+  "src/modules/profile/public-pages.jsx",
+  "src/modules/shell/app-chrome.jsx",
+  "src/modules/shell/app-shell.jsx",
+  "src/modules/shell/brand.jsx",
+  "src/modules/shell/document-scroll.jsx",
+  "src/modules/shell/global-share.jsx",
+  "src/modules/shell/home-path.jsx",
+  "src/modules/shell/page-feedback.jsx",
+  "src/modules/shell/screen-navigation.jsx",
+  "src/modules/shell/service-menu.jsx",
+  "src/modules/shell/sphere-page.jsx",
+  "src/modules/shell/toast.jsx",
+  "src/modules/shell/use-async.jsx",
+  "src/modules/social/friends-link.jsx",
+  "src/modules/social/friends-page.jsx",
+  "src/modules/wishlist/media-notes.jsx",
+  "src/modules/wishlist/public-wishlist.jsx",
+  "src/modules/wishlist/wish-actions.jsx",
+  "src/modules/wishlist/wish-delete-alert.jsx",
+  "src/modules/wishlist/wish-editor.jsx",
+  "src/modules/wishlist/wish-form-data.jsx",
+  "src/modules/wishlist/wish-group.jsx",
+  "src/modules/wishlist/wish-navigation.jsx",
+  "src/modules/wishlist/wish-preview.jsx",
+  "src/modules/wishlist/wishes-page.jsx"
+];
+const surfaces = Object.fromEntries(await Promise.all(appSources.map(async file => [file, await read(file)])));
+const app = [...Object.values(surfaces), appRouter].join("\n");
+function appComponentSource(file, name, endName) {
+  const source = surfaces[file];
+  const start = source.indexOf("function " + name + "(");
+  assert(start >= 0, name + " must exist in " + file);
+  const end = endName ? source.indexOf("function " + endName + "(", start + 1) : -1;
+  return source.slice(start, end === -1 ? undefined : end);
+}
 const spacing = await read("src/spacing.css");
 const pageActionButton = await read("src/components/page-action-button.jsx");
 assert.match(pageActionButton, /cn\(className, "min-h-\(--layout-control-size\) rounded-full px-6 has-data-\[icon=inline-start\]:pl-6 has-data-\[icon=inline-end\]:pr-6"\)/, "PageActionButton must use the shared control token and 24px padding after caller classes, including icons and loading spinners");
@@ -43,27 +103,28 @@ assert(!/--layout-(?:navigation|planning)-control\b/.test(spacing), "Do not rest
 const controlBar = await read("src/components/control-bar.jsx");
 assert.match(controlBar, /data-control-bar/, "ControlBar must expose the shared sizing boundary");
 for (const [file, classes] of [
-  ["src/App.jsx", ["global-app-chrome", "mobile-app-navigation", "planning-fab-controls"]],
-  ["src/components/planning-calendar.jsx", ["schedule-toolbar"]],
-  ["src/components/planning-daily-todo.jsx", ["daily-todo__toolbar"]],
+  ["src/modules/shell/app-chrome.jsx", ["global-app-chrome", "mobile-app-navigation"]],
+  ["src/modules/planning/planning-fab.jsx", ["planning-fab-controls"]],
+  ["src/modules/calendar/planning-calendar.jsx", ["schedule-toolbar"]],
+  ["src/modules/daily-todo/planning-daily-todo.jsx", ["daily-todo__toolbar"]],
   ["src/components/content-page.jsx", ["mobile-content-page__nav"]],
   ["src/components/mobile-form-pages.jsx", ["mobile-content-page__nav"]],
 ]) {
   const source = await read(file);
   for (const name of classes) assert.match(source, new RegExp(`<ControlBar\\b[^>]*className="${name}"`), `${file}: ${name} must use ControlBar`);
 }
-const dailyTodo = await read("src/components/planning-daily-todo.jsx");
+const dailyTodo = await read("src/modules/daily-todo/planning-daily-todo.jsx");
 const dayRibbon = await read("src/components/planning-day-ribbon.jsx");
 assert.match(dailyTodo, /<PlanningDayRibbon\b/, "To Do must use the shared day ribbon");
 assert.match(dayRibbon, /<div\b[^>]*className="daily-todo__ribbon horizontal-tile-scroller"/, "Desktop date content tiles must stay outside 48px ControlBar geometry");
 assert.match(dayRibbon, /data-list-tile="" className="daily-todo__day"/, "Desktop dates must use the shared standard tile styling");
-assert.match(await read("src/components/wish-list-navigation.jsx"), /list-tabs horizontal-tile-scroller/, "Wishlist must share tile-rail edges with day ribbons");
-for (const file of ["education-lists", "medications", "identity-reports-page", "lab-results", "performance-review"]) {
-  const source = await read(`src/components/${file}.jsx`);
+assert.match(await read("src/modules/categories/wish-list-navigation.jsx"), /list-tabs horizontal-tile-scroller/, "Wishlist must share tile-rail edges with day ribbons");
+for (const file of ["education/education-lists", "health/medications", "identity/identity-reports-page", "health/lab-results", "career/performance-review"]) {
+  const source = await read(`src/modules/${file}.jsx`);
   assert.match(source, /<WishListNavigation\b/, `${file}: reuse the Wishlist tile rail and per-tile actions`);
   assert.doesNotMatch(source, />\s*Настрой(?:ки|ть) (?:списка|список|группы)\s*<\//, `${file}: keep list settings on the tile`);
 }
-assert.doesNotMatch(await read("src/components/planning-daily-todo.css"), /mask(?:-image)?\s*:/, "Day rails cannot add a local fading mask");
+assert.doesNotMatch(await read("src/modules/daily-todo/planning-daily-todo.css"), /mask(?:-image)?\s*:/, "Day rails cannot add a local fading mask");
 assert.match(agents, /Use `PageActionButton`/, "Workspace instructions must document the shared text-action button contract");
 const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);
@@ -200,7 +261,7 @@ for (const page of ["TabbedSpherePage", "ContactsSpherePage", "FriendsPage"]) {
   const start = app.indexOf(`function ${page}(`);
   assert.notEqual(start, -1, `Missing ${page} composition`);
   const end = app.indexOf("\nfunction ", start + 1);
-  assert.match(app.slice(start, end), /app-page[^"`]*typeset typeset-rollapp/, `${page} must use the Rollapp content preset`);
+  assert.match(app.slice(start, end === -1 ? undefined : end), /app-page[^"`]*typeset typeset-rollapp/, `${page} must use the Rollapp content preset`);
 }
 assert.match(legacyStyles, /\.contact-card__bio-text\s*\{[\s\S]*?white-space:\s*normal;[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?text-wrap:\s*pretty;/, "Contact roles must wrap inside their cards");
 assert.match(legacyStyles, /\.contact-card__avatar\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?justify-self:\s*start;/, "Contact avatars must stay aligned to the left edge of every card");
@@ -324,10 +385,10 @@ for (const component of ["Alert", "Badge", "Button", "Card", "Accordion", "Input
   assert(new RegExp(`<${component}\\b`).test(labResultsSource), `LabResults must compose the official shadcn ${component}`);
 }
 assert.match(labResultsSource, /<WishListNavigation\b/, "LabResults must use the shared list tile navigation");
-const snippetMediaSource = await read("src/components/collection-snippet-media.jsx");
+const snippetMediaSource = await read("src/modules/card/collection-snippet-media.jsx");
 assert.match(snippetMediaSource, /import \{ Badge \} from "@\/components\/ui\/badge"/, "CollectionSnippetBadge must use the official Badge primitive");
 assert.match(snippetMediaSource, /<Badge\b/, "CollectionSnippetBadge must compose the official Badge");
-const snippetLinkSource = await read("src/components/collection-snippet-link.jsx");
+const snippetLinkSource = await read("src/modules/card/collection-snippet-link.jsx");
 assert.match(snippetLinkSource, /cn\(buttonVariants\(/, "Snippet links must merge official button variants through cn");
 assert.match(coachingSessionsSource, /<CollectionSnippetLink\b/, "Coaching must use the shared wrapping snippet link");
 assert.match(JSON.parse(packageText).scripts["check:release"], /npm run test:snippets/, "The complete snippets matrix must remain a release gate");
@@ -368,7 +429,7 @@ const healthPlaceholderSource = await read("src/applications/health/sections.jsx
 for (const component of ["Empty", "EmptyHeader", "EmptyMedia", "EmptyTitle", "EmptyDescription", "EmptyContent", "Badge"]) {
   assert(new RegExp(`<${component}\\b`).test(healthPlaceholderSource), `Health placeholders must compose the official shadcn ${component}`);
 }
-const logoSource = app.slice(app.indexOf("function Logo"), app.indexOf("function ProfilePortrait"));
+const logoSource = appComponentSource("src/modules/shell/brand.jsx", "LogoMark", "SphereSwitcher");
 assert.match(logoSource, /aria-label="Rollapp — в приложение"/, "The mark-only logo must keep its accessible name");
 assert.match(logoSource, /function LogoMark\(\{ className = "logo__mark" \}\)[\s\S]*<svg\s+className=\{className\}/, "The reusable vector mark must render inline SVG with the navigation logo class by default");
 assert.match(logoSource, /function Logo\([\s\S]*<LogoMark\s*\/>/, "The navigation logo must use the shared vector mark");
@@ -391,11 +452,11 @@ assert(
   /\.global-app-chrome__share\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
   "The topbar Share action must keep its circular 48x48 geometry",
 );
-const friendsLinkSource = app.slice(app.indexOf("function AppFriendsLink"), app.indexOf("function AppProfileButton"));
+const friendsLinkSource = appComponentSource("src/modules/social/friends-link.jsx", "AppFriendsLink");
 assert.equal([...friendsLinkSource.matchAll(/<Link\b/g)].length, 1, "Profile relationships must expose a single link");
 assert.match(friendsLinkSource, /<Link to="\/app\/friends"[^>]*>\s*<Users aria-hidden="true"\s*\/>\s*<span>Друзья<\/span>\s*<\/Link>/, "The profile Friends link must point to the Friends section and keep its decorative icon");
-const relationshipHeroSource = app.slice(app.indexOf("function PersistentProfileHero"), app.indexOf("function CatalogPageHeader"));
-const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
+const relationshipHeroSource = appComponentSource("src/modules/profile/profile-hero.jsx", "PersistentProfileHero");
+const relationshipPublicSource = appComponentSource("src/modules/wishlist/public-wishlist.jsx", "PublicProfile");
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public"]]) {
   assert.match(source, /<div className="wishes-page__hero-copy">\s*<h1\b[^>]*>[^<]*<\/h1>\s*\{[^\n]*<AppFriendsLink\s+memberNumber=\{[^}]+\}\s*\/>\}/, `The ${label} profile must render its shared Friends link directly under the name`);
 }
@@ -463,9 +524,9 @@ for (const file of requiredUiFiles) {
   assert(installedUiFiles.has(file), `Official shadcn component is not installed: ${file}`);
 }
 const calendarSource = await read("src/components/ui/calendar.jsx");
-const datePickerSource = await read("src/components/planning-date-picker.jsx");
-const dailyTodoSource = await read("src/components/planning-daily-todo.jsx");
-const planningSpaceSource = await read("src/components/planning-space.jsx");
+const datePickerSource = await read("src/modules/planning/planning-date-picker.jsx");
+const dailyTodoSource = await read("src/modules/daily-todo/planning-daily-todo.jsx");
+const planningSpaceSource = await read("src/modules/planning/planning-space.jsx");
 assert(dependencies["react-day-picker"] && dependencies["date-fns"], "shadcn Calendar dependencies must be installed");
 assert(/from "react-day-picker"/.test(calendarSource) && /<DayPicker\b/.test(calendarSource), "Calendar must compose React DayPicker as the shadcn component does");
 assert(/from "@\/components\/ui\/calendar"/.test(datePickerSource) && /from "@\/components\/ui\/popover"/.test(datePickerSource), "The planning date picker must compose shadcn Calendar and Popover");
@@ -606,10 +667,10 @@ assert(
   /<Route path="settings" element=\{<Navigate to=\{APP_HOME\} replace \/>\} \/>/.test(app),
   "The retired /app/settings route must redirect to the app home",
 );
-const profileEditorProviderSource = app.slice(app.indexOf("function ProfileEditorProvider"), app.indexOf("function Logo"));
+const profileEditorProviderSource = appComponentSource("src/modules/profile/profile-editor.jsx", "ProfileEditorProvider");
 assert(/<ProfileSettingsModal\b/.test(profileEditorProviderSource), "ProfileEditorProvider must own the profile editor modal");
 assert(/returnFocusRef/.test(profileEditorProviderSource), "ProfileEditorProvider must retain the opener for focus restoration");
-const profileSettingsSource = app.slice(app.indexOf("function ProfileSettingsModal"), app.indexOf("function PublicProfile"));
+const profileSettingsSource = appComponentSource("src/modules/profile/profile-settings.jsx", "ProfileSettingsModal");
 for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "ScrollArea", "DrawerFooter", "FieldGroup"]) {
   assert(new RegExp(`<${component}\\b`).test(profileSettingsSource), `ProfileSettingsModal must compose the official shadcn ${component} directly`);
 }
@@ -655,36 +716,36 @@ assert(/data-\[size=default\]:max-w-xs/.test(alertDialogSource) && /data-\[size=
 assert(!/max-w-none/.test(alertDialogSource), "AlertDialogContent must not contain app-specific fullscreen geometry");
 assert(!/function Modal\b|viewportClassName=/.test(app), "App.jsx must not restore the legacy modal adapter");
 assert(!/nativeButton=\{false\}/.test(app), "Styled links must use native Link/a elements with buttonVariants");
-const appProfileButtonSource = app.slice(app.indexOf("function AppProfileButton"), app.indexOf("function FriendsTopbar"));
+const appProfileButtonSource = appComponentSource("src/modules/shell/app-shell.jsx", "AppProfileButton", "FriendsTopbar");
 assert(/<ShadcnButton\b/.test(appProfileButtonSource), "AppProfileButton must use the official shadcn Button");
 assert(/type="button"/.test(appProfileButtonSource) && /onClick=\{openProfileEditor\}/.test(appProfileButtonSource), "AppProfileButton must open profile editing in place");
 assert(!/<(?:Link|NavLink)\b/.test(appProfileButtonSource), "AppProfileButton must not navigate away from the current screen");
-const wishesProfileHeroSource = app.slice(app.indexOf("function PersistentProfileHero"), app.indexOf("function WishesProfileControls"));
+const wishesProfileHeroSource = appComponentSource("src/modules/profile/profile-hero.jsx", "PersistentProfileHero");
 assert(/<ShadcnButton\b/.test(wishesProfileHeroSource) && /type="button"/.test(wishesProfileHeroSource), "PersistentProfileHero must expose the official profile button");
 assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "PersistentProfileHero must open profile editing in place");
 const listTileContentSource = await read("src/components/list-tile-content.jsx");
 assert.doesNotMatch(listTileContentSource, /style=/, "List tile typography belongs to shared CSS, never inline styles");
-for (const file of ["src/components/wish-list-navigation.jsx", "src/components/planning-day-ribbon.jsx"]) {
+for (const file of ["src/modules/categories/wish-list-navigation.jsx", "src/components/planning-day-ribbon.jsx"]) {
   const source = await read(file);
   assert(source.includes('@/components/list-tile-content'), `${file}: reuse shared ListTileContent`);
   assert.doesNotMatch(source, /LIST_TILE_STYLE|function ListTileContent/, `${file}: do not copy list-tile geometry or content`);
 }
 assert(/data-slot="list-tile-label"/.test(listTileContentSource) && /data-slot="list-tile-meta"/.test(listTileContentSource) && /data-slot="list-tile-count"/.test(listTileContentSource), "List tiles must reserve separate title and count rows");
 assert(/data-slot="list-tile-meta"[\s\S]*?<LockKeyhole\b[\s\S]*?data-slot="list-tile-count"/.test(listTileContentSource), "Private-list icon must share the metadata row instead of consuming a third tile row");
-const wishListNavigation = await read("src/components/wish-list-navigation.jsx");
+const wishListNavigation = await read("src/modules/categories/wish-list-navigation.jsx");
 assert((app.match(/<WishListNavigation\b/g) || []).length === 2 && (wishListNavigation.match(/<ListTile\b/g) || []).length === 2, "Personal and public collection tiles must share the overlap-safe list-tile composition");
-const catalogBrandAttributionSource = app.slice(app.indexOf("function CatalogBrandAttribution"), app.indexOf("function CatalogWishCard"));
+const catalogBrandAttributionSource = appComponentSource("src/modules/catalog-marketplace/wish-catalog.jsx", "CatalogBrandAttribution", "CatalogWishCard");
 assert(/const label = String\(brand\?\.label \|\| ""\)\.trim\(\)/.test(catalogBrandAttributionSource), "Catalog attribution must use the product's verified brand label");
 assert(/<AvatarImage src=\{brand\.logoUrl \|\| undefined\}/.test(catalogBrandAttributionSource), "Catalog attribution must use the brand's own logo");
 assert(/aria-label=\{`Бренд товара: \$\{label\}`\}/.test(catalogBrandAttributionSource), "Catalog brand attribution must expose an accessible label");
 assert(!/OhMyWishes|source\.(?:label|logoUrl|homeUrl)|Каталог \{/.test(catalogBrandAttributionSource), "Catalog brand attribution must not fall back to provider branding");
-const catalogWishCardSource = app.slice(app.indexOf("function CatalogWishCard"), app.indexOf("function CatalogWishDetailsContent"));
-const wishlistSnippetSource = await read("src/components/wishlist-snippet.jsx");
+const catalogWishCardSource = appComponentSource("src/modules/catalog-marketplace/wish-catalog.jsx", "CatalogWishCard", "CatalogWishDetailsContent");
+const wishlistSnippetSource = await read("src/modules/card/wishlist-snippet.jsx");
 const wishlistSnippetStyles = await read("src/components/wishlist-snippet.css");
-const businessItemSource = (await read("src/components/wishlist-business.jsx")).split("function BusinessItem(")[1].split("function ItemDetails(")[0];
-const storeSnippetSource = app.slice(app.indexOf("function StorePage("), app.indexOf("function ProtectedWishlistBusiness("));
-const ownerSnippetSource = app.slice(app.indexOf("function WishCard("), app.indexOf("function SharedWishes("));
-const marketplaceSnippetSource = (await read("src/components/business-marketplace-page.jsx")).split("function MarketplaceItem(")[1].split("function restoredPurchase(")[0];
+const businessItemSource = (await read("src/modules/wishlist/wishlist-business.jsx")).split("function BusinessItem(")[1].split("function ItemDetails(")[0];
+const storeSnippetSource = appComponentSource("src/modules/checkout/store-page.jsx", "StorePage");
+const ownerSnippetSource = appComponentSource("src/modules/card/wish-card.jsx", "WishCard");
+const marketplaceSnippetSource = (await read("src/modules/catalog-marketplace/business-marketplace-page.jsx")).split("function MarketplaceItem(")[1].split("function restoredPurchase(")[0];
 for (const source of [catalogWishCardSource, businessItemSource, storeSnippetSource, ownerSnippetSource, marketplaceSnippetSource]) {
   assert.match(source, /<WishlistSnippet\b/, "All Wishlist and product cards must render the shared snippet");
   assert.doesNotMatch(source, /(?:wish-card__image|catalog-wish-card__body|catalog-wish-card__image|aspect-square)/, "Snippet consumers must use the shared media and body");
@@ -707,7 +768,7 @@ assert(!/catalog-wish-card__source|Открыть исходную ссылку|
 assert(/item\.brand[\s\S]*?<CatalogBrandAttribution brand=\{item\.brand\} \/>/.test(catalogWishCardSource), "Catalog cards must render the verified product brand");
 assert(/!item\.source && <CatalogOwnerStack/.test(catalogWishCardSource), "Community catalog cards must keep participant attribution");
 assert(!/CatalogSourceAttribution|source\.label|source\.logoUrl/.test(catalogWishCardSource), "Catalog cards must not display the external provider's branding");
-const catalogWishDetailsSource = app.slice(app.indexOf("function CatalogWishDetailsContent"), app.indexOf("function CatalogItemPage"));
+const catalogWishDetailsSource = appComponentSource("src/modules/catalog-marketplace/wish-catalog.jsx", "CatalogWishDetailsContent", "CatalogItemPage");
 for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerClose"]) {
   assert(new RegExp(`<${component}\\b`).test(catalogWishDetailsSource), `Catalog details must use the official ${component} primitive`);
 }
@@ -728,7 +789,7 @@ assert(/\bw-full\b/.test(catalogWishMediaImageTag) && /\bh-auto\b/.test(catalogW
 for (const slot of ["wish-price-row", "wish-price", "wish-toolbar", "wish-actions"]) {
   assert(catalogWishDetailsSource.includes(`data-slot="${slot}"`), `Catalog details must reuse the existing ${slot} WishDetails pattern`);
 }
-const catalogMarketplaceItemSource = app.slice(app.indexOf("function catalogMarketplaceItem"), app.indexOf("function CatalogWishCard"));
+const catalogMarketplaceItemSource = appComponentSource("src/modules/catalog-marketplace/wish-catalog.jsx", "catalogMarketplaceItem", "CatalogWishCard");
 assert(/merchantProductUrl\(item\?\.url\)/.test(catalogMarketplaceItemSource), "Catalog marketplace links must use the shared merchant URL sanitizer");
 assert(/const marketplaceItem = catalogMarketplaceItem\(item\)/.test(catalogWishDetailsSource) && /<MarketplaceOffers wish=\{marketplaceItem\} owner=\{false\} formatPrice=\{formatMoney\} \/>/.test(catalogWishDetailsSource), "Product catalog details must reuse MarketplaceOffers without exposing the provider as a store");
 assert(/\["products", "food", "transport"\]\.includes\(item\.space\)/.test(catalogWishDetailsSource), "Catalog details must use MarketplaceOffers for the same spaces as WishDetails");
@@ -741,7 +802,7 @@ assert(/disabled=\{wishlistDisabled\}/.test(catalogWishDetailsSource) && /aria-p
 assert(/Убрать из вишлиста/.test(catalogWishDetailsSource) && /Добавить в вишлист/.test(catalogWishDetailsSource), "Catalog details must label both Wishlist toggle directions");
 assert(!/onLike|likedByMe|likeLabel/.test(catalogWishDetailsSource), "Catalog details must not expose an independent Like action");
 assert(!/useWishActions|\breserve\b|\bfulfilled\b|\bremove\b|\brepeat\b|WishDeleteAlert|MediaNotesPanel|DropdownMenu|\bapi\./.test(catalogWishDetailsSource), "Catalog details must remain read-only apart from the delegated Wishlist toggle");
-const wishCatalogPageSource = app.slice(app.indexOf("function WishCatalogPage"), app.indexOf("function GiftSuggestionPeople"));
+const wishCatalogPageSource = appComponentSource("src/modules/catalog-marketplace/wish-catalog.jsx", "WishCatalogPage");
 assert(/api\.post\("\/catalog\/items\/add", \{ itemId: item\.id \}\)/.test(wishCatalogPageSource), "Catalog Heart must persist through the Wishlist add endpoint");
 assert(wishCatalogPageSource.includes('api.post("/catalog/items/remove", { itemId: item.id, wishId })'), "Catalog Heart must preserve the catalog entry while removing the current user's Wishlist item");
 assert(/const wishId = String\(item\.addedWishId \|\| ""\)\.trim\(\)/.test(wishCatalogPageSource), "Catalog removal must use addedWishId instead of another participant's catalog item id");
@@ -759,12 +820,12 @@ assert(/\.is-added\s*,[\s\S]*?color:\s*var\(--destructive\);[\s\S]*?opacity:\s*1
 assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog Heart must remain interactive");
 assert(/\.catalog-brand-attribution\s*\{/.test(legacyStyles) && /\.catalog-brand-attribution__logo\s*\{/.test(legacyStyles), "Catalog cards must style brand attribution with its own logo treatment");
 assert(!/\.catalog-source-attribution/.test(legacyStyles), "Retired provider attribution styles must not return");
-const catalogPageHeaderSource = app.slice(app.indexOf("function CatalogPageHeader"), app.indexOf("function WishesProfileControls"));
+const catalogPageHeaderSource = appComponentSource("src/modules/catalog-marketplace/catalog-page-header.jsx", "CatalogPageHeader");
 assert(/source === "brands" \? "Бренды" : "Лента"/.test(catalogPageHeaderSource), "External storefronts must use a neutral Brands identity");
-const brandSelectSource = read("src/components/catalog-brands.jsx");
+const brandSelectSource = read("src/modules/catalog-marketplace/catalog-brands.jsx");
 assert(!/(?:aria-label|title)="[^"]*OhMyWishes/.test(`${app}\n${brandSelectSource}`), "User-facing catalog controls must not name the upstream provider");
-const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), app.indexOf("function ListModal"));
-const wishCardSource = app.slice(app.indexOf("function WishCard"), app.indexOf("function WishesPage"));
+const wishDetailsSource = appComponentSource("src/modules/card/wish-details.jsx", "WishDetailsModal");
+const wishCardSource = appComponentSource("src/modules/card/wish-card.jsx", "WishCard");
 assert(!/(?:Забронировать|Забронировано вами|Уже забронировано|Снять бронь)/.test(wishCardSource), "WishCard snippets must not expose reservation actions or status text");
 assert(!/\breserve\b/.test(wishCardSource), "WishCard must keep reservation mutations inside WishDetailsModal");
 assert(/cardSpace === "places" \? placeSnippetAddress\(wish\.description\)/.test(wishCardSource), "Place snippets must derive an address from saved metadata");
@@ -836,7 +897,7 @@ const wishMediaTag = primaryWishDetailsDialog.match(/<Card\b[^>]*data-slot="wish
 const wishMediaImageTag = primaryWishDetailsDialog.match(/<img\b[^>]*className="[^"]*"[^>]*>/)?.[0] || "";
 assert(wishMediaTag && !/aspect-\[/.test(wishMediaTag), "WishDetailsModal must not force photos into a fixed aspect ratio");
 assert(/\bw-full\b/.test(wishMediaImageTag) && /\bh-auto\b/.test(wishMediaImageTag), "WishDetailsModal photos must fill the container width and keep their intrinsic height");
-const listModalSource = app.slice(app.indexOf("function ListModal"), app.indexOf("function WishModal"));
+const listModalSource = appComponentSource("src/modules/wishlist/wish-editor.jsx", "ListModal", "WishModal");
 for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "DrawerFooter", "Field", "FieldLabel", "FieldDescription", "Switch"]) {
   assert(new RegExp(`<${component}\\b`).test(listModalSource), `ListModal must compose the official shadcn ${component} directly`);
 }
@@ -848,7 +909,7 @@ assert(!listModalSource.includes("Кто увидит"), "ListModal must not res
 assert(/>Секретный список<\//.test(listModalSource), "ListModal must label its privacy switch as Секретный список");
 assert(/checked=\{form\.privacy === "private"\}/.test(listModalSource), "ListModal switch must reflect private-list state");
 assert(/privacy: checked \? "private" : "public"/.test(listModalSource), "ListModal switch must map directly to private/public privacy");
-const wishModalSource = app.slice(app.indexOf("function WishModal"), app.indexOf("function FriendsPage"));
+const wishModalSource = appComponentSource("src/modules/wishlist/wish-editor.jsx", "WishModal");
 const primaryWishEditorDialog = wishModalSource.slice(wishModalSource.indexOf("const fieldId"), wishModalSource.indexOf("{listCreatorOpen &&"));
 assert(/<FullscreenDialog[\s\S]*?className="wish-editor-screen"/.test(primaryWishEditorDialog), "WishModal editing must compose the shared fullscreen shadcn Dialog");
 assert(/className="wish-editor-screen wish-editor-screen--drawer"/.test(primaryWishEditorDialog), "WishModal creation must retain its drawer content layout");
@@ -892,7 +953,7 @@ for (const file of sourceFiles) {
   if (!file.startsWith(`${uiDir}${path.sep}`)) {
     if (source.includes("@/components/ui/drawer")) {
       // Messaging, group fundraising and digital contact cards keep modal panels on phones.
-      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx", "src/components/wish-group-fundraiser.jsx", "src/components/contact-card-dialog.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
+      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx", "src/components/wish-group-fundraiser.jsx", "src/modules/contacts/contact-card-dialog.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
     }
     assert(!source.includes("@base-ui/react"), `Base UI must only be imported by owned shadcn components: ${relativeFile}`);
   }
@@ -915,5 +976,5 @@ assert.notEqual(appRootStart, -1, "Missing App composition");
 const appRootSource = app.slice(appRootStart);
 assert(appRootSource.indexOf("<MobileFormPages>") >= 0 && appRootSource.indexOf("<MobileFormPages>") < appRootSource.indexOf("<ProfileEditorProvider>"), "Profile settings must share MobileFormPages with stories before opening a native form");
 
-const publicProfileSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function LegacyProfileRedirect"));
+const publicProfileSource = appComponentSource("src/modules/wishlist/public-wishlist.jsx", "PublicProfile");
 assert(!/<StoryAvatar\b/.test(publicProfileSource), "Public profile avatars must retain profile behavior without a stories entry");

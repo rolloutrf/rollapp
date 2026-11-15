@@ -9,7 +9,7 @@ const server = await createServer({
   optimizeDeps: { include: smokeBaseUiDependencies },
   server: { host: "127.0.0.1", port: smokePort(process.env.PROFILE_SETTINGS_PORT), strictPort: true, hmr: false, watch: null },
   plugins: [{ name: "profile-settings-fixture", transform(source, id) {
-    if (id.endsWith("/src/App.jsx?profile-settings-fixture")) return `${source}\nexport { ProfileSettingsModal, SessionContext, ToastContext };`;
+    if (id.endsWith("/src/App.jsx?profile-settings-fixture")) return `${source}\nexport { ProfileSettingsModal } from \"./modules/profile/profile-settings.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
   }, configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith("/__profile-settings") && !req.url.startsWith("/login?state=backup-result")) return next();
     res.setHeader("Content-Type", "text/html");

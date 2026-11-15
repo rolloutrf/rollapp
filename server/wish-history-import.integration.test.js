@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import express from "express";
-import { registerWishHistoryImport } from "./wish-history-import.js";
+import { registerWishHistoryImport } from "./modules/history/wish-history-import.js";
 
 test("purchase import isolates list ownership, keeps private cards and deduplicates on configured PostgreSQL", {
   skip: process.env.ROLLAPP_TEST_WISH_HISTORY !== "1",

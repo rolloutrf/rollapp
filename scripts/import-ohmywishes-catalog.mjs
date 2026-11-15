@@ -4,7 +4,7 @@ import {
   OHMYWISHES_API_BASE,
   OHMYWISHES_SOURCE,
   ohMyWishesCatalogRecord,
-} from "../server/ohmywishes-catalog.js";
+} from "../server/modules/catalog-marketplace/ohmywishes-catalog.js";
 
 const argumentsSet = new Set(process.argv.slice(2));
 const apply = argumentsSet.has("--apply");

@@ -12,7 +12,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
 assert(executablePath, "Install Chrome or set CHROME_PATH");
 const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: smokePort(process.env.DETAIL_ACTION_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "detail-actions-fixture", enforce: "pre",
-  transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, CatalogWishDetailsDrawer, SharedWishes, WishDetailsModal, SessionContext, ToastContext };`; },
+  transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, CatalogWishDetailsDrawer } from \"./modules/catalog-marketplace/wish-catalog.jsx\";\nexport { SharedWishes } from \"./modules/wishlist/public-wishlist.jsx\";\nexport { WishDetailsModal } from \"./modules/card/wish-details.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith("/__detail-actions")) return next();
     res.setHeader("Content-Type", "text/html");

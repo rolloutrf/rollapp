@@ -1,0 +1,104 @@
+import { internalPageSearch, localizedPageUrl } from "../../../shared/modules/shell/page-urls.js";
+
+const API_ROOT = "/api";
+let activeAccountId;
+
+export function bindApiAccount(accountId) {
+  activeAccountId = accountId;
+}
+
+// The cookie is shared by tabs, while a page's drafts and controls belong to
+// the account it loaded. Let the server reject stale requests before routing.
+export async function sessionFetch(url, options = {}) {
+  const headers = { ...options.headers };
+  if (activeAccountId) headers["X-Rollapp-Account"] = activeAccountId;
+  const response = await fetch(url, { credentials: "include", cache: "no-store", ...options, headers });
+  if (response.status === 409) {
+    const payload = await response.clone().json().catch(() => null);
+    if (payload?.code === "ACTIVE_ACCOUNT_CHANGED") window.location.replace(localizedPageUrl("/app/wishes"));
+  }
+  return response;
+}
+
+const PRIVATE_SPHERE_API_PREFIXES = ["/contacts", "/career/", "/identity/", "/education/", "/health/"];
+
+function scopedSpherePath(path) {
+  if (typeof window === "undefined" || !PRIVATE_SPHERE_API_PREFIXES.some((prefix) => path.startsWith(prefix))) return path;
+  const owner = new URLSearchParams(internalPageSearch(window.location.search)).get("owner")?.trim();
+  if (!owner) return path;
+  const [pathname, query = ""] = path.split("?", 2);
+  const search = new URLSearchParams(query);
+  search.set("owner", owner);
+  return `${pathname}?${search.toString()}`;
+}
+
+async function request(path, options = {}) {
+  const scopedPath = scopedSpherePath(path);
+  let response;
+  try {
+    response = await sessionFetch(`${API_ROOT}${scopedPath}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  } catch (cause) {
+    const error = new Error("Сервер временно недоступен. Подождите пару секунд и попробуйте снова.", { cause });
+    error.code = "API_UNAVAILABLE";
+    throw error;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload.error || "Что-то пошло не так");
+    error.status = response.status;
+    error.code = payload.code || "";
+    error.payload = payload;
+    error.retryAfterSeconds = Number(payload.retryAfterSeconds || response.headers.get("Retry-After")) || 0;
+    throw error;
+  }
+  return payload;
+}
+
+export const api = {
+  get: (path) => request(path),
+  post: (path, body, { signal } = {}) => request(path, { method: "POST", body: JSON.stringify(body), signal }),
+  patch: (path, body, { signal } = {}) => request(path, { method: "PATCH", body: JSON.stringify(body), signal }),
+  delete: (path) => request(path, { method: "DELETE" }),
+  uploadStory: (file) => request("/stories", { method: "POST", headers: { "Content-Type": file.type.split(";")[0] }, body: file }),
+  uploadImage: (file, { signal } = {}) => request("/uploads/images", {
+    method: "POST",
+    headers: { "Content-Type": file.type },
+    body: file,
+    signal,
+  }),
+  resolveContactAvatar: (links) => request("/contacts/avatar/resolve", {
+    method: "POST",
+    body: JSON.stringify({ links }),
+  }),
+  uploadLabPdf: (file) => request("/health/lab-results/uploads", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-File-Name": encodeURIComponent(file.name),
+    },
+    body: file,
+  }),
+  uploadIdentityReportPdf: (section, file) => request(`/identity/reports/${section}/files`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-File-Name": encodeURIComponent(file.name),
+    },
+    body: file,
+  }),
+  importPerformanceReviewPdf: (file) => request("/career/performance/import-pdf", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-File-Name": encodeURIComponent(file.name),
+    },
+    body: file,
+  }),
+};

@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { PlanningCalendar } from '@/components/planning-calendar';
-import { TaskEditor } from '@/components/planning-space.jsx?calendar-events-export';
+import { PlanningCalendar } from '@/modules/calendar/planning-calendar.jsx';
+import { TaskEditor } from '@/modules/planning/planning-space.jsx?calendar-events-export';
 import { MobileFormPages } from '@/components/mobile-form-pages';
 import { useVisualViewport } from '@/hooks/use-visual-viewport';
 import { Toaster } from '@/components/ui/sonner';
