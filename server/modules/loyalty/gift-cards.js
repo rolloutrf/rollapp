@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { ensureRollWallet, RollsError } from "../payments/rolls.js";
 import { ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
+import { giftCardCreditLimit } from "./gift-card-balances.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
 
 const key = z.string().uuid();
@@ -57,7 +58,7 @@ export async function changeGiftCard(client, userId, cardId, kind, input) {
   }
   const card = await lockOwnedGiftCard(client, userId, cardId);
   if (kind === "topup") {
-    if (Number(card.balance) + data.amount > ROLLS_MAX_TRANSFER) throw new RollsError("Карта достигла лимита", "GIFT_CARD_LIMIT", 409);
+    if (Number(card.balance) > await giftCardCreditLimit(client, cardId, data.amount, { cardLocked: true })) throw new RollsError("Карта достигла лимита", "GIFT_CARD_LIMIT", 409);
     const debit = await client.query("UPDATE roll_wallets SET balance=balance-$1 WHERE user_id=$2 AND balance >= $1 RETURNING balance", [data.amount, userId]);
     if (!debit.rowCount) throw new RollsError("Недостаточно роллов", "INSUFFICIENT_ROLLS", 409);
     await client.query("UPDATE business_gift_cards SET balance=balance+$1 WHERE id=$2", [data.amount, cardId]);

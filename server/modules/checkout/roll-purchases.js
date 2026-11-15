@@ -1,8 +1,9 @@
+import { giftCardCreditLimit } from "../loyalty/gift-card-balances.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { resolveCdekPoint } from "../delivery/cdek.js";
 import { RollsError, ensureRollWallet, refundGiftCardOrder } from "../payments/rolls.js";
-import { ROLLS_MAX_BALANCE, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
+import { ROLLS_MAX_BALANCE } from "../../../shared/modules/payments/rolls.js";
 import { orderFromRow } from "../history/order-history.js";
 
 export const rollPurchaseSchema = z.object({
@@ -80,7 +81,7 @@ export async function refundRollPurchase(client, userId, purchaseId) {
   const giftCardId = purchase.rows[0].delivery?.giftCardId;
   // Refund to the original payment source, even if the card has been sent on.
   const credit = giftCardId
-    ? await client.query("UPDATE business_gift_cards SET balance=balance+$1 WHERE id=$2 AND balance <= $3 RETURNING balance", [amount, giftCardId, ROLLS_MAX_TRANSFER - amount])
+    ? await client.query("UPDATE business_gift_cards SET balance=balance+$1 WHERE id=$2 AND balance <= $3 RETURNING balance", [amount, giftCardId, await giftCardCreditLimit(client, giftCardId, amount)])
     : await client.query("UPDATE roll_wallets SET balance=balance+$1 WHERE user_id=$2 AND balance <= $3 RETURNING balance", [amount, userId, ROLLS_MAX_BALANCE - amount]);
   if (!credit.rowCount) throw new RollsError("Баланс достиг лимита", "BALANCE_LIMIT", 409);
   if (giftCardId) {

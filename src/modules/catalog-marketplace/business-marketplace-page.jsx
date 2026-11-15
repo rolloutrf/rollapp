@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Coins, Image as ImageIcon, Package, ShoppingBag, Store } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
-import { businessMarketplacePath } from "@/modules/shell/app-routing.js";
+import { APP_ORDERS_PATH, businessMarketplacePath } from "@/modules/shell/app-routing.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -18,6 +18,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { PersonalOfferComposer } from "@/components/personal-offers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { publicProfilePath } from "../../../shared/modules/profile/profile-links.js";
+import { MARKETPLACE_REVIEW_DAYS } from "../../../shared/modules/checkout/marketplace-settlements.js";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -62,7 +63,7 @@ function MarketplaceItem({ item, busy, onBuy, user }) {
         </Link>
         {item.category && <span data-typography="label" className="font-semibold uppercase">{item.category}</span>}
         {item.description && <p className="m-0 text-pretty">{item.description}</p>}
-        {user ? <Button className="min-h-12 w-full" disabled={busy} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button> : (
+        {user ? <Button className="min-h-12 w-full" disabled={busy || user.id === item.business.id} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button> : (
           <Link className={buttonVariants({ className: "min-h-12 w-full whitespace-normal" })} to={`/login?next=${encodeURIComponent(publicProfilePath(item.business.username))}`}>Войти для покупки</Link>
         )}
         {user?.accountType === "business" && user.id === item.business.id && <PersonalOfferComposer item={item} />}
@@ -81,13 +82,16 @@ function restoredPurchase(storageKey) {
 }
 
 export function BusinessMarketplacePage({ sphere, kind = "store", businessUsername, user, hideEmpty = false }) {
+  const navigate = useNavigate();
   const storageKey = `rollapp:business-purchase:${user?.id || "guest"}:${businessUsername || sphere.id}:${kind}`;
   const [pending, setPending] = useState(() => restoredPurchase(storageKey));
   const [giftCards, setGiftCards] = useState([]);
   const [giftCardId, setGiftCardId] = useState(() => restoredPurchase(storageKey)?.payload?.giftCardId || "wallet");
   const [giftError, setGiftError] = useState("");
   const [giftLoading, setGiftLoading] = useState(false);
-  const [state, setState] = useState({ loading: true, error: "", items: [] });
+  const [state, setState] = useState({ loading: true, error: "", items: [], protectedCheckout: false });
+  const [revision, setRevision] = useState(0);
+  const [purchaseError, setPurchaseError] = useState("");
   const [selected, setSelected] = useState(() => restoredPurchase(storageKey)?.item || null);
   const [busyId, setBusyId] = useState("");
   const busyRef = useRef(false);
@@ -98,12 +102,12 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
     let active = true;
     setState({ loading: true, error: "", items: [] });
     api.get(endpoint).then((result) => {
-      if (active) setState({ loading: false, error: "", items: result.items || [] });
+      if (active) setState({ loading: false, error: "", items: result.items || [], protectedCheckout: result.protectedCheckout === true });
     }).catch((error) => {
       if (active) setState({ loading: false, error: error.message, items: [] });
     });
     return () => { active = false; };
-  }, [endpoint]);
+  }, [endpoint, revision]);
 
   useEffect(() => {
     if (!selected) return;
@@ -119,19 +123,30 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
   const buy = async () => {
     if (!selected || busyRef.current) return;
     busyRef.current = true;
-    const intent = pending || { item: selected, path: `/business-marketplace/${selected.sphere}/purchases`, payload: { itemId: selected.id, idempotencyKey: crypto.randomUUID(), ...(giftCardId !== "wallet" ? { giftCardId } : {}) } };
+    setPurchaseError("");
+    const intent = pending || { item: selected, path: `/business-marketplace/${selected.sphere}/purchases`, payload: { itemId: selected.id, expectedPrice: selected.priceRolls, idempotencyKey: crypto.randomUUID(), ...(giftCardId !== "wallet" ? { giftCardId } : {}) } };
     try { sessionStorage.setItem(storageKey, JSON.stringify(intent)); } catch { busyRef.current = false; toast.error("Разрешите хранение данных для безопасной оплаты"); return; }
     setPending(intent);
     setBusyId(selected.id);
     try {
-      await api.post(intent.path, intent.payload);
+      const { purchase } = await api.post(intent.path, intent.payload);
+      if (!purchase?.id) throw new Error("Неполный ответ о покупке");
       sessionStorage.removeItem(storageKey); setPending(null);
-      toast.success("Покупка оформлена", { description: `${selected.title} · ${selected.priceRolls.toLocaleString("ru-RU")} роллов` });
+      toast.success(purchase?.protected ? "Роллы зарезервированы" : "Покупка оформлена", {
+        description: `${selected.title} · ${formatRolls(selected.priceRolls)}`,
+        action: { label: "Заказы", onClick: () => navigate(APP_ORDERS_PATH, { state: { ordersFromStore: true } }) },
+      });
       setSelected(null);
     } catch (error) {
-      const rejected = error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status);
+      const rejected = error.code === "MARKETPLACE_SETTLEMENT_UNAVAILABLE" ||
+        (error.status >= 400 && error.status < 500 && ![401, 403, 408, 429].includes(error.status));
+      if (["PRICE_CHANGED", "PRICE_CONFIRMATION_REQUIRED"].includes(error.code)) {
+        setSelected(null); setRevision((value) => value + 1);
+      }
       if (rejected) { sessionStorage.removeItem(storageKey); setPending(null); }
-      toast.error(rejected ? error.message : "Ответ не получен. Повторная проверка не спишет роллы ещё раз.");
+      const message = rejected ? error.message : "Результат оплаты пока неизвестен. Повторная проверка сохранит исходную сумму и источник.";
+      setPurchaseError(message);
+      if (["PRICE_CHANGED", "PRICE_CONFIRMATION_REQUIRED"].includes(error.code)) toast.error(message);
     } finally {
       busyRef.current = false;
       setBusyId("");
@@ -155,16 +170,20 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
         </Empty>
       ) : null}
       {state.items.length ? <section className="business-marketplace-grid" aria-label={title}>
-        {state.items.map((item) => <MarketplaceItem key={item.id} item={item} user={user} kind={businessUsername ? item.kind : kind} busy={Boolean(busyId || pending)} onBuy={(item) => { setGiftCardId("wallet"); setSelected(item); }} />)}
+        {state.items.map((item) => <MarketplaceItem key={item.id} item={item} user={user} kind={businessUsername ? item.kind : kind} busy={Boolean(busyId || pending)} onBuy={(item) => { setPurchaseError(""); setGiftCardId("wallet"); setSelected(item); }} />)}
       </section> : null}
 
       <AlertDialog open={Boolean(selected)} onOpenChange={(open) => { if (!open && !busyId) setSelected(null); }}>
-        <AlertDialogContent className="rollapp-body">
-          <AlertDialogHeader>
+        <AlertDialogContent className="rollapp-body flex w-[calc(100%-2rem)] flex-col overflow-hidden">
+          <AlertDialogHeader className="shrink-0">
             <AlertDialogTitle>Купить за роллы?</AlertDialogTitle>
-            <AlertDialogDescription>{selected ? `${selected.title} — ${selected.priceRolls.toLocaleString("ru-RU")} роллов. Бизнес получит информацию о заказе.` : ""}</AlertDialogDescription>
+            <AlertDialogDescription className="wrap-anywhere">{selected && <>
+              {selected.title} · {formatRolls(selected.priceRolls)}. {state.protectedCheckout
+                ? `Роллы уйдут в резерв. После исполнения у вас будет ${MARKETPLACE_REVIEW_DAYS} дней для проверки заказа. Комиссия составляет 0 роллов.`
+                : "Бизнес получит информацию о заказе."}
+            </>}</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain px-px">
             {giftLoading && <p role="status">Загружаем способы оплаты…</p>}
             {giftError && <p role="alert">{giftError}</p>}
             <Select value={giftCardId} onValueChange={setGiftCardId} disabled={Boolean(busyId || pending)}>
@@ -173,9 +192,10 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
             </Select>
             {pending && <p role="status">Результат оплаты нужно проверить. Сумма и способ оплаты сохранены.</p>}
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={Boolean(busyId)}>{pending ? "Позже" : "Отмена"}</AlertDialogCancel>
-            <AlertDialogAction disabled={Boolean(busyId)} onClick={(event) => { event.preventDefault(); buy(); }}>{busyId ? <Spinner /> : null}{pending ? "Проверить оплату" : "Подтвердить"}</AlertDialogAction>
+          {purchaseError && <Alert className="shrink-0" variant="destructive"><AlertDescription>{purchaseError}</AlertDescription></Alert>}
+          <AlertDialogFooter className="shrink-0 flex-row flex-wrap justify-end">
+            <AlertDialogCancel className="rounded-full" disabled={Boolean(busyId)}>{pending ? "Позже" : "Отмена"}</AlertDialogCancel>
+            <AlertDialogAction className="rounded-full" disabled={Boolean(busyId)} onClick={(event) => { event.preventDefault(); buy(); }}>{busyId ? <Spinner /> : null}{pending ? "Проверить оплату" : "Подтвердить"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

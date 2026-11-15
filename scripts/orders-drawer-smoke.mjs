@@ -25,6 +25,7 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const ordersUrl = origin + localizedPageUrl(APP_ORDERS_PATH);
 const storeUrl = origin + localizedPageUrl(APP_STORE_PATH);
+const marketplaceUrl = origin + localizedPageUrl("/app/spheres/career/business/store");
 const screenshots = await mkdtemp(join(tmpdir(), "rollapp-orders-drawer-"));
 let browser;
 try {
@@ -39,12 +40,29 @@ try {
       return route.abort();
     });
     await page.addInitScript(() => {
-      const fixture = window.ordersDrawerFixture = { mode: "loading", reads: 0, unexpected: [] };
+      const fixture = window.ordersDrawerFixture = { mode: "loading", reads: 0, unexpected: [], submittedActions: [] };
+      const user = { id: "orders-smoke", username: "orders-smoke", name: "Покупатель", accountType: "personal", canDiscoverSpheres: true };
+      const fulfilled = {
+        id: "650bc77a-2829-449f-86af-51d4439bd080", productTitle: "Получение консультации", amount: 50,
+        createdAt: "2026-11-12T10:00:00Z", status: "fulfilled",
+        settlement: { role: "buyer", participant: "Студия", source: "gift", reviewUntil: "2026-11-19T10:00:00Z",
+          actions: ["accept", "dispute"], events: [{ action: "fulfill", note: "Встреча состоялась", createdAt: "2026-11-12T10:00:00Z" }] },
+      };
+      const reserved = {
+        id: "793550f5-1e76-4d40-b272-772f39c96717", productTitle: "Встреча с заказчиком", amount: 70,
+        createdAt: "2026-11-12T09:00:00Z", status: "reserved",
+        settlement: { role: "seller", participant: "Мария", source: "wallet", reviewUntil: null, actions: ["fulfill", "refund"], events: [] },
+      };
+      const item = { id: "protected-offer", sphere: "career", title: "Консультация студии", priceRolls: 50, itemType: "service",
+        business: { id: "seller", name: "Студия", username: "studio" } };
       const pendingOrders = new Promise((resolve) => { fixture.resolveOrders = resolve; });
       fixture.api = {
         async get(path) {
-          if (path === "/me") return { user: { id: "orders-smoke", username: "orders-smoke", name: "Покупатель" } };
+          if (path === "/me") return { user };
           if (path === "/sphere-shares/incoming") return { shares: [] };
+          if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, owner: user, people: [], requests: [] };
+          if (path === "/business-marketplace/career/store") return { items: [item], protectedCheckout: true };
+          if (path === "/rolls/gift-cards") return { cards: [{ id: "test-card", balance: 80, business: { id: "seller" } }] };
           if (path !== "/rolls/orders") {
             fixture.unexpected.push(path);
             throw new Error("Unexpected API fixture path");
@@ -53,6 +71,7 @@ try {
           if (fixture.mode === "loading") await pendingOrders;
           if (fixture.mode === "error") throw new Error("Не удалось загрузить список заказов");
           if (fixture.mode === "empty") return { orders: [] };
+          if (fixture.mode === "protected") return { orders: structuredClone([fulfilled, reserved]) };
           return { orders: Array.from({ length: 8 }, (_, i) => ({
             id: `abcdef12-${i}`,
             status: i === 7 ? "refunded" : "active",
@@ -63,9 +82,34 @@ try {
             delivery: { point: { city: "1-е Туркменево", address: "улица Салавата Юлаева, 17", code: "YET1", workTime: "Вт–Пт 09:00–17:00" } },
           })) };
         },
-        post(path) {
+        post(path, input) {
+          if (path === "/business-marketplace/career/purchases") {
+            const attempts = JSON.parse(sessionStorage.getItem("marketplace-browser-attempts") || "[]");
+            attempts.push(input);
+            sessionStorage.setItem("marketplace-browser-attempts", JSON.stringify(attempts));
+            if (attempts.length === 1) throw new Error("Lost response");
+            return { purchase: { id: fulfilled.id, protected: true, replayed: true } };
+          }
+          if (path === `/rolls/orders/${fulfilled.id}/actions` && input.action === "dispute") {
+            fixture.submittedActions.push(input);
+            fulfilled.status = "disputed";
+            fulfilled.settlement.actions = ["accept"];
+            if (!fulfilled.settlement.events.some((event) => event.action === "dispute")) {
+              fulfilled.settlement.events.push({ action: input.action, note: input.note, createdAt: "2026-11-13T10:00:00Z" });
+              throw new Error("Ответ не получен");
+            }
+            return { order: { id: fulfilled.id, status: fulfilled.status, replayed: true } };
+          }
+          if (path === `/rolls/orders/${reserved.id}/actions` && input.action === "fulfill") {
+            fixture.submittedActions.push(input);
+            reserved.status = "fulfilled";
+            reserved.settlement.reviewUntil = "2026-11-19T10:00:00Z";
+            reserved.settlement.actions = ["refund"];
+            reserved.settlement.events = [{ action: input.action, note: input.note, createdAt: "2026-11-12T10:00:00Z" }];
+            return { order: { id: reserved.id, status: reserved.status } };
+          }
           fixture.unexpected.push(path);
-          throw new Error("This scenario must never submit a return");
+          throw new Error("Unexpected action in orders fixture");
         },
       };
     });
@@ -162,6 +206,65 @@ try {
       await page.waitForURL(storeUrl);
       await drawer.waitFor({ state: "hidden" });
 
+      await page.evaluate(() => { window.ordersDrawerFixture.mode = "protected"; });
+      await trigger.click();
+      await page.waitForURL(ordersUrl);
+      const buyerOrder = drawer.locator('[data-order-role="buyer"]');
+      const sellerOrder = drawer.locator('[data-order-role="seller"]');
+      await buyerOrder.getByText("На проверке", { exact: true }).waitFor();
+      await buyerOrder.getByText("Подарочная карта", { exact: false }).waitFor();
+      await buyerOrder.getByRole("button", { name: "История заказа" }).click();
+      await buyerOrder.getByText("Встреча состоялась").waitFor();
+      await buyerOrder.getByRole("button", { name: "Открыть спор" }).click();
+      await confirmation.getByLabel("Причина спора").fill("Черновик");
+      await page.keyboard.press("Escape");
+      await confirmation.waitFor({ state: "hidden" });
+      assert.equal(await page.evaluate(() => window.ordersDrawerFixture.submittedActions.length), 0);
+      await buyerOrder.getByRole("button", { name: "Открыть спор" }).click();
+      const dispute = confirmation.getByRole("button", { name: "Открыть спор", exact: true });
+      assert(await dispute.isDisabled());
+      await confirmation.getByLabel("Причина спора").fill("Уточните результат");
+      await dispute.click();
+      await confirmation.getByText("Ответ не получен").waitFor();
+      const popup = await confirmation.boundingBox();
+      for (const button of [dispute, confirmation.getByRole("button", { name: "Назад" }), confirmation.getByRole("alert")]) {
+        const control = await button.boundingBox();
+        assert(control.y >= popup.y && control.y + control.height <= popup.y + popup.height + 1, "Order actions and errors must remain visible on a short screen");
+      }
+      if ([320, 1440].includes(width) || height === 400) await page.screenshot({ path: join(screenshots, `dispute-${width}x${height}.png`) });
+      await dispute.click();
+      await confirmation.waitFor({ state: "hidden" });
+      await buyerOrder.getByText("Открыт спор", { exact: true }).waitFor();
+      await buyerOrder.getByText("Уточните результат", { exact: true }).waitFor();
+      await sellerOrder.getByRole("button", { name: "Отметить исполнение" }).click();
+      await confirmation.getByLabel("Комментарий для покупателя").fill("Доставка завершена");
+      await confirmation.getByRole("button", { name: "Отметить исполнение" }).click();
+      await sellerOrder.getByText("На проверке", { exact: true }).waitFor();
+      assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.submittedActions), [
+        { action: "dispute", note: "Уточните результат" },
+        { action: "dispute", note: "Уточните результат" },
+        { action: "fulfill", note: "Доставка завершена" },
+      ]);
+      assert.deepEqual(await drawer.locator("[data-order-role]").evaluateAll((cards) => cards.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.dataset.orderRole)), []);
+      assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.unexpected), []);
+
+      await page.goto(marketplaceUrl);
+      await page.getByRole("button", { name: "Купить", exact: true }).click();
+      await confirmation.getByText("Комиссия составляет 0 роллов.", { exact: false }).waitFor();
+      await confirmation.getByRole("combobox", { name: "Оплатить покупку" }).click();
+      await page.getByRole("option", { name: "Карта · 80 роллов" }).click();
+      await confirmation.getByRole("button", { name: "Подтвердить", exact: true }).click();
+      await confirmation.getByText("Результат оплаты пока неизвестен.", { exact: false }).waitFor();
+      await page.reload();
+      await confirmation.getByRole("button", { name: "Проверить оплату" }).click();
+      await confirmation.waitFor({ state: "hidden" });
+      const attempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem("marketplace-browser-attempts")));
+      assert.equal(attempts.length, 2);
+      assert.deepEqual(attempts[0], attempts[1]);
+      assert.deepEqual({ ...attempts[0], idempotencyKey: undefined }, {
+        itemId: "protected-offer", expectedPrice: 50, giftCardId: "test-card", idempotencyKey: undefined,
+      });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.unexpected), []);
       assert.deepEqual(errors, []);
       console.log(`PASS ${width}×${height}`);

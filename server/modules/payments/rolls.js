@@ -10,6 +10,7 @@ import { rollStarsSchema } from "./roll-stars-schema.js";
 import { tonRollsSchema } from "./roll-ton-schema.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { giftCardCreditLimit } from "../loyalty/gift-card-balances.js";
 import { orderFromRow } from "../history/order-history.js";
 
 export const rollsSchema = `
@@ -195,7 +196,7 @@ export async function refundGiftCardOrder(client, userId, purchaseId) {
   const amount = Number(row.amount);
   const credit = await client.query(
     "UPDATE business_gift_cards SET balance=balance+$1 WHERE id=$2 AND balance <= $3 RETURNING balance",
-    [amount, row.card_id, ROLLS_MAX_TRANSFER - amount],
+    [amount, row.card_id, await giftCardCreditLimit(client, row.card_id, amount)],
   );
   if (!credit.rowCount) throw new RollsError("Баланс карты достиг лимита", "BALANCE_LIMIT", 409);
   const refund = await client.query(

@@ -1,3 +1,4 @@
+import { verifyMarketplaceSettlementSchema } from "../checkout/marketplace-settlements-schema.js";
 import { getYandexDiskConfig } from "./yandex-disk.js";
 import { isReservedProfileUsername } from "../profile/profile-paths.js";
 import { verifyAccountBackupSchema } from "../../account-backup.js";
@@ -10,6 +11,9 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
   const mode = environment.ROLLAPP_DATABASE_INITIALIZATION || "migrate";
   if (!["migrate", "verify"].includes(mode)) throw new Error("ROLLAPP_DATABASE_INITIALIZATION должен быть migrate или verify.");
   if (profileDiskEnabled(environment) && mode !== "verify") throw new Error("Профиль на Яндекс Диске требует режим базы verify.");
+  if (environment.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true" && mode !== "verify") {
+    throw new Error("Защищённые покупки требуют режим базы verify.");
+  }
   if (mode === "migrate") { await migrate(); return mode; }
   if (isMemoryDatabase) throw new Error("Проверка существующей базы требует настроенный production PostgreSQL. Демо-база отключена.");
   await transaction(async client => {
@@ -48,6 +52,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT id,group_id,owner_id,title,target,accepting,created_at FROM wish_group_fundraisers LIMIT 0");
     await client.query("SELECT transaction_id,fundraiser_id,sender_id,idempotency_key FROM wish_group_contributions LIMIT 0");
     await client.query("SELECT id,user_id,video_data,size_bytes,duration_seconds,created_at,expires_at FROM stories LIMIT 0");
+    if (environment.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true") await verifyMarketplaceSettlementSchema(client);
     if (environment.ROLLAPP_NEED_REWARDS_ENABLED === "true") {
       await client.query("SELECT id,user_id,title,description,category,status,idempotency_key,created_at FROM reward_needs LIMIT 0");
       await client.query("SELECT id,need_id,business_id,description,reward,status,idempotency_key,expires_at,claim_at,settled_at,dispute_reason,created_at FROM reward_need_offers LIMIT 0");

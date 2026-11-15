@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowRight, Check, Coins, Plus, Search, Send } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
@@ -21,6 +22,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
+import { APP_ORDERS_PATH } from "../shell/app-routing.js";
 import { RollsHistory } from "../history/rolls-history.jsx";
 
 const TonWallet = lazy(() => import("@/modules/payments/ton-wallet.jsx").then((module) => ({ default: module.TonWallet })));
@@ -29,6 +31,8 @@ function RollsBalanceBreakdown({ balances }) {
   const breakdown = [
     ["Подарочные карты", balances.giftCards],
     ["В резерве для наград", balances.reservedRewards],
+    ["В резерве за покупки", balances.reservedOrders],
+    ["Ожидается от продаж", balances.pendingSales],
   ].filter(([, value]) => value && value !== "0");
   if (!breakdown.length) return null;
   return <dl className="flex w-full min-w-0 flex-wrap justify-center gap-x-6 gap-y-2" aria-label="Роллы вне доступного баланса">
@@ -274,6 +278,9 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
               <span>{loading ? "Загружаем баланс…" : "Баланс недоступен"}</span>
             </div>}
             {wallet?.balances && <RollsBalanceBreakdown balances={wallet.balances} />}
+            {[wallet?.balances?.reservedOrders, wallet?.balances?.pendingSales].some((amount) => amount && amount !== "0") &&
+              <PageActionButton variant="outline" nativeButton={false} role="link"
+                render={<Link to={APP_ORDERS_PATH} state={{ ordersFromStore: true }} />}>Заказы и продажи</PageActionButton>}
             <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" aria-label="Действия с роллами">
               {wallet?.features?.starsPurchases && <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>}
               <Button ref={transferOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => {

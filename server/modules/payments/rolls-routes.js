@@ -1,3 +1,4 @@
+import { settleMarketplaceOrder } from "../checkout/marketplace-settlements.js";
 import { registerGiftCardRoutes } from "../loyalty/gift-cards.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
 import { purchaseWithRolls, refundRollPurchase } from "../checkout/roll-purchases.js";
@@ -88,6 +89,11 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
 
   app.get("/api/rolls/orders", requireAuth, handle(async (req, res) => {
     res.json(await transaction((client) => readRollOrders(client, req.user.id)));
+  }));
+
+  app.post("/api/rolls/orders/:purchaseId/actions", requireAuth, transferLimit, handle(async (req, res) => {
+    const result = await transaction((client) => settleMarketplaceOrder(client, req.user.id, req.params.purchaseId, req.body));
+    res.json({ order: result });
   }));
 
   app.post("/api/rolls/orders/:purchaseId/refund", requireAuth, transferLimit, handle(async (req, res) => {

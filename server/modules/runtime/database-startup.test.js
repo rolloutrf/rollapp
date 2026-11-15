@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 
-function fixture({ username = "someone", unavailable = "" } = {}) {
+function fixture({ username = "someone", unavailable = "", marketplace = false } = {}) {
   const calls=[];
   return { calls, options: {
     environment: { ROLLAPP_DATABASE_INITIALIZATION: "verify" }, isMemoryDatabase: false,
@@ -11,6 +11,7 @@ function fixture({ username = "someone", unavailable = "" } = {}) {
     transaction: async callback=>callback({query:async sql=>{
       calls.push(sql);
       if (unavailable && sql.includes(unavailable)) throw new Error("Existing schema unavailable");
+      if (sql.includes("to_regclass('roll_marketplace_orders')")) return { rows: [{ orders: marketplace, events: marketplace }] };
       return {rows:sql==="SELECT username FROM users"?[{username}]:[]};
     }}),
   }};
@@ -61,4 +62,20 @@ test("normal explicit migration startup remains available, and invalid modes nev
 });
 test("the production development launcher always verifies the existing database",()=>{
   const source=readFileSync(new URL("../../../scripts/dev.mjs",import.meta.url),"utf8");assert.match(source,/process\.env\.ROLLAPP_DATABASE_INITIALIZATION\s*=\s*"verify";/);assert.match(source,/process\.env\.DEMO_MODE\s*=\s*"false";/);
+});
+
+test("protected checkout verifies its separately installed schema in read-only mode", async () => {
+  for (const marketplace of [false, true]) {
+    const { calls, options } = fixture({ marketplace });
+    options.environment.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED = "true";
+    if (marketplace) {
+      assert.equal(await initializeRuntimeDatabase(options), "verify");
+      assert(calls.some((sql) => sql.includes("JOIN roll_marketplace_order_events")));
+    } else await assert.rejects(initializeRuntimeDatabase(options), /Marketplace settlement schema is not installed/);
+    assert.equal(calls[0], "SET TRANSACTION READ ONLY");
+    assert(!calls.includes("MIGRATE"));
+    options.environment.ROLLAPP_DATABASE_INITIALIZATION = "migrate";
+    await assert.rejects(initializeRuntimeDatabase(options), /требуют режим базы verify/);
+    assert(!calls.includes("MIGRATE"));
+  }
 });

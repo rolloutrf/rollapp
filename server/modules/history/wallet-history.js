@@ -10,7 +10,7 @@ function transactionFromRow(row) {
     amount: Number(row.amount),
     note: row.kind === "ton_topup" ? `${formatTon(String(row.note))} TON` : row.note,
     wishTitle: row.kind === "wish_reward" ? row.subject : null,
-    ...(["purchase", "refund"].includes(row.kind) && { productTitle: row.subject }),
+    ...(["purchase", "refund", "market_reserve", "market_refund", "market_sale"].includes(row.kind) && { productTitle: row.subject }),
     createdAt: row.created_at,
     person: row.kind === "transfer" ? {
       id: row.person_id,

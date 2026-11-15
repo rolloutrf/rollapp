@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { DrawerClose, DrawerContent, DrawerSectionHeader } from "@/components/form-surface";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { MarketplaceOrder } from "./marketplace-order.jsx";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
@@ -57,7 +58,7 @@ function OrderCard({ order, product, busy, onRefund }) {
       <MapPin aria-hidden="true" />
       <div className="min-w-0"><strong>CDEK · {point.city}</strong><span>{point.address}</span><small>{point.code}{point.workTime ? ` · ${point.workTime}` : ""}</small></div>
     </section>}
-    {!refunded && <Button variant="outline" className="col-span-full justify-self-start" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
+    {!refunded && !order.delivery?.personalOfferId && <Button variant="outline" className="col-span-full justify-self-start" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
   </article>;
 }
 
@@ -79,16 +80,28 @@ function OrderList({ products }) {
   const [refundTarget, setRefundTarget] = useState(null);
   const [refunding, setRefunding] = useState(false);
   const [refundError, setRefundError] = useState("");
+  const requestVersion = useRef(0);
   const productById = useMemo(() => new Map(products.map((product) => [`cat:${product.id}`, product])), [products]);
 
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
-    try { setOrders((await api.get("/rolls/orders")).orders); }
-    catch (failure) { setError(failure.message); }
-    finally { setLoading(false); }
+  const load = useCallback(async (quiet = false) => {
+    const version = ++requestVersion.current;
+    if (!quiet) setLoading(true);
+    setError("");
+    try {
+      const { orders } = await api.get("/rolls/orders");
+      if (version === requestVersion.current) setOrders(orders);
+    } catch (failure) {
+      if (version === requestVersion.current) setError(failure.message);
+    } finally {
+      if (version === requestVersion.current) setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
+  const refreshOrders = () => load(true);
 
   async function refund() {
     if (!refundTarget || refunding) return;
@@ -102,13 +115,16 @@ function OrderList({ products }) {
   }
 
   return <div className="orders-drawer__body app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4" role="region" aria-label="Список заказов" tabIndex={0}>
-    {error && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">{error}<Button variant="outline" onClick={load}>Попробовать снова</Button></AlertDescription></Alert>}
+    {error && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">{error}<Button variant="outline" onClick={() => load()}>Попробовать снова</Button></AlertDescription></Alert>}
+    {!loading && orders.some((order) => order.settlement) && <div className="flex justify-start">
+      <PageActionButton variant="outline" onClick={refreshOrders}>Обновить заказы</PageActionButton>
+    </div>}
     {loading ? <div className="flex flex-col gap-4" role="status" aria-label="Загрузка заказов"><OrderSkeleton /><OrderSkeleton /></div>
       : !error && orders.length === 0 ? <Empty className="border">
-        <EmptyHeader><EmptyMedia variant="icon"><ShoppingBag aria-hidden="true" /></EmptyMedia><EmptyTitle>Заказов пока нет</EmptyTitle><EmptyDescription>Купленные в магазине коты появятся здесь вместе с данными доставки.</EmptyDescription></EmptyHeader>
+        <EmptyHeader><EmptyMedia variant="icon"><ShoppingBag aria-hidden="true" /></EmptyMedia><EmptyTitle>Заказов пока нет</EmptyTitle><EmptyDescription>Здесь будут ваши покупки и продажи за роллы.</EmptyDescription></EmptyHeader>
         <EmptyContent><DrawerClose render={<PageActionButton />}><ShoppingBag aria-hidden="true" />В магазин</DrawerClose></EmptyContent>
       </Empty>
-        : orders.map((order) => <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
+        : orders.map((order) => order.settlement ? <MarketplaceOrder key={order.id} order={order} onReload={refreshOrders} /> : <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
 
     <AlertDialog open={Boolean(refundTarget)} onOpenChange={(open) => { if (!open && !refunding) setRefundTarget(null); }}>
       <AlertDialogContent className="rollapp-body w-[calc(100%-2rem)] overflow-y-auto">

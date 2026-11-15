@@ -7,12 +7,13 @@ import { refundRollPurchase } from "../checkout/roll-purchases.js";
 
 const result = (rows = []) => ({ rows, rowCount: rows.length });
 // SQL-boundary unit tests; no database, schema initialization or balance writes.
-function clientFor(handler) {
+function clientFor(handler, { marketplace = false } = {}) {
   const statements = [];
   return { statements, async query(sql, params) {
     statements.push({ sql, params });
     if (sql.startsWith("INSERT INTO roll_wallets") || sql.startsWith("SELECT user_id FROM roll_wallets") || sql.includes("VALUES ($1,'welcome'")) return result();
     if (sql.includes("to_regclass('business_gift_card_events')")) return result([{ events: "business_gift_card_events" }]);
+    if (sql.includes("to_regclass('roll_marketplace_orders')")) return result([{ orders: marketplace, events: marketplace }]);
     return handler(sql, params);
   } };
 }
@@ -61,6 +62,20 @@ test("insufficient wallet funds never credit a gift card", async () => {
   });
   await assert.rejects(changeGiftCard(client, "owner", "card", "topup", { amount: 10, idempotencyKey: randomUUID() }), { code: "INSUFFICIENT_ROLLS" });
   assert(!client.statements.some(({ sql }) => sql.startsWith("UPDATE business_gift_cards")));
+});
+
+test("top-ups preserve capacity reserved for protected refunds before debiting the wallet", async () => {
+  const client = clientFor((sql, params) => {
+    if (sql.includes("FROM business_gift_card_events")) return result();
+    if (sql.includes("FROM business_gift_cards")) return result([{ owner_id: "owner", balance: 999999900 }]);
+    if (sql.includes("FROM roll_marketplace_orders")) {
+      assert.deepEqual(params, ["card", null]);
+      return result([{ held: "75" }]);
+    }
+    assert.fail(sql);
+  }, { marketplace: true });
+  await assert.rejects(changeGiftCard(client, "owner", "card", "topup", { amount: 30, idempotencyKey: randomUUID() }), { code: "GIFT_CARD_LIMIT" });
+  assert(!client.statements.some(({ sql }) => sql.startsWith("UPDATE")));
 });
 
 test("empty cards and self-sends cannot move ownership", async () => {

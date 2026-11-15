@@ -1,3 +1,5 @@
+import { hasMarketplaceSettlementSchema } from "../checkout/marketplace-settlements-schema.js";
+import { marketplaceOrderActions } from "../../../shared/modules/checkout/marketplace-settlements.js";
 
 
 export function orderFromRow(row) {
@@ -31,5 +33,29 @@ export async function readRollOrders(client, userId) {
      ) SELECT * FROM orders ORDER BY created_at DESC,id DESC`,
     [userId],
   );
-  return { orders: orders.rows.map(orderFromRow) };
+  const history = orders.rows.map(orderFromRow);
+  if (!await hasMarketplaceSettlementSchema(client)) return { orders: history };
+  const { rows } = await client.query(`
+    SELECT o.*,statement_timestamp() AS now,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object(
+        'action',e.action,'note',e.note,'createdAt',e.created_at
+      ) ORDER BY e.created_at,e.action)
+      FROM roll_marketplace_order_events e WHERE e.order_id=o.id),'[]'::jsonb) AS events
+    FROM roll_marketplace_orders o WHERE o.buyer_id=$1 OR o.seller_id=$1
+  `, [userId]);
+  const protectedOrders = rows.map((order) => {
+    const buyer = userId === order.buyer_id;
+    const role = buyer ? "buyer" : "seller";
+    return {
+      id: order.id, productId: `business:${order.item_id}`, productTitle: order.item_title,
+      amount: Number(order.amount), createdAt: order.created_at, status: order.status,
+      refundedAt: order.status === "refunded" ? order.closed_at : null,
+      settlement: {
+        role, participant: buyer ? order.seller_name : order.buyer_name,
+        reviewUntil: order.review_until, source: buyer ? (order.gift_card_id ? "gift" : "wallet") : null,
+        actions: marketplaceOrderActions(order, role, order.now), events: order.events,
+      },
+    };
+  });
+  return { orders: [...history, ...protectedOrders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || b.id.localeCompare(a.id)) };
 }

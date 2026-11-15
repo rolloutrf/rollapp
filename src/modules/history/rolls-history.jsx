@@ -3,6 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 
+const orderLabels = {
+  purchase: "Покупка", refund: "Возврат", market_reserve: "Резерв покупки",
+  market_refund: "Возврат резерва", market_sale: "Продажа",
+};
+
 export function RollsHistory({ transactions, nextOffset, loading, loadingMore, busy, onLoadMore }) {
   return <section className="flex min-w-0 flex-col gap-4" aria-label="История операций">
     {transactions === null ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся операции с роллами.</p> : <ul className="flex flex-col">
@@ -12,7 +17,7 @@ export function RollsHistory({ transactions, nextOffset, loading, loadingMore, b
         const grant = item.kind === "manual_grant";
         const giftTopup = item.kind === "gift_topup";
         const topup = item.kind === "stars_topup" || item.kind === "ton_topup";
-        const orderLabel = item.kind === "purchase" ? "Покупка" : item.kind === "refund" ? "Возврат" : "";
+        const orderLabel = orderLabels[item.kind];
         const Icon = orderLabel ? ShoppingBag : item.kind === "welcome" ? Gift : reward || grant ? Sparkles : incoming ? ArrowDownLeft : ArrowUpRight;
         const title = orderLabel ? `${orderLabel} · ${item.productTitle}` : item.kind === "welcome"
           ? "Добро пожаловать в Rollapp"

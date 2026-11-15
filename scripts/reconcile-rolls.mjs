@@ -8,7 +8,7 @@ try {
     return reconcileRollAccounting(client);
   });
   console.log(JSON.stringify(summary, null, 2));
-  if (summary.walletMismatches || summary.cardMismatches || summary.unaccountedRolls !== "0") process.exitCode = 1;
+  if (summary.walletMismatches || summary.cardMismatches || summary.marketplaceMismatches || summary.unaccountedRolls !== "0") process.exitCode = 1;
 } finally {
   await db.pool.end();
 }

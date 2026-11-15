@@ -24,7 +24,7 @@ try {
     return { ...users, ...accounting };
   });
   console.log(JSON.stringify({ target: db.target, welcomeAmount: ROLLS_WELCOME_AMOUNT, verification: report }));
-  if (report.walletMismatches || report.cardMismatches || report.unaccountedRolls !== "0" || (apply && report.missingGrants)) {
+  if (report.walletMismatches || report.cardMismatches || report.marketplaceMismatches || report.unaccountedRolls !== "0" || (apply && report.missingGrants)) {
     throw new Error("Проверка начислений не прошла.");
   }
 } finally {
