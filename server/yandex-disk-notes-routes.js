@@ -1,3 +1,4 @@
+import { localizedPageUrl } from "../shared/page-urls.js";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { createYandexAuthorization, readYandexAuthorization, safeOauthReturnPath } from "./yandex-auth.js";
@@ -125,7 +126,7 @@ export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit,
 
   app.get(CALLBACK, route(async (req, res, config) => {
     let syncNext;
-    const finish = (status) => res.redirect(303, syncNext ? syncReturnPath(syncNext, status) : `${PAGE}?disk=${status}`);
+    const finish = (status) => res.redirect(303, localizedPageUrl(syncNext ? syncReturnPath(syncNext, status) : `${PAGE}?disk=${status}`));
     const cookieState = req.cookies[COOKIE];
     // A stale tab must not clear a more recent connection attempt.
     if (cookieState === req.query.state) res.clearCookie(COOKIE, cookieOptions);

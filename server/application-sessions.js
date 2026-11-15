@@ -1,3 +1,4 @@
+import { localizedPageUrl } from "../shared/page-urls.js";
 import { PLATFORM_HOST, SPHERE_APPLICATIONS, spherePageOwner } from "../shared/applications.js";
 import { savedSessionsCookie, sessionCookie } from "./account-sessions.js";
 
@@ -35,6 +36,5 @@ export function sphereSessionDestination(path) {
   if (destination.origin !== platform) return null;
   const id = spherePageOwner(destination.pathname);
   if (!id) return null;
-  destination.hostname = SPHERE_APPLICATIONS[id].host;
-  return destination.href;
+  return `https://${SPHERE_APPLICATIONS[id].host}${localizedPageUrl(`${destination.pathname}${destination.search}${destination.hash}`)}`;
 }

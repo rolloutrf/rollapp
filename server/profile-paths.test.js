@@ -17,8 +17,8 @@ test("public profile paths use a clean top-level username", () => {
 
 test("legacy profile targets preserve queries and remove the namespace", () => {
   assert.equal(legacyProfileTarget({ username: "alisa" }, "/u/alisa?view=fulfilled"), "/alisa?view=fulfilled");
-  assert.equal(legacyProfileTarget({ username: "alisa", listId: "list-1" }, "/users/alisa/lists/list-1"), "/alisa/lists/list-1");
-  assert.equal(legacyProfileTarget({ username: "alisa", wishId: "wish-1" }, "/u/alisa/wishes/wish-1?from=share"), "/alisa/wishes/wish-1?from=share");
+  assert.equal(legacyProfileTarget({ username: "alisa", listId: "list-1" }, "/users/alisa/lists/list-1"), "/alisa/" + encodeURIComponent("списки") + "/list-1");
+  assert.equal(legacyProfileTarget({ username: "alisa", wishId: "wish-1" }, "/u/alisa/wishes/wish-1?from=share"), "/alisa/" + encodeURIComponent("желания") + "/wish-1?from=share");
 });
 
 test("system routes are reserved", () => {

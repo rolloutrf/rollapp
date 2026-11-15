@@ -4,12 +4,13 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScreenPortal } from "@/components/ui/screen-portal";
 import { ControlBar } from "@/components/control-bar";
+import { internalPageSearch } from "../../shared/page-urls.js";
 import { cn } from "@/lib/utils";
 
 const MobileFormsContext = createContext(null);
 const FormPageContext = createContext(null);
 const FORM_QUERY = "formScreen";
-const formToken = (search) => new URLSearchParams(search).get(FORM_QUERY);
+const formToken = (search) => new URLSearchParams(internalPageSearch(search)).get(FORM_QUERY);
 const historyKey = () => window.history.state?.key ?? "default";
 function withForm(location, id) {
   const search = new URLSearchParams(location.search);

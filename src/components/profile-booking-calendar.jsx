@@ -1,3 +1,4 @@
+import { sharePageUrl } from "../applications/location.js";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, Clock3, Globe2, Link2, Plus, Video, X } from "lucide-react";
@@ -511,7 +512,7 @@ export function ProfileBookingCalendar({ profile, slots, owner, user, busy, noti
 
   async function share() {
     try {
-      await navigator.clipboard.writeText(new URL(sharePath, window.location.origin).href);
+      await navigator.clipboard.writeText(sharePageUrl(sharePath));
       setCopied({ text: "Ссылка скопирована" });
     } catch {
       setCopied({ text: "Не удалось скопировать ссылку", error: true });

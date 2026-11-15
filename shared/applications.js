@@ -1,3 +1,5 @@
+import { internalPageUrl } from "./page-urls.js";
+
 export const PLATFORM_HOST = "xn--80avakiab.xn--p1ai";
 
 export const SPHERE_APPLICATIONS = Object.freeze({
@@ -49,7 +51,7 @@ export function sphereApiOwner(pathname) {
 }
 
 export function spherePageOwner(pathname) {
-  const path = pathname.toLowerCase().replace(/\/$/, "");
+  const path = internalPageUrl(pathname).toLowerCase().replace(/\/$/, "");
   if (matchesPath(path, "/app/spheres/contacts")) return "career";
   if (["/app/store", "/app/orders", "/app/classifieds"].includes(path) || path.startsWith("/s/")) return "wishlist";
   return Object.keys(SPHERE_APPLICATIONS).find(id => matchesPath(path, SPHERE_APPLICATIONS[id].home)) || null;

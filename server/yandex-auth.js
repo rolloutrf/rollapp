@@ -1,3 +1,4 @@
+import { internalPageUrl } from "../shared/page-urls.js";
 import {
   createHash,
   randomBytes,
@@ -80,7 +81,7 @@ export function safeOauthReturnPath(value, fallback = "/app/wishes") {
   try {
     const parsed = new URL(value, "https://rollapp.invalid");
     if (parsed.origin !== "https://rollapp.invalid") return fallback;
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    return internalPageUrl(`${parsed.pathname}${parsed.search}${parsed.hash}`);
   } catch {
     return fallback;
   }

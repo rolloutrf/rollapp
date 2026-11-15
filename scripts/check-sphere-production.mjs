@@ -1,4 +1,5 @@
 import { setTimeout } from "node:timers/promises";
+import { localizedPageUrl } from "../shared/page-urls.js";
 import { SPHERE_APPLICATIONS } from "../shared/applications.js";
 
 const version = process.argv[2];
@@ -7,9 +8,10 @@ const attempts = Number(process.env.ROLLAPP_SPHERE_HEALTH_ATTEMPTS || 36);
 
 async function verify(id, { host, home }) {
   const url = `https://${host}`;
-  const request = path => fetch(`${url}${path}`, { redirect: "error", signal: AbortSignal.timeout(10_000) });
-  const [healthResponse, homeResponse, deepResponse, accountResponse] = await Promise.all([
-    request("/api/healthz"), request("/"), request(home), request("/api/me"),
+  const request = (path, redirect = "error") => fetch(`${url}${path}`, { redirect, signal: AbortSignal.timeout(10_000) });
+  const legacyPath = `${home}?tab=products`;
+  const [healthResponse, homeResponse, deepResponse, accountResponse, legacyResponse] = await Promise.all([
+    request("/api/healthz"), request("/"), request(localizedPageUrl(home)), request("/api/me"), request(legacyPath, "manual"),
   ]);
   if (![healthResponse, homeResponse, deepResponse, accountResponse].every(response => response.ok)) {
     throw new Error(`${id} returned HTTP ${[healthResponse, homeResponse, deepResponse, accountResponse].map(response => response.status).join("/")}`);
@@ -19,6 +21,9 @@ async function verify(id, { host, home }) {
   ]);
   if (!(health.ok === true && health.service === `rollapp-${id}` && health.version === version)) {
     throw new Error(`${id} reports ${health.service} ${health.version}`);
+  }
+  if (legacyResponse.status !== 308 || legacyResponse.headers.get("location") !== localizedPageUrl(legacyPath)) {
+    throw new Error(`${id} did not redirect the legacy page to its Russian URL`);
   }
   const marker = `name="rollapp-application" content="${id}"`;
   if (!homeHtml.includes(marker) || !deepHtml.includes(marker) || account.user !== null) {

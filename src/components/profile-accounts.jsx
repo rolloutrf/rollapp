@@ -1,3 +1,4 @@
+import { useHref } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api";
@@ -8,6 +9,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
 export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBusyChange, isMobile }) {
+  const homeHref = useHref(home);
+  const addAccountHref = useHref(addHref);
   const [revision, setRevision] = useState(0);
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState("");
@@ -34,7 +37,7 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
         setData((current) => ({ ...current, accounts: current.accounts.filter(({ id }) => id !== account.id) }));
       } else {
         await api.post("/auth/accounts/switch", { accountId: account.id });
-        window.location.replace(home);
+        window.location.replace(homeHref);
         leaving = true;
       }
     } catch (error) {
@@ -102,7 +105,7 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
       </ScrollArea>
     )}
     {(canAdd || isMobile) && <DrawerFooter>
-      {canAdd && <a data-slot="button" href={actionBlocked ? undefined : addHref} aria-disabled={actionBlocked || undefined}
+      {canAdd && <a data-slot="button" href={actionBlocked ? undefined : addAccountHref} aria-disabled={actionBlocked || undefined}
         className={buttonVariants({ variant: "outline", className: "flex-1" })}>
         <Plus data-icon="inline-start" aria-hidden="true" />Добавить аккаунт
       </a>}

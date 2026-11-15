@@ -1,4 +1,5 @@
 import { sphereApiOwner } from "../shared/applications.js";
+import { localizedPageUrl } from "../shared/page-urls.js";
 import { applicationSessionCookies, readBrowserSessionCookies, sphereSessionDestination } from "./application-sessions.js";
 import { applicationRuntime, requireApplicationApi } from "./application-runtime.js";
 import { registerMessengerRoutes } from "./messenger.js";
@@ -803,7 +804,7 @@ function yandexLoginRedirect(nextPath, errorCode, successCode, backup, addAccoun
   if (errorCode) params.set("auth_error", errorCode);
   if (successCode) params.set("auth_success", successCode);
   if (backup) params.set("backup", backup);
-  return `/login?${params.toString()}`;
+  return localizedPageUrl(`/login?${params.toString()}`);
 }
 
 const inviteRequired = { error: "Регистрация доступна только по приглашению", code: "INVITE_REQUIRED" };
@@ -861,9 +862,7 @@ function getPasswordResetOrigin(env = process.env) {
 }
 
 function buildPasswordResetUrl(origin, token) {
-  const resetUrl = new URL("/reset-password", origin);
-  resetUrl.hash = `token=${token}`;
-  return resetUrl.toString();
+  return new URL(localizedPageUrl(`/reset-password#token=${token}`), origin).href;
 }
 
 async function createPasswordResetRequest(email) {
@@ -1588,7 +1587,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   const authErrorRedirect = (code) => {
     if (!/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) return yandexLoginRedirect(nextPath, code, "", undefined, addingAccount);
     const params = new URLSearchParams({ next: nextPath, auth_error: code });
-    return `/register?${params}#invite=${inviteToken}`;
+    return localizedPageUrl(`/register?${params}#invite=${inviteToken}`);
   };
   const loginError = (code) => res.redirect(303, authErrorRedirect(code));
   if (addingAccount && req.user?.id !== attempt.user_id) return loginError("YANDEX_ADD_SESSION_CHANGED");
@@ -1633,7 +1632,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
       }
       return res.redirect(303, yandexLoginRedirect(nextPath, "", "YANDEX_LINKED", backup));
     }
-    return res.redirect(303, addingAccount ? "/app/wishes" : nextPath);
+    return res.redirect(303, localizedPageUrl(addingAccount ? "/app/wishes" : nextPath));
   } catch (error) {
     const publicCode = error instanceof YandexAuthError
       ? {
@@ -1895,8 +1894,7 @@ app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req,
     return { ok: true };
   });
   if (created.error) return res.status(created.status).json({ error: created.error });
-  const inviteUrl = new URL("/register", origin);
-  inviteUrl.hash = new URLSearchParams({ invite: invite.token }).toString();
+  const inviteUrl = new URL(localizedPageUrl(`/register#${new URLSearchParams({ invite: invite.token })}`), origin);
   try {
     await sendAccountInviteEmail({ to: invite.email, inviteUrl: inviteUrl.toString(), requestId: invite.id });
     await query("UPDATE account_invites SET delivery_status='sent' WHERE id=$1 AND delivery_status='pending'", [invite.id]);
@@ -1978,7 +1976,7 @@ if (domainCookies && !sphereApplication) {
     const next = safeOauthReturnPath(req.query.next, "");
     const destination = next ? sphereSessionDestination(next) : null;
     if (!destination) return res.sendStatus(400);
-    if (!req.user) return res.redirect(303, `/login?next=${encodeURIComponent(next)}`);
+    if (!req.user) return res.redirect(303, localizedPageUrl(`/login?next=${encodeURIComponent(next)}`));
     await promoteLegacySession(req, res);
     return res.redirect(303, destination);
   }));
@@ -3458,7 +3456,11 @@ if (isProduction) {
   const entry = sphereApplication ? `${applicationId}.html` : "index.html";
   app.get(/^\/[^/]+\.html$/i, (_req, res) => res.status(404).end());
   app.use(express.static(distPath, { maxAge: "1y", immutable: true, index: false, redirect: false }));
-  app.get("/{*splat}", (_req, res) => res.sendFile(path.join(distPath, entry), { maxAge: 0 }));
+  app.get("/{*splat}", (req, res) => {
+    const localized = localizedPageUrl(req.originalUrl);
+    if (localized !== req.originalUrl) return res.set("Cache-Control", "no-store").redirect(308, localized);
+    return res.sendFile(path.join(distPath, entry), { maxAge: 0 });
+  });
 }
 
 app.use((error, req, res, _next) => {

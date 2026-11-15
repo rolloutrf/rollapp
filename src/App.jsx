@@ -1,5 +1,6 @@
 import { SPHERE_APPLICATIONS } from "../shared/applications.js";
-import { applicationRedirect, platformLink, sphereLink } from "./applications/location.js";
+import { internalPageUrl, localizedPageUrl } from "../shared/page-urls.js";
+import { applicationRedirect, platformLink, sharePageUrl, sphereLink } from "./applications/location.js";
 import { IDENTITY_TABS, CAREER_TABS, EDUCATION_TABS, HEALTH_TABS } from "../shared/sphere-tabs.js";
 import { NOTE_TASKS_REQUEST_EVENT } from "@/lib/planning-assistant";
 import { AssistantNoteTasks, createNoteTaskRows } from "@/components/assistant-note-tasks";
@@ -283,7 +284,7 @@ const formatEventDate = (value) => {
 };
 const readPasswordResetToken = () => {
   if (typeof window === "undefined") return "";
-  const fragment = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const fragment = internalPageUrl(`/reset-password${window.location.hash}`).slice("/reset-password#".length);
   return (new URLSearchParams(fragment).get("token") || "").trim();
 };
 const participantCountLabel = (count) => {
@@ -1408,7 +1409,7 @@ function ForgotPasswordPage() {
             Отправить ссылку
           </ShadcnButton>
         </>}
-      <p className="auth-switch"><a href="/login">Вернуться ко входу</a></p>
+      <p className="auth-switch"><Link to="/login">Вернуться ко входу</Link></p>
     </AuthRecoveryForm>
   );
 }
@@ -1473,7 +1474,7 @@ function ResetPasswordPage() {
           <CheckCircle2 className="text-primary" aria-hidden="true" />
           <AlertDescription>Новый пароль сохранён. Все прежние сеансы завершены.</AlertDescription>
         </Alert>
-        <a className={buttonVariants({ className: "auth-submit" })} href="/login">Перейти ко входу</a>
+        <Link className={buttonVariants({ className: "auth-submit" })} to="/login">Перейти ко входу</Link>
       </AuthRecoveryForm>
     );
   }
@@ -1485,7 +1486,7 @@ function ResetPasswordPage() {
           <AlertDescription>Запросите новую ссылку для восстановления пароля.</AlertDescription>
         </Alert>
         <Link className={buttonVariants({ className: "auth-submit" })} to="/forgot-password">Запросить новую ссылку</Link>
-        <p className="auth-switch"><a href="/login">Вернуться ко входу</a></p>
+        <p className="auth-switch"><Link to="/login">Вернуться ко входу</Link></p>
       </AuthRecoveryForm>
     );
   }
@@ -1738,7 +1739,7 @@ function SignInPage({ yandexEnabled, legacySignInEnabled }) {
 
   const finishAuthentication = async (message) => {
     if (addingAccount) {
-      window.location.replace(APP_HOME);
+      window.location.replace(localizedPageUrl(APP_HOME));
       return;
     }
     let linkError = null;
@@ -2079,7 +2080,7 @@ function TabbedSpherePage({ sphereId, tabs }) {
     const ownerUsername = access.owner?.username;
     const path = sphereSectionPath({ ownerUsername, sphere: sphereId, section: activeTab });
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      await navigator.clipboard.writeText(sharePageUrl(path));
       toast(access.isOwner ? "Ссылка на раздел скопирована. Открыть её смогут выбранные люди." : "Ссылка на раздел скопирована");
     } catch {
       toast("Не удалось скопировать ссылку", "error");
@@ -2674,7 +2675,7 @@ function ContactsSpherePage() {
   globalShareRef.current = async () => {
     const path = sphereSectionPath({ ownerUsername: access.owner?.username, sphere: "career", section: "contacts" });
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      await navigator.clipboard.writeText(sharePageUrl(path));
       toast(access.isOwner ? "Ссылка на раздел скопирована. Открыть её смогут выбранные люди." : "Ссылка на раздел скопирована");
     } catch {
       toast("Не удалось скопировать ссылку", "error");
@@ -3796,7 +3797,7 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
       return false;
     }
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${wishSharePath({ wish, profile, lists, shareToken })}`);
+      await navigator.clipboard.writeText(sharePageUrl(wishSharePath({ wish, profile, lists, shareToken })));
       toast("Ссылка скопирована");
       return true;
     } catch {
@@ -5048,7 +5049,7 @@ function WishesPage({ onAdd, version }) {
   if (data && data.viewerId !== viewerId) return <LoadingScreen compact />;
   const share = async () => {
     if (publication) {
-      await navigator.clipboard.writeText(`${window.location.origin}${publication === "calendar" ? publicBookingPath(user.username) : publicPublicationPath(user.username, publication)}`);
+      await navigator.clipboard.writeText(sharePageUrl(publication === "calendar" ? publicBookingPath(user.username) : publicPublicationPath(user.username, publication)));
       toast("Ссылка скопирована");
       return;
     }
@@ -5057,10 +5058,10 @@ function WishesPage({ onAdd, version }) {
       return;
     }
     const url = selectedValue === "all"
-      ? `${window.location.origin}${publicSpacePath(user.username, selectedSpace)}`
+      ? sharePageUrl(publicSpacePath(user.username, selectedSpace))
       : selectedList?.privacy === "link"
-        ? `${window.location.origin}/s/${selectedList.shareToken}`
-        : `${window.location.origin}${publicListPath(user.username, selectedList?.id)}`;
+        ? sharePageUrl(`/s/${selectedList.shareToken}`)
+        : sharePageUrl(publicListPath(user.username, selectedList?.id));
     await navigator.clipboard.writeText(url);
     toast("Ссылка на список скопирована");
   };
@@ -8129,7 +8130,7 @@ function PublicProfile({ shared = false }) {
 
   const share = async () => {
     if (publication) {
-      await navigator.clipboard.writeText(`${window.location.origin}${publication === "calendar" ? publicBookingPath(data.profile.username) : publicPublicationPath(data.profile.username, publication)}`);
+      await navigator.clipboard.writeText(sharePageUrl(publication === "calendar" ? publicBookingPath(data.profile.username) : publicPublicationPath(data.profile.username, publication)));
       toast("Ссылка скопирована");
       return;
     }
@@ -8140,7 +8141,7 @@ function PublicProfile({ shared = false }) {
     const path = selectedList?.privacy === "link" && selectedList.shareToken
       ? `/s/${selectedList.shareToken}`
       : currentCollectionPath;
-    await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+    await navigator.clipboard.writeText(sharePageUrl(path));
     toast("Ссылка скопирована");
   };
   globalShareRef.current = share;

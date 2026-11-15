@@ -1,3 +1,5 @@
+import { internalPageSearch, localizedPageUrl } from "../shared/page-urls.js";
+
 const API_ROOT = "/api";
 let activeAccountId;
 
@@ -13,7 +15,7 @@ export async function sessionFetch(url, options = {}) {
   const response = await fetch(url, { credentials: "include", cache: "no-store", ...options, headers });
   if (response.status === 409) {
     const payload = await response.clone().json().catch(() => null);
-    if (payload?.code === "ACTIVE_ACCOUNT_CHANGED") window.location.replace("/app/wishes");
+    if (payload?.code === "ACTIVE_ACCOUNT_CHANGED") window.location.replace(localizedPageUrl("/app/wishes"));
   }
   return response;
 }
@@ -22,7 +24,7 @@ const PRIVATE_SPHERE_API_PREFIXES = ["/contacts", "/career/", "/identity/", "/ed
 
 function scopedSpherePath(path) {
   if (typeof window === "undefined" || !PRIVATE_SPHERE_API_PREFIXES.some((prefix) => path.startsWith(prefix))) return path;
-  const owner = new URLSearchParams(window.location.search).get("owner")?.trim();
+  const owner = new URLSearchParams(internalPageSearch(window.location.search)).get("owner")?.trim();
   if (!owner) return path;
   const [pathname, query = ""] = path.split("?", 2);
   const search = new URLSearchParams(query);

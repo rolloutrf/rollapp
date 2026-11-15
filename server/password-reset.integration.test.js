@@ -1,3 +1,4 @@
+import { localizedPageUrl } from "../shared/page-urls.js";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -81,7 +82,7 @@ function tokenFromMessage(message) {
   return {
     origin: resetUrl.origin,
     pathname: resetUrl.pathname,
-    token: new URLSearchParams(resetUrl.hash.slice(1)).get("token"),
+    token: new URLSearchParams(resetUrl.hash.slice(1)).get("ключ"),
   };
 }
 
@@ -134,7 +135,7 @@ test("password reset is private, single-use, invalidates older links and revokes
   const firstLink = tokenFromMessage(firstMessages[0]);
   assert.deepEqual(
     { origin: firstLink.origin, pathname: firstLink.pathname },
-    { origin: `http://127.0.0.1:${port}`, pathname: "/reset-password" },
+    { origin: `http://127.0.0.1:${port}`, pathname: localizedPageUrl("/reset-password") },
   );
   assert.match(firstLink.token, /^[A-Za-z0-9_-]{43}$/);
 

@@ -1,3 +1,5 @@
+import { localizedPageUrl } from "../shared/page-urls.js";
+
 const RESERVED_PROFILE_USERNAMES = new Set([
   "api",
   "app",
@@ -37,5 +39,5 @@ export function legacyProfileTarget(params, originalUrl = "") {
       ? publicWishPath(params.username, params.wishId)
       : publicProfilePath(params.username);
   const queryIndex = originalUrl.indexOf("?");
-  return `${path}${queryIndex >= 0 ? originalUrl.slice(queryIndex) : ""}`;
+  return localizedPageUrl(`${path}${queryIndex >= 0 ? originalUrl.slice(queryIndex) : ""}`);
 }
