@@ -88,6 +88,9 @@ export function createAccountSessions({ query, sessionCookieOptions, domainCooki
       } else if (req.cookies[savedSessionsCookie]) {
         writeSavedSessions(res, []);
       }
+    } else if (domainCookies && !req.cookies[activeName] && req.cookies[savedSessionsCookie]) {
+      const sessions = await browserAccountSessions(req);
+      writeSavedSessions(res, sessions.filter(({ user }) => user.id !== userId).slice(0, maxSavedSessions));
     }
     setSessionCookie(res, session);
     clearLegacyCookies(res);

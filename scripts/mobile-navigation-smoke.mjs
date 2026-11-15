@@ -140,7 +140,10 @@ try{
      const popup = page.getByRole('listbox');
      await popup.waitFor(); await settle(popup);
      assert((await popup.boundingBox()).y >= c.y + c.height - 1, 'Desktop section menu must open down');
-     await page.keyboard.press('End'); await page.keyboard.press('Enter');
+     await page.keyboard.press('End');
+     const transport = popup.getByRole('option', { name: 'Транспорт', exact: true });
+     await transport.and(page.locator('[data-highlighted]')).waitFor();
+     await page.keyboard.press('Enter');
      await page.waitForURL('**/app/wishes?tab=transport');
      await select.getByText('Транспорт', { exact: true }).waitFor();
      await select.locator('[data-slot="select-value"] svg').waitFor();

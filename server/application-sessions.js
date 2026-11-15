@@ -30,8 +30,9 @@ export function readBrowserSessionCookies(cookies) {
 }
 
 export function sphereSessionDestination(path) {
-  const destination = new URL(path, `https://${PLATFORM_HOST}`);
-  if (destination.hostname !== PLATFORM_HOST) return null;
+  const platform = `https://${PLATFORM_HOST}`;
+  const destination = new URL(path, platform);
+  if (destination.origin !== platform) return null;
   const id = spherePageOwner(destination.pathname);
   if (!id) return null;
   destination.hostname = SPHERE_APPLICATIONS[id].host;

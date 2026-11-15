@@ -3689,6 +3689,7 @@ function ProtectedApp({ application }) {
   return (
     <AppShell>
       <Routes>
+        <Route index element={<Navigate to={home} replace />} />
         {!application && <>
           <Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} />
           <Route path="planning" element={<PlanningSpace key={user.id} />} />
