@@ -1,3 +1,5 @@
+import { PROFILE_SPACES } from "../profile/profile-links.js";
+
 // Browser URLs are Russian. Route IDs, API contracts and opaque values keep
 // their existing spelling inside the application.
 const pageWords = {
@@ -48,7 +50,7 @@ const pageWords = {
   book: "запись",
 };
 
-const publicSections = ["products", "places", "events", "media", "food", "transport", "calendar", "announcements"];
+const publicSections = [...PROFILE_SPACES, "calendar", "announcements"];
 const spherePages = ["identity", "health", "career", "education", "contacts"];
 const patterns = [
   ...["login", "register", "forgot-password", "reset-password", "ideas", "app"].map(word => `/${word}`),
@@ -136,7 +138,7 @@ const valueWords = {
   report: { gallup: tabWords.gallup, hogan: tabWords.hogan },
   view: { day: "день", week: "неделя", month: "месяц", year: "год", list: "список", offers: pageWords.offers },
   source: { brands: "бренды", community: "сообщество" },
-  space: { main: "основной" },
+  space: { ...Object.fromEntries(PROFILE_SPACES.map(key => [key, pageWords[key]])), main: "основной" },
   spaceKind: { todo: tabWords.todo, calendar: pageWords.calendar, kanban: tabWords.kanban },
 };
 

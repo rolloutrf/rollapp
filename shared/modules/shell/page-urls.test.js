@@ -7,6 +7,7 @@ test("browser routes localize Rollapp vocabulary while preserving usernames, IDs
     ["/app/spheres/health?tab=sleep&date=2026-11-15#section", "/приложение/сферы/здоровье?раздел=сон&дата=2026-11-15#section"],
     ["/app/spheres/career/business/store?tab=contacts&owner=Smith", "/приложение/сферы/карьера/бизнес/магазин?раздел=контакты&владелец=Smith"],
     ["/app/planning?tab=calendar&view=week&space=list-a", "/приложение/планирование?раздел=календарь&вид=неделя&список=list-a"],
+    ["/app/wishes?space=products", "/приложение/желания?список=товары"],
     ["/app/friends/followers", "/приложение/друзья/подписчики"],
     ["/wishes/products", "/wishes/товары"],
     ["/health/calendar/book?slot=a%2Fb&zone=Europe%2FMoscow", "/health/календарь/запись?время=a%2Fb&часовой-пояс=Europe%2FMoscow"],

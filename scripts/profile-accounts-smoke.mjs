@@ -71,11 +71,11 @@ async function fixture(viewport, accountCount = 2) {
       if (cancelYandex) {
         cancelYandex = false;
         searchParams.set("auth_error", "YANDEX_CANCELLED");
-        return route.fulfill({ status: 303, headers: { Location: `/login?${searchParams}` } });
+        return route.fulfill({ status: 303, headers: { Location: localizedPageUrl(`/login?${searchParams}`) } });
       }
       remembered = [personal, business];
       active = business;
-      return route.fulfill({ status: 303, headers: { Location: "/app/wishes" } });
+      return route.fulfill({ status: 303, headers: { Location: localizedPageUrl("/app/wishes") } });
     }
     if (pathname === "/api/auth/accounts/switch" && method === "POST" && expected === active?.id) {
       active = remembered.find(({ id }) => id === request.postDataJSON().accountId);
@@ -214,7 +214,7 @@ try {
         document: document.documentElement.scrollWidth,
       }));
       assert(dimensions.scroll <= dimensions.available && dimensions.document <= width, JSON.stringify(dimensions));
-      assert.equal(new URL(await add.getAttribute("href"), origin).searchParams.get("next"), "/app/wishes?space=products");
+      assert.equal(new URL(await add.getAttribute("href"), origin).searchParams.get("далее"), localizedPageUrl("/app/wishes?space=products"));
       await checkAccountRows(page, width);
       if (process.env.ROLLAPP_ACCOUNT_SCREENSHOTS && ((width === 390 && height === 844) || width === 1440)) {
         await page.screenshot({ path: `${process.env.ROLLAPP_ACCOUNT_SCREENSHOTS}/rollapp-accounts-${width}.png` });
@@ -279,7 +279,7 @@ try {
     assert.equal(await page.locator(".auth-form input, .auth-method-switch, .auth-password-link, .auth-form .or").count(), 0);
     await page.getByRole("link", { name: "Отмена", exact: true }).click();
     await home(page).waitFor();
-    assert.equal(new URL(page.url()).search, "?space=products");
+    assert.equal(decodeURI(new URL(page.url()).search), "?список=товары");
 
     const stale = await context.newPage();
     await stale.goto(origin + "/app/wishes");
@@ -294,7 +294,7 @@ try {
     await home(page, business).waitFor();
     await stale.locator("#profile-editor-form").evaluate((element) => element.requestSubmit());
     await home(stale, business).waitFor();
-    assert.equal(new URL(stale.url()).pathname, localizedPageUrl("/app/wishes"));
+    assert.equal(decodeURI(new URL(stale.url()).pathname), "/приложение/желания");
     assert.equal(staleWrites(), 1);
     await stale.close();
     await openAccounts(page, business);
