@@ -7,7 +7,7 @@ import { ensureRollWallet } from "./modules/payments/rolls.js";
 import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
 import { readRollOrders } from "./modules/history/order-history.js";
-import { reconcileRollAccounting } from "./modules/payments/roll-accounting.js";
+import { reconcileRollAccounting } from "./modules/payments/roll-reconciliation.js";
 import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 
 test("personal offers on existing production schema: every test write is rolled back", { skip: process.env.ROLLAPP_TEST_PERSONAL_OFFERS !== "1" }, async t => {

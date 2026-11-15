@@ -4,7 +4,7 @@ import { test } from "node:test";
 import express from "express";
 import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
 import { enrollWishRewards, grantRolls, grantWishReward } from "./modules/loyalty/roll-rewards.js";
-import { ensureRollWallet, rollsSchema, transferRolls } from "./modules/payments/rolls.js";
+import { ensureRollWallet, transferRolls } from "./modules/payments/rolls.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
 import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 
@@ -15,7 +15,6 @@ test("rolls transactions on configured production PostgreSQL, with every write r
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL lock_timeout='5s'");
-    await client.query(rollsSchema);
     const [alice, bob, other] = [randomUUID(), randomUUID(), randomUUID()];
     for (const [index, id] of [alice, bob, other].entries()) {
       await client.query("INSERT INTO users (id,email,username,name,password_hash) VALUES ($1,$2,$3,$4,$5)", [id, `${id}@rolls-test.invalid`, `rolls-test-${id}`, `Rolls test ${index}`, "unusable"]);
@@ -224,9 +223,10 @@ test("opposite transfers serialize across PostgreSQL connections without persist
   if (users.rowCount < 2) { await db.pool.end(); t.skip("Two funded wallets are needed for the rollback-only lock check."); return; }
   const [firstId, secondId] = users.rows.map((row) => row.user_id);
   const first = await db.pool.connect();
-  const second = await db.pool.connect();
+  let second;
   let secondTransfer;
   try {
+    second = await db.pool.connect();
     await first.query("BEGIN");
     await second.query("BEGIN");
     await second.query("SET LOCAL lock_timeout='5s'");
@@ -245,11 +245,14 @@ test("opposite transfers serialize across PostgreSQL connections without persist
     await first.query("ROLLBACK");
     assert.equal((await secondTransfer).replayed, false);
   } finally {
-    await first.query("ROLLBACK");
-    if (secondTransfer) await secondTransfer.catch(() => {});
-    await second.query("ROLLBACK");
-    first.release();
-    second.release();
-    await db.pool.end();
+    try {
+      await first.query("ROLLBACK");
+      if (secondTransfer) await secondTransfer.catch(() => {});
+      if (second) await second.query("ROLLBACK");
+    } finally {
+      first.release();
+      second?.release();
+      await db.pool.end();
+    }
   }
 });

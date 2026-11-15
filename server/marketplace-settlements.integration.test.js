@@ -8,7 +8,7 @@ import { hasMarketplaceSettlementSchema, verifyMarketplaceSettlementSchema } fro
 import { readRollOrders } from "./modules/history/order-history.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
 import { issueGiftCard, changeGiftCard, listGiftCards } from "./modules/loyalty/gift-cards.js";
-import { reconcileRollAccounting } from "./modules/payments/roll-accounting.js";
+import { reconcileRollAccounting } from "./modules/payments/roll-reconciliation.js";
 import { ensureRollWallet } from "./modules/payments/rolls.js";
 
 test("protected marketplace orders on the existing production schema", { skip: process.env.ROLLAPP_TEST_MARKETPLACE_SETTLEMENTS !== "1" }, async (t) => {
@@ -76,6 +76,35 @@ test("protected marketplace orders on the existing production schema", { skip: p
         assert.equal((await wallet(seller)).transactions.filter(({kind}) => kind === "market_sale").length, 1);
         assert((await readRollOrders(client, seller)).orders[0].settlement.events.every((event) => !("operator_label" in event)));
         assert.equal((await totals()).unaccountedRolls, "0");
+      });
+
+      await t.test("private reconciliation sees open disputes and distinguishes voluntary closure from audit mismatches", async () => {
+        await client.query("SAVEPOINT marketplace_audit");
+        try {
+          const previous = await totals();
+          const purchase = await buy(terms());
+          await act(purchase.id, seller, "fulfill");
+          await act(purchase.id, buyer, "dispute", "Нужна проверка заказа");
+          const open = await reconcileRollAccounting(client, { sampleLimit: 100 });
+          assert.equal(open.attention.marketplace_disputed.count, (previous.attention.marketplace_disputed?.count ?? 0) + 1);
+          assert(open.attention.marketplace_disputed.sample.some(({ id }) => id === purchase.id));
+          assert.equal(open.marketplaceMismatches, previous.marketplaceMismatches);
+          await act(purchase.id, seller, "refund");
+          const refunded = await totals();
+          assert.equal(refunded.marketplaceMismatches, previous.marketplaceMismatches);
+          assert.equal(refunded.attention.marketplace_disputed?.count ?? 0, previous.attention.marketplace_disputed?.count ?? 0);
+
+          const accepted = await buy(terms());
+          await act(accepted.id, seller, "fulfill");
+          await act(accepted.id, buyer, "dispute", "Нужна проверка заказа");
+          await act(accepted.id, buyer, "accept");
+          assert.equal((await totals()).marketplaceMismatches, previous.marketplaceMismatches);
+          await client.query("UPDATE roll_marketplace_order_events SET actor_id=$2 WHERE order_id=$1 AND action='accept'", [accepted.id, other]);
+          const damaged = await reconcileRollAccounting(client, { sampleLimit: 100 });
+          assert.equal(damaged.marketplaceMismatches, previous.marketplaceMismatches + 1);
+          assert.equal(damaged.unaccountedRolls, previous.unaccountedRolls);
+          assert.equal(damaged.details.marketplace.find(({ id }) => id === accepted.id).terminalAction, "accept");
+        } finally { await client.query("ROLLBACK TO SAVEPOINT marketplace_audit"); }
       });
 
       await t.test("a purchase funded by a card refunds the same card after a change of owner", async () => {

@@ -1,6 +1,6 @@
 import { productionRollsDatabase } from "./rolls-database.mjs";
 import { grantWelcomeRolls } from "../server/modules/loyalty/roll-rewards.js";
-import { reconcileRollAccounting } from "../server/modules/payments/roll-accounting.js";
+import { reconcileRollAccounting, rollAccountingMatches } from "../server/modules/payments/roll-reconciliation.js";
 import { ROLLS_WELCOME_AMOUNT } from "../shared/modules/payments/rolls.js";
 
 const db = await productionRollsDatabase();
@@ -24,7 +24,7 @@ try {
     return { ...users, ...accounting };
   });
   console.log(JSON.stringify({ target: db.target, welcomeAmount: ROLLS_WELCOME_AMOUNT, verification: report }));
-  if (report.walletMismatches || report.cardMismatches || report.marketplaceMismatches || report.unaccountedRolls !== "0" || (apply && report.missingGrants)) {
+  if (!rollAccountingMatches(report) || (apply && report.missingGrants)) {
     throw new Error("Проверка начислений не прошла.");
   }
 } finally {

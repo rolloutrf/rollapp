@@ -69,7 +69,7 @@ export function rollWalletEntries({ gifts, rewards, marketplace }) {
   `;
 }
 
-const openRewardReserves = `
+export const openRewardReserves = `
   SELECT r.user_id,r.amount
   FROM reward_need_entries r
   WHERE r.kind='reserve' AND NOT EXISTS (
@@ -77,7 +77,7 @@ const openRewardReserves = `
   )
 `;
 
-const openMarketplaceReserves = `
+export const openMarketplaceReserves = `
   SELECT buyer_id,seller_id,amount FROM roll_marketplace_orders
   WHERE status IN ('reserved','fulfilled','disputed')
 `;
@@ -100,72 +100,4 @@ export async function readRollBalanceBreakdown(client, userId, sources) {
        (${marketplaceBalance("buyer_id")}) AS "reservedOrders", (${marketplaceBalance("seller_id")}) AS "pendingSales"`, [userId],
   );
   return balances;
-}
-
-export async function reconcileRollAccounting(client) {
-  const sources = await readRollAccountingSources(client);
-  const cardBalances = sources.gifts ? `
-    SELECT c.balance,COALESCE(e.recorded,0) AS recorded
-    FROM business_gift_cards c LEFT JOIN (
-      SELECT card_id,SUM(CASE kind WHEN 'topup' THEN amount WHEN 'refund' THEN amount
-                                   WHEN 'spend' THEN -amount ELSE 0 END) AS recorded
-      FROM business_gift_card_events GROUP BY card_id
-    ) e ON e.card_id=c.id
-  ` : "SELECT 0::bigint AS balance,0::numeric AS recorded WHERE FALSE";
-  const cardSpend = sources.gifts
-    ? `(SELECT COALESCE(SUM(CASE e.kind WHEN 'spend' THEN e.amount WHEN 'refund' THEN -e.amount ELSE 0 END),0)
-      FROM business_gift_card_events e
-      ${sources.marketplace ? `WHERE NOT EXISTS (SELECT 1 FROM roll_marketplace_orders o
-        WHERE o.gift_payment_id=CASE e.kind WHEN 'refund' THEN e.purchase_id ELSE e.id END)` : ""})`
-    : "0";
-  const reservedRewards = sources.rewards
-    ? `(SELECT COALESCE(SUM(amount),0) FROM (${openRewardReserves}) reserves)`
-    : "0";
-  const reservedOrders = sources.marketplace ? `(SELECT COALESCE(SUM(amount),0) FROM (${openMarketplaceReserves}) reserves)` : "0";
-  const marketplaceMismatches = sources.marketplace ? `(SELECT COUNT(*)::int FROM roll_marketplace_orders o
-    LEFT JOIN roll_marketplace_order_events terminal ON terminal.order_id=o.id
-      AND terminal.action IN ('accept','claim','cancel','refund','resolve_release','resolve_refund')
-    LEFT JOIN business_gift_card_events debit ON debit.id=o.gift_payment_id
-    LEFT JOIN business_gift_card_events refund ON refund.purchase_id=o.gift_payment_id AND refund.kind='refund'
-    WHERE (o.status='released') <> COALESCE(terminal.action IN ('accept','claim','resolve_release'),FALSE)
-       OR (o.status='refunded') <> COALESCE(terminal.action IN ('cancel','refund','resolve_refund'),FALSE)
-       OR o.closed_at IS DISTINCT FROM terminal.created_at
-       OR (terminal.action IN ('cancel','accept') AND terminal.actor_id IS DISTINCT FROM o.buyer_id)
-       OR (terminal.action IN ('claim','refund') AND terminal.actor_id IS DISTINCT FROM o.seller_id)
-       OR (o.gift_card_id IS NOT NULL AND (debit.kind IS DISTINCT FROM 'spend'
-           OR debit.card_id IS DISTINCT FROM o.gift_card_id OR debit.actor_id IS DISTINCT FROM o.buyer_id
-           OR debit.amount IS DISTINCT FROM o.amount OR debit.purchase IS NOT NULL
-           OR (o.status='refunded') <> (refund.id IS NOT NULL)
-           OR (refund.id IS NOT NULL AND (refund.card_id<>o.gift_card_id OR refund.amount<>o.amount)))))` : "0";
-  const { rows: [totals] } = await client.query(`
-    WITH entries AS MATERIALIZED (
-      SELECT account_id,kind,amount,direction FROM (${rollWalletEntries(sources)}) entries
-    ),
-    by_account AS (
-      SELECT account_id,SUM(CASE direction WHEN 'incoming' THEN amount ELSE -amount END) AS balance
-      FROM entries GROUP BY account_id
-    ), wallets AS (
-      SELECT COUNT(w.user_id)::int AS count,
-        COUNT(*) FILTER (WHERE COALESCE(w.balance,0)<>COALESCE(a.balance,0))::int AS mismatches,
-        COALESCE(SUM(w.balance),0) AS balance
-      FROM roll_wallets w FULL JOIN by_account a ON a.account_id=w.user_id
-    ), cards AS (
-      SELECT COUNT(*)::int AS count,COUNT(*) FILTER (WHERE balance<>recorded)::int AS mismatches,
-        COALESCE(SUM(balance),0) AS balance
-      FROM (${cardBalances}) balances
-    ), system AS (
-      SELECT ${reservedRewards} AS reserved,${reservedOrders} AS orders_reserved,
-        (SELECT COALESCE(SUM(amount),0) FROM entries
-         WHERE kind IN ('welcome','wish_reward','manual_grant','stars_topup','ton_topup')) AS issued,
-        (SELECT COALESCE(SUM(CASE direction WHEN 'outgoing' THEN amount ELSE -amount END),0)
-         FROM entries WHERE kind IN ('purchase','refund')) + ${cardSpend} AS redeemed
-    )
-    SELECT wallets.count AS wallets, wallets.mismatches AS "walletMismatches", wallets.balance::text AS "walletRolls",
-      cards.count AS "giftCards", cards.mismatches AS "cardMismatches", cards.balance::text AS "giftCardRolls",
-      reserved::text AS "reservedRewardRolls",orders_reserved::text AS "reservedMarketplaceRolls",
-      ${marketplaceMismatches} AS "marketplaceMismatches", issued::text AS "issuedRolls", redeemed::text AS "redeemedRolls",
-      (issued-redeemed-reserved-orders_reserved-wallets.balance-cards.balance)::text AS "unaccountedRolls"
-    FROM wallets,cards,system
-  `);
-  return { ...sources, ...totals };
 }
