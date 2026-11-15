@@ -76,6 +76,7 @@
     "test:marketplace-settlements:production": "ROLLAPP_TEST_MARKETPLACE_SETTLEMENTS=1 node --test server/marketplace-settlements.integration.test.js",
     "test:orders": "node scripts/orders-drawer-smoke.mjs",
     "rolls:grant": "node scripts/grant-welcome-rolls.mjs",
+    "test:roll-activity:production": "ROLLAPP_TEST_ROLL_ACTIVITY=1 node --test server/roll-activity.integration.test.js",
     "test:rolls:production": "ROLLAPP_TEST_ROLLS=1 node --test server/rolls.integration.test.js",
     "test:stars:production": "ROLLAPP_TEST_STARS=1 node --test server/roll-stars.integration.test.js",
     "test:openrouter:production": "ROLLAPP_TEST_OPENROUTER=1 node --test server/openrouter-persistence.integration.test.js",

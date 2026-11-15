@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
@@ -6,6 +8,8 @@ import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
 import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 
 const fixture = "/__purchase-history-smoke";
+const activityScreenshots = process.env.ROLLAPP_ACTIVITY_SCREENSHOTS;
+if (activityScreenshots) await mkdir(activityScreenshots, { recursive: true });
 const server = await createServer({
   optimizeDeps: { include: [...smokeBaseUiDependencies, "read-excel-file/universal"] },
   cacheDir: "node_modules/.vite-purchase-history-smoke",
@@ -28,6 +32,56 @@ const server = await createServer({
 });
 await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
+
+async function checkActivity(page, viewport, surface) {
+  const open = page.getByRole("button", { name: "Сводка по роллам", exact: true });
+  await open.click();
+  const report = page.getByRole("region", { name: "Движение роллов", exact: true });
+  await report.getByText("70 роллов", { exact: false }).waitFor();
+  await report.getByText("Москва", { exact: false }).waitFor();
+  const period = report.getByRole("group", { name: "Период сводки" });
+  for (const button of await period.getByRole("button").all()) {
+    assert.equal(await button.evaluate((element) => element.offsetHeight), 48);
+  }
+  await report.getByRole("button", { name: /Покупки и продажи/ }).click();
+  await report.getByRole("alert").filter({ hasText: "Выписка временно недоступна" }).waitFor();
+  await report.getByRole("button", { name: "Повторить", exact: true }).click();
+  await report.getByText("Возврат · Возврат заказа A").waitFor();
+  await report.getByRole("button", { name: "Показать ещё", exact: true }).click();
+  await report.getByText("Покупка · Книги для проекта").waitFor();
+  assert.deepEqual(await page.evaluate(() => window.activityRequests.filter(({ mode }) => mode === "detail")), [
+    { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments" },
+    { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments" },
+    { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments", beforeId: "refund:invoice", before: "2026-11-14T12:23:10.824521Z" },
+  ]);
+  if (activityScreenshots && [390, 1440].includes(viewport.width) && viewport.height >= 800) {
+    await report.getByRole("heading").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(activityScreenshots, `${surface}-${viewport.width}.png`) });
+  }
+  await period.getByRole("button", { name: "7 дней" }).click();
+  await report.getByText("За этот период операций не было.").waitFor();
+  assert.equal(await report.getByText("Книги для проекта", { exact: false }).count(), 0);
+  await period.getByRole("button", { name: "90 дней" }).click();
+  await report.getByText("Сводка временно недоступна").waitFor();
+  await report.getByRole("button", { name: "Повторить", exact: true }).click();
+  await report.getByText("103 ролла", { exact: false }).waitFor();
+  assert.equal(await period.getByRole("button", { name: "90 дней" }).getAttribute("aria-pressed"), "true");
+  const overflows = await report.evaluate((element) => {
+    return [document.documentElement, element, ...element.querySelectorAll("button, dl")]
+      .filter((node) => node.scrollWidth > node.clientWidth + 1).map((node) => node.tagName);
+  });
+  assert.deepEqual(overflows, [], `Roll activity overflow ${surface} ${viewport.width}`);
+  await page.evaluate(() => { window.delayRollActivity = true; });
+  await period.getByRole("button", { name: "30 дней" }).click();
+  await page.waitForFunction(() => typeof window.finishRollActivity === "function");
+  await period.getByRole("button", { name: "7 дней" }).click();
+  await report.getByText("За этот период операций не было.").waitFor();
+  await page.evaluate(async () => { window.finishRollActivity(); await new Promise(requestAnimationFrame); });
+  assert.equal(await report.getByRole("button", { name: /Покупки и продажи/ }).count(), 0);
+  await page.getByRole("button", { name: "Скрыть сводку" }).click();
+  await report.waitFor({ state: "hidden" });
+}
+
 try {
   const generator = await browser.newPage();
   await generator.setContent("<p>09.11.2026 11:20 -350.00 RUB Book Store</p><p>09.11.2026 11:25 +1000.00 RUB Deposit</p>");
@@ -49,6 +103,7 @@ try {
     assert.equal(await page.getByRole("button", { name: "Импорт покупок" }).count(), 0);
     await page.getByRole("button", { name: "Профиль", exact: true }).click();
     await page.getByRole("button", { name: "Финансы", exact: true }).click();
+    await checkActivity(page, { width, height }, "drawer");
     const open = page.getByRole("button", { name: "Импорт покупок" });
     const trigger = await open.evaluate((node) => {
       const css = getComputedStyle(node);
@@ -167,7 +222,9 @@ try {
     await open.waitFor();
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Импорт покупок");
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height}: profile finances, file parsing, destination, review, shared controls, save or cancel`);
+    await page.goto(smokeOrigin(server) + fixture + "?wallet", { waitUntil: "commit" });
+    await checkActivity(page, { width, height }, "wallet");
+    console.log(`PASS ${width}×${height}: roll statements in wallet and profile, native import and shared controls`);
     await page.close();
   }
 } finally {

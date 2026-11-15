@@ -1,3 +1,4 @@
+import { registerRollActivityRoutes } from "../pfm/roll-activity-routes.js";
 import { settleMarketplaceOrder } from "../checkout/marketplace-settlements.js";
 import { registerGiftCardRoutes } from "../loyalty/gift-cards.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
@@ -14,9 +15,11 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
     starsPurchases: starsConfig().enabled,
     tonWallet: env.TON_WALLET_ENABLED === "true",
     needRewards: env.ROLLAPP_NEED_REWARDS_ENABLED === "true",
+    rollActivity: true,
   });
   registerStarInvoiceWorkerRoutes(app, { query, starsConfig });
   registerGiftCardRoutes(app, { requireAuth, query, transaction });
+  registerRollActivityRoutes(app, { requireAuth, transaction });
   const handle = (handler) => async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     try { await handler(req, res); } catch (error) {

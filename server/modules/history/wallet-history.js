@@ -2,7 +2,7 @@ import { formatTon } from "../../../shared/modules/payments/ton.js";
 import { ensureRollWallet } from "../payments/rolls.js";
 import { readRollAccountingSources, readRollBalanceBreakdown, rollWalletEntries } from "../payments/roll-accounting.js";
 
-function transactionFromRow(row) {
+export function rollTransactionFromRow(row) {
   return {
     id: row.id,
     kind: row.kind,
@@ -37,7 +37,7 @@ export async function readRollWallet(client, userId, { offset = 0, limit = 30 } 
   return {
     balance: Number(wallet.rows[0].balance),
     balances,
-    transactions: history.rows.slice(0, limit).map(transactionFromRow),
+    transactions: history.rows.slice(0, limit).map(rollTransactionFromRow),
     nextOffset: history.rowCount > limit ? offset + limit : null,
   };
 }

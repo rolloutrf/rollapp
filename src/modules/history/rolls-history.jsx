@@ -8,7 +8,7 @@ const orderLabels = {
   market_refund: "Возврат резерва", market_sale: "Продажа",
 };
 
-export function RollsHistory({ transactions, nextOffset, loading, loadingMore, busy, onLoadMore }) {
+export function RollsHistory({ transactions, hasMore, loading, loadingMore, busy, onLoadMore }) {
   return <section className="flex min-w-0 flex-col gap-4" aria-label="История операций">
     {transactions === null ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся операции с роллами.</p> : <ul className="flex flex-col">
       {transactions.map((item) => {
@@ -33,6 +33,6 @@ export function RollsHistory({ transactions, nextOffset, loading, loadingMore, b
         </li>;
       })}
     </ul>}
-    {nextOffset != null && <Button variant="outline" onClick={onLoadMore} disabled={loadingMore || busy}>{loadingMore && <Spinner />}Показать ещё</Button>}
+    {hasMore && <Button variant="outline" onClick={onLoadMore} disabled={loadingMore || busy}>{loadingMore && <Spinner />}Показать ещё</Button>}
   </section>;
 }

@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
 import { APP_ORDERS_PATH } from "../shell/app-routing.js";
 import { RollsHistory } from "../history/rolls-history.jsx";
+import { RollsActivity } from "../pfm/rolls-activity.jsx";
 
 const TonWallet = lazy(() => import("@/modules/payments/ton-wallet.jsx").then((module) => ({ default: module.TonWallet })));
 
@@ -83,6 +84,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const [confirmOpen, setConfirmOpen] = useState(Boolean(pending));
   const [transferView, setTransferView] = useState(() => Boolean(pending));
   const [topupView, setTopupView] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const importOpener = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -297,6 +299,13 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             </PageActionButton>
           </div>}
 
+          {wallet?.features?.rollActivity && <div className="flex justify-center">
+            <PageActionButton variant="outline" aria-expanded={activityOpen} onClick={() => setActivityOpen((open) => !open)}>
+              {activityOpen ? "Скрыть сводку" : "Сводка по роллам"}
+            </PageActionButton>
+          </div>}
+          {wallet?.features?.rollActivity && activityOpen && <RollsActivity key={`activity:${user.id}`} />}
+
           <FinanceFundraiserCards key={user.id} ownerId={user.id} />
           <PersonalOffers user={user} onPaid={() => refresh({ quiet: true })} />
 
@@ -304,14 +313,14 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
           </Suspense>}
 
-          <RollsHistory
+          {!(wallet?.features?.rollActivity && activityOpen) && <RollsHistory
             transactions={wallet?.transactions ?? null}
-            nextOffset={wallet?.nextOffset}
+            hasMore={wallet?.nextOffset != null}
             loading={loading}
             loadingMore={loadingMore}
             busy={busy}
             onLoadMore={loadMore}
-          />
+          />}
         </>}
     </div>
 

@@ -207,7 +207,7 @@ test("funded need rewards on verified production PostgreSQL; all writes rolled b
           const response = await fetch(`${url}/transfers`, { method: "POST", headers: { "Content-Type": "application/json" }, body });
           assert.equal(response.status, status);
           const data = await response.json();
-          assert.deepEqual(data.features, { starsPurchases: false, tonWallet: false, needRewards: true });
+          assert.deepEqual(data.features, { starsPurchases: false, tonWallet: false, needRewards: true, rollActivity: true });
           assert.equal(data.balance, 159);
           assert(data.transactions.some(row => row.kind === "need_reward" && row.amount === 60));
         }
