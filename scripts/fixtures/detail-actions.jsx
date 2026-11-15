@@ -27,11 +27,18 @@ if (new URLSearchParams(location.search).has("marketplaceSearch")) {
       return Promise.resolve(new Response(new ReadableStream({
         start(controller) {
           const emit = (event, data) => controller.enqueue(new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-          emit("offers", { offers: [offer] });
+          emit("status", { message: "Ищем товар на маркетплейсах…" });
+          window.previewMarketplaceOffer = () => emit("offers", { offers: [offer] });
           window.finishMarketplaceSearch = (empty = false) => {
             if (options.signal.aborted) return;
             if (empty) emit("error", { error: "Новые карточки товара не найдены", code: "marketplace_offers_not_found" });
-            else emit("done", { snapshot: { offers: [offer] } });
+            else {
+              emit("warning", {
+                warning: "Нейропоиск не ответил вовремя; показаны предложения с прямыми ссылками на магазины.",
+                code: "marketplace_ai_timeout",
+              });
+              emit("done", { snapshot: { offers: [offer] } });
+            }
             controller.close();
           };
         },

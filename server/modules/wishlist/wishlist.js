@@ -23,12 +23,11 @@ import { VehicleCatalogUnavailableError, vehicleCatalog } from "../catalog-marke
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "../media-import/metadata-fetch.js";
 import { resolveRetailerMetadata } from "../media-import/retailer-metadata.js";
 import { OpenRouterOffersError } from "../assistant/openrouter-marketplace-offers.js";
-import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, hasLiveMarketplaceOffer, mergeDirectOffers, sourceOfferForWish } from "../assistant/marketplace-resolvers.js";
+import { hasLiveMarketplaceOffer } from "../assistant/marketplace-resolvers.js";
 import { userCredentialsConfigured } from "../auth/user-credentials.js";
 import { hasAiCredential, sharedAiConfigured } from "../../ai-provider.js";
-import { fetchMarketplaceAiOffers } from "../assistant/yandex-marketplace-offers.js";
+import { findWishMarketplaceOffers } from "../assistant/wish-marketplace-search.js";
 import { YandexAiError } from "../assistant/yandex-ai.js";
-import { fetchIndexedMarketplaceOffers } from "../assistant/yandex-marketplace-index.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
 import { canonicalRetailerProductUrl } from "../../../shared/modules/media-import/retailer-previews.js";
 import { bookmateApiUrl, isBookmateUrl, isKinopoiskUrl, isVkVideoUrl, isYandexMapsUrl, isYouTubeUrl, kinopoiskContentUrlError, parseBookmateMetadata, parseKinopoiskMetadata, parseProductMetadata, parseYandexMapsMetadata, parseYouTubeMetadata, parseYouTubeVideoId, youtubeThumbnailUrl } from "../media-import/metadata.js";
@@ -1050,50 +1049,15 @@ export function registerWishlistRoutes(app, {
           ? ["samokat", "lavka", "lenta", "vkusvill"]
           : ["ozon", "wildberries", "yandex-market", "megamarket", "dns"];
       const wish = owned.rows[0];
-      const search = { marketplaceIds, signal: controller.signal };
-      let sentPreview = false;
-      const showOffers = (offers) => {
-        if (sentPreview || controller.signal.aborted || !offers.some(offer => !offer.source)) return;
-        sentPreview = true;
-        writeMarketplaceOfferEvent(res, "offers", { offers });
-      };
-      const aiTask = hasAiCredential(openRouterCredential)
-        ? fetchMarketplaceAiOffers(wish, openRouterCredential, search).then((result) => {
-          const offers = filterDirectOffersForWish(wish, result.offers);
-          showOffers(mergeDirectOffers(offers, [sourceOfferForWish(wish)]));
-          return { ...result, offers };
-        })
-        : Promise.resolve({ offers: [], summary: "", model: "", usage: null });
-      const marketplaceTask = fetchMarketplaceResolvedOffers(wish, search).then(async (offers) => {
-        if (offers.some(offer => !offer.source) || sentPreview || controller.signal.aborted) {
-          showOffers(offers);
-          return offers;
-        }
-        try {
-          const indexed = await fetchIndexedMarketplaceOffers(wish, search);
-          const results = mergeDirectOffers(offers, indexed);
-          showOffers(results);
-          return results;
-        } catch (error) {
-          if (!controller.signal.aborted) console.warn("Marketplace index search failed", {
-            code: error instanceof YandexAiError ? error.code : "yandex_search_failed",
-          });
-          return offers;
-        }
+      const { result, aiSearch, resolvedOffers } = await findWishMarketplaceOffers(wish, {
+        credential: openRouterCredential,
+        marketplaceIds,
+        signal: controller.signal,
+        onPreview: (offers) => writeMarketplaceOfferEvent(res, "offers", { offers }),
+        onIndexError: (error) => console.warn("Marketplace index search failed", {
+          code: error instanceof YandexAiError ? error.code : "yandex_search_failed",
+        }),
       });
-      const [aiSearch, marketplaceSearch] = await Promise.allSettled([aiTask, marketplaceTask]);
-      controller.signal.throwIfAborted();
-      const result = aiSearch.status === "fulfilled" ? aiSearch.value : {
-        offers: [],
-        summary: "",
-        model: "",
-        usage: null,
-      };
-      const resolvedOffers = marketplaceSearch.status === "fulfilled" ? marketplaceSearch.value : [];
-      result.offers = mergeDirectOffers(
-        resolvedOffers,
-        result.offers,
-      );
       if (!hasLiveMarketplaceOffer(result.offers)) {
         if (aiSearch.status === "rejected") throw aiSearch.reason;
         throw new OpenRouterOffersError(vehicleSearch ? "Не удалось найти новые прямые объявления автомобиля" : "Не удалось найти новые прямые карточки товара", {

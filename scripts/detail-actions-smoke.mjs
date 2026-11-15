@@ -163,6 +163,8 @@ try {
       assert.equal(await savedOffer.getAttribute("href"), "https://ozon.ru/product/123/");
       assert.equal(await savedOffer.getByText("Сохранённая карточка", { exact: true }).count(), 0);
       await page.getByRole("button", { name: "Найти лучшие", exact: true }).click();
+      await section.getByText("Ищем товар на маркетплейсах…", { exact: true }).waitFor();
+      await page.evaluate(() => window.previewMarketplaceOffer());
       const offer = section.getByRole("listitem", { name: "Открыть предложение на Яндекс Маркет" });
       await offer.waitFor();
       assert.equal(await offer.getAttribute("href"), "https://market.yandex.ru/card/ulanzi-l024/123");
@@ -181,16 +183,17 @@ try {
       if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-marketplace-results-${width}x${height}.png` });
       await page.evaluate(() => window.finishMarketplaceSearch());
       await section.getByText("Предложения обновлены", { exact: true }).waitFor();
+      await section.getByText("Нейропоиск не ответил вовремя; показаны предложения с прямыми ссылками на магазины.", { exact: true }).waitFor();
       assert.equal(await savedOffer.count(), 1);
       assert.equal(await section.getByText("Исходная ссылка", { exact: true }).count(), 0);
       assert(await offer.getByText("Лучшее", { exact: true }).isVisible());
       await page.evaluate(() => window.finishMarketplaceRead());
       await page.getByRole("button", { name: "Обновить", exact: true }).click();
-      await section.getByText("Показываем найденные предложения. Поиск продолжается…").waitFor();
+      await section.getByText("Ищем товар на маркетплейсах…", { exact: true }).waitFor();
       await page.evaluate(() => window.finishMarketplaceSearch(true));
       await section.getByText("Новые карточки товара не найдены", { exact: true }).waitFor();
       assert.equal(await offer.count(), 1, "An unsuccessful retry preserves the last usable result");
-      console.log(`PASS ${width}x${height}: marketplace streaming, visible result, delayed read and retry`);
+      console.log(`PASS ${width}x${height}: marketplace streaming, visible result after AI timeout, delayed read and retry`);
       assert.deepEqual(errors, []); await page.close();
     }
   }
