@@ -14,6 +14,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { MarketplaceOrder } from "./marketplace-order.jsx";
+import { OrderReceipt } from "./roll-receipt.jsx";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
@@ -33,6 +34,7 @@ function OrderSkeleton() {
 function OrderCard({ order, product, busy, onRefund }) {
   const point = order.delivery?.point;
   const refunded = order.status === "refunded";
+  const gift = Boolean(order.delivery?.giftCardId);
   return <article className="orders-card" data-order-status={order.status}>
     <div className="orders-card__media">
       {product ? <img src={product.image} alt="" /> : <PackageOpen aria-hidden="true" />}
@@ -51,7 +53,7 @@ function OrderCard({ order, product, busy, onRefund }) {
       </div>
       <div className="orders-card__price">
         <strong><Coins aria-hidden="true" />{formatRolls(order.amount)}</strong>
-        {refunded && <span>возвращены на баланс</span>}
+        {refunded && <span>{gift ? "возвращены на подарочную карту" : "возвращены на баланс"}</span>}
       </div>
     </div>
     {point && <section className="orders-card__delivery" aria-label="Пункт выдачи CDEK">
@@ -59,6 +61,7 @@ function OrderCard({ order, product, busy, onRefund }) {
       <div className="min-w-0"><strong>CDEK · {point.city}</strong><span>{point.address}</span><small>{point.code}{point.workTime ? ` · ${point.workTime}` : ""}</small></div>
     </section>}
     {!refunded && !order.delivery?.personalOfferId && <Button variant="outline" className="col-span-full justify-self-start" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
+    <OrderReceipt order={order} />
   </article>;
 }
 

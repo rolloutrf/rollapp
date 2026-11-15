@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
@@ -35,6 +35,14 @@ const browser = await chromium.launch(browserLaunchOptions());
 
 async function checkActivity(page, viewport, surface) {
   const open = page.getByRole("button", { name: "Сводка по роллам", exact: true });
+  const walletReceipt = page.getByRole("button", { name: "Квитанция · От Мария", exact: true });
+  await walletReceipt.press("Enter");
+  const receipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
+  await receipt.getByText("Мария · @maria").waitFor();
+  await receipt.getByText("16 нояб. 2026 г., 01:30:00").waitFor();
+  await walletReceipt.press("Space");
+  await receipt.waitFor({ state: "hidden" });
+  assert(await walletReceipt.evaluate(node => node === document.activeElement));
   await open.click();
   const report = page.getByRole("region", { name: "Движение роллов", exact: true });
   await report.getByText("70 роллов", { exact: false }).waitFor();
@@ -49,6 +57,29 @@ async function checkActivity(page, viewport, surface) {
   await report.getByText("Возврат · Возврат заказа A").waitFor();
   await report.getByRole("button", { name: "Показать ещё", exact: true }).click();
   await report.getByText("Покупка · Книги для проекта").waitFor();
+  const refundReceipt = report.getByRole("button", { name: "Квитанция · Возврат · Возврат заказа A", exact: true });
+  await refundReceipt.click();
+  await receipt.getByText("Квитанция временно недоступна").waitFor();
+  await receipt.getByRole("button", { name: "Повторить", exact: true }).click();
+  await receipt.getByText("refund:invoice", { exact: true }).waitFor();
+  const download = receipt.getByRole("button", { name: "Скачать квитанцию" });
+  assert.equal((await download.boundingBox()).height, 48);
+  const downloadReady = page.waitForEvent("download");
+  await download.click();
+  const file = await downloadReady;
+  assert.equal(file.suggestedFilename(), "rollapp-refund-invoice.txt");
+  const contents = await readFile(await file.path(), "utf8");
+  assert.match(contents, /Сумма: 150 роллов/);
+  assert.match(contents, /Номер: refund:invoice/);
+  assert.match(contents, /Номер заказа: invoice/);
+  assert.match(contents, /Движение: Зачисление/);
+  assert(await receipt.evaluate(node => [node, ...node.querySelectorAll("button, dl, dd")].every(el => el.scrollWidth <= el.clientWidth + 1)));
+  if (activityScreenshots && [390, 1440].includes(viewport.width) && viewport.height >= 800) {
+    await receipt.getByRole("heading").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(activityScreenshots, `receipt-${surface}-${viewport.width}.png`) });
+  }
+  await refundReceipt.click();
+  await receipt.waitFor({ state: "hidden" });
   assert.deepEqual(await page.evaluate(() => window.activityRequests.filter(({ mode }) => mode === "detail")), [
     { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments" },
     { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments" },
@@ -224,7 +255,7 @@ try {
     assert.deepEqual(errors, []);
     await page.goto(smokeOrigin(server) + fixture + "?wallet", { waitUntil: "commit" });
     await checkActivity(page, { width, height }, "wallet");
-    console.log(`PASS ${width}×${height}: roll statements in wallet and profile, native import and shared controls`);
+    console.log(`PASS ${width}×${height}: roll receipts and statements in wallet and profile, native import and shared controls`);
     await page.close();
   }
 } finally {

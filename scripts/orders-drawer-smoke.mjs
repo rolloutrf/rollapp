@@ -63,6 +63,16 @@ try {
           if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, owner: user, people: [], requests: [] };
           if (path === "/business-marketplace/career/store") return { items: [item], protectedCheckout: true };
           if (path === "/rolls/gift-cards") return { cards: [{ id: "test-card", balance: 80, business: { id: "seller" } }] };
+          if (path.startsWith("/rolls/receipts/order/")) {
+            const id = path.split("/").at(-1);
+            const order = [fulfilled, reserved].find(item => item.id === id);
+            if (order) return { receipt: { id, kind: "order", role: order.settlement.role, amount: String(order.amount),
+              createdAt: order.createdAt, status: order.status, source: order.settlement.role === "buyer" ? order.settlement.source : null,
+              subject: order.productTitle, participant: { name: order.settlement.participant } } };
+            if (id === "abcdef12-7") return { receipt: { id, kind: "order", role: "buyer", amount: "1000",
+              createdAt: "2026-09-24T12:00:00Z", closedAt: "2026-09-25T12:00:00Z", status: "refunded", source: "gift",
+              subject: "Синий кот — Уставший (8)" } };
+          }
           if (path !== "/rolls/orders") {
             fixture.unexpected.push(path);
             throw new Error("Unexpected API fixture path");
@@ -79,7 +89,7 @@ try {
             productTitle: `Синий кот — Уставший (${i + 1})`,
             createdAt: "2026-09-24T12:00:00Z",
             amount: 1000,
-            delivery: { point: { city: "1-е Туркменево", address: "улица Салавата Юлаева, 17", code: "YET1", workTime: "Вт–Пт 09:00–17:00" } },
+            delivery: { ...(i === 7 && { giftCardId: "private-card-fixture" }), point: { city: "1-е Туркменево", address: "улица Салавата Юлаева, 17", code: "YET1", workTime: "Вт–Пт 09:00–17:00" } },
           })) };
         },
         post(path, input) {
@@ -169,6 +179,17 @@ try {
       const closeBefore = await close.boundingBox();
       await lastOrder.scrollIntoViewIfNeeded();
       assert.deepEqual(await close.boundingBox(), closeBefore);
+      const returnedOrder = drawer.locator('[data-order-status="refunded"]');
+      await returnedOrder.getByText("возвращены на подарочную карту").waitFor();
+      await returnedOrder.getByRole("button", { name: "Квитанция", exact: true }).click();
+      const returnReceipt = returnedOrder.getByRole("region", { name: "Квитанция Rollapp" });
+      await returnReceipt.getByText("Роллы возвращены").waitFor();
+      await returnReceipt.getByText("Дата расчёта · Москва").waitFor();
+      await returnReceipt.getByText("Подарочная карта", { exact: true }).waitFor();
+      assert(!(await returnReceipt.innerText()).includes("Салавата Юлаева"));
+      assert(!(await returnReceipt.innerText()).includes("private-card-fixture"));
+      await returnedOrder.getByRole("button", { name: "Скрыть квитанцию" }).click();
+      await returnReceipt.waitFor({ state: "hidden" });
       assert.equal(await page.evaluate(() => scrollY), storeScroll);
       const refund = drawer.getByRole("button", { name: "Вернуть товар", exact: true }).last();
       await refund.click();
@@ -215,6 +236,16 @@ try {
       await buyerOrder.getByText("Подарочная карта", { exact: false }).waitFor();
       await buyerOrder.getByRole("button", { name: "История заказа" }).click();
       await buyerOrder.getByText("Встреча состоялась").waitFor();
+      await buyerOrder.getByRole("button", { name: "Квитанция", exact: true }).click();
+      const buyerReceipt = buyerOrder.getByRole("region", { name: "Квитанция Rollapp" });
+      await buyerReceipt.getByText("На проверке").waitFor();
+      assert.equal((await buyerReceipt.getByRole("button", { name: "Скачать квитанцию" }).boundingBox()).height, 48);
+      assert(!(await buyerReceipt.innerText()).includes("Встреча состоялась"));
+      await sellerOrder.getByRole("button", { name: "Квитанция", exact: true }).click();
+      const sellerReceipt = sellerOrder.getByRole("region", { name: "Квитанция Rollapp" });
+      await sellerReceipt.getByText("Покупатель", { exact: true }).waitFor();
+      assert(!(await sellerReceipt.innerText()).includes("Источник оплаты"));
+      await sellerOrder.getByRole("button", { name: "Скрыть квитанцию" }).click();
       await buyerOrder.getByRole("button", { name: "Открыть спор" }).click();
       await confirmation.getByLabel("Причина спора").fill("Черновик");
       await page.keyboard.press("Escape");
@@ -234,7 +265,8 @@ try {
       if ([320, 1440].includes(width) || height === 400) await page.screenshot({ path: join(screenshots, `dispute-${width}x${height}.png`) });
       await dispute.click();
       await confirmation.waitFor({ state: "hidden" });
-      await buyerOrder.getByText("Открыт спор", { exact: true }).waitFor();
+      await buyerReceipt.getByText("Открыт спор", { exact: true }).waitFor();
+      await buyerOrder.getByRole("button", { name: "Скрыть квитанцию" }).click();
       await buyerOrder.getByText("Уточните результат", { exact: true }).waitFor();
       await sellerOrder.getByRole("button", { name: "Отметить исполнение" }).click();
       await confirmation.getByLabel("Комментарий для покупателя").fill("Доставка завершена");

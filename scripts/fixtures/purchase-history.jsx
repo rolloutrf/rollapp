@@ -18,6 +18,7 @@ const lists = [
 let dashboardReads = 0;
 let failedActivityPage = false;
 let failedActivitySummary = false;
+let failedReceipt = false;
 const standalone = new URLSearchParams(window.location.search).has("wallet");
 const asOf = "2026-11-15T23:00:00.842461Z";
 const periodFor = (days) => ({ days, startsOn: { 7: "2026-11-10", 30: "2026-10-18", 90: "2026-08-19" }[days], endsOn: "2026-11-16", timeZone: "Europe/Moscow", asOf });
@@ -28,7 +29,25 @@ window.purchaseImportRequests = [];
 window.wishlistRefreshes = 0;
 api.get = async (path) => {
   if (path === "/auth/yandex/config") return { enabled: false };
-  if (path === "/rolls") return { balance: 0, transactions: [], features: { rollActivity: true } };
+  if (path === "/rolls") return {
+    balance: 28, features: { rollActivity: true },
+    transactions: [{ id: "transfer-wallet", direction: "incoming", amount: 28, kind: "transfer",
+      person: { id: "fixture-sender", name: "Мария", username: "maria" }, createdAt: "2026-11-15T22:30:00Z" }],
+  };
+  if (path === "/rolls/receipts/transfer/transfer-wallet") return { receipt: {
+    id: "transfer-wallet", kind: "transfer", status: "recorded", amount: "28", direction: "incoming",
+    createdAt: "2026-11-15T22:30:00Z", participant: { name: "Мария", username: "maria" },
+  } };
+  if (path === "/rolls/receipts/refund/refund%3Ainvoice") {
+    if (!failedReceipt) {
+      failedReceipt = true;
+      throw new Error("Квитанция временно недоступна");
+    }
+    return { receipt: {
+      id: "refund:invoice", kind: "refund", status: "recorded", amount: "150",
+      direction: "incoming", createdAt: firstActivityCursor.before, subject: "Возврат заказа A", orderId: "invoice",
+    } };
+  }
   if (path.startsWith("/rolls/activity?")) {
     const q = new URLSearchParams(path.split("?")[1]);
     const days = Number(q.get("days"));

@@ -161,7 +161,9 @@ api.post = async (path, payload) => {
     card.balance += payload.amount; state.balance -= payload.amount;
   } else if (path.endsWith("/send")) state.cards = [];
   else throw new Error(`Unexpected fixture mutation: ${path}`);
-  const result = { card: { id: card.id } };
+  const result = path.includes("/purchases")
+    ? { purchase: { id: crypto.randomUUID(), balance: state.balance } }
+    : { card: { id: card.id } };
   state.requests.set(payload.idempotencyKey, result);
   if ((path.endsWith("/topup") || path.includes("/purchases")) && !state.lost) { state.lost = true; throw new Error("Simulated lost response"); }
   return clone(result);

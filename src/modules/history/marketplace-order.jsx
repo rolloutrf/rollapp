@@ -13,6 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { OrderReceipt } from "./roll-receipt.jsx";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 import { MARKETPLACE_REVIEW_DAYS, MARKETPLACE_ORDER_NOTE_LIMIT } from "../../../shared/modules/checkout/marketplace-settlements.js";
 
@@ -127,6 +128,7 @@ export function MarketplaceOrder({ order, onReload }) {
       {actions.map((name) => <Button key={name} variant={["fulfill", "accept", "claim"].includes(name) ? "default" : "outline"}
         onClick={() => setAction(name)}>{actionLabels[name]}</Button>)}
     </ControlBar>}
+    <OrderReceipt order={order} />
     {action && <MarketplaceActionDialog order={order} action={action} onClose={() => setAction(null)} onReload={onReload} />}
   </article>;
 }

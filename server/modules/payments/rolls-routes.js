@@ -4,6 +4,7 @@ import { registerGiftCardRoutes } from "../loyalty/gift-cards.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
 import { purchaseWithRolls, refundRollPurchase } from "../checkout/roll-purchases.js";
 import { readRollOrders } from "../history/order-history.js";
+import { readRollReceipt, rollReceiptParams } from "../history/roll-receipts.js";
 import { readRollWallet } from "../history/wallet-history.js";
 import { RollsError, transferRolls } from "./rolls.js";
 import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder } from "./roll-stars.js";
@@ -88,6 +89,18 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
   app.post("/api/rolls/purchases", requireAuth, transferLimit, handle(async (req, res) => {
     const purchase = await transaction((client) => purchaseWithRolls(client, req.user.id, req.body));
     res.status(purchase.replayed ? 200 : 201).json({ purchase });
+  }));
+
+  app.get("/api/rolls/receipts/:kind/:id", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const parsed = rollReceiptParams.safeParse(req.params);
+    if (!parsed.success) throw new RollsError("Проверьте номер операции", "INVALID_ROLL_RECEIPT");
+    const receipt = await transaction(async (client) => {
+      await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
+      return readRollReceipt(client, req.user.id, parsed.data);
+    });
+    if (!receipt) throw new RollsError("Квитанция не найдена", "ROLL_RECEIPT_NOT_FOUND", 404);
+    res.json({ receipt });
   }));
 
   app.get("/api/rolls/orders", requireAuth, handle(async (req, res) => {

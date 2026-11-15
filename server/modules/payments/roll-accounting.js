@@ -69,6 +69,22 @@ export function rollWalletEntries({ gifts, rewards, marketplace }) {
   `;
 }
 
+// Personal invoices are ordinary transfers in the ledger. Match the
+// authoritative invoice and its original debit before attributing a reversal.
+export const rollInvoiceJoins = `
+    LEFT JOIN roll_transactions t ON e.kind='transfer' AND e.id=t.id
+    LEFT JOIN roll_transactions original ON t.idempotency_key LIKE 'reverse:%'
+      AND original.id=substring(t.idempotency_key FROM 9)
+      AND original.sender_id=t.recipient_id AND original.recipient_id=t.sender_id AND original.amount=t.amount
+    LEFT JOIN business_personal_offers invoice ON invoice.id=CASE
+      WHEN COALESCE(original.idempotency_key,t.idempotency_key) ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'
+      THEN COALESCE(original.idempotency_key,t.idempotency_key)::uuid END
+      AND invoice.purchase_id IS NOT NULL
+      AND invoice.recipient_id=COALESCE(original.sender_id,t.sender_id)
+      AND invoice.business_user_id=COALESCE(original.recipient_id,t.recipient_id)
+      AND invoice.price_rolls=t.amount
+`;
+
 export const openRewardReserves = `
   SELECT r.user_id,r.amount
   FROM reward_need_entries r

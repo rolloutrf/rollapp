@@ -30,14 +30,14 @@ function ActivityTotals({ totals }) {
       ["Зачислено", received, "bg-amber-300"],
       ["Списано", debited, "bg-muted-foreground"],
     ].map(([label, amount, colors], index) => <div key={label} className="grid min-w-0 content-start gap-1.5">
-      <dt className="text-caption text-muted-foreground">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={`wrap-anywhere font-medium tabular-nums ${index === 0 ? "text-amber-300" : ""}`}>{formatRolls(amount)}</dd>
       <span className="h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
         <span className={`block h-full rounded-full ${colors}`} style={{ width: max === 0n ? "0%" : `${amount * 100n / max}%` }} />
       </span>
     </div>)}
     <div className="col-span-full grid min-w-0 content-start gap-1.5 sm:col-span-1">
-      <dt className="text-caption text-muted-foreground">Изменение баланса</dt>
+      <dt className="text-xs text-muted-foreground">Изменение баланса</dt>
       <dd className="wrap-anywhere font-medium tabular-nums">{signedRolls(totals.change)}</dd>
     </div>
   </dl>;
@@ -83,7 +83,7 @@ function ActivityEntries({ period, group }) {
       </AlertDescription>
     </Alert>}
     {(rows || !error) && <RollsHistory transactions={rows} hasMore={Boolean(next)} loading={loading}
-      loadingMore={loading} busy={loading} onLoadMore={() => load(next)} />}
+      loadingMore={loading} busy={loading} timeZone={period.timeZone} onLoadMore={() => load(next)} />}
   </div>;
 }
 
@@ -128,7 +128,7 @@ export function RollsActivity() {
     </AlertDescription></Alert> : report === null
       ? <p role="status" className="flex items-center gap-2 text-muted-foreground"><Spinner />Загружаем сводку…</p>
       : <>
-        <p className="text-caption text-muted-foreground">{periodLabel(report.period)}</p>
+        <p className="text-xs text-muted-foreground">{periodLabel(report.period)}</p>
         <ActivityTotals totals={report.totals} />
         {report.totals.count === 0 ? <p className="text-muted-foreground">За этот период операций не было.</p> : <>
           <ul className="grid min-w-0 gap-2" aria-label="Виды операций">
@@ -140,7 +140,7 @@ export function RollsActivity() {
                   className="h-auto min-h-12 w-full justify-between gap-3 rounded-xl p-3 text-left whitespace-normal">
                   <span className="grid min-w-0 gap-1">
                     <span>{label}</span>
-                    <span className="flex flex-wrap gap-x-3 gap-y-1 text-caption text-muted-foreground tabular-nums">
+                    <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground tabular-nums">
                       {row.received !== "0" && <span className="wrap-anywhere">Зачислено {formatRolls(BigInt(row.received))}</span>}
                       {row.debited !== "0" && <span className="wrap-anywhere">Списано {formatRolls(BigInt(row.debited))}</span>}
                     </span>

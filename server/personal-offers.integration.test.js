@@ -7,6 +7,7 @@ import { ensureRollWallet } from "./modules/payments/rolls.js";
 import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
 import { readRollOrders } from "./modules/history/order-history.js";
+import { readRollReceipt } from "./modules/history/roll-receipts.js";
 import { reconcileRollAccounting } from "./modules/payments/roll-reconciliation.js";
 import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 
@@ -164,6 +165,12 @@ test("personal offers on existing production schema: every test write is rolled 
             assert.equal(wallet.balance, 100);
             assert.equal(wallet.transactions.filter(({ note }) => note.startsWith("Возврат по счёту")).length, 1);
             assert.equal(wallet.transactions.some(({ kind }) => kind === "purchase" || kind === "refund"), false, "Invoice transfers must not be counted again as store orders");
+            const transfers = wallet.transactions.filter(({ kind }) => kind === "transfer");
+            const receipts = [];
+            for (const { id, kind } of transfers) receipts.push(await readRollReceipt(client, userId, { id, kind }));
+            assert.deepEqual(receipts.map(({ purpose }) => purpose).sort(), ["personal_offer_payment", "personal_offer_refund"]);
+            assert(receipts.every(({ orderId }) => orderId === paid.body.purchase.id));
+            assert.equal(await readRollReceipt(client, other, { id: transfers[0].id, kind: "transfer" }), null);
           }
           assert.equal((await readRollOrders(client, buyer)).orders[0].status, "refunded");
           const audit = await reconcileRollAccounting(client);

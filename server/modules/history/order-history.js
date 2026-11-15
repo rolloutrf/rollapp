@@ -15,7 +15,7 @@ export function orderFromRow(row) {
   };
 }
 
-export async function readRollOrders(client, userId) {
+export async function readRollOrders(client, userId, { orderId = null } = {}) {
   const giftSchema = await client.query("SELECT to_regclass('business_gift_card_events')::text AS events");
   const giftOrders = giftSchema.rows[0]?.events ? `
     UNION ALL
@@ -23,15 +23,15 @@ export async function readRollOrders(client, userId) {
            e.amount,e.purchase->'delivery' AS delivery,e.created_at,r.created_at AS refunded_at
     FROM business_gift_card_events e
     LEFT JOIN business_gift_card_events r ON r.purchase_id=e.id AND r.kind='refund'
-    WHERE e.actor_id=$1 AND e.kind='spend' AND e.purchase IS NOT NULL
+    WHERE e.actor_id=$1 AND e.kind='spend' AND e.purchase IS NOT NULL AND ($2::text IS NULL OR e.id=$2)
   ` : "";
   const orders = await client.query(
     `WITH orders AS (
        SELECT id,product_id,product_title,amount,delivery,created_at,refunded_at
-       FROM roll_store_purchases WHERE user_id=$1
+       FROM roll_store_purchases WHERE user_id=$1 AND ($2::text IS NULL OR id=$2)
        ${giftOrders}
      ) SELECT * FROM orders ORDER BY created_at DESC,id DESC`,
-    [userId],
+    [userId, orderId],
   );
   const history = orders.rows.map(orderFromRow);
   if (!await hasMarketplaceSettlementSchema(client)) return { orders: history };
@@ -41,14 +41,14 @@ export async function readRollOrders(client, userId) {
         'action',e.action,'note',e.note,'createdAt',e.created_at
       ) ORDER BY e.created_at,e.action)
       FROM roll_marketplace_order_events e WHERE e.order_id=o.id),'[]'::jsonb) AS events
-    FROM roll_marketplace_orders o WHERE o.buyer_id=$1 OR o.seller_id=$1
-  `, [userId]);
+    FROM roll_marketplace_orders o WHERE (o.buyer_id=$1 OR o.seller_id=$1) AND ($2::text IS NULL OR o.id::text=$2)
+  `, [userId, orderId]);
   const protectedOrders = rows.map((order) => {
     const buyer = userId === order.buyer_id;
     const role = buyer ? "buyer" : "seller";
     return {
       id: order.id, productId: `business:${order.item_id}`, productTitle: order.item_title,
-      amount: Number(order.amount), createdAt: order.created_at, status: order.status,
+      amount: Number(order.amount), createdAt: order.created_at, status: order.status, closedAt: order.closed_at,
       refundedAt: order.status === "refunded" ? order.closed_at : null,
       settlement: {
         role, participant: buyer ? order.seller_name : order.buyer_name,
