@@ -83,7 +83,7 @@
     "test:rolls:production": "PG_POOL_SIZE=2 ROLLAPP_TEST_ROLLS=1 node --test server/rolls.integration.test.js",
     "test:stars": "node scripts/stars-topup-smoke.mjs",
     "test:ton-topup": "node scripts/ton-topup-smoke.mjs",
-    "test:ton-topup:production": "ROLLAPP_TEST_TON=1 node --test server/modules/payments/roll-ton.test.js",
+    "test:ton-topup:production": "ROLLAPP_TEST_TON=1 node --test server/modules/payments/roll-ton.test.js server/modules/payments/ton-payment-poller.test.js",
     "test:stars:production": "ROLLAPP_TEST_STARS=1 node --test server/roll-stars.integration.test.js",
     "test:openrouter:production": "ROLLAPP_TEST_OPENROUTER=1 node --test server/openrouter-persistence.integration.test.js",
     "test:stars:visual": "ROLLAPP_TEST_STARS=1 STARS_TEST_UI=1 node --test server/roll-stars.integration.test.js",

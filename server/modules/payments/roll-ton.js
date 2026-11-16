@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { Address, beginCell, Cell, loadTransaction } from "@ton/core";
+import { Address, beginCell } from "@ton/core";
 import { z } from "zod";
 import { ensureRollWallet, RollsError } from "./rolls.js";
 import { ROLLS_MAX_BALANCE } from "../../../shared/modules/payments/rolls.js";
 import { quoteTonRolls, TON_MAINNET } from "../../../shared/modules/payments/ton.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
-import { tonFetch } from "./ton-network.js";
 
 export function getTonRollsConfig(env = process.env) {
   try {
@@ -100,8 +99,10 @@ export function receiptFromTransaction(tx, recipient) {
 
 export async function settleTonReceipt(client, receipt, chain = TON_MAINNET) {
   const found = await client.query("SELECT * FROM roll_ton_orders WHERE id=$1", [receipt.orderId]);
-  if (!found.rowCount) return false;
-  await ensureRollWallet(client, found.rows[0].user_id);
+  const existing = found.rows[0];
+  if (!existing) return false;
+  if (existing.paid_at) return existing.transaction_hash === receipt.hash;
+  await ensureRollWallet(client, existing.user_id);
   const row = (await client.query("SELECT * FROM roll_ton_orders WHERE id=$1 FOR UPDATE", [receipt.orderId])).rows[0];
   if (row.paid_at) return row.transaction_hash === receipt.hash;
   if (row.chain !== chain || row.sender !== receipt.sender || row.recipient !== receipt.recipient
@@ -114,59 +115,6 @@ export async function settleTonReceipt(client, receipt, chain = TON_MAINNET) {
   // Unique transaction index + the same DB transaction makes credit exactly once.
   await client.query("UPDATE roll_ton_orders SET paid_at=CURRENT_TIMESTAMP,transaction_hash=$2 WHERE id=$1", [row.id, receipt.hash]);
   return true;
-}
-
-export function startTonPaymentPolling({ query, transaction, env = process.env, fetchImpl = tonFetch }) {
-  if (env.TON_ROLLS_WORKER_ENABLED !== "true") return { stop() {} };
-  let running = false;
-  let stopped = false;
-  let controller;
-  const cursors = new Map();
-  async function tick() {
-    if (running || stopped) return;
-    running = true;
-    try {
-      // Expired invoices remain observable: a delayed indexer must not lose a
-      // payment that was included on-chain while its invoice was valid.
-      const groups = await query(`SELECT recipient,chain,MIN(created_at) AS oldest FROM roll_ton_orders
-        WHERE paid_at IS NULL GROUP BY recipient,chain ORDER BY MIN(created_at)`);
-      const activeKeys = new Set(groups.rows.map((group) => `${group.chain}:${group.recipient}`));
-      for (const key of cursors.keys()) if (!activeKeys.has(key)) cursors.delete(key);
-      for (const group of groups.rows) {
-        if (stopped) break;
-        const key = `${group.chain}:${group.recipient}`;
-        const cursor = cursors.get(key);
-        const url = new URL("https://toncenter.com/api/v2/getTransactions");
-        url.searchParams.set("address", group.recipient);
-        url.searchParams.set("limit", "100");
-        url.searchParams.set("archival", "true");
-        if (cursor) { url.searchParams.set("lt", cursor.lt); url.searchParams.set("hash", cursor.hash); }
-        controller = new AbortController();
-        const response = await fetchImpl(url, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8_000)]), redirect: "error",
-          headers: { Accept: "application/json", ...(env.TONCENTER_API_KEY ? { "X-API-Key": env.TONCENTER_API_KEY } : {}) } });
-        if (!response.ok) { await response.body?.cancel(); throw new Error("TON history unavailable"); }
-        const body = await response.json();
-        if (body.ok !== true || !Array.isArray(body.result)) throw new Error("Invalid TON history");
-        let oldest = Infinity;
-        for (const item of body.result) {
-          const cell = Cell.fromBase64(item.data);
-          const tx = loadTransaction(cell.beginParse());
-          if (cell.hash().toString("base64") !== item.transaction_id.hash) throw new Error("Invalid transaction hash");
-          oldest = Math.min(oldest, tx.now);
-          const receipt = receiptFromTransaction(tx, group.recipient);
-          if (receipt) await transaction((client) => settleTonReceipt(client, receipt, group.chain));
-        }
-        const last = body.result.at(-1)?.transaction_id;
-        if (body.result.length < 100 || oldest < new Date(group.oldest).getTime() / 1000 - 30 || (cursor?.lt === last?.lt)) cursors.delete(key);
-        else cursors.set(key, last);
-      }
-    } catch { if (!stopped) console.error("[ton-payments] Blockchain verification unavailable; payments will be retried."); }
-    finally { running = false; }
-  }
-  const timer = setInterval(tick, 30_000);
-  timer.unref();
-  tick();
-  return { stop() { stopped = true; clearInterval(timer); controller?.abort(); } };
 }
 
 export function registerTonRollsRoutes(app, { requireAuth, query, transaction, config = getTonRollsConfig }) {
