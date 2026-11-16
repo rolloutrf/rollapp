@@ -70,6 +70,16 @@ async function checkMouseListTiles(page, width) {
   await showListTiles(page);
   const initial = await listOrder(page);
   const { start } = await listPoints(page);
+  assert.equal(await tiles(page).first().getAttribute('aria-pressed'), 'false');
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await listPreview(page).waitFor();
+  assert.equal(await listPreview(page).evaluate(node => getComputedStyle(node).backgroundImage), 'none',
+    'Lifting an inactive tile must not add a mood gradient');
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await listPreview(page).waitFor({ state: 'detached' });
+  assert.deepEqual(await listOrder(page), initial);
   await page.mouse.click(start.x, start.y);
   assert.equal(await tiles(page).first().getAttribute('aria-pressed'), 'true', 'Short click still selects the tile');
   assert.equal(await listPreview(page).count(), 0);

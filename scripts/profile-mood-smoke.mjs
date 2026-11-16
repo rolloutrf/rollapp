@@ -21,35 +21,50 @@ async function assertMoodTiles(rail, mood, expectedCount) {
   await rail.evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
   });
-  const tiles = await rail.locator("[data-list-tile]").evaluateAll((elements) => elements.map((element) => {
-    const style = getComputedStyle(element);
-    return {
-      focused: element.matches('[aria-pressed="true"]'),
-      accent: style.getPropertyValue("--list-tile-accent").trim(),
-      gradient: style.backgroundImage,
-      border: style.boxShadow,
-      size: [element.offsetWidth, element.offsetHeight],
+  const tiles = await rail.evaluate((element) => {
+    const probe = document.createElement("span");
+    probe.hidden = true;
+    element.append(probe);
+    const paint = (color) => {
+      probe.style.backgroundColor = color;
+      return getComputedStyle(probe).backgroundColor;
     };
-  }));
+    const idle = paint("var(--secondary)");
+    const hover = paint("color-mix(in oklch, var(--secondary), var(--foreground) 5%)");
+    probe.remove();
+    return Array.from(element.querySelectorAll("[data-list-tile]"), (tile) => {
+      const style = getComputedStyle(tile);
+      return {
+        selected: tile.matches('[aria-pressed="true"]'),
+        accent: style.getPropertyValue("--list-tile-accent").trim(),
+        gradient: style.backgroundImage,
+        inset: style.boxShadow,
+        usesNeutralSurface: style.backgroundColor === (tile.matches(":hover") ? hover : idle),
+        size: [tile.offsetWidth, tile.offsetHeight],
+      };
+    });
+  });
   assert.equal(tiles.length, expectedCount);
+  const selected = tiles.filter((tile) => tile.selected);
+  assert.equal(selected.length, 1);
   for (const tile of tiles) {
+    assert.deepEqual(tile.size, [130, 100]);
+    if (!tile.selected) {
+      assert.equal(tile.gradient, "none", "Inactive tile must not have a mood gradient");
+      assert.equal(tile.inset, "none", "Inactive tile must not have a tinted edge");
+      assert(tile.usesNeutralSurface, "Inactive tile uses the neutral surface, including on hover");
+      continue;
+    }
     assert.equal(tile.accent, mood.color);
     assert.match(tile.gradient, /^radial-gradient\((?:ellipse )?90% 60% at 45% 110%,/);
     assert.match(tile.gradient, /radial-gradient\((?:ellipse )?at 100% 100%,/);
     const stops = Array.from(tile.gradient.matchAll(/oklch\(([\d.]+) ([\d.]+) ([\d.]+)/g), ([, l, c, h]) => [Number(l), Number(c), Number(h)]);
-    assert.deepEqual(stops.map(([lightness]) => lightness), [0.87, 0.62, 0.35, 0.46], "Mood changes hue, not the original depth of the sheen");
+    assert.deepEqual(stops.map(([lightness]) => lightness), [0.87, 0.62, 0.35, 0.46], "Retain the original depth of the sheen");
     assert.deepEqual(stops.map(([, chroma]) => chroma), mood.level === NEUTRAL_MOOD_LEVEL ? [0, 0, 0, 0] : [0.15, 0.23, 0.16, 0.18]);
     assert.equal(new Set(stops.map(([, , hue]) => hue)).size, 1, "The highlight and reflection use one hue");
-    assert.deepEqual(tile.size, [130, 100]);
+    assert.match(tile.inset, /inset/);
   }
-  const selected = tiles.filter((tile) => tile.focused);
-  const other = tiles.filter((tile) => !tile.focused);
-  assert.equal(selected.length, 1);
-  assert(other.every((tile) => tile.gradient === other[0].gradient && tile.border === other[0].border),
-    `Tile color must not depend on its position: ${JSON.stringify(tiles)}`);
-  assert.notEqual(selected[0].gradient, other[0].gradient, "The selected tile keeps stronger paint");
-  assert.notEqual(selected[0].border, other[0].border);
-  return other[0].gradient;
+  return selected[0].gradient;
 }
 
 const neutral = MOOD_LEVELS[NEUTRAL_MOOD_LEVEL - 1];
@@ -152,6 +167,10 @@ try {
     if (photo) await ownerPortrait.locator('[data-slot="avatar-image"]').waitFor();
     await assertUncoloredAvatar(ownerPortrait);
     await assertMoodTiles(ownerTiles, great, 3);
+    if (width === 1440) {
+      await ownerTiles.locator('[data-list-tile][aria-pressed="false"]').first().hover();
+      await assertMoodTiles(ownerTiles, great, 3);
+    }
     await ownerTiles.locator("[data-list-tile]").nth(1).click();
     await assertMoodTiles(ownerTiles, great, 3);
     assert.equal(await ownerTiles.locator("[data-list-tile]").nth(1).getAttribute("aria-pressed"), "true");
@@ -228,7 +247,7 @@ try {
         const tiles = page.locator("[data-public-collection] [data-wishlist-list-navigation]");
         colors.add(await assertMoodTiles(tiles, mood, 3));
       }
-      assert.equal(colors.size, 5, "Each mood gives the real tiles a distinct tint");
+      assert.equal(colors.size, 5, "Each mood gives the selected tile a distinct tint");
     }
     assert.deepEqual(errors, []);
     console.log(`PASS ${width}×${height}: 5 choices, retry, private log, real tile tints, no avatar halo, public color, neutral fallback, cancel, 48px controls`);

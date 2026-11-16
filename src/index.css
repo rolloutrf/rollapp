@@ -836,14 +836,12 @@
       --list-tile-selected-ink: oklch(0.99 0 0);
     }
 
-    /* Keep the original two gradients and inset edge. Both reflections take
-       their hue from the mood; unselected tiles use a softer version. Paint
-       on the actual tile so the drag preview inherits the computed art. */
-    [data-list-tile-palette] [data-list-tile] {
-      --list-tile-strength: 0.32;
+    /* Only the selected tile takes the mood hue. Paint both original
+       reflections and the inset edge on it so the drag preview can copy them. */
+    [data-list-tile-palette] [data-list-tile][aria-pressed="true"] {
       --list-tile-reveal: 1;
-      --list-tile-glow-alpha: calc(var(--list-tile-strength) * var(--list-tile-reveal));
-      --list-tile-edge-alpha: calc(0.38 * var(--list-tile-strength));
+      --list-tile-glow-alpha: var(--list-tile-reveal);
+      --list-tile-edge-alpha: 0.38;
       --list-tile-art:
         radial-gradient(ellipse 90% 60% at 45% 110%,
           oklch(from var(--list-tile-accent) 0.87 calc(0.15 * var(--list-tile-saturation)) h / var(--list-tile-glow-alpha)),
@@ -857,12 +855,6 @@
       box-shadow:
         inset 0 0 0 1px oklch(from var(--list-tile-accent) 0.76 calc(0.12 * var(--list-tile-saturation)) h / var(--list-tile-edge-alpha)),
         inset 0 -2px 8px oklch(from var(--list-tile-accent) 0.72 calc(0.17 * var(--list-tile-saturation)) h / var(--list-tile-edge-alpha));
-    }
-
-    [data-list-tile-palette] [data-list-tile][aria-pressed="true"] {
-      --list-tile-strength: 1;
-      background-color: var(--list-tile-selected-surface);
-      color: var(--list-tile-selected-ink);
     }
   }
 
