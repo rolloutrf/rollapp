@@ -40,7 +40,7 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
             <PackageCheck aria-hidden="true" />Заказы
           </DrawerTrigger>
         )} />
-        <OrdersDrawerContent products={STORE_CATS} />
+        <OrdersDrawerContent products={STORE_CATS} userId={user.id} />
       </Drawer>
       {deferredPurchase && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
         <span>Ожидает проверки покупка · {formatRolls(deferredPurchase.expectedPrice)}</span>

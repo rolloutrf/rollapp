@@ -65,18 +65,18 @@ function OrderCard({ order, product, busy, onRefund }) {
   </article>;
 }
 
-export function OrdersDrawerContent({ products }) {
+export function OrdersDrawerContent({ products, userId }) {
   return <DrawerContent className="orders-drawer rollapp-body app-drawer--form">
     <DrawerSectionHeader title="Заказы" endAction={
       <DrawerClose render={<Button type="button" variant="outline" size="icon" />} aria-label="Закрыть заказы">
         <X aria-hidden="true" />
       </DrawerClose>
     } />
-    <OrderList products={products} />
+    <OrderList key={userId} products={products} userId={userId} />
   </DrawerContent>;
 }
 
-function OrderList({ products }) {
+function OrderList({ products, userId }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -127,7 +127,7 @@ function OrderList({ products }) {
         <EmptyHeader><EmptyMedia variant="icon"><ShoppingBag aria-hidden="true" /></EmptyMedia><EmptyTitle>Заказов пока нет</EmptyTitle><EmptyDescription>Здесь будут ваши покупки и продажи за роллы.</EmptyDescription></EmptyHeader>
         <EmptyContent><DrawerClose render={<PageActionButton />}><ShoppingBag aria-hidden="true" />В магазин</DrawerClose></EmptyContent>
       </Empty>
-        : orders.map((order) => order.settlement ? <MarketplaceOrder key={order.id} order={order} onReload={refreshOrders} /> : <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
+        : orders.map((order) => order.settlement ? <MarketplaceOrder key={order.id} order={order} userId={userId} onReload={refreshOrders} /> : <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
 
     <AlertDialog open={Boolean(refundTarget)} onOpenChange={(open) => { if (!open && !refunding) setRefundTarget(null); }}>
       <AlertDialogContent className="rollapp-body w-[calc(100%-2rem)] overflow-y-auto">

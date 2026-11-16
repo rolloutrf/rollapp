@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/modules/runtime/api.js";
 
 export function useOperationRecovery({ client = api, storageKey, loadSaved, requestFor, field, messages, readMatches,
-  acceptResponse, onRecorded, onComplete, onReject, onCloseConflict }) {
+  acceptResponse, readUnrecorded, isConflict, onRecorded, onComplete, onReject, onCloseConflict }) {
   const [pending, setPending] = useState(loadSaved);
   const [requestMode, setRequestMode] = useState(null);
   const [result, setResult] = useState(null);
@@ -54,12 +54,17 @@ export function useOperationRecovery({ client = api, storageKey, loadSaved, requ
         if (mounted.current) setResult("conflict");
         return;
       }
+      const unrecorded = mode === "check" && readUnrecorded?.(operation);
+      if (unrecorded) {
+        if (mounted.current) setResult(unrecorded);
+        return;
+      }
       onRecorded?.(operation, intent);
       clear(intent);
       if (mounted.current) onComplete(operation, intent);
     } catch (failure) {
       if (!mounted.current) return;
-      if (failure.code === "IDEMPOTENCY_CONFLICT") {
+      if (failure.code === "IDEMPOTENCY_CONFLICT" || isConflict?.(failure)) {
         setResult("conflict");
       } else if (mode === "send" && failure.status >= 400 && failure.status < 500 && onReject(failure)) {
         clear(intent);
@@ -96,13 +101,13 @@ export function useOperationRecovery({ client = api, storageKey, loadSaved, requ
     if (pending && !inFlight.current) void run("check", pending);
   }
 
-  function closeResult(expected) {
-    if (!pending || result !== expected || inFlight.current) return;
+  function closeResult(...expected) {
+    if (!pending || !expected.includes(result) || inFlight.current) return;
     clear(pending);
     resetNotice();
     onCloseConflict();
   }
 
   return { pending, requestMode, busy: requestMode !== null, error, result, send, check, closeConflict: () => closeResult("conflict"),
-    closeUnrecorded: () => closeResult("missing"), resetNotice, inFlight };
+    closeUnrecorded: () => closeResult("missing", "unavailable"), resetNotice, inFlight };
 }

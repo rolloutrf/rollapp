@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { purchaseBusinessMarketplaceItem, readBusinessPurchaseStatus } from "./modules/catalog-marketplace/business-marketplace.js";
 import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
-import { settleMarketplaceOrder, resolveMarketplaceDispute } from "./modules/checkout/marketplace-settlements.js";
+import { readMarketplaceOrderAction, settleMarketplaceOrder, resolveMarketplaceDispute } from "./modules/checkout/marketplace-settlements.js";
 import { hasMarketplaceSettlementSchema, verifyMarketplaceSettlementSchema } from "./modules/checkout/marketplace-settlements-schema.js";
 import { readRollOrders } from "./modules/history/order-history.js";
 import { readRollReceipt } from "./modules/history/roll-receipts.js";
@@ -71,7 +71,19 @@ test("protected marketplace orders on the existing production schema", { skip: p
 
         assert.equal((await act(purchase.id, seller, "fulfill", "Услуга оказана")).status, "fulfilled");
         await assert.rejects(act(purchase.id, seller, "claim"), { code: "ORDER_ACTION_UNAVAILABLE" });
+        const available = await readMarketplaceOrderAction(client, buyer, purchase.id, "dispute");
+        assert.equal(available.available, true);
+        assert.equal(available.recorded, null);
+        await client.query("SAVEPOINT review_deadline");
+        try {
+          await client.query("UPDATE roll_marketplace_orders SET review_until=statement_timestamp() WHERE id=$1", [purchase.id]);
+          assert.equal((await readMarketplaceOrderAction(client, buyer, purchase.id, "dispute")).available, false);
+          assert.equal((await readMarketplaceOrderAction(client, seller, purchase.id, "claim")).available, true);
+        } finally { await client.query("ROLLBACK TO SAVEPOINT review_deadline"); }
         assert.equal((await act(purchase.id, buyer, "dispute", "Проверьте исполнение")).status, "disputed");
+        assert.equal((await readMarketplaceOrderAction(client, buyer, purchase.id, "dispute")).recorded.note, "Проверьте исполнение");
+        assert.equal((await readMarketplaceOrderAction(client, seller, purchase.id, "dispute")).recorded, null);
+        await assert.rejects(readMarketplaceOrderAction(client, other, purchase.id, "dispute"), { code: "ORDER_NOT_FOUND" });
         await assert.rejects(act(purchase.id, seller, "claim"), { code: "ORDER_ACTION_UNAVAILABLE" });
         const resolution = { action: "resolve_release", expectedAmount: 50, operator: "fixture", note: "Исполнение проверено" };
         assert.equal((await resolveMarketplaceDispute(client, purchase.id, resolution)).status, "released");

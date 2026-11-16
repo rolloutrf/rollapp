@@ -40,6 +40,11 @@
 обслуживает покупательское чтение, возврат и операторскую сверку.
 [Восстановление персонального счёта](../personal-offers.md#проверка-оплаты-и-возврата)
 
+Для защищённой сделки [проверка действия](../marketplace-settlements.md#проверка-действия-после-потери-ответа)
+читает собственную запись участника. Новая отправка допускается после
+пустого результата с актуальным доступом к действию. Команда сверяет
+подтверждённую сумму, роль и серверный срок под блокировкой заказа.
+
 **Приёмка.** Отмена и Back, недоступный товар и изменившаяся цена, отсутствие ПВЗ, нехватка роллов, потерянный ответ, повтор, восстановление заказа и повторный возврат. Проверьте телефоны и десктоп, `npm test`, `npm run test:orders`, `npm run test:cdek:visual` и `npm run test:checkout-recovery:production` по [регламенту](../verification.md).
 
 [Форма магазина](../../src/modules/checkout/cat-checkout.jsx) · [Бизнес-покупка](../../src/modules/catalog-marketplace/business-marketplace-page.jsx) · [Операции покупки и возврата](../../server/modules/checkout/roll-purchases.js) · [HTTP API](../../server/modules/payments/rolls-routes.js) · [Бизнес-покупки на сервере](../../server/modules/catalog-marketplace/business-marketplace.js)

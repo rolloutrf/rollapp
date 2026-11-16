@@ -7,8 +7,11 @@ import { lockOwnedGiftCard, recordGiftEvent } from "../loyalty/gift-cards.js";
 import { ensureRollWallet, RollsError } from "../payments/rolls.js";
 import { hasMarketplaceSettlementSchema } from "./marketplace-settlements-schema.js";
 
+const participantAction = z.enum(["cancel", "fulfill", "accept", "dispute", "claim", "refund"]);
+
 export const marketplaceOrderActionSchema = z.object({
-  action: z.enum(["cancel", "fulfill", "accept", "dispute", "claim", "refund"]),
+  action: participantAction,
+  expectedAmount: z.number().int().min(1).max(1_000_000).optional(),
   note: z.string().trim().max(MARKETPLACE_ORDER_NOTE_LIMIT).default(""),
 }).strict().refine(({ action, note }) => action === "dispute" ? Boolean(note) : action === "fulfill" || !note);
 
@@ -73,6 +76,25 @@ function isRelease(action) {
   return ["accept", "claim", "resolve_release"].includes(action);
 }
 
+export async function readMarketplaceOrderAction(client, actorId, orderId, action) {
+  const notFound = () => new RollsError("Заказ не найден", "ORDER_NOT_FOUND", 404);
+  if (!z.uuid().safeParse(orderId).success || !participantAction.safeParse(action).success ||
+      !await hasMarketplaceSettlementSchema(client)) throw notFound();
+  const { rows: [order] } = await client.query(`
+    SELECT o.id,o.buyer_id,o.status,o.amount,o.review_until,statement_timestamp() AS now,e.note,e.created_at AS action_at
+    FROM roll_marketplace_orders o LEFT JOIN roll_marketplace_order_events e
+      ON e.order_id=o.id AND e.action=$3 AND e.actor_id=$2
+    WHERE o.id=$1 AND (o.buyer_id=$2 OR o.seller_id=$2)
+  `, [orderId, actorId, action]);
+  if (!order) throw notFound();
+  const role = actorId === order.buyer_id ? "buyer" : "seller";
+  return {
+    id: order.id, status: order.status, amount: Number(order.amount), role, action,
+    recorded: order.action_at ? { note: order.note, at: order.action_at } : null,
+    available: marketplaceOrderActions(order, role, order.now).includes(action),
+  };
+}
+
 async function performMarketplaceOrderAction(client, orderId, actorId, input, staff) {
   const notFound = () => new RollsError("Заказ не найден", "ORDER_NOT_FOUND", 404);
   if (!z.string().uuid().safeParse(orderId).success || !await hasMarketplaceSettlementSchema(client)) throw notFound();
@@ -85,7 +107,7 @@ async function performMarketplaceOrderAction(client, orderId, actorId, input, st
   const { rows: [order] } = await client.query(`SELECT * FROM roll_marketplace_orders
     WHERE id=$1 AND ($3 OR buyer_id=$2 OR seller_id=$2) FOR UPDATE`, [orderId, actorId, staff]);
   if (!order) throw notFound();
-  if (staff && Number(order.amount) !== expectedAmount) {
+  if (expectedAmount !== undefined && Number(order.amount) !== expectedAmount) {
     throw new RollsError("Сумма заказа отличается от указанной", "ORDER_AMOUNT_MISMATCH", 409);
   }
   const role = staff ? "operator" : actorId === order.buyer_id ? "buyer" : "seller";

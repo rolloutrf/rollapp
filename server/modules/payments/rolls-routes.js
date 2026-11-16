@@ -1,5 +1,5 @@
 import { registerRollActivityRoutes } from "../pfm/roll-activity-routes.js";
-import { settleMarketplaceOrder } from "../checkout/marketplace-settlements.js";
+import { readMarketplaceOrderAction, settleMarketplaceOrder } from "../checkout/marketplace-settlements.js";
 import { registerGiftCardRoutes } from "../loyalty/gift-cards.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
 import { purchaseWithRolls, readCatPurchaseStatus, refundRollPurchase } from "../checkout/roll-purchases.js";
@@ -133,6 +133,15 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
 
   app.get("/api/rolls/orders", requireAuth, handle(async (req, res) => {
     res.json(await transaction((client) => readRollOrders(client, req.user.id)));
+  }));
+
+  app.get("/api/rolls/orders/:purchaseId/actions/:action", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const order = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readMarketplaceOrderAction(client, req.user.id, req.params.purchaseId, req.params.action);
+    });
+    res.json({ order });
   }));
 
   app.post("/api/rolls/orders/:purchaseId/actions", requireAuth, transferLimit, handle(async (req, res) => {

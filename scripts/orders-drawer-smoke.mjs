@@ -40,8 +40,11 @@ try {
       return route.abort();
     });
     const marketplaceMiss = height < 500 || width === 1440;
-    await page.addInitScript((marketplaceMiss) => {
-      const fixture = window.ordersDrawerFixture = { mode: "loading", reads: 0, unexpected: [], submittedActions: [] };
+    const actionRecovery = height < 500 ? "unavailable" : [768, 1440].includes(width) ? "missing" : "recorded";
+    await page.addInitScript(({ marketplaceMiss, actionRecovery, sellerLost }) => {
+      const savedAction = JSON.parse(sessionStorage.getItem("orders-fixture-action") || "null");
+      const fixture = window.ordersDrawerFixture = { mode: savedAction ? "protected" : "loading", reads: 0,
+        unexpected: [], submittedActions: savedAction?.attempts ?? [], actionChecks: [] };
       const user = { id: "orders-smoke", username: "orders-smoke", name: "Покупатель", accountType: "personal", canDiscoverSpheres: true };
       const point = { code: "PICKUP-TEST", city: "Москва", address: "Улица проверки, 1" };
       const catKey = "23ecb1bb-45d7-4ebe-beff-ad3344d1f11c";
@@ -56,6 +59,7 @@ try {
         settlement: { role: "buyer", participant: "Студия", source: "gift", reviewUntil: "2026-11-19T10:00:00Z",
           actions: ["accept", "dispute"], events: [{ action: "fulfill", note: "Встреча состоялась", createdAt: "2026-11-12T10:00:00Z" }] },
       };
+      if (savedAction) Object.assign(fulfilled, savedAction.order);
       const reserved = {
         id: "793550f5-1e76-4d40-b272-772f39c96717", productTitle: "Встреча с заказчиком", amount: 70,
         createdAt: "2026-11-12T09:00:00Z", status: "reserved",
@@ -74,6 +78,19 @@ try {
           if (path.startsWith("/rolls/purchases/")) {
             fixture.catChecks.push(path.split("/").at(-1));
             return { purchase: marketplaceMiss ? null : catReceipt };
+          }
+          if (path === `/rolls/orders/${fulfilled.id}/actions/dispute`) {
+            fixture.actionChecks.push(path);
+            const event = fulfilled.settlement.events.find(({ action }) => action === "dispute");
+            return { order: { id: fulfilled.id, amount: fulfilled.amount, action: "dispute", role: "buyer",
+              status: fulfilled.status, available: fulfilled.settlement.actions.includes("dispute"),
+              recorded: event ? { note: event.note, at: event.createdAt } : null } };
+          }
+          if (path === `/rolls/orders/${reserved.id}/actions/fulfill`) {
+            fixture.actionChecks.push(path);
+            const event = reserved.settlement.events[0];
+            return { order: { id: reserved.id, amount: reserved.amount, action: "fulfill", role: "seller",
+              status: reserved.status, available: false, recorded: event ? { note: event.note, at: event.createdAt } : null } };
           }
           if (path.startsWith("/rolls/receipts/order/")) {
             const id = path.split("/").at(-1);
@@ -129,12 +146,17 @@ try {
           }
           if (path === `/rolls/orders/${fulfilled.id}/actions` && input.action === "dispute") {
             fixture.submittedActions.push(input);
-            fulfilled.status = "disputed";
-            fulfilled.settlement.actions = ["accept"];
-            if (!fulfilled.settlement.events.some((event) => event.action === "dispute")) {
+            const first = fixture.submittedActions.length === 1;
+            if (!first || actionRecovery === "recorded") {
+              fulfilled.status = "disputed";
+              fulfilled.settlement.actions = ["accept"];
               fulfilled.settlement.events.push({ action: input.action, note: input.note, createdAt: "2026-11-13T10:00:00Z" });
-              throw new Error("Ответ не получен");
+            } else if (actionRecovery === "unavailable") {
+              fulfilled.settlement.actions = ["accept"];
+              fulfilled.settlement.reviewUntil = "2026-11-13T10:00:00Z";
             }
+            sessionStorage.setItem("orders-fixture-action", JSON.stringify({ order: fulfilled, attempts: fixture.submittedActions }));
+            if (first) throw new Error("Ответ не получен");
             return { order: { id: fulfilled.id, status: fulfilled.status, replayed: true } };
           }
           if (path === `/rolls/orders/${reserved.id}/actions` && input.action === "fulfill") {
@@ -143,13 +165,14 @@ try {
             reserved.settlement.reviewUntil = "2026-11-19T10:00:00Z";
             reserved.settlement.actions = ["refund"];
             reserved.settlement.events = [{ action: input.action, note: input.note, createdAt: "2026-11-12T10:00:00Z" }];
+            if (sellerLost) throw new Error("Ответ не получен");
             return { order: { id: reserved.id, status: reserved.status } };
           }
           fixture.unexpected.push(path);
           throw new Error("Unexpected action in orders fixture");
         },
       };
-    }, marketplaceMiss);
+    }, { marketplaceMiss, actionRecovery, sellerLost: width === 1920 });
 
     try {
       const store = `${storeUrl}?from=smoke#store`;
@@ -285,24 +308,72 @@ try {
       await dispute.click();
       await confirmation.getByText("Ответ не получен").waitFor();
       const popup = await confirmation.boundingBox();
-      for (const button of [dispute, confirmation.getByRole("button", { name: "Назад" }), confirmation.getByRole("alert")]) {
+      const checkResult = confirmation.getByRole("button", { name: "Проверить результат" });
+      const later = confirmation.getByRole("button", { name: "Позже" });
+      for (const button of [checkResult, later, confirmation.getByRole("alert")]) {
         const control = await button.boundingBox();
         assert(control.y >= popup.y && control.y + control.height <= popup.y + popup.height + 1, "Order actions and errors must remain visible on a short screen");
       }
       if ([320, 1440].includes(width) || height === 400) await page.screenshot({ path: join(screenshots, `dispute-${width}x${height}.png`) });
-      await dispute.click();
+      await later.click();
       await confirmation.waitFor({ state: "hidden" });
-      await buyerReceipt.getByText("Открыт спор", { exact: true }).waitFor();
-      await buyerOrder.getByRole("button", { name: "Скрыть квитанцию" }).click();
-      await buyerOrder.getByText("Уточните результат", { exact: true }).waitFor();
+      if (width === 1024) await page.reload();
+      await buyerOrder.getByRole("button", { name: "Открыть проверку действия" }).click();
+      assert.equal(await confirmation.getByLabel("Причина спора").inputValue(), "Уточните результат");
+      assert.equal(await confirmation.getByLabel("Причина спора").evaluate((field) => field.readOnly), true);
+      const actionRequests = () => page.evaluate(() => window.ordersDrawerFixture.submittedActions);
+      assert.equal((await actionRequests()).length, 1);
+      await checkResult.click();
+      if (actionRecovery === "missing") {
+        await confirmation.getByText("Действие пока не записано.", { exact: true }).waitFor();
+        assert.equal((await actionRequests()).length, 1);
+        await confirmation.getByRole("button", { name: "Повторить действие" }).click();
+      }
+      if (actionRecovery === "unavailable") {
+        await confirmation.getByText("Действие пока не записано. Сейчас его нельзя отправить повторно.").waitFor();
+        assert.equal(await confirmation.getByRole("button", { name: "Повторить действие" }).count(), 0);
+        await checkResult.click();
+        const unavailable = confirmation.getByText("Действие пока не записано. Сейчас его нельзя отправить повторно.");
+        await unavailable.waitFor();
+        const closeRequest = confirmation.getByRole("button", { name: "Закрыть запрос" });
+        for (const control of [unavailable, closeRequest]) {
+          assert(await control.evaluate((element) => {
+            const container = element.closest(".overflow-y-auto").getBoundingClientRect();
+            const content = element.getBoundingClientRect();
+            return content.top >= container.top && content.bottom <= container.bottom + 1;
+          }), "Deadline feedback and closing the request must be visible without scrolling");
+        }
+        await page.screenshot({ path: join(screenshots, `deadline-${width}x${height}.png`) });
+        await confirmation.getByRole("button", { name: "Закрыть запрос" }).click();
+      }
+      await confirmation.waitFor({ state: "hidden" });
+      assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.actionChecks), Array.from({ length: actionRecovery === "unavailable" ? 2 : 1 },
+        () => "/rolls/orders/650bc77a-2829-449f-86af-51d4439bd080/actions/dispute"));
+      assert.equal(await page.evaluate(() => sessionStorage.getItem("rollapp:marketplace-action:orders-smoke:650bc77a-2829-449f-86af-51d4439bd080")), null);
+      if (actionRecovery !== "unavailable") {
+        await buyerOrder.getByText("Открыт спор", { exact: true }).first().waitFor();
+        if (!await buyerOrder.getByText("Уточните результат", { exact: true }).isVisible()) {
+          await buyerOrder.getByRole("button", { name: "История заказа" }).click();
+        }
+        await buyerOrder.getByText("Уточните результат", { exact: true }).waitFor();
+      } else {
+        await buyerOrder.getByRole("button", { name: "Открыть спор" }).waitFor({ state: "hidden" });
+      }
+      await page.evaluate(() => sessionStorage.removeItem("orders-fixture-action"));
       await sellerOrder.getByRole("button", { name: "Отметить исполнение" }).click();
       await confirmation.getByLabel("Комментарий для покупателя").fill("Доставка завершена");
       await confirmation.getByRole("button", { name: "Отметить исполнение" }).click();
+      if (width === 1920) {
+        await confirmation.getByText("Ответ не получен", { exact: false }).waitFor();
+        await checkResult.click();
+        await confirmation.waitFor({ state: "hidden" });
+        assert.equal((await page.evaluate(() => window.ordersDrawerFixture.actionChecks)).at(-1),
+          "/rolls/orders/793550f5-1e76-4d40-b272-772f39c96717/actions/fulfill");
+      }
       await sellerOrder.getByText("На проверке", { exact: true }).waitFor();
       assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.submittedActions), [
-        { action: "dispute", note: "Уточните результат" },
-        { action: "dispute", note: "Уточните результат" },
-        { action: "fulfill", note: "Доставка завершена" },
+        ...Array.from({ length: actionRecovery === "missing" ? 2 : 1 }, () => ({ action: "dispute", note: "Уточните результат", expectedAmount: 50 })),
+        { action: "fulfill", note: "Доставка завершена", expectedAmount: 70 },
       ]);
       assert.deepEqual(await drawer.locator("[data-order-role]").evaluateAll((cards) => cards.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.dataset.orderRole)), []);
       assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.unexpected), []);

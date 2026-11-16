@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
+import express from "express";
+import { registerRollsRoutes } from "../payments/rolls-routes.js";
 import { MARKETPLACE_REVIEW_DAYS, marketplaceOrderActions } from "../../../shared/modules/checkout/marketplace-settlements.js";
-import { marketplaceOrderActionSchema, resolveMarketplaceDispute, settleMarketplaceOrder } from "./marketplace-settlements.js";
+import { marketplaceOrderActionSchema, readMarketplaceOrderAction, resolveMarketplaceDispute, settleMarketplaceOrder } from "./marketplace-settlements.js";
 import { purchaseBusinessMarketplaceItem, readBusinessPurchaseStatus } from "../catalog-marketplace/business-marketplace.js";
 
 const now = new Date("2026-11-16T09:00:00.000Z");
@@ -43,6 +45,63 @@ test("roles, exact review deadline and terminal states define order actions", ()
   assert.deepEqual(marketplaceOrderActions({ ...fixture, status: "released" }, "buyer", now), []);
   assert.equal(marketplaceOrderActionSchema.safeParse({ action: "dispute", note: "  " }).success, false);
   assert.equal(marketplaceOrderActionSchema.safeParse({ action: "resolve_refund", expectedAmount: 70, note: "x" }).success, false);
+});
+
+test("exact action recovery reads the participant's event and evaluates the server deadline", async () => {
+  const result = async (actor, action, row) => {
+    const client = scripted([installed, [/e.actor_id=\$2[\s\S]+o.buyer_id=\$2 OR o.seller_id=\$2/, row ? [row] : [],
+      (args) => assert.deepEqual(args, [fixture.id, actor, action])]]);
+    try { return await readMarketplaceOrderAction(client, actor, fixture.id, action); }
+    finally { client.done(); }
+  };
+  const unrecorded = { ...fixture, now, action_at: null };
+  assert.deepEqual(await result("buyer", "dispute", unrecorded),
+    { id: fixture.id, status: "fulfilled", amount: 70, role: "buyer", action: "dispute", recorded: null, available: true });
+  assert.equal((await result("buyer", "dispute", { ...unrecorded, now: future })).available, false);
+  assert.equal((await result("seller", "claim", { ...unrecorded, now: future })).available, true);
+  const paid = await result("buyer", "accept", { ...unrecorded, status: "released", action_at: now, note: "" });
+  assert.deepEqual(paid.recorded, { at: now, note: "" });
+  assert.equal(paid.available, false);
+  await assert.rejects(result("outsider", "accept", null), { code: "ORDER_NOT_FOUND" });
+  const invalid = scripted([]);
+  await assert.rejects(readMarketplaceOrderAction(invalid, "buyer", fixture.id, "resolve_refund"), { code: "ORDER_NOT_FOUND" });
+  invalid.done();
+});
+
+test("action status route uses the authenticated participant and a read-only transaction", async () => {
+  const app = express();
+  let statusReads = 0;
+  registerRollsRoutes(app, {
+    requireAuth(req, res, next) {
+      const actor = req.get("x-fixture-actor");
+      if (!actor) return res.sendStatus(401);
+      req.user = { id: actor };
+      next();
+    },
+    async transaction(read) {
+      statusReads += 1;
+      const client = scripted([[/^SET TRANSACTION READ ONLY$/, []], installed,
+        [/LEFT JOIN roll_marketplace_order_events/, statusReads === 1 ? [{ ...fixture, now, note: "Точное подтверждение", action_at: now }] : [],
+          ([id, actor]) => assert.deepEqual([id, actor], [fixture.id, statusReads === 1 ? "buyer" : "outsider"])]]);
+      try { return await read(client); } finally { client.done(); }
+    },
+  });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/rolls/orders/${fixture.id}/actions/dispute?actor=seller`;
+    assert.equal((await fetch(url)).status, 401);
+    const read = await fetch(url, { headers: { "x-fixture-actor": "buyer" } });
+    assert.equal(read.status, 200);
+    assert.equal(read.headers.get("cache-control"), "private, no-store");
+    assert.equal((await read.json()).order.recorded.note, "Точное подтверждение");
+    const unrelated = await fetch(url, { headers: { "x-fixture-actor": "outsider" } });
+    assert.equal(unrelated.status, 404);
+    assert.equal((await unrelated.json()).code, "ORDER_NOT_FOUND");
+    assert.equal(statusReads, 2);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("missing schema fails before any wallet write, and detached checkout replays existing orders", async () => {
@@ -99,6 +158,10 @@ test("stale quote fails before debit; a card reserve writes a protected order wi
 });
 
 test("lock precedes server deadline; accepting a deal credits exactly the seller and saves one terminal event", async () => {
+  const wrongAmount = scripted([installed, [/FOR UPDATE/, [fixture]]]);
+  await assert.rejects(settleMarketplaceOrder(wrongAmount, "buyer", fixture.id, { action: "accept", expectedAmount: 71 }),
+    { code: "ORDER_AMOUNT_MISMATCH" });
+  wrongAmount.done();
   const accept = scripted([installed,
     [/roll_marketplace_orders[\s\S]+FOR UPDATE/, [fixture], (args) => assert.deepEqual(args, [fixture.id, "buyer", false])],
     [/clock_timestamp/, [{ now }]], [/FROM roll_marketplace_order_events/, []], ...walletLock,
