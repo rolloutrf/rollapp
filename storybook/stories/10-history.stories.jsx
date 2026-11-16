@@ -7,7 +7,7 @@ import { STORE_CATS } from "@/modules/catalog-marketplace/store-cats.jsx";
 import { Page, Scenario, owner, hold, fixtureError, noop } from "../support.jsx";
 import { ledger, ledgerReceipts, points } from "../samples.js";
 
-export default { id: "rollapp-history", title: "РОЛЛАПП/Модули РОЛЛАУТ/10 История операций" };
+export default { id: "rollapp-history", title: "РОЛЛАПП/Модули/10 История операций" };
 
 function History({ state }) {
   const rows = state === "ready" ? ledger : state === "empty" ? [] : null;

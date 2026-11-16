@@ -6,7 +6,7 @@ import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { Page, Scenario, owner, hold, fixtureError, noop } from "../support.jsx";
 import { sampleWish } from "../samples.js";
 
-export default { id: "rollapp-wishlist", title: "РОЛЛАПП/Модули РОЛЛАПП/15 Вишлист" };
+export default { id: "rollapp-wishlist", title: "РОЛЛАПП/Модули/15 Вишлист" };
 
 const sampleLists = [{ id: "gifts", title: "Подарки", space: "products", privacy: "private" }];
 function Wishlist({ form, space, owned, state }) {

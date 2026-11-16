@@ -4,7 +4,7 @@ import { formatMoney } from "@/modules/card/price.jsx";
 import { Page, Scenario, owner, person, fixtureError, hold, noop } from "../support.jsx";
 import { sampleWish } from "../samples.js";
 
-export default { id: "rollapp-assistant", title: "РОЛЛАПП/Модули РОЛЛАУТ/13 Ассистент" };
+export default { id: "rollapp-assistant", title: "РОЛЛАПП/Модули/13 Ассистент" };
 
 function streamOffers(offers, state, signal) {
   return new Response(new ReadableStream({

@@ -4,7 +4,7 @@ import { BusinessClientAccessActions } from "@/modules/access/business-client-ac
 import { Page, Scenario, person } from "../support.jsx";
 import { seller } from "../samples.js";
 
-export default { id: "rollapp-access", title: "РОЛЛАПП/Модули РОЛЛАПП/14 Доступ и выдача прав" };
+export default { id: "rollapp-access", title: "РОЛЛАПП/Модули/14 Доступ и выдача прав" };
 
 function Access({ fixed, granted, disabled }) {
   const account = fixed ? { ...seller, accountType: "business", businessCategory: "seller", sellerSpace: "products" } : seller;

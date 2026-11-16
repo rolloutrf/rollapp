@@ -6,7 +6,7 @@ import { Page, Scenario, fixtureError, noop } from "../support.jsx";
 import { PlanningPreview } from "../planning-preview.jsx";
 import { sampleWish } from "../samples.js";
 
-export default { id: "rollapp-planning", title: "РОЛЛАПП/Модули РОЛЛАПП/18 Задачи и пространства" };
+export default { id: "rollapp-planning", title: "РОЛЛАПП/Модули/18 Задачи и пространства" };
 
 function Space({ kind, state }) {
   const [value, setValue] = useState("work");

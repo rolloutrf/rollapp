@@ -1,6 +1,6 @@
 import { PlanningPreview } from "../planning-preview.jsx";
 
-export default { id: "rollapp-kanban", title: "РОЛЛАПП/Модули РОЛЛАПП/21 Kanban" };
+export default { id: "rollapp-kanban", title: "РОЛЛАПП/Модули/21 Kanban" };
 
 const render = (args) => <PlanningPreview key={args.state} kind="kanban" {...args} />;
 export const Board = { name: "Карточки, списки и перенос", render, args: { state: "ready" } };

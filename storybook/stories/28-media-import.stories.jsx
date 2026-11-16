@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Page, Scenario, fixtureError, hold } from "../support.jsx";
 import { sampleWish } from "../samples.js";
 
-export default { id: "rollapp-media-import", title: "РОЛЛАПП/Модули РОЛЛАПП/28 Медиа и импорт" };
+export default { id: "rollapp-media-import", title: "РОЛЛАПП/Модули/28 Медиа и импорт" };
 
 function Import({ mode, state }) {
   const [open, setOpen] = useState(true);

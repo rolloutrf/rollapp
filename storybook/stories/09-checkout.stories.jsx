@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Page, Scenario, fixtureError, noop } from "../support.jsx";
 import { cities, points } from "../samples.js";
 
-export default { id: "rollapp-checkout", title: "РОЛЛАПП/Модули РОЛЛАУТ/09 Чекаут" };
+export default { id: "rollapp-checkout", title: "РОЛЛАПП/Модули/09 Чекаут" };
 
 function Checkout({ review, result }) {
   const [open, setOpen] = useState(true);

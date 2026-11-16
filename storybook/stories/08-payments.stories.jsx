@@ -5,7 +5,7 @@ import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS, ROLL_STAR_TERMS_VERSION } from "..
 import { Page, Scenario, owner, person, hold, fixtureError, noop } from "../support.jsx";
 import { ledgerReceipts, wallet } from "../samples.js";
 
-export default { id: "rollapp-payments", title: "РОЛЛАПП/Модули РОЛЛАУТ/08 Платежи" };
+export default { id: "rollapp-payments", title: "РОЛЛАПП/Модули/08 Платежи" };
 
 function Wallet({ state, topup }) {
   const rejected = () => { throw fixtureError("Не удалось получить данные. Попробуйте снова."); };

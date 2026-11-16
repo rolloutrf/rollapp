@@ -3,7 +3,7 @@ import { CdekPickupPicker, PointDetails } from "@/modules/delivery/cdek-pickup.j
 import { Page, noop } from "../support.jsx";
 import { cities, points } from "../samples.js";
 
-export default { id: "rollapp-delivery", title: "РОЛЛАПП/Модули РОЛЛАУТ/06 Доставка" };
+export default { id: "rollapp-delivery", title: "РОЛЛАПП/Модули/06 Доставка" };
 
 function Pickup({ state }) {
   const [city, setCity] = useState(state === "city" ? null : cities[0]);

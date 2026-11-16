@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Page, Scenario, owner, fixtureError, hold, noop } from "../support.jsx";
 import { seller, wallet } from "../samples.js";
 
-export default { id: "rollapp-loyalty", title: "РОЛЛАПП/Модули РОЛЛАУТ/12 Лояльность" };
+export default { id: "rollapp-loyalty", title: "РОЛЛАПП/Модули/12 Лояльность" };
 
 function Gifts({ state }) {
   const cards = [{ id: "storybook-card-positive", balance: 250, business: seller }, { id: "storybook-card-zero", balance: 0, business: seller }];

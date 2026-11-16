@@ -7,7 +7,7 @@ import { StorePage } from "@/modules/checkout/store-page.jsx";
 import { Page, Scenario, owner, noop } from "../support.jsx";
 import { sampleWish, seller, wallet, cities, points } from "../samples.js";
 
-export default { id: "rollapp-catalog-marketplace", title: "РОЛЛАПП/Модули РОЛЛАПП/16 Каталог и витрины" };
+export default { id: "rollapp-catalog-marketplace", title: "РОЛЛАПП/Модули/16 Каталог и витрины" };
 
 function Catalog({ state, drawer }) {
   const [active, setActive] = useState(state === "added");

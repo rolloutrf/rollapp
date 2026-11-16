@@ -3,7 +3,7 @@ import { WishListNavigation } from "@/modules/categories/wish-list-navigation.js
 import { SPACES } from "@/modules/categories/wish-spaces.jsx";
 import { Page, Scenario, noop } from "../support.jsx";
 
-export default { id: "rollapp-categories", title: "РОЛЛАПП/Модули РОЛЛАУТ/04 Категории" };
+export default { id: "rollapp-categories", title: "РОЛЛАПП/Модули/04 Категории" };
 
 function Lists({ count, long, locked }) {
   const [value, setValue] = useState("all");

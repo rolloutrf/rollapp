@@ -13,7 +13,11 @@ const index = await fetch(new URL("index.json", origin)).then(response => {
 });
 const published = Object.values(index.entries).filter(entry => entry.type === "story");
 const moduleIds = modules.map(([, , id]) => "rollapp-" + id);
-for (const id of moduleIds) assert(index.entries[id]?.type === "story", `Module link missing: ${id}`);
+for (const [number, label, id] of modules) {
+  const entry = index.entries[`rollapp-${id}`];
+  assert(entry?.type === "story", `Module link missing: ${id}`);
+  assert.equal(entry.title, `РОЛЛАПП/Модули/${number} ${label}`);
+}
 assert.equal(new Set(moduleIds.map(id => index.entries[id].title)).size, 30);
 
 const primary = ["rollapp-guide--catalog", ...moduleIds];
