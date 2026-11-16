@@ -51,17 +51,30 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
       try {
         const user = await addUser(client, "personal", { wallet: false });
         const terms = { amount: 25, reason: "Проверка начисления", idempotencyKey: randomUUID() };
-        const preview = await previewRollGrant(client, user, terms);
+        const quote = () => previewRollGrant(client, user, terms, { includeIssuanceImpact: true });
+        const { circulation } = await inspect();
+        const preview = await quote();
         assert.equal(preview.account.balance, "0");
         assert.equal(preview.welcomeAmount, 100);
         assert.equal(preview.projectedBalance, "125");
         assert.equal(preview.existingGrantId, null);
+        const impact = preview.issuanceImpact;
+        assert.equal(impact.newlyIssuedRolls, "125");
+        assert.equal(impact.current.heldRolls, circulation.heldRolls);
+        assert.equal(impact.current.largestHoldingSharePercent, circulation.largestHoldingSharePercent);
+        assert.equal(impact.current.recipientHoldingRolls, "0");
+        assert.equal(impact.projected.recipientHoldingRolls, "125");
+        assert.equal(difference(impact.current, impact.projected, "heldRolls"), 125n);
+        assert.equal(JSON.stringify(impact).includes(user), false);
         assert.equal((await client.query("SELECT 1 FROM roll_wallets WHERE user_id=$1", [user])).rowCount, 0);
         const grant = await grantRolls(client, user, terms);
-        const replay = await previewRollGrant(client, user, terms);
+        const replay = await quote();
         assert.equal(replay.welcomeAmount, 0);
         assert.equal(replay.existingGrantId, grant.id);
         assert.equal(replay.projectedBalance, "125");
+        assert.equal(replay.issuanceImpact.newlyIssuedRolls, "0");
+        assert.deepEqual(replay.issuanceImpact.current, impact.projected);
+        assert.deepEqual(replay.issuanceImpact.projected, replay.issuanceImpact.current);
         await assert.rejects(previewRollGrant(client, user, { ...terms, amount: 26 }), { code: "IDEMPOTENCY_CONFLICT" });
         await assert.rejects(previewRollGrant(client, other, terms), { code: "IDEMPOTENCY_CONFLICT" });
       } finally {
@@ -110,6 +123,13 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
       await client.query("UPDATE reward_need_offers SET expires_at=transaction_timestamp() WHERE id=$1", [expired.id]);
 
       const report = await inspect();
+      for (const [participant, additional] of [[other, 6n], [business, 20n]]) {
+        const forecast = await previewRollGrant(client, participant, {
+          amount: 1, reason: "Проверка состава остатка", idempotencyKey: randomUUID(),
+        }, { includeIssuanceImpact: true });
+        assert.equal(BigInt(forecast.issuanceImpact.current.recipientHoldingRolls), BigInt(forecast.account.balance) + additional);
+        assert.equal(forecast.issuanceImpact.current.heldRolls, report.circulation.heldRolls);
+      }
       assert.equal(difference(before, report, "issuedRolls"), 494n);
       for (const [source, total, recent] of [["welcome", 300n, 300n], ["wish_reward", 100n, 100n], ["manual_grant", 24n, 17n], ["stars_topup", 30n, 30n], ["ton_topup", 40n, 40n]]) {
         assert.equal(difference(before.issuedBySource, report.issuedBySource, source), total);

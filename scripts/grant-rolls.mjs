@@ -20,7 +20,7 @@ const db = await productionRollsDatabase();
 try {
   const preview = await db.transaction(async (client) => {
     await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
-    return previewRollGrant(client, userId, terms.data);
+    return previewRollGrant(client, userId, terms.data, { includeIssuanceImpact: true });
   });
   const { account, ...forecast } = preview;
   console.log(JSON.stringify({ database: db.target.database, role: db.target.role, target: account, ...forecast }));

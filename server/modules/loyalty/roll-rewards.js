@@ -7,6 +7,7 @@ import {
   ROLLS_WISH_REWARD_LIMIT,
 } from "../../../shared/modules/payments/rolls.js";
 import { ensureRollWallet, RollsError } from "../payments/rolls.js";
+import { readRollIssuanceImpact } from "../payments/roll-accounting.js";
 import { randomUUID } from "node:crypto";
 
 export const rollGrantSchema = z.object({
@@ -36,7 +37,7 @@ function priorGrantMatches(row, userId, { amount, reason }) {
   }
 }
 
-export async function previewRollGrant(client, userId, input) {
+export async function previewRollGrant(client, userId, input, { includeIssuanceImpact = false } = {}) {
   const terms = grantTerms(input);
   const { rows: [target] } = await client.query(`
     SELECT u.id,u.name,u.username,COALESCE(w.balance,0)::text AS balance,
@@ -55,6 +56,7 @@ export async function previewRollGrant(client, userId, input) {
   return {
     account, amount: terms.amount, reason: terms.reason, welcomeAmount,
     projectedBalance: String(projected), existingGrantId: previous?.id ?? null,
+    ...(includeIssuanceImpact && { issuanceImpact: await readRollIssuanceImpact(client, userId, increase) }),
   };
 }
 

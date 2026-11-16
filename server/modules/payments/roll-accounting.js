@@ -106,6 +106,48 @@ export const openMarketplaceReserves = `
   WHERE status IN ('reserved','fulfilled','disputed')
 `;
 
+// Each holding belongs to one participant. Pending sales are attributed to
+// the person who funded the reserve until the sale is released.
+export function rollHoldingPositions({ gifts, rewards, marketplace }) {
+  return `
+    SELECT user_id AS account_id,balance AS amount,'wallet' AS source FROM roll_wallets
+    ${gifts ? "UNION ALL SELECT owner_id,balance,'card' FROM business_gift_cards" : ""}
+    ${rewards ? `UNION ALL SELECT user_id,amount,'reward' FROM (${openRewardReserves}) reserves` : ""}
+    ${marketplace ? `UNION ALL SELECT buyer_id,amount,'order' FROM (${openMarketplaceReserves}) reserves` : ""}
+  `;
+}
+
+export const rollHoldingsByParticipant = `
+  SELECT account_id,SUM(amount) AS amount FROM positions
+  GROUP BY account_id HAVING SUM(amount)>0
+`;
+
+export async function readRollIssuanceImpact(client, userId, issued) {
+  const sources = await readRollAccountingSources(client);
+  const { rows: [impact] } = await client.query(`
+    WITH positions AS (${rollHoldingPositions(sources)}),
+    holdings AS (${rollHoldingsByParticipant}),
+    totals AS (
+      SELECT COALESCE(SUM(amount),0) AS held,
+        COALESCE(MAX(amount) FILTER (WHERE account_id=$1),0) AS recipient,
+        COALESCE(MAX(amount) FILTER (WHERE account_id<>$1),0) AS largest_other
+      FROM holdings
+    ),
+    scenarios AS (
+      SELECT 0::numeric AS added,'current' AS stage
+      UNION ALL SELECT $2::numeric,'projected'
+    )
+    SELECT transaction_timestamp() AS "asOf",jsonb_object_agg(stage,jsonb_build_object(
+      'heldRolls',(held+added)::text,
+      'recipientHoldingRolls',(recipient+added)::text,
+      'recipientSharePercent',ROUND((recipient+added)*100/NULLIF(held+added,0),4)::text,
+      'largestHoldingSharePercent',ROUND(GREATEST(recipient+added,largest_other)*100/NULLIF(held+added,0),4)::text
+    )) AS holdings
+    FROM totals CROSS JOIN scenarios
+  `, [userId, issued]);
+  return { asOf: impact.asOf, newlyIssuedRolls: String(issued), ...impact.holdings };
+}
+
 export async function readRollBalanceBreakdown(client, userId, sources) {
   if (!sources.gifts && !sources.rewards && !sources.marketplace) {
     return { giftCards: "0", reservedRewards: "0", reservedOrders: "0", pendingSales: "0" };
