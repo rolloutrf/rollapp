@@ -11,7 +11,7 @@ function rollingDigit(frame, index) {
 
 function FlipDigit({ previous, digit, frame, index }) {
   const flipping = previous !== digit;
-  return <span className="member-flip-digit" style={{ "--flip-delay": `${index * 5}ms` }}>
+  return <span className="member-flip-digit" aria-hidden="true" style={{ "--flip-delay": `${index * 5}ms` }}>
     <span className="member-flip-face member-flip-face--top"><span>{digit}</span></span>
     <span className="member-flip-face member-flip-face--bottom"><span>{previous}</span></span>
     {flipping && <Fragment key={frame}>
@@ -21,9 +21,11 @@ function FlipDigit({ previous, digit, frame, index }) {
   </span>;
 }
 
-export function MemberNumberBoard({ number, draw, compact = false }) {
+export function MemberNumberBoard({ number, draw, fullWidth = false }) {
   const frame = draw?.frame ?? 0;
-  return <div className={cn("member-flip-board", compact && "member-flip-board--compact")} aria-hidden="true">
+  const label = fullWidth && number ? `Ваш номер — #${number}` : undefined;
+  return <div className={cn("member-flip-board", fullWidth && "member-flip-board--full-width")}
+    role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
     {Array.from({ length: MEMBER_NUMBER_DIGITS }, (_, index) => {
       const settled = draw && index < draw.settled;
       const digit = number?.[index] ?? (settled ? draw.result.number[index] : rollingDigit(frame, index));

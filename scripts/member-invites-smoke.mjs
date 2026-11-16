@@ -72,20 +72,35 @@ try {
         if (!variant || variant.includes("assigned")) {
           const board = page.locator(".member-flip-board");
           const digits = board.locator(".member-flip-digit");
-          assert.equal(await board.getAttribute("aria-hidden"), "true");
+          assert.equal(await board.getAttribute("aria-hidden"), assignedProfile ? null : "true");
           assert.equal(await page.locator(".member-number-confetti").count(), 0);
           assert.equal(await digits.count(), 5);
           const faces = digits.locator(".member-flip-face--top");
           const number = assignedProfile ? "01234" : variant ? "30000" : "–––––";
           assert.equal((await faces.allTextContents()).join(""), number);
           if (assignedProfile) {
-            const card = board.locator('xpath=ancestor::div[@data-slot="card"]');
-            assert.equal(await card.getByRole("heading", { name: "Номер участника", exact: true }).count(), 1);
-            assert.equal(await card.getByText("Ваш номер — #01234", { exact: true }).count(), 1);
-            assert.equal(await card.getByRole("button").count(), 0);
+            const form = page.locator("#profile-editor-form");
+            assert.equal(await form.getByRole("img", { name: "Ваш номер — #01234", exact: true }).count(), 1);
+            assert.equal(await form.getByRole("heading", { name: "Номер участника", exact: true }).count(), 0);
+            assert.equal(await form.getByText("Ваш номер — #01234", { exact: true }).count(), 0);
             assert.equal(await board.locator(".member-flip-face--out,.member-flip-face--in").count(), 0);
-            const widths = await board.evaluate(element => [element.getBoundingClientRect().width, element.parentElement.clientWidth]);
-            assert(widths[0] <= 272 && widths[0] <= widths[1], "The compact board fits its profile card");
+            const rail = await board.evaluate(element => {
+              const outer = element.parentElement;
+              const parent = outer.getBoundingClientRect();
+              const gutters = getComputedStyle(outer);
+              const style = getComputedStyle(element);
+              const [first, , , , last] = element.children;
+              return {
+                direct: outer.id === "profile-editor-form",
+                left: first.getBoundingClientRect().left - parent.left - parseFloat(gutters.paddingLeft),
+                right: parent.right - last.getBoundingClientRect().right - parseFloat(gutters.paddingRight),
+                border: style.borderTopWidth, padding: style.paddingLeft,
+                background: [style.backgroundColor, style.backgroundImage],
+                shadow: style.boxShadow,
+              };
+            });
+            assert(rail.direct && Math.abs(rail.left) < 1 && Math.abs(rail.right) < 1, "Digits span the profile form content rail");
+            assert.deepEqual([rail.border, rail.padding, ...rail.background, rail.shadow], ["0px", "0px", "rgba(0, 0, 0, 0)", "none", "none"]);
           }
           const boxes = await digits.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON()));
           assert(boxes.every((box, index) => box.width >= 32 && box.top === boxes[0].top && (!index || box.left > boxes[index - 1].right)));

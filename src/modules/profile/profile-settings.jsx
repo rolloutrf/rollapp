@@ -429,16 +429,15 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
           <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
         </Field>
       </FieldGroup>
-      <Card className="grid gap-2 p-4">
-        <h3>Номер участника</h3>
-        {user.memberNumber ? <>
-          <MemberNumberBoard number={user.memberNumber} compact />
-          <p className="sr-only">Ваш номер — #{user.memberNumber}</p>
-        </> : <p>Ваш номер ещё не выбран.</p>}
-        {!user.memberNumber && (yandexLinkBlocked
-          ? <p>Сохраните или отмените изменения профиля перед выбором номера.</p>
-          : <ShadcnButton type="button" variant="outline" className="min-h-(--layout-control-size) rounded-full" onClick={() => exitSettings(() => { onClose(); navigate("/app/member-number"); })}>Получить номер</ShadcnButton>)}
-      </Card>
+      {user.memberNumber ? <MemberNumberBoard number={user.memberNumber} fullWidth /> : (
+        <Card className="grid gap-2 p-4">
+          <h3>Номер участника</h3>
+          <p>Ваш номер ещё не выбран.</p>
+          {yandexLinkBlocked
+            ? <p>Сохраните или отмените изменения профиля перед выбором номера.</p>
+            : <ShadcnButton type="button" variant="outline" className="min-h-(--layout-control-size) rounded-full" onClick={() => exitSettings(() => { onClose(); navigate("/app/member-number"); })}>Получить номер</ShadcnButton>}
+        </Card>
+      )}
     </form>
   ) : section === "wishlists" ? (
     <form id="profile-wishlists-form" onSubmit={submitWishlists}>
