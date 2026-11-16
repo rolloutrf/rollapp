@@ -15,6 +15,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { MakiIcon } from "@/components/maki-icon";
 import { PageActionButton } from "@/components/page-action-button";
 import { PurchaseHistoryImport } from "@/modules/history/purchase-history-import.jsx";
+import { readTonIntent, readTrackedTonOrder } from "./ton-topup-intent.js";
 import { RollsTopup, restoreStarTopup } from "@/modules/payments/rolls-topup.jsx";
 import { clearRollTransfer, restoreRollTransfer, rollTransferMatches, rollTransferWasRejected } from "./roll-transfer-intent.js";
 import { PersonalOffers } from "@/components/personal-offers";
@@ -27,6 +28,7 @@ import { APP_ORDERS_PATH } from "../shell/app-routing.js";
 import { RollsHistory } from "../history/rolls-history.jsx";
 import { RollsActivity } from "../pfm/rolls-activity.jsx";
 
+const TonOrderStatus = lazy(() => import("./ton-topup.jsx").then((module) => ({ default: module.TonTopup })));
 const TonWallet = lazy(() => import("@/modules/payments/ton-wallet.jsx").then((module) => ({ default: module.TonWallet })));
 
 function RollsBalanceBreakdown({ balances }) {
@@ -95,6 +97,8 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const pendingTopupOpener = useRef(null);
   const restoreTopupFocus = useRef(false);
   const pendingTopup = restoreStarTopup(user.id);
+  const hasTonStatus = useRef(false);
+  if (!hasTonStatus.current) hasTonStatus.current = Boolean(readTonIntent(user.id) || readTrackedTonOrder(user.id));
 
   useLayoutEffect(() => {
     if (topupView || !restoreTopupFocus.current) return;
@@ -406,6 +410,9 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
 
           {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
             <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
+          </Suspense>}
+          {wallet && !wallet.features?.tonWallet && hasTonStatus.current && <Suspense fallback={null}>
+            <TonOrderStatus key={user.id} userId={user.id} onPaid={refresh} />
           </Suspense>}
 
           {!(wallet?.features?.rollActivity && activityOpen) && <RollsHistory

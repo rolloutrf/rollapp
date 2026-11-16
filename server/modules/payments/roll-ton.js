@@ -3,7 +3,7 @@ import { Address, beginCell, Cell, loadTransaction } from "@ton/core";
 import { z } from "zod";
 import { ensureRollWallet, RollsError } from "./rolls.js";
 import { ROLLS_MAX_BALANCE } from "../../../shared/modules/payments/rolls.js";
-import { TON_MAINNET } from "../../../shared/modules/payments/ton.js";
+import { quoteTonRolls, TON_MAINNET } from "../../../shared/modules/payments/ton.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
 import { tonFetch } from "./ton-network.js";
 
@@ -16,9 +16,7 @@ export function getTonRollsConfig(env = process.env) {
   } catch { return { enabled: false }; }
 }
 
-export function quoteTonRolls(rolls, rate) {
-  return ((BigInt(rolls) * 1_000_000_000n + BigInt(rate) - 1n) / BigInt(rate)).toString();
-}
+export { quoteTonRolls };
 
 export function publicTonOrder(row) {
   return {
@@ -34,25 +32,45 @@ export function publicTonOrder(row) {
   };
 }
 
+const requestKeySchema = z.string().uuid();
+const rawAddress = z.string().regex(/^0:[a-f0-9]{64}$/i);
 const inputSchema = z.object({
   rolls: z.union([z.literal(100), z.literal(500), z.literal(1000)]),
-  sender: z.string().regex(/^0:[a-f0-9]{64}$/i), chain: z.literal(TON_MAINNET), idempotencyKey: z.string().uuid(),
+  sender: rawAddress, chain: z.literal(TON_MAINNET), idempotencyKey: requestKeySchema,
   acceptedTerms: z.literal(true),
+  quote: z.object({ recipient: z.string().regex(/^-?\d{1,3}:[a-f0-9]{64}$/i), nanotons: z.string().regex(/^[1-9]\d{0,39}$/) }).strict().optional(),
 }).strict();
+
+async function findTonOrderByRequest(client, userId, requestKey) {
+  const { rows: [row] } = await client.query("SELECT * FROM roll_ton_orders WHERE user_id=$1 AND idempotency_key=$2", [userId, requestKey]);
+  return row;
+}
+
+export async function readTonOrderByRequest(client, userId, requestKey) {
+  const parsed = requestKeySchema.safeParse(requestKey);
+  if (!parsed.success) throw new RollsError("Проверьте номер запроса.", "INVALID_TON_ORDER");
+  const row = await findTonOrderByRequest(client, userId, parsed.data);
+  return row ? publicTonOrder(row) : null;
+}
+
+function quoteMatches(quote, recipient, nanotons) {
+  return !quote || (quote.recipient.toLowerCase() === recipient && quote.nanotons === String(nanotons));
+}
 
 export async function createTonOrder(client, userId, input, config) {
   if (!config.enabled) throw new RollsError("Пополнение за TON пока недоступно.", "TON_DISABLED", 503);
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) throw new RollsError("Выберите пакет, основную сеть и примите условия.", "INVALID_TON_ORDER");
-  const { rolls, chain, idempotencyKey } = parsed.data;
+  const { rolls, chain, idempotencyKey, quote } = parsed.data;
   const sender = Address.parse(parsed.data.sender).toRawString();
-  if (sender === config.recipient) throw new RollsError("Кошелёк магазина не может пополнять роллы переводом самому себе. Подключите другой кошелёк.", "TON_SELF_PAYMENT", 409);
   await ensureRollWallet(client, userId);
-  const prior = await client.query("SELECT * FROM roll_ton_orders WHERE user_id=$1 AND idempotency_key=$2", [userId, idempotencyKey]);
-  if (prior.rowCount) {
-    const row = prior.rows[0];
-    if (Number(row.rolls) !== rolls || row.sender !== sender) throw new RollsError("Запрос уже использован для другого пополнения.", "IDEMPOTENCY_CONFLICT", 409);
-    return row;
+  const prior = await findTonOrderByRequest(client, userId, idempotencyKey);
+  if (prior && Number(prior.rolls) === rolls && prior.sender === sender && quoteMatches(quote, prior.recipient, prior.nanotons)) return prior;
+  if (sender === config.recipient) throw new RollsError("Кошелёк магазина не может пополнять роллы переводом самому себе. Подключите другой кошелёк.", "TON_SELF_PAYMENT", 409);
+  if (prior) throw new RollsError("Запрос уже использован для другого пополнения.", "IDEMPOTENCY_CONFLICT", 409);
+  const nanotons = quoteTonRolls(rolls, config.rate);
+  if (!quoteMatches(quote, config.recipient, nanotons)) {
+    throw new RollsError("Сумма или получатель изменились. Проверьте обновлённые условия и подтвердите их снова.", "TON_QUOTE_CHANGED", 409);
   }
   const pending = await client.query("SELECT COUNT(*) AS count, COALESCE(SUM(rolls),0) AS reserved FROM roll_ton_orders WHERE user_id=$1 AND paid_at IS NULL AND expires_at > CURRENT_TIMESTAMP", [userId]);
   if (Number(pending.rows[0].count) >= 3) throw new RollsError("Уже есть неоплаченные счета. Дождитесь их оплаты или истечения срока.", "TON_PENDING_LIMIT", 409);
@@ -60,7 +78,7 @@ export async function createTonOrder(client, userId, input, config) {
   if (BigInt(wallet.rows[0].balance) + BigInt(pending.rows[0].reserved) + BigInt(rolls) > BigInt(ROLLS_MAX_BALANCE)) throw new RollsError("Кошелёк достиг лимита.", "BALANCE_LIMIT", 409);
   return (await client.query(`INSERT INTO roll_ton_orders (id,user_id,sender,recipient,chain,rolls,nanotons,rate,idempotency_key)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-  [randomUUID(), userId, sender, config.recipient, chain, rolls, quoteTonRolls(rolls, config.rate), config.rate, idempotencyKey])).rows[0];
+  [randomUUID(), userId, sender, config.recipient, chain, rolls, nanotons, config.rate, idempotencyKey])).rows[0];
 }
 
 // Only blockchain data fetched by the server reaches this function. A client's
@@ -153,8 +171,9 @@ export function startTonPaymentPolling({ query, transaction, env = process.env, 
 
 export function registerTonRollsRoutes(app, { requireAuth, query, transaction, config = getTonRollsConfig }) {
   const limit = createRateLimit({ windowMs: 60_000, max: 20, key: (req) => req.user.id });
+  const readLimit = createRateLimit({ windowMs: 60_000, max: 60, key: (req) => req.user.id });
   const handle = (fn) => async (req, res, next) => {
-    res.set("Cache-Control", "no-store");
+    res.set("Cache-Control", "private, no-store");
     try { await fn(req, res); }
     catch (error) { if (error instanceof RollsError) res.status(error.status).json({ error: error.message, code: error.code }); else next(error); }
   };
@@ -164,6 +183,19 @@ export function registerTonRollsRoutes(app, { requireAuth, query, transaction, c
   app.get("/api/rolls/ton/orders", requireAuth, handle(async (req, res) => {
     const rows = await query("SELECT * FROM roll_ton_orders WHERE user_id=$1 ORDER BY created_at DESC LIMIT 10", [req.user.id]);
     res.json({ orders: rows.rows.map(publicTonOrder) });
+  }));
+  app.get("/api/rolls/ton/orders/by-request/:requestKey", requireAuth, readLimit, handle(async (req, res) => {
+    const order = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readTonOrderByRequest(client, req.user.id, req.params.requestKey);
+    });
+    res.json({ order });
+  }));
+  app.get("/api/rolls/ton/orders/:orderId", requireAuth, readLimit, handle(async (req, res) => {
+    if (!requestKeySchema.safeParse(req.params.orderId).success) throw new RollsError("Проверьте номер счёта.", "INVALID_TON_ORDER");
+    const { rows: [row] } = await query("SELECT * FROM roll_ton_orders WHERE user_id=$1 AND id=$2", [req.user.id, req.params.orderId]);
+    if (!row) throw new RollsError("Счёт не найден.", "TON_ORDER_NOT_FOUND", 404);
+    res.json({ order: publicTonOrder(row) });
   }));
   app.post("/api/rolls/ton/orders", requireAuth, limit, handle(async (req, res) => {
     const order = await transaction((client) => createTonOrder(client, req.user.id, req.body, config()));

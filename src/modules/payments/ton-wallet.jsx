@@ -181,13 +181,13 @@ export function TonWallet({ userId, onPaid }) {
         }}><Copy aria-hidden="true" />Копировать</Button>
         <Button type="button" variant="ghost" disabled={busy} onClick={disconnect}>{busy ? <Spinner /> : <Unplug aria-hidden="true" />}Отключить</Button>
       </div>
-      <TonTopup key={`${wallet.account.chain}:${wallet.account.address}`} wallet={wallet} connector={runtime.current} onPaid={onPaid} />
     </> : <>
       <p>Подключите свой кошелёк. Криптовалюта остаётся у вас, а подключение сохраняется на этом устройстве.</p>
       <Button ref={connectButton} type="button" className="w-full sm:w-auto sm:self-start" disabled={!ready || busy} onClick={() => { setError(""); setOpen(true); }}>
         {!ready && !error ? <Spinner /> : <Wallet aria-hidden="true" />}{!ready && !error ? "Проверяем подключение…" : "Подключить кошелёк"}
       </Button>
     </>}
+    <TonTopup userId={userId} wallet={wallet} connector={runtime.current} onPaid={onPaid} />
     {error && !open && <Alert variant="destructive"><AlertDescription className="flex flex-col gap-2"><span>{error}</span>{!ready && <Button type="button" variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить</Button>}</AlertDescription></Alert>}
     <Dialog open={open} onOpenChange={(value) => { if (!value) cancelPending(); setOpen(value); }}>
       <DialogContent finalFocus={connectButton} className="not-typeset rollapp-body max-h-[calc(100dvh-2rem)] overflow-y-auto">

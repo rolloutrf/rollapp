@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/modules/runtime/api.js";
 
 export function useOperationRecovery({ storageKey, loadSaved, requestFor, field, messages, readMatches,
-  acceptResponse, onComplete, onReject, onCloseConflict }) {
+  acceptResponse, onRecorded, onComplete, onReject, onCloseConflict }) {
   const [pending, setPending] = useState(loadSaved);
   const [requestMode, setRequestMode] = useState(null);
   const [result, setResult] = useState(null);
@@ -32,22 +32,24 @@ export function useOperationRecovery({ storageKey, loadSaved, requestFor, field,
   }
 
   async function run(mode, intent) {
-    const { path, payload, statusPath = `${path}/${encodeURIComponent(payload.idempotencyKey)}` } = requestFor(intent);
+    const { path, payload, timeoutMs, statusPath = `${path}/${encodeURIComponent(payload.idempotencyKey)}` } = requestFor(intent);
+    const options = timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : undefined;
     inFlight.current = true;
     setRequestMode(mode);
     resetNotice();
     try {
-      const payloadResult = mode === "check" ? await api.get(statusPath) : await api.post(path, payload);
+      const payloadResult = mode === "check" ? await api.get(statusPath, options) : await api.post(path, payload, options);
       const operation = payloadResult?.[field];
       if (mode === "check" && operation === null) {
         if (mounted.current) setResult("missing");
         return;
       }
-      if (!acceptResponse(operation, mode)) throw new Error(messages.unreadable);
+      if (!acceptResponse(operation, mode, intent)) throw new Error(messages.unreadable);
       if (mode === "check" && !readMatches(operation, intent)) {
         if (mounted.current) setResult("conflict");
         return;
       }
+      onRecorded?.(operation, intent);
       clear(intent);
       if (mounted.current) onComplete(operation, intent);
     } catch (failure) {
