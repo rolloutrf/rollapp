@@ -4,7 +4,10 @@ import { moodAt, NEUTRAL_MOOD_LEVEL } from "../../../shared/modules/profile/prof
 
 export function tileMoodStyle(level) {
   const mood = moodAt(level) ?? moodAt(NEUTRAL_MOOD_LEVEL);
-  return { "--list-tile-accent": mood.color };
+  return {
+    "--list-tile-accent": mood.color,
+    ...(mood.level === NEUTRAL_MOOD_LEVEL && { "--list-tile-saturation": 0 }),
+  };
 }
 
 export function useProfileTileMood(level) {

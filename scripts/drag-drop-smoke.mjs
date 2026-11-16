@@ -259,6 +259,10 @@ try {
     await checkTouchListTiles(touch, client);
     if (width === 390) await checkListTileEdgeAndStorage(page);
     console.log(`PASS ${width}: list tiles mouse/touch hold, swipe, cancellation, reload and keyboard reorder`);
+    if (process.argv.includes('--list-tiles-only')) {
+      assert.deepEqual(errors, []);
+      continue;
+    }
 
     for (const [target, input] of [[page, 'mouse'], [touch, 'touch']]) {
       await load(target, '?mode=badges');

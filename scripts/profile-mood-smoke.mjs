@@ -34,7 +34,12 @@ async function assertMoodTiles(rail, mood, expectedCount) {
   assert.equal(tiles.length, expectedCount);
   for (const tile of tiles) {
     assert.equal(tile.accent, mood.color);
-    assert.match(tile.gradient, /^radial-gradient/);
+    assert.match(tile.gradient, /^radial-gradient\((?:ellipse )?90% 60% at 45% 110%,/);
+    assert.match(tile.gradient, /radial-gradient\((?:ellipse )?at 100% 100%,/);
+    const stops = Array.from(tile.gradient.matchAll(/oklch\(([\d.]+) ([\d.]+) ([\d.]+)/g), ([, l, c, h]) => [Number(l), Number(c), Number(h)]);
+    assert.deepEqual(stops.map(([lightness]) => lightness), [0.87, 0.62, 0.35, 0.46], "Mood changes hue, not the original depth of the sheen");
+    assert.deepEqual(stops.map(([, chroma]) => chroma), mood.level === NEUTRAL_MOOD_LEVEL ? [0, 0, 0, 0] : [0.15, 0.23, 0.16, 0.18]);
+    assert.equal(new Set(stops.map(([, , hue]) => hue)).size, 1, "The highlight and reflection use one hue");
     assert.deepEqual(tile.size, [130, 100]);
   }
   const selected = tiles.filter((tile) => tile.focused);
@@ -155,8 +160,11 @@ try {
     await ownerTiles.locator("[data-list-tile]").nth(1).click();
     await assertMoodTiles(ownerTiles, great, 3);
     assert.equal(await ownerTiles.locator("[data-list-tile]").nth(1).getAttribute("aria-pressed"), "true");
+    const picked = ownerTiles.locator('[aria-pressed="true"]');
+    assert.equal(await picked.evaluate(tile => getComputedStyle(tile).animationName), "wishlist-tile-glow");
     await page.emulateMedia({ reducedMotion: "reduce" });
     await assertMoodTiles(ownerTiles, great, 3);
+    assert.equal(await picked.evaluate(tile => getComputedStyle(tile).animationName), "none");
     if (width === 1440) {
       await page.emulateMedia({ forcedColors: "active" });
       assert.deepEqual(await ownerTiles.locator("[data-list-tile]").evaluateAll(tiles => tiles.map(tile => getComputedStyle(tile).backgroundImage)), ["none", "none", "none"]);
@@ -171,8 +179,8 @@ try {
       }), true);
       await page.emulateMedia({ forcedColors: "none" });
     }
-    await page.emulateMedia({ reducedMotion: "no-preference" });
     if (screenshotDir && [390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${screenshotDir}/published-${width}.png` });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await open.click();
     await moodSection.click();
     await page.getByRole("radio", { name: "Нейтрально", exact: true }).click();

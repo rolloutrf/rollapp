@@ -24,7 +24,7 @@ Base Nova на Base UI, Tailwind v4, Lucide, neutral CSS variables. Конфиг
 | Максимальные ширины | `src/containers.css` | `docs/container-system.md`; затронутые полные UI-матрицы |
 | Текстовые действия панели страницы | `PageActionButton` | 48px минимум, капсула, padding-inline 24px; `test:action-rails` |
 | Плитка списка/дня, подпись/счётчик/приватность | `ListTileContent`, `data-list-tile`, `src/index.css` | `docs/typography.md`, `docs/spacing-system.md`; `test:action-rails`, `test:todo` |
-| Подсветка настроения у аватара | `Avatar`, `src/components/profile-mood.css` | Мягкий ореол позади фото или инициалов, цвет текущей отметки, спокойная пульсация. При `prefers-reduced-motion: reduce` ореол статичен. `test:profile-mood` |
+| Отлив настроения на плитках | `WishListNavigation`, `src/index.css`, `profile-tile-mood.js` | Исходный блик и отражение, один оттенок на ряд, более яркая активная плитка. При уменьшении движения отлив статичен. `test:profile-mood` |
 | Создание/настройки коллекций | `WishListNavigation`, `AddFab`, общие action rails | `test:action-rails`, `test:wish-groups`, `test:identity-reports`, `test:lab-results`, `test:ui` |
 | Пустой раздел | `EmptyState` из модуля оболочки | [Эталон магазина](modules/29-shell.md); `test:profile-publications`, `test:catalog-page` |
 | Формы и их действия | `form-surface`, `MobileFormPages`, `MobileFormFooter` | `docs/mobile-overlays.md`; `test:form-pages`, `test:form-actions`, `test:drawers` |
