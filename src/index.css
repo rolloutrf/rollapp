@@ -81,7 +81,6 @@
   padding-block: 0;
 }
 
-.identity-report-empty,
 .identity-report-loading,
 .identity-report-error {
   width: min(100%, var(--layout-text-width));

@@ -400,11 +400,11 @@ for (const component of ["Alert", "CollectionSnippetBadge", "Button", "Card", "F
   assert(new RegExp(`<${component}\\b`).test(medicationsSource), `Medications must compose the official shadcn ${component}`);
   assert(new RegExp(`<${component}\\b`).test(workoutsSource), `Workouts must compose the official shadcn ${component}`);
 }
-for (const [source, name] of [[medicationsSource, "Medications"]]) {
-  assert(/<Empty\b/.test(source), `${name} must compose the official shadcn Empty`);
+for (const [source, name] of [[coachingSessionsSource, "CoachingSessions"], [coursesSource, "Courses"], [conferencesSource, "Conferences"], [workoutsSource, "Workouts"], [medicationsSource, "Medications"], [labResultsSource, "LabResults"]]) {
+  assert.match(source, /<EmptyState\b/, `${name} must use the shared empty section`);
+  assert.doesNotMatch(source, /<Empty\b/, `${name} must not duplicate the shared empty section`);
 }
 for (const [source, name] of [[coachingSessionsSource, "CoachingSessions"], [coursesSource, "Courses"], [conferencesSource, "Conferences"], [workoutsSource, "Workouts"]]) {
-  assert.doesNotMatch(source, /<Empty\b/, `${name} must rely on the primary Add action instead of a duplicate empty state`);
   assert(/<EducationSectionHeader\b/.test(source), `${name} must expose the shared primary section actions`);
 }
 for (const source of [coachingSessionsSource, coursesSource, conferencesSource, medicationsSource, workoutsSource]) {

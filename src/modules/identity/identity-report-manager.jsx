@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FileText, FileUp, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -7,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 
@@ -97,13 +97,8 @@ export function useIdentityReport(section, client = api) {
 export function IdentityReportEmpty({ label }) {
   const { readOnly } = useSphereSharing();
   return (
-    <Empty className="identity-report-empty not-typeset rollapp-body wrap-anywhere">
-      <EmptyHeader>
-        <EmptyMedia variant="icon"><FileUp aria-hidden="true" /></EmptyMedia>
-        <EmptyTitle>Страница {label} пока пустая</EmptyTitle>
-        <EmptyDescription>{readOnly ? "Владелец пока не добавил материалы в этот раздел." : "Загрузите один или несколько PDF — здесь появится извлечённый из них текст."}</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <EmptyState icon={FileUp} title={`Страница ${label} пока пустая`}
+      text={readOnly ? "Владелец пока не добавил материалы в этот раздел." : "Загрузите один или несколько PDF — здесь появится извлечённый из них текст."} />
   );
 }
 

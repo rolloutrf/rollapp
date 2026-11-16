@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { PlanningDayRibbon } from "@/components/planning-day-ribbon";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -157,7 +158,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onReview, on
         <h2 className="text-rollapp-body font-semibold">Задачи из заметок без даты</h2>
         <ul className="daily-todo__list">{undated.map(task => <TodoRow key={task.id} task={task} onSave={onSave} onEdit={onEdit} onReview={onReview} />)}</ul>
       </section></div>}
-      {!dayTasks.length && !undated.length && <div className="daily-todo__content"><div className="daily-todo__empty"><CalendarDays aria-hidden="true" /><p>Свободный день. Добавьте задачу, и она появится здесь и в календаре.</p></div></div>}
+      {!dayTasks.length && !undated.length && <div className="daily-todo__content"><EmptyState icon={CalendarDays} title="Свободный день" text="Добавьте задачу, и она появится здесь и в календаре." /></div>}
       {!mobile && controls}
     </div>
   </div>;

@@ -1,7 +1,8 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Pencil, Trash2, X, ExternalLink } from "lucide-react";
+import { Pencil, Trash2, X, ExternalLink, Package } from "lucide-react";
 import { toast } from "sonner";
 import { OfferPaymentAction, durations } from "@/components/personal-offers";
 import { publicSpacePath } from "../../../shared/modules/profile/profile-links.js";
@@ -17,8 +18,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/form-surface";
 import { WishlistBusinessItemEditor } from "@/modules/wishlist/wishlist-business-item-editor.jsx";
 
@@ -43,7 +43,6 @@ function Status({state,children}) {
  if(state.error)return <Alert variant="destructive"><AlertDescription>{state.error}</AlertDescription><Button onClick={state.reload}>Повторить</Button></Alert>;
  return children;
 }
-function Blank({title,text}) {return <Empty><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{text}</EmptyDescription></EmptyHeader></Empty>;}
 function ErrorMessage({message}) {return message ? <Alert variant="destructive"><AlertDescription>{message}</AlertDescription></Alert>:null;}
 function BusinessItem({ item, onOpen, storefront = false }) {
  const title = item.title || "Название";
@@ -186,7 +185,7 @@ function SellerStorefront({ space }) {
     {items.length ? (
       <div className="wish-grid snippet-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={{ ...item, published }} storefront onOpen={setSelected} />)}</div>
     ) : (
-      <Blank title={isProduct ? "Добавьте первый товар" : "Добавьте первую позицию"} text="Загрузите фото, укажите название и цену." />
+      <EmptyState icon={Package} title={isProduct ? "Добавьте первый товар" : "Добавьте первую позицию"} text="Загрузите фото, укажите название и цену." />
     )}
     <Drawer open={settingsOpen} onOpenChange={(open) => { if (!settingsLock.current) setSettingsOpen(open); }}>
       <DrawerContent className="rollapp-body app-drawer--form">
@@ -243,7 +242,7 @@ export function WishlistBusinessListing({space,offers=false,business="",publicPr
  return <Status state={state}><div className="page-stack">
  {brands.length>0&&<Field><FieldLabel htmlFor={`seller-brands-${offers?"offers":"store"}`}>Бренд</FieldLabel><Select value={brand} onValueChange={setBrand}><SelectTrigger id={`seller-brands-${offers?"offers":"store"}`}><SelectValue>{selected=>selected==="all"?"Все бренды":selected}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}><SelectItem value="all">Все бренды</SelectItem>{brands.map(value=><SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field>}
  {!offers&&!publicProfile&&state.data?.pages?.map(page=><article className="typeset typeset-rollapp" key={page.username}><h2><Link to={`${APP_WISH_LISTINGS_PATH}?tab=${space}&business=${encodeURIComponent(page.username)}`}>{page.title}</Link></h2>{page.description&&<p className="whitespace-pre-wrap">{page.description}</p>}</article>)}
- {items.length?<div className="wish-grid snippet-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} storefront={publicProfile} onOpen={setSelected}/>)}</div>:<Blank title={offers?"Предложений пока нет":publicProfile?"Товаров пока нет":"Объявлений пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":publicProfile?"Здесь появятся опубликованные товары этого бизнеса.":"Здесь появятся опубликованные объявления продавцов."}/>}
+ {items.length?<div className="wish-grid snippet-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} storefront={publicProfile} onOpen={setSelected}/>)}</div>:<EmptyState icon={Package} title={offers?"Предложений пока нет":publicProfile?"Товаров пока нет":"Объявлений пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":publicProfile?"Здесь появятся опубликованные товары этого бизнеса.":"Здесь появятся опубликованные объявления продавцов."}/>}
  {selected&&<ItemDetails key={selected.id} item={selected} space={space} onClose={()=>setSelected(null)} onDismiss={state.reload} viewerId={viewerId} storefront={publicProfile}/>}
  </div></Status>;
 }
@@ -273,7 +272,7 @@ function WishSalesManager({ user, space, wishId }) {
        <div className="wish-grid snippet-grid catalog-wish-grid">
          {state.data.items.map(item => <BusinessItem key={item.id} item={item} onOpen={openEditor} />)}
        </div>
-     ) : <Blank title="Объявлений пока нет" text="Добавьте объявление здесь или выставьте на продажу исполненное желание." />}
+     ) : <EmptyState icon={Package} title="Объявлений пока нет" text="Добавьте объявление здесь или выставьте на продажу исполненное желание." />}
    </Status>
    {editor && <WishlistBusinessItemEditor
      key={editor.id || wishId || "new"} item={editor} space={editor.space} spaceLabel={labelFor(editor.space)}
@@ -296,6 +295,6 @@ export function WishSalesPage({ user }) {
  return <section className="app-page page-stack rollapp-body" aria-label={`Мои продажи · ${labelFor(space)}`}>
    {canManageWishSales(user, space)
      ? <WishSalesManager key={`${user.id}:${space}:${wishId || ""}`} user={user} space={space} wishId={wishId} />
-     : <Blank title="Продажи недоступны" text="Выберите раздел, в котором можете размещать объявления." />}
+     : <Alert><AlertTitle>Продажи недоступны</AlertTitle><AlertDescription>Выберите раздел, в котором можете размещать объявления.</AlertDescription></Alert>}
  </section>;
 }

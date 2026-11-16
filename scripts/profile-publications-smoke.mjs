@@ -53,6 +53,25 @@ try {
       assert(result.root <= width + 1 && !result.overflow.length && !result.badControls.length, JSON.stringify(result));
     }
 
+    async function assertEmptyState() {
+      const empty = page.locator("[data-empty-state]");
+      await empty.waitFor();
+      const bounds = await empty.evaluate(panel => {
+        const box = panel.getBoundingClientRect();
+        const header = panel.querySelector('[data-slot="empty-header"]').getBoundingClientRect();
+        return {
+          height: box.height,
+          centered: Math.abs((box.x + box.width / 2) - (header.x + header.width / 2)) <= 1
+            && Math.abs((box.y + box.height / 2) - (header.y + header.height / 2)) <= 1,
+          dashed: getComputedStyle(panel).borderStyle === "dashed",
+          icon: panel.querySelector('[data-slot="empty-icon"]').getBoundingClientRect().width,
+          actions: panel.querySelectorAll("a, button").length,
+        };
+      });
+      assert.deepEqual(bounds, { height: 320, centered: true, dashed: true, icon: 32, actions: 0 });
+      await geometry();
+    }
+
     const availableDay = page.locator(".booking-day-available button").first();
     const time = label => page.getByRole("button", { name: `Выбрать время ${label}`, exact: true });
     const next = page.getByRole("button", { name: "Далее", exact: true });
@@ -273,13 +292,17 @@ try {
     assert.equal(await page.getByRole("button", { name: /Добавить объявление|Удалить объявление|Редактировать:/ }).count(), 0);
     await geometry();
     await open("announcements", "empty");
-    await page.getByText("Объявлений пока нет.").waitFor();
+    await page.locator("[data-empty-state]").getByRole("heading", { name: "Объявлений пока нет" }).waitFor();
+    await assertEmptyState();
     await open("calendar", "empty");
     await page.getByText("Сейчас нет доступных слотов.").waitFor();
+    await assertEmptyState();
     await open("calendar", "error");
     await page.getByRole("alert").getByText("Раздел пока недоступен").waitFor();
+    assert.equal(await page.locator("[data-empty-state]").count(), 0);
     await open("calendar", "loading");
     await page.getByRole("status").getByText("Загрузка…").waitFor();
+    assert.equal(await page.locator("[data-empty-state]").count(), 0);
     await page.goto(`${origin}/__profile-publications?routing=booking&section=calendar&mode=guest`);
     await page.getByRole("heading", { name: "Данные участника" }).waitFor();
     assert.match(await page.getByRole("link", { name: "Войти для записи" }).getAttribute("href"), /zone%3DUTC$/);
@@ -364,8 +387,8 @@ try {
       if (routing === "wishlist") {
         const destinations = [
           ["Вишлист", "/app/wishes?tab=media", listNavigation],
-          ["Открыть ленту", "/app/wishes/catalog?tab=media", page.getByRole("heading", { name: "Лента · Медиа" })],
-          ["Открыть каталог брендов", "/app/wishes/catalog?source=brands&tab=media", page.getByRole("heading", { name: "Бренды · Медиа" })],
+          ["Открыть ленту", "/app/wishes/catalog?tab=media", page.getByRole("heading", { name: "В разделе «Медиа» пока пусто" })],
+          ["Открыть каталог брендов", "/app/wishes/catalog?source=brands&tab=media", page.getByRole("heading", { name: "В этом разделе пока нет бизнес-аккаунтов" })],
           ["Открыть магазин", "/app/store?tab=media", page.getByText("В этом разделе магазина пока пусто", { exact: true })],
           ["Открыть предложения", "/app/wishes/offers?tab=media", page.getByText("Предложений пока нет", { exact: true })],
           ["Мои продажи", "/app/wishes/sales?tab=media", page.getByText("Объявлений пока нет", { exact: true })],
@@ -379,6 +402,12 @@ try {
           await link.click();
           await page.waitForURL(origin + path);
           await content.waitFor();
+          if (["Открыть ленту", "Открыть каталог брендов", "Открыть магазин", "Открыть предложения", "Мои продажи"].includes(name)) {
+            await assertEmptyState();
+            assert.equal(await page.getByRole("heading", { name: /^(Лента|Бренды|Магазин) · Медиа$/ }).count(), 0);
+            if (name === "Открыть магазин") await screenshot("empty-store");
+            if (name === "Открыть каталог брендов") await screenshot("empty-brands");
+          }
           assert(await original.evaluate(node => node.isConnected), `${name}: navigation was replaced`);
           assert(await avatar.evaluate(node => node.isConnected), `${name}: profile was replaced`);
           assert.deepEqual(await rail.locator('[aria-current="page"]').evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), [name]);

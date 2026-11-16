@@ -188,7 +188,7 @@ export async function runPlanningVisualChecks({ origin, token }) {
       await page.waitForURL(/view=list/);
       await page.locator(".schedule-agenda__task").filter({ hasText: `Обед ${width}` }).waitFor();
       await page.getByRole("button", { name: "Следующий период", exact: true }).click();
-      await page.locator(".schedule-empty").waitFor();
+      await page.locator("[data-empty-state]").waitFor();
       assert.equal(await page.locator(".schedule-agenda__task").count(), 0);
       await page.getByRole("button", { name: "Сегодня", exact: true }).click();
       await page.getByRole("tab", { name: "Месяц", exact: true }).click();

@@ -170,12 +170,12 @@ export function PublicProfile({ shared = false }) {
   const renderCollectionState = ({ title, text, returnPath = APP_HOME, returnLabel = "В приложение", friendsContext = !shared }) => {
     const page = <div className="app-page wishes-page public-collection-page" data-public-collection-state>
       <div className="app-shell-chrome-spacer" aria-hidden="true" />
-      <EmptyState
-        icon={Gift}
-        title={title}
-        text={text}
-        action={<Link to={returnPath} className={buttonVariants()}>{returnLabel}</Link>}
-      />
+      <div className="not-found rollapp-body" role="status">
+        <Gift aria-hidden="true" />
+        <h1>{title}</h1>
+        <p>{text}</p>
+        <Link to={returnPath} className={buttonVariants()}>{returnLabel}</Link>
+      </div>
     </div>;
     if (user) return <AppShell friendsContext={friendsContext} collectionChrome>{page}</AppShell>;
     return <div className="app-layout app-layout--dark public-collection-shell"><main className="app-main app-main--with-profile app-main--wishes">{page}</main></div>;

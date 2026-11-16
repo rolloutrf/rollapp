@@ -26,6 +26,7 @@ Base Nova на Base UI, Tailwind v4, Lucide, neutral CSS variables. Конфиг
 | Плитка списка/дня, подпись/счётчик/приватность | `ListTileContent`, `data-list-tile`, `src/index.css` | `docs/typography.md`, `docs/spacing-system.md`; `test:action-rails`, `test:todo` |
 | Подсветка настроения у аватара | `Avatar`, `src/components/profile-mood.css` | Мягкий ореол позади фото или инициалов, цвет текущей отметки, спокойная пульсация. При `prefers-reduced-motion: reduce` ореол статичен. `test:profile-mood` |
 | Создание/настройки коллекций | `WishListNavigation`, `AddFab`, общие action rails | `test:action-rails`, `test:wish-groups`, `test:identity-reports`, `test:lab-results`, `test:ui` |
+| Пустой раздел | `EmptyState` из модуля оболочки | [Эталон магазина](modules/29-shell.md); `test:profile-publications`, `test:catalog-page` |
 | Формы и их действия | `form-surface`, `MobileFormPages`, `MobileFormFooter` | `docs/mobile-overlays.md`; `test:form-pages`, `test:form-actions`, `test:drawers` |
 | Название товара с внешними подсказками | `ProductTitleInput`, shadcn `Combobox` | `docs/product-suggestions.md`; `test:product-suggestions`, `test:business-accounts`, формы |
 | Действия страниц деталей | `ContentPageActions` | `test:details` |

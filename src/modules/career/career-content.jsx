@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { AlertTriangle, Pencil, Plus, RotateCcw, X } from "lucide-react";
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
+import { AlertTriangle, FileText, Pencil, Plus, RotateCcw, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/modules/career/career-icon-action.jsx";
@@ -329,7 +330,9 @@ export function EditableMarkdownDocument({
     <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
     {careerContent.loading && <span className="not-typeset text-muted-foreground" role="status">Загружаем…</span>}
     {!careerContent.loading && !careerContent.error && (sharing.readOnly
-      ? <MarkdownDocument source={content} label={label} className={className} collapsibleAges={collapsibleAges} collapsibleStrategies={collapsibleStrategies} hideSourceLabels={hideSourceLabels} />
+      ? (!sharing.error && !content?.trim()
+        ? <EmptyState icon={FileText} title="Раздел пока пуст" text="Здесь появится текст, когда владелец его добавит." />
+        : <MarkdownDocument source={content} label={label} className={className} collapsibleAges={collapsibleAges} collapsibleStrategies={collapsibleStrategies} hideSourceLabels={hideSourceLabels} />)
       : <InlineDocument key={`${scope}:${section}:${sharing.owner?.id || "self"}`} documentKey={`${scope}:${section}`}
         value={content} onSave={careerContent.save} label={label} className={className}
         disabled={sharing.loading || Boolean(sharing.error)}

@@ -282,8 +282,7 @@ export function WishCatalogPage() {
 
   if (source === "brands" && !selectedBrand) return (
     <div className="app-page wish-catalog-page page-stack">
-      <CatalogPageHeader selectedSpace={selectedSpace} source={source} />
-      <BusinessCatalogList />
+      <BusinessCatalogList intro={<CatalogPageHeader selectedSpace={selectedSpace} source={source} />} />
     </div>
   );
   return <CatalogItemFeed source={source} selectedSpace={selectedSpace} selectedBrand={selectedBrand} />;
@@ -534,7 +533,7 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
   );
   return (
     <div className="app-page wish-catalog-page page-stack">
-      <CatalogPageHeader selectedSpace={selectedSpace} source={source} title={brand?.label} />
+      {(catalog.loading || catalog.error || catalog.items.length > 0 || certificates.length > 0) && <CatalogPageHeader selectedSpace={selectedSpace} source={source} title={brand?.label} />}
       {certificates.length > 0 && <section className="flex min-w-0 flex-col gap-4" aria-labelledby="catalog-brand-certificates">
         <h2 id="catalog-brand-certificates" className="text-2xl font-semibold">Сертификаты</h2>
         {renderCards(certificates)}
@@ -562,7 +561,7 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
           )}
         </>
       ) : certificates.length ? null : (
-        <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? "У этого бренда пока нет товаров" : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? "Выберите бизнес-аккаунт в меню." : "Здесь появятся публичные желания участников."} />
+        <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? "У этого бренда пока нет товаров" : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? "Здесь появятся товары, которые опубликует продавец." : "Здесь появятся публичные желания участников."} />
       )}
       {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
       {selectedCatalogItem && (

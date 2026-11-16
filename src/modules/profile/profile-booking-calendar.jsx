@@ -1,4 +1,5 @@
 import { sharePageUrl } from "../../applications/location.js";
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, Clock3, Globe2, Link2, Plus, Video, X } from "lucide-react";
@@ -199,6 +200,9 @@ function BookingPicker({ type, profile, user, loginPath, zone, setZone, format, 
     }
   }, [showingDetails, showingSuccess]);
 
+  if (!showingSuccess && days.size === 0) return <EmptyState icon={CalendarDays}
+    title="Сейчас нет доступных слотов." text="Когда появится время для встречи, его можно будет выбрать здесь." />;
+
   return <Card className={cn("booking-card rollapp-body", !showingDetails && !showingSuccess && "booking-card--picker", day && "booking-card--with-times")}>
     <MeetingDetails profile={profile} title={booked?.title || type?.title || "Запись на встречу"}
       duration={booked ? durationOf(booked) : type?.duration} slot={showingDetails || showingSuccess ? meeting : null} format={format} zone={zone} />
@@ -224,9 +228,8 @@ function BookingPicker({ type, profile, user, loginPath, zone, setZone, format, 
     </section> : <>
       <section className="booking-panel booking-date" aria-labelledby="booking-date">
         <h3 id="booking-date" className="text-2xl font-semibold">Выберите дату и время</h3>
-        {days.size > 0 ? <BookingMonth key={zone} day={day} onDay={changeDay} days={days} min={today} max={last} busy={busy} />
-          : <p className="text-muted-foreground">Сейчас нет доступных слотов.</p>}
-        {days.size > 0 && <ZonePicker value={zone} onChange={next => { setZone(next); changeDay(null); }} disabled={busy} />}
+        <BookingMonth key={zone} day={day} onDay={changeDay} days={days} min={today} max={last} busy={busy} />
+        <ZonePicker value={zone} onChange={next => { setZone(next); changeDay(null); }} disabled={busy} />
       </section>
       {day && <section className="booking-panel booking-times" aria-labelledby="booking-times">
         <h3 id="booking-times" ref={timeHeading} tabIndex={-1} className="text-xl font-semibold first-letter:uppercase">{format.date(day)}</h3>
@@ -524,7 +527,7 @@ export function ProfileBookingCalendar({ profile, slots, owner, user, busy, noti
       label: "Добавить слот", disabled: busy || slots.length >= 200,
       onSelect: () => { clearNotice(); setEditing(true); },
     }]} />}
-    {owner && !editing && <div className="flex flex-wrap gap-2">
+    {owner && !editing && (slots.length > 0 || preview) && <div className="flex flex-wrap gap-2">
       {!editing && <PageActionButton type="button" variant="outline" disabled={busy} onClick={() => { setPreview(!preview); setTypeId(null); }}>
         {preview ? "К управлению слотами" : "Предпросмотр"}
       </PageActionButton>}
@@ -535,11 +538,8 @@ export function ProfileBookingCalendar({ profile, slots, owner, user, busy, noti
     {owner && !preview ? <>
       {editing && <HostSlotEditor slots={slots} busy={busy} onSave={items => onPublish(items, closeEditor)}
         onClose={() => { clearNotice(); closeEditor(); }} />}
-      {!editing && slots.length === 0 && <Card className="booking-panel rollapp-body">
-        <CalendarDays className="size-8 text-muted-foreground" aria-hidden="true" />
-        <h3 className="text-2xl font-semibold">Нет опубликованных слотов</h3>
-        <p className="text-muted-foreground">Добавьте время, чтобы участники могли записаться на встречу.</p>
-      </Card>}
+      {!editing && slots.length === 0 && <EmptyState icon={CalendarDays} title="Нет опубликованных слотов"
+        text="Добавьте время, чтобы участники могли записаться на встречу." />}
       {!editing && slots.length > 0 && <>
         {slots.some(slot => !slot.bookingId) && <section className="grid gap-3">
           <h3 className="text-2xl font-semibold">Доступное время</h3>

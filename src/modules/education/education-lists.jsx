@@ -171,6 +171,7 @@ export function EducationListNavigation({
   onEditList,
 }) {
   const { readOnly, loading, owner } = useSphereSharing();
+  if (!items.length && !lists.length) return null;
   const unlistedCount = educationListItemCount(items, UNLISTED_EDUCATION_LIST_ID);
   const showUnlisted = unlistedCount > 0 || lists.length === 0;
   return (

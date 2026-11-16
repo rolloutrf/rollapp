@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useId, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, Megaphone, X } from "lucide-react";
@@ -87,7 +88,8 @@ function AnnouncementEditor({ form, busy, error, opener, onSave, onClose, onAfte
 }
 
 function Announcements({ announcements, owner, busy, onEdit, onRemove }) {
-  if (!announcements.length) return <p>{owner ? "Здесь появятся ваши опубликованные объявления." : "Объявлений пока нет."}</p>;
+  if (!announcements.length) return <EmptyState icon={Megaphone} title="Объявлений пока нет"
+    text={owner ? "Здесь появятся ваши опубликованные объявления." : "Здесь появятся публикации владельца профиля."} />;
   return <div className="grid gap-3">
     {announcements.map(item => <article key={item.id} className="typeset-document min-w-0 wrap-anywhere rounded-2xl border bg-card p-4 sm:p-6">
       <time data-typography="label" dateTime={item.createdAt}>{dateFormat.format(new Date(item.createdAt))}</time>

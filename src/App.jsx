@@ -175,18 +175,21 @@ function SphereBusinessCatalogRoute() {
   const title = SPHERE_SERVICES.find(item => item.id === sphere)?.label;
   return <div className="app-page page-stack rollapp-body">
     <section className="page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label={offers ? "Предложения сферы" : "Каталог брендов"}>
-      {offers ? <PersonalOffers key={`${user.id}:${sphere}`} user={user} sphere={sphere} /> : <>
-        <header className="typeset typeset-rollapp">
-          <h2>Бренды · {title}</h2>
-          <p>Подпишитесь на бизнес, чтобы получать от него предложения.</p>
-        </header>
-        <BusinessCatalogProvider sphere={sphere}><BusinessCatalogList /></BusinessCatalogProvider>
-        {access.active && <><div><PageActionButton type="button" variant="outline" onClick={event => {
-          event.currentTarget.focus({ preventScroll: true });
-          setSharePickerOpen(true);
-        }}>Доступ к личному разделу</PageActionButton></div>
-        <SphereSharePicker open={sharePickerOpen} onOpenChange={setSharePickerOpen} /></>}
-      </>}
+      {offers ? <PersonalOffers key={`${user.id}:${sphere}`} user={user} sphere={sphere} /> : (
+        <BusinessCatalogProvider sphere={sphere}>
+          <BusinessCatalogList
+            intro={<header className="typeset typeset-rollapp">
+              <h2>Бренды · {title}</h2>
+              <p>Подпишитесь на бизнес, чтобы получать от него предложения.</p>
+            </header>}
+            renderFooter={hasAccounts => access.active && (hasAccounts || access.people.length > 0 || access.requests.length > 0) && <div><PageActionButton type="button" variant="outline" onClick={event => {
+              event.currentTarget.focus({ preventScroll: true });
+              setSharePickerOpen(true);
+            }}>Доступ к личному разделу</PageActionButton></div>}
+          />
+          {access.active && <SphereSharePicker open={sharePickerOpen} onOpenChange={setSharePickerOpen} />}
+        </BusinessCatalogProvider>
+      )}
     </section>
   </div>;
 }

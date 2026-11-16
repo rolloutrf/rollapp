@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useEffect, useId, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CalendarDays, ChevronDown, Columns3, FileText, Link2, ListTodo, Search, Trash2, X } from "lucide-react";
@@ -205,7 +206,7 @@ function PlanningBoardStart() {
     <h1 className="sr-only">Kanban-доска</h1>
     {!loading && !error && !firstBoardId && <AddFab actions={[createAction]} />}
     <div className="not-typeset planning-tools rollapp-body">
-      {error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={reload}>Повторить</Button></AlertDescription></Alert> : loading || firstBoardId ? <div className="planning-space__status" role="status"><Spinner />Загружаем доски…</div> : <div className="planning-space__status"><p>Пока нет досок. Нажмите «+», чтобы создать первую.</p></div>}
+      {error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={reload}>Повторить</Button></AlertDescription></Alert> : loading || firstBoardId ? <div className="planning-space__status" role="status"><Spinner />Загружаем доски…</div> : <EmptyState icon={Columns3} title="Пока нет досок" text="Нажмите «+», чтобы создать первую." />}
     </div>
   </section>;
 }

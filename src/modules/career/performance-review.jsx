@@ -1,3 +1,5 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
+import { ChartNoAxesCombined } from "lucide-react";
 import { AddFab } from "@/components/add-fab";
 import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
 import { useEffect, useRef, useState } from "react";
@@ -419,11 +421,9 @@ export function PerformanceReview() {
             </section>
           )}
         </div>
-      </> : (
-        <section className="flex min-w-0 flex-col items-start gap-4" aria-label="Циклов ревью пока нет">
-          <h2 className="m-0 font-medium">Циклов ревью пока нет</h2>
-          <p className="m-0 text-muted-foreground">{readOnly ? "Владелец пока не добавил циклы ревью." : "Импортируйте PDF, и его проекты, результаты и отзывы появятся на этой странице."}</p>
-        </section>
+      </> : !careerContent.loading && !careerContent.error && (
+        <EmptyState title="Циклов ревью пока нет" icon={ChartNoAxesCombined}
+          text={readOnly ? "Владелец пока не добавил циклы ревью." : "Импортируйте PDF, и его проекты, результаты и отзывы появятся на этой странице."} />
       )}
       {!readOnly && editor && <PerformanceEditor
         key={editor.id}

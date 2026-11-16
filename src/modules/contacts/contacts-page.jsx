@@ -27,7 +27,7 @@ import { uploadedImageIdFromUrl } from "../wishlist/wish-form-data.jsx";
 import { useToast } from "../shell/toast.jsx";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/form-surface";
 import { useAsync } from "../shell/use-async.jsx";
-import { Button, LoadingScreen } from "../shell/page-feedback.jsx";
+import { EmptyState, Button, LoadingScreen } from "../shell/page-feedback.jsx";
 import { Navigate, useLocation } from "react-router-dom";
 import { useSphereSharing } from "../access/sphere-sharing.jsx";
 import { sharePageUrl } from "../../applications/location.js";
@@ -655,7 +655,7 @@ export function ContactsSpherePage() {
     <div data-read-only={access.readOnly ? "true" : undefined} className="app-page page-stack sphere-page sphere-page--contacts typeset typeset-rollapp">
       {!access.readOnly && <AddFab actions={[{ label: "Добавить контакт", onSelect: () => setCreatingContact(true) }]} />}
       <section className="contacts-sphere not-typeset" aria-label="Контакты">
-        <div className="contacts-sphere__toolbar">
+        {(contacts.length > 0 || hasFilters) && <div className="contacts-sphere__toolbar">
           <InputGroup className="contacts-sphere__search">
             <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
             <InputGroupInput type="search" aria-label="Поиск по контактам" placeholder="Имя, роль, компания или заметка" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -693,8 +693,8 @@ export function ContactsSpherePage() {
             </ShadcnButton>
             {hasFilters && <ShadcnButton type="button" variant="ghost" className="contacts-sphere__reset h-11 rounded-full px-4" onClick={clearFilters}>Сбросить</ShadcnButton>}
           </div>
-        </div>
-        {!loading && !error && (
+        </div>}
+        {!loading && !error && contacts.length > 0 && (
           <div className="contacts-sphere__result-meta" aria-live="polite">
             <strong>{data?.total || 0} {contactCountNoun(data?.total || 0)}</strong>
             {data?.total > contacts.length && <span>Показаны {contacts.length} из {data.total}</span>}
@@ -778,12 +778,9 @@ export function ContactsSpherePage() {
             )}
           </>
         ) : (
-          <div className="contacts-sphere__empty">
-            <span className="contacts-sphere__empty-icon"><ContactRound aria-hidden="true" /></span>
-            <strong>{favoriteOnly ? "В избранном пока нет контактов" : "Контакты не найдены"}</strong>
-            <span>{favoriteOnly ? "Нажмите на звезду в карточке контакта, чтобы добавить его сюда." : "Попробуйте изменить запрос или сбросить фильтры."}</span>
-            {hasFilters && <Button variant="outline" onClick={clearFilters}>Сбросить фильтры</Button>}
-          </div>
+          <EmptyState icon={ContactRound}
+            title={favoriteOnly ? "В избранном пока нет контактов" : hasFilters ? "Контакты не найдены" : "Контактов пока нет"}
+            text={favoriteOnly ? "Нажмите на звезду в карточке контакта, чтобы добавить его сюда." : hasFilters ? "Попробуйте изменить запрос или сбросить фильтры." : access.readOnly ? "Владелец пока не добавил контакты." : "Добавьте первый контакт, чтобы он появился здесь."} />
         )}
       </section>
       {selectedContactId && <ContactDetailDrawer

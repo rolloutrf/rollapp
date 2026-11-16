@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
@@ -839,6 +840,11 @@ export function Conferences() {
             <span className="text-sm text-muted-foreground">Загружаем конференции</span>
           </CardContent>
         </Card>
+      )}
+
+      {!requestState.loading && !requestState.error && !visibleConferences.length && (
+        <EmptyState icon={TicketCheck} title={requestState.conferences.length ? "В этом списке пока пусто" : "Конференций пока нет"}
+          text={readOnly ? "Владелец пока не добавил сюда записи." : "Добавьте конференцию, которую планируете посетить."} />
       )}
 
       {!requestState.loading && visibleConferences.length > 0 && (

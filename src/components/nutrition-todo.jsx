@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowUp, Plus, Trash2 } from "lucide-react";
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
+import { ArrowUp, Plus, Trash2, Utensils } from "lucide-react";
 import { ComposerField } from "@/components/composer-field";
 import { HealthDayNavigation } from "@/components/health-day-navigation";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,8 @@ export function NutritionTodo({ entries, selected, today, onDateChange, canEdit,
     <div className="health-tracker__body page-stack" ref={body}>
       {planned.length > 0 && <section aria-label="Запланировано" className="page-stack">{rows(planned)}</section>}
       {done.length > 0 && <section aria-label="Съедено" className="page-stack">{rows(done)}</section>}
-      {dayEntries.length === 0 && <p className="py-8 text-center text-muted-foreground">Нет записей о питании</p>}
+      {dayEntries.length === 0 && <EmptyState icon={Utensils} title="Нет записей о питании"
+        text={canEdit ? "Добавьте приём пищи на этот день." : "На этот день приёмы пищи не добавлены."} />}
       {showComposer && <footer className="daily-todo__footer nutrition-todo__footer" ref={footer}>
         <form className="daily-todo__composer" onSubmit={add}>
           {error?.date === selected && <p role="alert" className="text-destructive">{error.message}</p>}

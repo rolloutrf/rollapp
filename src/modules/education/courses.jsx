@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
@@ -1106,6 +1107,11 @@ export function Courses() {
             <span className="text-sm text-muted-foreground">Загружаем курсы</span>
           </CardContent>
         </Card>
+      )}
+
+      {!requestState.loading && !requestState.error && !visibleCourses.length && (
+        <EmptyState icon={GraduationCap} title={requestState.courses.length ? "В этом списке пока пусто" : "Курсов пока нет"}
+          text={readOnly ? "Владелец пока не добавил сюда записи." : "Добавьте курс, который планируете пройти или уже проходите."} />
       )}
 
       {!requestState.loading && visibleCourses.length > 0 && (

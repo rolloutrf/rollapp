@@ -1,7 +1,7 @@
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Sparkles, Gift } from "lucide-react";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Link } from "react-router-dom";
 import { APP_HOME } from "./home-path.jsx";
 
@@ -10,8 +10,18 @@ export function Button({ children, className = "", variant = "primary", icon: Ic
   return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner data-icon="inline-start" /> : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}{children}</ShadcnButton>;
 }
 
-export function EmptyState({ icon: Icon = Sparkles, title, text, action }) {
-  return <Empty className="empty-state"><EmptyHeader><EmptyMedia className="empty-state__icon" variant="icon"><Icon size={28} /></EmptyMedia><EmptyTitle><h3>{title}</h3></EmptyTitle><EmptyDescription><p>{text}</p></EmptyDescription></EmptyHeader>{action && <EmptyContent>{action}</EmptyContent>}</Empty>;
+// Product composition of the shadcn Empty primitive. Standard size for a
+// section; compact only when the surface already sits inside a smaller panel.
+export function EmptyState({ icon: Icon = Sparkles, title, text, compact = false }) {
+  return (
+    <Empty data-empty-state="" className={`not-typeset border ${compact ? "min-h-40" : "min-h-80"}`}>
+      <EmptyHeader className="w-full min-w-0">
+        <EmptyMedia variant="icon"><Icon aria-hidden="true" /></EmptyMedia>
+        <EmptyTitle className="max-w-full wrap-anywhere"><h3 className="m-0">{title}</h3></EmptyTitle>
+        {text && <EmptyDescription className="wrap-anywhere">{text}</EmptyDescription>}
+      </EmptyHeader>
+    </Empty>
+  );
 }
 
 export function LoadingScreen({ compact = false }) {

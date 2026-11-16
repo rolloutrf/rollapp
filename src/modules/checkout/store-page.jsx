@@ -1,14 +1,14 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageActionButton } from "@/components/page-action-button";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Coins, PackageCheck } from "lucide-react";
+import { Coins, PackageCheck, ShoppingBag } from "lucide-react";
 import { CatCheckout, restoreCatPurchase } from "@/modules/checkout/cat-checkout.jsx";
 import { OrdersDrawerContent } from "@/modules/history/orders-drawer.jsx";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
 import { Drawer, DrawerTrigger } from "@/components/form-surface";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { APP_ORDERS_PATH, APP_STORE_PATH } from "../shell/app-routing.js";
 import { SPACES } from "../categories/wish-spaces.jsx";
 import { useToast } from "../shell/toast.jsx";
@@ -35,11 +35,11 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
   return <>
     <div className="app-page wish-catalog-page cat-store-page page-stack">
       <Drawer mobileDrawer open={ordersOpen} onOpenChange={changeOrdersOpen}>
-        <CatalogPageHeader title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} action={isProducts && (
+        {isProducts && <CatalogPageHeader title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} action={(
           <DrawerTrigger render={<PageActionButton variant="outline" />}>
             <PackageCheck aria-hidden="true" />Заказы
           </DrawerTrigger>
-        )} />
+        )} />}
         <OrdersDrawerContent products={STORE_CATS} userId={user.id} />
       </Drawer>
       {deferredPurchase && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
@@ -71,7 +71,7 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
             )}
           />
         ))}
-      </div> : <Empty><EmptyHeader><EmptyTitle>В этом разделе магазина пока пусто</EmptyTitle></EmptyHeader></Empty>}
+      </div> : <EmptyState title="В этом разделе магазина пока пусто" icon={ShoppingBag} text="Новые товары появятся здесь." />}
     </div>
     {!ordersOpen && purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={(cat, amount) => toast(`${cat.name} кот куплен за ${formatRolls(amount)}`, "success")} />}
   </>;

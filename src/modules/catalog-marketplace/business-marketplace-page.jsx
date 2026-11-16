@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Coins, Image as ImageIcon, Package } from "lucide-react";
@@ -14,7 +15,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { PersonalOfferComposer } from "@/components/personal-offers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { publicProfilePath } from "../../../shared/modules/profile/profile-links.js";
@@ -147,13 +147,7 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
       {state.loading ? <div className="business-marketplace-page__status"><Spinner /><span>Загружаем предложения…</span></div> : null}
       {state.error ? <Alert variant="destructive"><AlertTitle>Не удалось загрузить раздел</AlertTitle><AlertDescription>{state.error}</AlertDescription></Alert> : null}
       {!hideEmpty && !state.loading && !state.error && !state.items.length ? (
-        <Empty className="business-marketplace-page__empty border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon"><Package aria-hidden="true" /></EmptyMedia>
-            <EmptyTitle>В магазине пока пусто</EmptyTitle>
-            <EmptyDescription>Здесь появятся предложения подтверждённых бизнес-аккаунтов.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyState icon={Package} title="В магазине пока пусто" text="Здесь появятся предложения подтверждённых бизнес-аккаунтов." />
       ) : null}
       {state.items.length ? <section className="business-marketplace-grid snippet-grid" aria-label={title}>
         {state.items.map((item) => <MarketplaceItem key={item.id} item={item} user={user} kind={businessUsername ? item.kind : kind} busy={Boolean(busy || pending)} onBuy={(item) => { recovery.resetNotice(); setGiftCardId("wallet"); setSelected(item); }} />)}

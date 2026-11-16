@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
@@ -21,7 +22,6 @@ import {
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -962,14 +962,9 @@ export function Medications() {
         />
       )}
 
-      {!requestState.loading && !requestState.error && !requestState.medications.length && (
-        <Empty className="min-h-64 border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon"><Pill aria-hidden="true" /></EmptyMedia>
-            <EmptyTitle><h3 className="m-0 text-sm font-medium">Препаратов пока нет</h3></EmptyTitle>
-            <EmptyDescription>Добавьте текущее назначение или запланированный курс.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+      {!requestState.loading && !requestState.error && !visibleMedications.length && (
+        <EmptyState icon={Pill} title={requestState.medications.length ? "В этой группе пока пусто" : "Препаратов пока нет"}
+          text={readOnly ? "Владелец пока не добавил сюда препараты." : "Добавьте текущее назначение или запланированный курс."} />
       )}
 
       {!requestState.loading && !requestState.error && visibleMedications.length > 0 && (

@@ -1,5 +1,6 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useId, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, ChevronDown, Gift, ShoppingBag, Sparkles } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, Coins, Gift, ShoppingBag, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { RollReceipt } from "./roll-receipt.jsx";
@@ -15,7 +16,7 @@ export function RollsHistory({ transactions, hasMore, loading, loadingMore, busy
   const [openId, setOpenId] = useState(null);
   const dateTime = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone });
   return <section className="flex min-w-0 flex-col gap-4" aria-label="История операций">
-    {transactions === null ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся операции с роллами.</p> : <ul className="flex flex-col">
+    {transactions === null ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : transactions.length === 0 ? <EmptyState compact icon={Coins} title="Операций пока нет" text="Здесь появятся операции с роллами." /> : <ul className="flex flex-col">
       {transactions.map((item) => {
         const incoming = item.direction === "incoming";
         const reward = item.kind === "wish_reward";

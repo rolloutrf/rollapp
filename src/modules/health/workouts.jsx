@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
@@ -641,6 +642,11 @@ export function Workouts() {
             <span className="text-sm text-muted-foreground">Загружаем тренировки</span>
           </CardContent>
         </Card>
+      )}
+
+      {!requestState.loading && !requestState.error && !visibleWorkouts.length && (
+        <EmptyState icon={Dumbbell} title={requestState.workouts.length ? "В этом списке пока пусто" : "Тренировок пока нет"}
+          text={readOnly ? "Владелец пока не добавил сюда записи." : "Добавьте тренировку, чтобы запланировать занятие или сохранить результат."} />
       )}
 
       {!requestState.loading && visibleWorkouts.length > 0 && (

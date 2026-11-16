@@ -1,3 +1,5 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
+import { FileText, Package } from "lucide-react";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/modules/runtime/api.js";
@@ -115,12 +117,13 @@ export function BusinessPersonalOffers({ client = api, user }) {
   const item = items.find(value => value.id === selected);
   const spheres = itemSpheres.filter(([id])=>!user||canBusinessAccessSection(user,id,SPHERE_SECTIONS[id]?.[0]));
   if(!spheres.length)return null;
+  const empty = !loading && !error && !items.length && !creatingItem;
   return <section className="page-stack min-w-0" aria-labelledby="business-offers-title">
-    <header className="typeset typeset-rollapp"><h2 id="business-offers-title">Рекомендовать товар</h2>
-    <p>Выберите товар, получателя, персональную цену и срок. Созданные счета доступны в разделе «Роллы».</p></header>
+    {empty ? <h2 id="business-offers-title" className="sr-only">Рекомендовать товар</h2> : <header className="typeset typeset-rollapp"><h2 id="business-offers-title">Рекомендовать товар</h2>
+      <p>Выберите товар, получателя, персональную цену и срок. Созданные счета доступны в разделе «Роллы».</p></header>}
     {loading && <p role="status">Загружаем товары…</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></AlertDescription></Alert>}
-    {!loading && !error && !items.length && <p>У вашего бизнеса пока нет активных товаров или услуг.</p>}
+    {empty && <EmptyState compact icon={Package} title="У вашего бизнеса пока нет активных товаров или услуг." text="Добавьте товар, чтобы отправить персональное предложение." />}
     {!creatingItem && <AddFab actions={[{ label: "Добавить товар", disabled: loading || Boolean(error), onSelect: () => setCreatingItem(true) }]} />}
     {creatingItem && <BusinessOfferItemForm spheres={spheres} client={client} onCancel={() => setCreatingItem(false)} onCreated={id => { setSelected(id); setCreatingItem(false); setRevision(value => value + 1); }} />}
     {items.length > 0 && <Field><FieldLabel htmlFor="business-offer-item">Товар или услуга</FieldLabel><Select value={selected} onValueChange={setSelected}><SelectTrigger id="business-offer-item" className="w-full"><SelectValue placeholder="Выберите товар">{() => item?.title || "Выберите товар"}</SelectValue></SelectTrigger><SelectContent>{items.map(value => <SelectItem key={value.id} value={value.id}>{value.title}</SelectItem>)}</SelectContent></Select></Field>}
@@ -211,8 +214,9 @@ export function PersonalOffers({ user, sphere, onPaid, client = api }) {
     setRevision(value => value + 1);
     onPaid?.();
   }
+  const empty = !loading && !error && !offers.length && !pending.length && !operationResult;
   return <section ref={offerSection} tabIndex={-1} className="flex min-w-0 flex-col gap-4" aria-labelledby="personal-offers-title">
-    <header className="typeset typeset-rollapp"><h2 id="personal-offers-title">Персональные офферы</h2></header>
+    {empty ? <h2 id="personal-offers-title" className="sr-only">Персональные офферы</h2> : <header className="typeset typeset-rollapp"><h2 id="personal-offers-title">Персональные офферы</h2></header>}
     {pending.length > 0 && <div className="grid gap-2" role="group" aria-label="Счета, ожидающие проверки">
       {pending.map(({ offer, action }) => <div key={`${offer.id}:${action}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border p-4">
         <p className="min-w-0 wrap-anywhere">{action === "refund" ? "Возврат" : "Оплата"} · {offer.title} · {formatRolls(offer.priceRolls)}</p>
@@ -224,7 +228,7 @@ export function PersonalOffers({ user, sphere, onPaid, client = api }) {
     </p>}
     {loading && <p role="status">Загружаем счета…</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" disabled={loadingMore} onClick={refreshOffers}>Повторить</Button></AlertDescription></Alert>}
-    {!loading && !error && !offers.length && <p className="text-muted-foreground">Здесь появятся персональные счета от бизнеса.</p>}
+    {empty && <EmptyState compact={!sphere} icon={FileText} title="Персональных предложений пока нет" text="Здесь появятся персональные счета от бизнеса." />}
     {offers.map(offer => {
       const expired = offer.status === "expired" || new Date(offer.expiresAt).getTime() <= now;
       const outgoing = offer.business.id === user.id;

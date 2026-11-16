@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { Avatar } from "@/modules/profile/profile-avatar.jsx";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "../runtime/api.js";
@@ -247,7 +248,7 @@ function BusinessAccessContent({ user }) {
       {category?.id !== "seller" && <BusinessPersonalOffers user={user} />}
 
       <section className="business-access-page__section" aria-labelledby="business-shares-title">
-        <div className="typeset typeset-rollapp"><h2 id="business-shares-title">Открытые разделы</h2></div>
+        <div className="typeset typeset-rollapp"><h2 id="business-shares-title" className={accessReady && !shares.length ? "sr-only" : undefined}>Открытые разделы</h2></div>
         {accessStatus || (shares.length ? (
           <ul className="contacts-grid">
             {shares.map((share) => (
@@ -256,12 +257,12 @@ function BusinessAccessContent({ user }) {
               } />
             ))}
           </ul>
-        ) : <div className="business-access-page__status">У вас пока нет открытых разделов</div>)}
+        ) : <EmptyState compact icon={BriefcaseBusiness} title="У вас пока нет открытых разделов" text="Здесь появятся разделы, которые вам откроют владельцы." />)}
       </section>
 
-      <section className="business-access-page__section" aria-labelledby="business-requests-title">
-        <div className="typeset typeset-rollapp"><h2 id="business-requests-title">Мои запросы</h2></div>
-        {accessReady && (outstanding.length ? (
+      {accessReady && <section className="business-access-page__section" aria-labelledby="business-requests-title">
+        <div className="typeset typeset-rollapp"><h2 id="business-requests-title" className={!outstanding.length ? "sr-only" : undefined}>Мои запросы</h2></div>
+        {outstanding.length ? (
           <ul className="contacts-grid">
             {outstanding.map((request) => {
               const status = BUSINESS_REQUEST_STATUS[request.status];
@@ -272,8 +273,8 @@ function BusinessAccessContent({ user }) {
               );
             })}
           </ul>
-        ) : <div className="business-access-page__status">Здесь появятся запросы, по которым сейчас нет доступа</div>)}
-      </section>
+        ) : <EmptyState compact icon={BriefcaseBusiness} title="Запросов пока нет" text="Здесь появятся запросы, по которым сейчас нет доступа." />}
+      </section>}
 
       <section className="business-access-page__section" aria-labelledby="business-people-title">
         <div className="typeset typeset-rollapp"><h2 id="business-people-title">Пользователи</h2></div>
@@ -296,7 +297,7 @@ function BusinessAccessContent({ user }) {
               );
             })}
           </ul>
-        ) : <div className="business-access-page__status"><Users aria-hidden="true" /><span>Пользователи не найдены</span></div>}
+        ) : <EmptyState compact icon={Users} title="Пользователи не найдены" text="Попробуйте изменить поисковый запрос." />}
       </section>
 
       <Drawer open={Boolean(selectedPerson)} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => !open && !saving && setSelectedPerson(null)}>

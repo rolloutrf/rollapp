@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck, X } from "lucide-react";
@@ -11,7 +12,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { readPendingMarketplaceAction } from "../checkout/marketplace-action-dialog.jsx";
@@ -158,11 +158,11 @@ function OrderList({ products, userId }) {
       <PageActionButton variant="outline" onClick={refreshOrders}>Обновить заказы</PageActionButton>
     </div>}
     {loading ? <div className="flex flex-col gap-4" role="status" aria-label="Загрузка заказов"><OrderSkeleton /><OrderSkeleton /></div>
-      : !error && filter && visibleOrders.length === 0 ? <p role="status">В этой подборке сейчас нет заказов.</p>
-      : !error && orders.length === 0 ? <Empty className="border">
-        <EmptyHeader><EmptyMedia variant="icon"><ShoppingBag aria-hidden="true" /></EmptyMedia><EmptyTitle>Заказов пока нет</EmptyTitle><EmptyDescription>Здесь будут ваши покупки и продажи за роллы.</EmptyDescription></EmptyHeader>
-        <EmptyContent><DrawerClose render={<PageActionButton />}><ShoppingBag aria-hidden="true" />В магазин</DrawerClose></EmptyContent>
-      </Empty>
+      : !error && filter && visibleOrders.length === 0 ? <EmptyState compact icon={ShoppingBag} title="В этой подборке сейчас нет заказов." />
+      : !error && orders.length === 0 ? <div className="flex flex-col items-center gap-4">
+        <EmptyState compact icon={ShoppingBag} title="Заказов пока нет" text="Здесь будут ваши покупки и продажи за роллы." />
+        <DrawerClose render={<PageActionButton />}><ShoppingBag aria-hidden="true" />В магазин</DrawerClose>
+      </div>
         : visibleOrders.map((order) => order.settlement ? <MarketplaceOrder key={order.id} order={order} userId={userId} filtered={Boolean(filter)} onReload={refreshMarketplaceOrder} fallbackFocus={() => list.current} /> : <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
 
     <AlertDialog open={Boolean(refundTarget)} onOpenChange={(open) => { if (!open && !refunding) setRefundTarget(null); }}>

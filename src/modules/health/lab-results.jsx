@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -317,15 +318,8 @@ export function LabResults() {
           <LabReportPanel key={selectedReport.id} report={selectedReport} />
         </>
       ) : (
-          <Card>
-            <CardContent className="flex min-h-40 flex-col items-center justify-center gap-3 text-center">
-              <FileUp className="size-6 text-muted-foreground" aria-hidden="true" />
-              <div className="flex flex-col gap-1">
-                <div className="font-medium">Анализов пока нет</div>
-                <div className="text-sm text-muted-foreground">{readOnly ? "Владелец пока не добавил анализы." : "Добавьте PDF, чтобы показатели появились здесь."}</div>
-              </div>
-            </CardContent>
-          </Card>
+          <EmptyState icon={FileUp} title="Анализов пока нет"
+            text={readOnly ? "Владелец пока не добавил анализы." : "Добавьте PDF, чтобы показатели появились здесь."} />
       )}
 
       {!readOnly && uploadState.error && (

@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
@@ -703,6 +704,11 @@ export function CoachingSessions() {
             <span className="text-sm text-muted-foreground">Загружаем коучинг-сессии</span>
           </CardContent>
         </Card>
+      )}
+
+      {!requestState.loading && !requestState.error && !visibleSessions.length && (
+        <EmptyState icon={Video} title={requestState.sessions.length ? "В этом списке пока пусто" : "Коучинг-сессий пока нет"}
+          text={readOnly ? "Владелец пока не добавил сюда записи." : "Добавьте встречу, чтобы сохранить её дату и детали."} />
       )}
 
       {!requestState.loading && visibleSessions.length > 0 && (
