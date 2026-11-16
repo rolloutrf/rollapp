@@ -15,7 +15,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { MakiIcon } from "@/components/maki-icon";
 import { PageActionButton } from "@/components/page-action-button";
 import { PurchaseHistoryImport } from "@/modules/history/purchase-history-import.jsx";
-import { RollsTopup } from "@/modules/payments/rolls-topup.jsx";
+import { RollsTopup, restoreStarTopup } from "@/modules/payments/rolls-topup.jsx";
 import { clearRollTransfer, restoreRollTransfer, rollTransferMatches, rollTransferWasRejected } from "./roll-transfer-intent.js";
 import { PersonalOffers } from "@/components/personal-offers";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -91,6 +91,16 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const transferOpener = useRef(null);
   const pendingTransferOpener = useRef(null);
   const restoreTransferFocus = useRef(false);
+  const topupOpener = useRef(null);
+  const pendingTopupOpener = useRef(null);
+  const restoreTopupFocus = useRef(false);
+  const pendingTopup = restoreStarTopup(user.id);
+
+  useLayoutEffect(() => {
+    if (topupView || !restoreTopupFocus.current) return;
+    restoreTopupFocus.current = false;
+    (pendingTopupOpener.current ?? topupOpener.current ?? transferOpener.current)?.focus({ preventScroll: true });
+  }, [topupView]);
 
   useLayoutEffect(() => {
     if (transferView || !restoreTransferFocus.current) return;
@@ -301,7 +311,10 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
         <span>{loadError}</span><Button variant="outline" onClick={() => refresh()} disabled={loading}>Повторить</Button>
       </AlertDescription></Alert>}
 
-      {topupView && wallet?.features?.starsPurchases ? <RollsTopup user={user} onBack={() => setTopupView(false)} onPaid={() => refresh({ quiet: true })} /> : transferView ? <section className="rolls-transfer flex min-w-0 flex-col gap-6" aria-labelledby="rolls-transfer-title">
+      {topupView ? <RollsTopup key={user.id} user={user} onBack={() => {
+        restoreTopupFocus.current = true;
+        setTopupView(false);
+      }} onPaid={() => refresh({ quiet: true })} /> : transferView ? <section className="rolls-transfer flex min-w-0 flex-col gap-6" aria-labelledby="rolls-transfer-title">
           <header className="flex min-w-0 flex-col items-center gap-3 text-center">
             <RollsHeroIcon />
             <h1 id="rolls-transfer-title" className="rolls-balance__value">Перевод</h1>
@@ -347,6 +360,10 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             <span>Ожидает проверки перевод · {formatRolls(pending.payload.amount)}</span>
             <PageActionButton ref={pendingTransferOpener} variant="outline" onClick={() => { setTransferView(true); openTransferReview(); }}>Проверить перевод</PageActionButton>
           </AlertDescription></Alert>}
+          {pendingTopup && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>Ожидает проверки пополнение через Telegram Stars</span>
+            <PageActionButton ref={pendingTopupOpener} variant="outline" onClick={() => setTopupView(true)}>Открыть счёт Stars</PageActionButton>
+          </AlertDescription></Alert>}
           <section className="rolls-balance flex min-w-0 flex-col items-center gap-3 text-center" aria-label="Баланс роллов">
             {wallet ? <div className="flex w-full min-w-0 flex-col gap-1">
               <div className="rolls-balance__value max-w-full wrap-anywhere !whitespace-normal" aria-live="polite" aria-atomic="true" data-rolls-balance>
@@ -362,7 +379,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
               <PageActionButton variant="outline" nativeButton={false} role="link"
                 render={<Link to={APP_ORDERS_PATH} state={{ ordersFromStore: true }} />}>Заказы и продажи</PageActionButton>}
             <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" aria-label="Действия с роллами">
-              {wallet?.features?.starsPurchases && <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>}
+              {wallet?.features?.starsPurchases && !pendingTopup && <Button ref={topupOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>}
               <Button ref={transferOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => {
                 walletScrollArea.current?.focus({ preventScroll: true });
                 setTransferError("");

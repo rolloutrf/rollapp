@@ -7,7 +7,7 @@ import { readRollOrders } from "../history/order-history.js";
 import { readRollReceipt, rollReceiptParams } from "../history/roll-receipts.js";
 import { readRollWallet } from "../history/wallet-history.js";
 import { readRollTransferStatus, RollsError, transferRolls } from "./rolls.js";
-import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder } from "./roll-stars.js";
+import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder, readStarOrderByRequest } from "./roll-stars.js";
 import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS, ROLL_STAR_TERMS_VERSION } from "../../../shared/modules/payments/roll-stars.js";
 import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js";
 
@@ -51,7 +51,17 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
     res.json({ order: publicStarOrder(order) });
   }));
 
+  app.get("/api/rolls/stars/orders/by-request/:requestKey", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const order = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readStarOrderByRequest(client, req.user.id, req.params.requestKey);
+    });
+    res.json({ order });
+  }));
+
   app.get("/api/rolls/stars/orders/:orderId", requireAuth, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
     const result = await query("SELECT * FROM roll_star_orders WHERE id=$1 AND user_id=$2", [req.params.orderId, req.user.id]);
     if (!result.rowCount) throw new RollsError("Счёт не найден", "STAR_ORDER_NOT_FOUND", 404);
     res.json({ order: publicStarOrder(result.rows[0]) });
