@@ -73,6 +73,25 @@ try {
         const previous = '10 августа 2025';
         const oldest = '7 июля 2025';
         await tile(latest).waitFor();
+        const detailGeometry = report => tile(report).evaluate(el => {
+          const caption = el.querySelector('[data-slot="list-tile-detail"]');
+          const label = el.querySelector('[data-slot="list-tile-label"]').getBoundingClientRect();
+          const box = el.getBoundingClientRect();
+          const rect = caption.getBoundingClientRect();
+          const lineHeight = Number.parseFloat(getComputedStyle(caption).lineHeight);
+          return {
+            lines: rect.height / lineHeight,
+            fits: rect.left >= box.left && rect.right <= box.right && rect.bottom <= box.bottom && rect.top >= label.bottom,
+            title: caption.title,
+            described: el.getAttribute('aria-describedby') === caption.id,
+            complete: caption.scrollHeight <= rect.height + 1,
+          };
+        });
+        assert.equal((await detailGeometry(latest)).lines, 1, 'A short caption stays on one line');
+        assert.deepEqual(await detailGeometry(previous), { lines: 2, fits: true, title: 'Лаб, Санкт-Петербург', described: true, complete: true });
+        const long = await detailGeometry(oldest);
+        assert.equal(long.lines, 2, 'A long caption is limited to two lines');
+        assert(long.fits && long.described && !long.complete && long.title.includes('Санкт-Петербург'));
         assert.equal(await page.getByRole('button', { name: 'Настройки списка', exact: true }).count(), 0);
         assert.equal(await page.getByRole('link', { name: 'Открыть магазин за роллы' }).count(), 0, 'Store navigation belongs to the profile shell');
         assert.equal(await menu(previous).evaluate(button => {

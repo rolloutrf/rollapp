@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { ListTileContent } from "@/components/list-tile-content";
@@ -30,7 +30,9 @@ function readOrder(key) {
   }
 }
 
-function ListTile({ id, title, displayTitle = title, count, detail, privateList, sortable, onSettings, settingsLabel, renderSettings, accessibleName, settingsDisabled }) {
+function ListTile({ id, title, displayTitle = title, count, detail, detailLines, privateList, sortable, onSettings, settingsLabel, renderSettings, accessibleName, settingsDisabled }) {
+  const descriptionId = useId();
+  const detailId = detail && detailLines === 2 ? descriptionId : undefined;
   const label = accessibleName ?? (detail == null ? `${title}, ${count} ${wishCountNoun(count)}${privateList ? ", приватный список" : ""}` : title);
   const tile = (
     <ToggleGroupItem
@@ -38,10 +40,11 @@ function ListTile({ id, title, displayTitle = title, count, detail, privateList,
       value={id}
       data-wish-list-tile={sortable ? id : undefined}
       aria-label={label}
+      aria-describedby={detailId}
       title={detail == null ? undefined : title}
       aria-keyshortcuts={sortable ? "Alt+ArrowLeft Alt+ArrowRight" : undefined}
     >
-      <ListTileContent title={displayTitle} count={count} detail={detail} privateList={privateList} />
+      <ListTileContent title={displayTitle} count={count} detail={detail} detailLines={detailLines} detailId={detailId} privateList={privateList} />
     </ToggleGroupItem>
   );
   if (!onSettings && !renderSettings) return tile;

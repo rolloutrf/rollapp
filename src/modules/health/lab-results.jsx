@@ -306,6 +306,7 @@ export function LabResults() {
               title: report.dateLabel,
               displayTitle: reportTileTitle(report),
               detail: index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · "),
+              detailLines: 2,
             }))}
             onSelect={id => { if (id) setSelectedReportId(id); }}
             renderSettings={canManage ? (id, trigger) => (
