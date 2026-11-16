@@ -77,7 +77,9 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
       await enrollWishRewards(client, owner);
       await grantWishReward(client, owner, { id: randomUUID(), title: "Проверочное желание" });
       await transferRolls(client, owner, { recipientId: other, amount: 11, idempotencyKey: randomUUID() });
+      const beforeCardTopup = await inspect();
       await changeGiftCard(client, other, card.id, "topup", { amount: 6, idempotencyKey: randomUUID() });
+      assert.deepEqual((await inspect()).circulation, beforeCardTopup.circulation);
 
       for (const paid of [false, true]) {
         const id = randomUUID();
@@ -89,7 +91,9 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
       await client.query("UPDATE roll_wallets SET balance=balance+70 WHERE user_id=$1", [owner]);
 
       const settled = await makeOffer();
+      const beforeReserve = await inspect();
       await act(settled, owner, "accept");
+      assert.deepEqual((await inspect()).circulation, beforeReserve.circulation);
       await act(settled, business, "deliver");
       await act(settled, owner, "confirm");
       await client.query("UPDATE reward_need_offers SET claim_at=transaction_timestamp() WHERE id=$1", [settled.id]);
@@ -110,6 +114,14 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
       for (const [source, total, recent] of [["welcome", 300n, 300n], ["wish_reward", 100n, 100n], ["manual_grant", 24n, 17n], ["stars_topup", 30n, 30n], ["ton_topup", 40n, 40n]]) {
         assert.equal(difference(before.issuedBySource, report.issuedBySource, source), total);
         assert.equal(difference(before.issuedLast30DaysBySource, report.issuedLast30DaysBySource, source), recent);
+        assert.equal(difference(before.issuedPrevious30DaysBySource, report.issuedPrevious30DaysBySource, source), total - recent);
+      }
+      assert.equal(difference(before.circulation, report.circulation, "heldRolls"), 494n);
+      assert.equal(report.circulation.participantsWithHoldings, before.circulation.participantsWithHoldings + 3);
+      assert.equal(difference(before.circulation, report.circulation, "netSupplyChangeLast30Days"), 487n);
+      assert.equal(difference(before.circulation, report.circulation, "netSupplyChangePrevious30Days"), 7n);
+      for (const participant of [owner, other, business]) {
+        assert.equal(JSON.stringify(report.circulation).includes(participant), false);
       }
       assert.equal(difference(before, report, "giftCardRolls"), 6n);
       assert.equal(difference(before, report, "reservedRewardRolls"), 20n);
@@ -123,6 +135,45 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
       const detailed = await inspect(100);
       assert(detailed.attention.reward_disputed.sample.some(({ id }) => id === disputed.id));
       assert(detailed.attention.reward_expiry_due.sample.some(({ id }) => id === expired.id));
+    });
+
+    await t.test("counts store spends and refunds once, in the period of each posting", async () => {
+      await client.query("SAVEPOINT circulation");
+      try {
+        const baseline = await inspect();
+        await client.query(`INSERT INTO roll_store_purchases(id,user_id,product_id,product_title,amount,idempotency_key,created_at,refunded_at)
+          SELECT id,$1,'fixture','Circulation fixture',amount,id,
+            transaction_timestamp()-age*INTERVAL '1 hour',
+            CASE WHEN refunded THEN transaction_timestamp() END
+          FROM (VALUES ($2::text,8,720,true),($3,12,0,false),($4,3,1440,false),($5,1,-1,false))
+          AS fixtures(id,amount,age,refunded)`, [owner, randomUUID(), randomUUID(), randomUUID(), randomUUID()]);
+        await client.query("UPDATE roll_wallets SET balance=balance-16 WHERE user_id=$1", [owner]);
+
+        // Card purchases use the card journal even when they also have a store order.
+        const spend = randomUUID();
+        await client.query(`INSERT INTO business_gift_card_events (id,card_id,actor_id,kind,amount,request_key,created_at)
+          VALUES ($1::text,$2,$3,'spend',4,$1::text::uuid,transaction_timestamp()-INTERVAL '720 hours')`, [spend, card.id, other]);
+        const refund = randomUUID();
+        await client.query(`INSERT INTO business_gift_card_events (id,card_id,actor_id,kind,amount,request_key,purchase_id)
+          VALUES ($1::text,$2,$3,'refund',4,$1::text::uuid,$4)`, [refund, card.id, other, spend]);
+        const order = randomUUID();
+        await client.query(`INSERT INTO roll_store_purchases(id,user_id,product_id,product_title,amount,idempotency_key,delivery,created_at,refunded_at)
+          VALUES ($1,$2,'fixture','Card-backed order',4,$1,jsonb_build_object('giftCardId',$3::text),
+            transaction_timestamp()-INTERVAL '720 hours',transaction_timestamp())`, [order, other, card.id]);
+
+        const result = await inspect();
+        assert.equal(difference(baseline, result, "redeemedRolls"), 16n);
+        assert.equal(difference(baseline.circulation, result.circulation, "redeemedLast30Days"), 0n);
+        assert.equal(difference(baseline.circulation, result.circulation, "redeemedPrevious30Days"), 12n);
+        assert.equal(difference(baseline.circulation, result.circulation, "netSupplyChangeLast30Days"), 0n);
+        assert.equal(difference(baseline.circulation, result.circulation, "netSupplyChangePrevious30Days"), -12n);
+        assert.equal(difference(baseline.circulation, result.circulation, "heldRolls"), -16n);
+        assert.equal(result.unaccountedRolls, baseline.unaccountedRolls);
+        assert.equal(rollAccountingMatches(result), rollAccountingMatches(baseline));
+      } finally {
+        await client.query("ROLLBACK TO SAVEPOINT circulation");
+        await client.query("RELEASE SAVEPOINT circulation");
+      }
     });
 
     await t.test("reports delayed top-ups, exact order lookup and independent payment evidence", async () => {

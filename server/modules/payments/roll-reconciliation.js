@@ -87,22 +87,29 @@ const marketplaceAttention = `
 
 function reconciliationSql({ gifts, rewards, marketplace, personalOffers }) {
   const cardBalances = gifts ? `
-    SELECT c.id,c.balance,COALESCE(e.recorded,0) AS recorded
+    SELECT c.id,c.owner_id,c.balance,COALESCE(e.recorded,0) AS recorded
     FROM business_gift_cards c LEFT JOIN (
       SELECT card_id,SUM(CASE kind WHEN 'topup' THEN amount WHEN 'refund' THEN amount
                                    WHEN 'spend' THEN -amount ELSE 0 END) AS recorded
       FROM business_gift_card_events GROUP BY card_id
     ) e ON e.card_id=c.id
-  ` : "SELECT NULL::text AS id,0::bigint AS balance,0::numeric AS recorded WHERE FALSE";
-  const cardSpend = gifts ? `(SELECT COALESCE(SUM(CASE e.kind WHEN 'spend' THEN e.amount WHEN 'refund' THEN -e.amount ELSE 0 END),0)
-    FROM business_gift_card_events e
-    ${marketplace ? `WHERE NOT EXISTS (SELECT 1 FROM roll_marketplace_orders o
-      WHERE o.gift_payment_id=CASE e.kind WHEN 'refund' THEN e.purchase_id ELSE e.id END)` : ""})` : "0";
-  const reservedRewards = rewards ? `(SELECT COALESCE(SUM(amount),0) FROM (${openRewardReserves}) reserves)` : "0";
-  const reservedOrders = marketplace ? `(SELECT COALESCE(SUM(amount),0) FROM (${openMarketplaceReserves}) reserves)` : "0";
+  ` : "SELECT NULL::text AS id,NULL::text AS owner_id,0::bigint AS balance,0::numeric AS recorded WHERE FALSE";
+  const cardRedemptions = gifts ? `UNION ALL
+    SELECT CASE e.kind WHEN 'spend' THEN e.amount ELSE -e.amount END,e.created_at
+    FROM business_gift_card_events e WHERE e.kind IN ('spend','refund')
+    ${marketplace ? `AND NOT EXISTS (SELECT 1 FROM roll_marketplace_orders o
+      WHERE o.gift_payment_id=CASE e.kind WHEN 'refund' THEN e.purchase_id ELSE e.id END)` : ""}
+  ` : "";
+  const noReserves = "SELECT NULL::text AS account_id,0::bigint AS amount WHERE FALSE";
+  const rewardReserves = rewards ? `SELECT user_id AS account_id,amount FROM (${openRewardReserves}) reserves` : noReserves;
+  const orderReserves = marketplace ? `SELECT buyer_id AS account_id,amount FROM (${openMarketplaceReserves}) reserves` : noReserves;
 
   return `
-    WITH entries AS MATERIALIZED (
+    WITH periods AS (
+      SELECT transaction_timestamp() AS now,transaction_timestamp()-INTERVAL '720 hours' AS cutoff,
+        transaction_timestamp()-INTERVAL '1440 hours' AS previous_cutoff
+    ),
+    entries AS MATERIALIZED (
       SELECT account_id,kind,amount,direction,created_at FROM (${rollWalletEntries({ gifts, rewards, marketplace })}) entries
     ),
     by_account AS (
@@ -114,6 +121,22 @@ function reconciliationSql({ gifts, rewards, marketplace, personalOffers }) {
       FROM roll_wallets w FULL JOIN by_account a ON a.account_id=w.user_id
     ),
     card_balances AS (${cardBalances}),
+    reward_reserves AS (${rewardReserves}),
+    order_reserves AS (${orderReserves}),
+    holdings AS (
+      SELECT account_id,SUM(amount) AS amount FROM (
+        SELECT id AS account_id,balance AS amount FROM wallet_balances
+        UNION ALL SELECT owner_id,balance FROM card_balances
+        UNION ALL SELECT account_id,amount FROM reward_reserves
+        UNION ALL SELECT account_id,amount FROM order_reserves
+      ) positions
+      GROUP BY account_id HAVING SUM(amount)>0
+    ),
+    holding_totals AS (
+      SELECT COUNT(*)::int AS participants,COALESCE(SUM(amount),0) AS held,
+        COALESCE(MAX(amount),0) AS largest
+      FROM holdings
+    ),
     topups AS MATERIALIZED (${rollTopupSnapshot}),
     topup_totals AS (
       SELECT provider,state,COUNT(*)::int AS count,SUM(rolls)::text AS rolls,
@@ -161,23 +184,36 @@ function reconciliationSql({ gifts, rewards, marketplace, personalOffers }) {
     ),
     issuance AS (
       SELECT kind,COALESCE(SUM(amount),0) AS total,
-        COALESCE(SUM(amount) FILTER (WHERE created_at>transaction_timestamp()-INTERVAL '720 hours'
-          AND created_at<=transaction_timestamp()),0) AS recent
+        COALESCE(SUM(amount) FILTER (WHERE created_at>cutoff AND created_at<=now),0) AS recent,
+        COALESCE(SUM(amount) FILTER (WHERE created_at>previous_cutoff AND created_at<=cutoff),0) AS previous
       FROM (VALUES ('welcome'),('wish_reward'),('manual_grant'),('stars_topup'),('ton_topup')) AS source(kind)
-      LEFT JOIN entries USING (kind) GROUP BY kind
+      LEFT JOIN entries USING (kind) CROSS JOIN periods GROUP BY kind
     ),
     supply AS (
       SELECT COALESCE(SUM(total),0) AS issued,jsonb_object_agg(kind,total::text) AS "issuedBySource",
-        jsonb_object_agg(kind,recent::text) AS "issuedLast30DaysBySource" FROM issuance
+        jsonb_object_agg(kind,recent::text) AS "issuedLast30DaysBySource",
+        jsonb_object_agg(kind,previous::text) AS "issuedPrevious30DaysBySource",
+        SUM(recent) AS recent_issued,SUM(previous) AS previous_issued
+      FROM issuance
+    ),
+    redemptions AS (
+      SELECT CASE direction WHEN 'outgoing' THEN amount ELSE -amount END AS amount,created_at
+      FROM entries WHERE kind IN ('purchase','refund')
+      ${cardRedemptions}
+    ),
+    redemption_totals AS (
+      SELECT COALESCE(SUM(amount),0) AS redeemed,
+        COALESCE(SUM(amount) FILTER (WHERE created_at>cutoff AND created_at<=now),0) AS recent_redeemed,
+        COALESCE(SUM(amount) FILTER (WHERE created_at>previous_cutoff AND created_at<=cutoff),0) AS previous_redeemed
+      FROM redemptions CROSS JOIN periods
     ),
     system AS (
       SELECT (SELECT COUNT(balance)::int FROM wallet_balances) AS wallets,
         (SELECT COALESCE(SUM(balance),0) FROM wallet_balances) AS wallet_rolls,
         (SELECT COUNT(*)::int FROM card_balances) AS cards,
         (SELECT COALESCE(SUM(balance),0) FROM card_balances) AS card_rolls,
-        ${reservedRewards} AS reward_reserve,${reservedOrders} AS order_reserve,
-        (SELECT COALESCE(SUM(CASE direction WHEN 'outgoing' THEN amount ELSE -amount END),0)
-         FROM entries WHERE kind IN ('purchase','refund')) + ${cardSpend} AS redeemed
+        (SELECT COALESCE(SUM(amount),0) FROM reward_reserves) AS reward_reserve,
+        (SELECT COALESCE(SUM(amount),0) FROM order_reserves) AS order_reserve
     )
     SELECT COALESCE((SELECT jsonb_object_agg(reason,jsonb_build_object(
         'count',count,'amount',amount,'oldest',oldest,'sample',
@@ -191,6 +227,14 @@ function reconciliationSql({ gifts, rewards, marketplace, personalOffers }) {
       cards AS "giftCards",card_rolls::text AS "giftCardRolls",
       reward_reserve::text AS "reservedRewardRolls",order_reserve::text AS "reservedMarketplaceRolls",
       issued::text AS "issuedRolls",supply."issuedBySource",supply."issuedLast30DaysBySource",redeemed::text AS "redeemedRolls",
+      supply."issuedPrevious30DaysBySource",
+      jsonb_build_object(
+        'heldRolls',held::text,'participantsWithHoldings',participants,'largestHoldingRolls',largest::text,
+        'largestHoldingSharePercent',ROUND(largest*100/NULLIF(held,0),4)::text,
+        'redeemedLast30Days',recent_redeemed::text,'redeemedPrevious30Days',previous_redeemed::text,
+        'netSupplyChangeLast30Days',(recent_issued-recent_redeemed)::text,
+        'netSupplyChangePrevious30Days',(previous_issued-previous_redeemed)::text
+      ) AS circulation,
       (issued-redeemed-reward_reserve-order_reserve-wallet_rolls-card_rolls)::text AS "unaccountedRolls",
       (SELECT COUNT(*)::int FROM issues WHERE scope='wallets') AS "walletMismatches",
       (SELECT COUNT(*)::int FROM issues WHERE scope='giftCards') AS "cardMismatches",
@@ -206,7 +250,7 @@ function reconciliationSql({ gifts, rewards, marketplace, personalOffers }) {
           FROM (SELECT id,detail FROM issues WHERE scope=scopes.scope ORDER BY id,detail LIMIT $1) limited
         ) sample
       ) END AS details
-    FROM system,supply
+    FROM system CROSS JOIN supply CROSS JOIN redemption_totals CROSS JOIN holding_totals
   `;
 }
 

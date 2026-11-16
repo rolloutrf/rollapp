@@ -189,7 +189,11 @@ test("protected marketplace orders on the existing production schema", { skip: p
         const card = await issueGiftCard(client, seller, { businessId: seller, idempotencyKey: randomUUID() });
         await changeGiftCard(client, seller, card.id, "topup", { amount: 80, idempotencyKey: randomUUID() });
         await changeGiftCard(client, seller, card.id, "send", { recipientId: buyer, idempotencyKey: randomUUID() });
+        const beforeReservation = await totals();
         const purchase = await buy({ ...terms(), giftCardId: card.id });
+        const reserved = await totals();
+        assert.equal(BigInt(reserved.reservedMarketplaceRolls) - BigInt(beforeReservation.reservedMarketplaceRolls), 50n);
+        assert.deepEqual(reserved.circulation, beforeReservation.circulation);
         const cardBalance = async (user) => (await listGiftCards(client.query.bind(client), user))[0].balance;
         assert.equal(await cardBalance(buyer), 30);
         await assert.rejects(changeGiftCard(client, buyer, card.id, "topup", {
@@ -200,6 +204,9 @@ test("protected marketplace orders on the existing production schema", { skip: p
         assert.equal((await totals()).unaccountedRolls, "0");
         assert.equal((await act(purchase.id, buyer, "cancel")).status, "refunded");
         assert.equal((await act(purchase.id, buyer, "cancel")).replayed, true);
+        const refunded = await totals();
+        assert.equal(refunded.circulation.heldRolls, beforeReservation.circulation.heldRolls);
+        assert.equal(refunded.circulation.redeemedLast30Days, beforeReservation.circulation.redeemedLast30Days);
         assert.equal(await cardBalance(other), 80);
         assert.equal((await wallet(buyer)).balance, 50);
         assert.deepEqual((await readRollOrders(client, other)).orders, []);
