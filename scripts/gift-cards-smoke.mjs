@@ -245,22 +245,20 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__gift-cards?cards${missing ? "&missing-card" : ""}`);
-    const card = page.getByRole("article").filter({ hasText: "50 роллов · Только у этого бизнеса" });
-    await card.getByRole("button", { name: "Открыть карту", exact: true }).click();
+    const open = (balance) => page.getByRole("region", { name: "Подарочные карты" })
+      .getByRole("button", { name: new RegExp(`^Открыть сертификат: .+, ${balance} роллов,`) });
+    await open(50).click();
     if (missing) {
-      await page.getByText("Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую.", { exact: true }).waitFor();
-      const other = page.getByRole("button", { name: "Мастерская подарков и хорошего настроения · 25 роллов", exact: true });
-      assert.equal(await other.getAttribute("aria-pressed"), "false");
+      await page.getByText("Этот сертификат больше недоступен. Вернитесь к списку карт.", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("article", { name: /^Сертификат:/ }).count(), 0);
       assert.equal(await page.getByLabel("Сколько роллов добавить").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Подарить карту", exact: true }).count(), 0);
-      await other.click();
-      await page.getByLabel("Сколько роллов добавить").waitFor();
-      assert.equal(await other.getAttribute("aria-pressed"), "true");
-      assert.equal(await page.getByText(/Выбранная карта больше недоступна/).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Выпустить карту", exact: true }).count(), 0);
+      await page.getByRole("button", { name: "Назад", exact: true }).click();
+      await open(25).click();
+      await page.getByRole("article", { name: /^Сертификат:/ }).getByText("25 роллов", { exact: true }).waitFor();
     } else {
-      const selected = page.getByRole("button", { name: "Мастерская подарков и хорошего настроения · 50 роллов", exact: true });
-      await selected.waitFor();
-      assert.equal(await selected.getAttribute("aria-pressed"), "true");
+      await page.getByRole("article", { name: /^Сертификат:/ }).getByText("50 роллов", { exact: true }).waitFor();
     }
     assert.equal(await page.evaluate(() => giftHarness.calls.length), 0);
     assert.deepEqual(errors, []);
@@ -274,10 +272,13 @@ try {
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__gift-cards?cards&wallet-error`);
     const list = page.getByRole("region", { name: "Подарочные карты" });
-    const open = (balance) => list.getByRole("article").filter({
-      has: page.getByText(`${balance} роллов · Только у этого бизнеса`, { exact: true }),
-    })
-      .getByRole("button", { name: "Открыть карту", exact: true });
+    const open = (balance) => list.getByRole("button", { name: new RegExp(`^Открыть сертификат: .+, ${balance} роллов,`) });
+    const active = (balance) => page.getByRole("article", { name: /^Сертификат:/ }).getByText(`${balance} роллов`, { exact: true });
+    const topup = page.getByRole("button", { name: "Пополнить", exact: true });
+    const gift = page.getByRole("button", { name: "Подарить", exact: true });
+    const submitGift = page.getByRole("button", { name: "Подарить карту", exact: true });
+    const amount = page.getByLabel("Сколько роллов добавить");
+    const recipient = page.getByLabel("Кому подарить", { exact: true });
     const zero = open(0);
     await zero.focus();
     await page.evaluate(() => { giftHarness.holdCardDetails = true; });
@@ -286,34 +287,72 @@ try {
     assert.equal(await page.getByRole("button", { name: "Выпустить карту", exact: true }).count(), 0);
     await page.waitForFunction(() => Boolean(giftHarness.finishCardDetails));
     await page.evaluate(() => giftHarness.finishCardDetails());
-    const active = (balance) => page.getByRole("button", { name: new RegExp(` · ${balance} роллов$`), pressed: true });
     await active(0).waitFor({ timeout: 5000 });
+    assert(await gift.isDisabled());
+    assert.equal(await amount.isVisible(), false);
+    await topup.click();
     await page.getByText("Кошелёк временно недоступен", { exact: true }).waitFor();
-    assert.equal(await page.getByText(/Выбранная карта больше недоступна/).count(), 0);
-    assert(await page.getByRole("button", { name: "Подарить карту", exact: true }).isDisabled());
-    assert(await page.getByLabel("Сколько роллов добавить").isDisabled());
+    assert.equal(await page.getByText(/Этот сертификат больше недоступен/).count(), 0);
+    assert(await amount.isDisabled());
     await page.screenshot({ path: `/tmp/rollapp-gift-opening-wallet-error-${width}.png` });
     const readsBefore = await page.evaluate(() => giftHarness.reads.length);
     await page.evaluate(() => { giftHarness.walletUnavailable = false; });
     await page.getByRole("button", { name: "Повторить загрузку кошелька", exact: true }).click();
-    const amount = page.getByLabel("Сколько роллов добавить");
-    const recipient = page.getByLabel("Кому подарить", { exact: true });
     await amount.fill("12");
     assert.deepEqual(await page.evaluate((from) => giftHarness.reads.slice(from), readsBefore), ["/rolls"]);
-    await recipient.fill("friend");
-    await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
-    await page.getByRole("button", { name: / · 25 роллов$/, pressed: false }).click();
-    await active(25).waitFor();
-    assert.equal(await amount.inputValue(), "");
-    assert.equal(await recipient.inputValue(), "");
-    assert(await page.getByRole("button", { name: "Подарить карту", exact: true }).isDisabled());
     if (width < 768) await page.goBack();
     else await page.getByRole("button", { name: "Назад", exact: true }).click();
     await zero.waitFor();
-    await page.waitForFunction(() => document.activeElement?.closest("article")?.querySelector("p")?.textContent === "0 роллов · Только у этого бизнеса");
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.includes(", 0 роллов,"));
     await open(25).click();
     await active(25).waitFor();
+    await topup.click();
+    assert.equal(await amount.inputValue(), "");
+    await gift.click();
+    assert.equal(await amount.isVisible(), false);
+    await recipient.fill("friend");
+    await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
+    assert(await submitGift.isEnabled());
+    await topup.click();
+    assert.equal(await recipient.isVisible(), false);
+    assert.equal(await submitGift.count(), 0);
+    await gift.click();
+    assert.equal(await recipient.inputValue(), "@friend");
+    assert(await submitGift.isEnabled());
+    const submitBox = await submitGift.boundingBox();
+    assert.equal(submitBox.height, 48);
+    if (width < 768) {
+      const backBox = await page.getByRole("button", { name: "Назад", exact: true }).boundingBox();
+      assert.deepEqual([backBox.width, backBox.height, backBox.y], [48, 48, submitBox.y]);
+      assert.equal(submitBox.x - backBox.x - backBox.width, 8);
+      assert(submitBox.y + submitBox.height <= 400);
+    }
     assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+    if (width === 1440) {
+      await page.getByRole("button", { name: "Назад", exact: true }).click();
+      await zero.click();
+      await active(0).waitFor();
+      await topup.click();
+      await amount.fill("10");
+      await page.evaluate(() => { giftHarness.lost = true; });
+      await page.getByRole("button", { name: "Пополнить на 10 роллов", exact: true }).click();
+      await active(10).waitFor();
+      await page.getByText("Карта пополнена на 10 роллов", { exact: true }).waitFor();
+      assert(await amount.isVisible());
+      await gift.click();
+      await recipient.fill("friend");
+      await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
+      await submitGift.click();
+      await page.getByText("Карта отправлена: Получатель подарочной карты", { exact: true }).waitFor();
+      const calls = await page.evaluate(() => giftHarness.calls);
+      assert.deepEqual(calls.map(({ path }) => path),
+        ["/rolls/gift-cards/second-card/topup", "/rolls/gift-cards/second-card/send"]);
+      assert.equal(calls[1].payload.expectedBalance, 10);
+      await page.getByRole("button", { name: "Назад", exact: true }).click();
+      await open(25).waitFor();
+      assert.equal(await open(10).count(), 0);
+      assert.equal(await zero.count(), 0);
+    }
     assert.deepEqual(errors, []);
     console.log(`PASS gift card reopening ${width}x400: exact zero/positive card, independent wallet retry, draft ownership, Back focus`);
     await page.close();

@@ -83,7 +83,7 @@ api.get = async (path) => {
       throw new Error("Подарочные карты временно недоступны");
     }
     const business = { id: "fixture-shop", username: "fixture-shop", name: "Магазин" };
-    return { cards: [{ id: "gift-card", balance: 100, business }, { id: "empty-gift-card", balance: 0, business }] };
+    return { cards: [{ id: "60fbb943-6666-44a6-90f4-01234567a100", balance: 100, business }, { id: "60fbb943-6666-44a6-90f4-01234567f000", balance: 0, business }] };
   }
   throw new Error(`Unexpected fixture read: ${path}`);
 };

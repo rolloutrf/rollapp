@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Gift, X } from "lucide-react";
+import { ArrowUpRight, Gift, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { useOperationRecovery } from "../payments/use-operation-recovery.js";
 import { ControlBar } from "@/components/control-bar";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { publicProfilePath } from "../../../shared/modules/profile/profile-links.js";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
+import { GiftCertificate } from "./gift-certificate";
 
 const giftCardPath = "/rolls/gift-cards";
 const giftRejections = new Set(["INVALID_GIFT_CARD", "BUSINESS_NOT_FOUND", "GIFT_CARD_NOT_FOUND", "GIFT_CARD_LIMIT",
@@ -74,9 +75,14 @@ function describePendingGift(intent) {
     Number.isSafeInteger(intent.payload.expectedBalance) ? formatRolls(intent.payload.expectedBalance) : null].filter(Boolean).join(" · ");
 }
 
-export function GiftCardManager({ business, user, initialCardId = "", returnFocusRef, fallbackFocusRef, recoveryOnly = false, onClose, onChanged }) {
+export function GiftCardManager({ business, user, initialCardId = "", returnFocusRef, fallbackFocusRef, recoveryOnly = false, onClose, onChanged, onNavigate }) {
   const storageKey = `${giftStoragePrefix(user.id)}${business.id}`;
+  // From the wallet a certificate opens as one record. The issuer manager
+  // can still select between its cards and issue another one.
+  const profileCard = Boolean(initialCardId);
   const [open, setOpen] = useState(true);
+  const [activeAction, setActiveAction] = useState(null);
+  const destination = useRef(null);
   const [cards, setCards] = useState([]);
   const [selectedId, setSelectedId] = useState(initialCardId || null);
   const [wallet, setWallet] = useState(null);
@@ -169,7 +175,12 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       return card.id === cardId && (kind === "topup" ? card.amount === intent.payload.amount : card.recipientId === intent.payload.recipientId);
     },
     onComplete(card, intent) {
-      setSelectedId(giftOperation(intent.path).kind === "send" ? "" : card.id);
+      const operation = giftOperation(intent.path);
+      if (!profileCard) setSelectedId(operation.kind === "send" ? "" : card.id);
+      else if (operation.kind === "send" && operation.cardId === initialCardId) {
+        setSelectedId("");
+        setActiveAction(null);
+      }
       setAmount(""); setRecipient(null); setSearch("");
       setMessage(intent.label);
       if (!recoveryOnly) {
@@ -214,12 +225,19 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       : exceedsLimit ? "На карте можно хранить не больше 1 000 000 000 роллов."
         : "Роллы спишутся с вашего баланса.";
   const title = recoveryOnly ? "Операция с подарочной картой" : "Подарочная карта";
-  const description = recoveryOnly ? business.name : `${business.name} · Роллы с карты можно потратить только у этого бизнеса.`;
+  const showGiftAction = selected && (!profileCard || activeAction === "send");
+  const showIssueAction = !profileCard && !selected && (!selectedId || cardsReady);
+  const hasFooterAction = pending || (!recoveryOnly && (showGiftAction || showIssueAction));
+  const description = recoveryOnly ? business.name : profileCard ? undefined : `${business.name} · Роллы с карты можно потратить только у этого бизнеса.`;
   function returnFocusTarget() {
     const opener = returnFocusRef?.current;
     return opener?.isConnected && !opener.closest("[hidden]") ? opener : fallbackFocusRef?.current;
   }
   function finishClosing() {
+    if (destination.current) {
+      onNavigate(destination.current);
+      return;
+    }
     if (!recoveryOnly) {
       returnFocusTarget()?.focus({ preventScroll: true });
       return;
@@ -233,7 +251,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     });
   }
   return <Drawer open={open} onAfterClose={recoveryOnly || returnFocusRef ? finishClosing : undefined} onOpenChange={(nextOpen, event) => {
-    if (nextOpen) return;
+    if (nextOpen || destination.current) return;
     if (recovery.inFlight.current) event?.cancel?.();
     else if (recoveryOnly) setOpen(false);
     else onClose();
@@ -249,7 +267,8 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
         {cardsError && <Alert variant="destructive"><AlertDescription>{cardsError}</AlertDescription></Alert>}
         {message && <p role="status">{message}</p>}
         {recoveryOnly && !pending && !error && !message && <p role="status">Сохранённый запрос уже закрыт.</p>}
-        {cardsReady && !pending && selectedId && !selected && <p role="status">Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую.</p>}
+        {cardsReady && !pending && selectedId && !selected &&
+          <p role="status">{profileCard ? "Этот сертификат больше недоступен. Вернитесь к списку карт." : "Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую."}</p>}
         {pending && <Alert><AlertDescription className="grid gap-2">
           <p className="wrap-anywhere">Ожидает проверки · {describePendingGift(pending)}</p>
           {result === "missing" && <><p role="status">Операция пока не записана.</p>
@@ -260,7 +279,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
           </>}
         </AlertDescription></Alert>}
         {!recoveryOnly && <>
-          {cards.length > 0 && <div className="flex flex-col gap-2" role="group" aria-label="Мои карты этого бизнеса">
+          {!profileCard && cards.length > 0 && <div className="flex flex-col gap-2" role="group" aria-label="Мои карты этого бизнеса">
             {cards.map((card) => <Button type="button" key={card.id} variant={card.id === selectedId ? "secondary" : "outline"} aria-pressed={card.id === selectedId} disabled={locked || !cardsReady} className="h-auto min-h-12 justify-between gap-3 whitespace-normal text-left" onClick={() => {
               if (card.id === selectedId) return;
               setSelectedId(card.id);
@@ -268,26 +287,47 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
               recovery.resetNotice(); setMessage("");
             }}><Gift className="size-5 shrink-0" /><span className="min-w-0 break-words">{business.name} · {formatRolls(card.balance)}</span></Button>)}
           </div>}
-          {cardsReady && !cards.length && !selectedId && !message && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
-          {selected && <>
-            <section className="flex flex-col gap-3" aria-label="Пополнение карты">
-              <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>
+          {!profileCard && cardsReady && !cards.length && !selectedId && !message && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
+          {selected && <div className={profileCard ? "gift-certificate-rail" : "flex min-w-0 flex-col gap-6"}>
+            {profileCard && <>
+              <GiftCertificate card={selected} />
+              <div className="grid gap-2">
+                <PageActionButton className="w-fit" variant="outline" to={publicProfilePath(business)} onClick={(event) => {
+                  if (!onNavigate || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+                  event.preventDefault();
+                  if (recovery.inFlight.current) return;
+                  // Leave the certificate's native history entry first, then
+                  // let profile settings unwind its own entries.
+                  destination.current = publicProfilePath(business);
+                  setOpen(false);
+                }}>Перейти в магазин <ArrowUpRight aria-hidden="true" data-icon="inline-end" /></PageActionButton>
+                <p>Действует только в этом магазине. При оплате роллами выберите подарочную карту.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <PageActionButton type="button" variant="outline" disabled={locked} aria-expanded={activeAction === "topup"}
+                  aria-controls="gift-topup-panel" onClick={() => setActiveAction(activeAction === "topup" ? null : "topup")}>Пополнить</PageActionButton>
+                <PageActionButton type="button" variant="outline" disabled={locked || selected.balance <= 0} aria-expanded={activeAction === "send"}
+                  aria-controls="gift-send-panel" onClick={() => setActiveAction(activeAction === "send" ? null : "send")}>Подарить</PageActionButton>
+              </div>
+            </>}
+            <section hidden={profileCard && activeAction !== "topup"} className="flex flex-col gap-3" id="gift-topup-panel" aria-label="Пополнение карты">
+              {!profileCard && <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>}
               {walletError ? <>
                 <Alert variant="destructive"><AlertDescription>{walletError}</AlertDescription></Alert>
                 <Button type="button" variant="outline" disabled={busy} onClick={loadWallet}>Повторить загрузку кошелька</Button>
               </> : <p>Ваш баланс: {walletReady ? formatRolls(wallet.balance) : "загружается…"}</p>}
-              {selected.balance === 0 && <p className="text-muted-foreground">Пополните карту, чтобы подарить её.</p>}
+              {!profileCard && selected.balance === 0 && <p className="text-muted-foreground">Пополните карту, чтобы подарить её.</p>}
               <form id="gift-topup" className="flex flex-col gap-3" onSubmit={(event) => { event.preventDefault(); if (valid && !locked) run(`/rolls/gift-cards/${selected.id}/topup`, { amount: value }, `Карта пополнена на ${formatRolls(value)}`); }}>
                 <Field><FieldLabel htmlFor="gift-amount">Сколько роллов добавить</FieldLabel><Input id="gift-amount" inputMode="numeric" pattern="[0-9]+" maxLength={10} required value={amount} disabled={locked || !cardsReady || !walletReady} onChange={(event) => setAmount(event.target.value)} aria-invalid={Boolean(amount && !valid)} aria-describedby="gift-amount-hint" /><FieldDescription className="text-xs leading-4" id="gift-amount-hint" aria-live="polite">{amountHint}</FieldDescription></Field>
-                <Button type="submit" variant="outline" className="h-auto min-h-12 whitespace-normal" disabled={!valid || locked}>Пополнить{valid ? ` на ${formatRolls(value)}` : ""}</Button>
+                <Button type="submit" variant="outline" className="h-auto min-h-12 whitespace-normal" disabled={!valid || locked}>{profileCard && !valid ? "Пополнить карту" : "Пополнить"}{valid ? ` на ${formatRolls(value)}` : ""}</Button>
               </form>
             </section>
-            <section className="flex flex-col gap-3" aria-label="Получатель подарочной карты">
+            <section hidden={profileCard && activeAction !== "send"} className="flex flex-col gap-3" id="gift-send-panel" aria-label="Получатель подарочной карты">
               <Field>
                 <FieldLabel htmlFor="gift-recipient">Кому подарить</FieldLabel>
                 <Input id="gift-recipient" placeholder="Имя или @username" autoComplete="off" maxLength={80} value={search} disabled={locked} aria-describedby="gift-recipient-hint" onChange={(event) => { setSearch(event.target.value); setRecipient(null); }} />
                 <FieldDescription className="text-xs leading-4" id="gift-recipient-hint">
-                  Введите имя или @username в Rollapp. Для поиска нужно хотя бы два символа, не считая @. После отправки карта появится в разделе «Подарочные карты» профиля получателя и исчезнет из вашего списка.
+                  {profileCard ? "Сертификат и весь остаток перейдут получателю в Rollapp." : "Введите имя или @username в Rollapp. Для поиска нужно хотя бы два символа, не считая @. После отправки карта появится в разделе «Подарочные карты» профиля получателя и исчезнет из вашего списка."}
                 </FieldDescription>
               </Field>
               {searching && <p role="status">Ищем получателя…</p>}
@@ -296,18 +336,18 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
               {people.map((person) => <Button type="button" key={person.id} variant="outline" className="h-auto min-h-12 justify-start whitespace-normal text-left" disabled={locked} onClick={() => { setRecipient(person); setSearch(`@${person.username}`); }}><span className="min-w-0 break-words">{person.name} · @{person.username}</span></Button>)}
               {recipient && <p>Получатель: <strong>{recipient.name}</strong> · @{recipient.username}<br />Подарок: {formatRolls(selected.balance)} у {business.name}.</p>}
             </section>
-        </>}
-        {selected && !pending && <Button variant="outline" disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Новая карта выпущена")}>Выпустить ещё карту</Button>}
+          </div>}
+        {!profileCard && selected && !pending && <Button variant="outline" disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Новая карта выпущена")}>Выпустить ещё карту</Button>}
         {cardsError && !pending && <Button variant="outline" disabled={busy} onClick={loadCards}>Повторить загрузку</Button>}
         </>}
       </div>
-      <DrawerFooter>
+      {hasFooterAction && <DrawerFooter>
         {pending ? <Button disabled={busy} onClick={recovery.check}>{busy && <Spinner />}
           {busy ? (requestMode === "send" ? "Выполняем…" : "Проверяем…") : "Проверить результат"}
         </Button>
-          : recoveryOnly ? null : selected ? <Button disabled={busy || !cardsReady || !recipient || selected.balance <= 0} onClick={() => run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id, expectedBalance: selected.balance }, `Карта отправлена: ${recipient.name}`, recipient.name)}>{busy && <Spinner />}Подарить карту</Button>
-            : (!selectedId || cardsReady) && <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}
-      </DrawerFooter>
+          : showGiftAction ? <Button disabled={busy || !cardsReady || !recipient || selected.balance <= 0} onClick={() => run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id, expectedBalance: selected.balance }, `Карта отправлена: ${recipient.name}`, recipient.name)}>{busy && <Spinner />}Подарить карту</Button>
+            : <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}
+      </DrawerFooter>}
     </DrawerContent>
   </Drawer>;
 }
@@ -392,16 +432,13 @@ export function ProfileGiftCards({ user, onNavigate }) {
     {loading && <p role="status">Загружаем карты…</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error} <Button variant="outline" onClick={refresh}>Повторить</Button></AlertDescription></Alert>}
     {!loading && !error && !cards.length && <p className="text-muted-foreground">Полученные и выпущенные карты появятся здесь.</p>}
-    {cards.map((card) => <article key={card.id} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4">
-      <Link className="break-words font-semibold underline underline-offset-4" to={publicProfilePath(card.business)} onClick={(event) => {
-        if (!onNavigate || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-        event.preventDefault();
-        onNavigate(publicProfilePath(card.business));
-      }}>{card.business.name}</Link>
-      <p>{formatRolls(card.balance)} · Только у этого бизнеса</p>
-      <Button variant="outline" onClick={(event) => { cardOpener.current = event.currentTarget; setManager({ business: card.business, initialCardId: card.id }); }}>Открыть карту</Button>
-    </article>)}
+    {cards.length > 0 && <div className="gift-certificate-rail">
+      {cards.map((card) => <GiftCertificate key={card.id} card={card} onOpen={(event) => {
+        cardOpener.current = event.currentTarget;
+        setManager({ business: card.business, initialCardId: card.id });
+      }} />)}
+    </div>}
     {manager && <GiftCardManager key={manager.initialCardId ?? `operation:${manager.business.id}`} user={user} {...manager}
-      returnFocusRef={cardOpener} fallbackFocusRef={listRef} onClose={closeManager} onChanged={refresh} />}
+      returnFocusRef={cardOpener} fallbackFocusRef={listRef} onClose={closeManager} onChanged={refresh} onNavigate={onNavigate} />}
   </section>;
 }

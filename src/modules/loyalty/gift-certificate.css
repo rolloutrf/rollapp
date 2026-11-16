@@ -1,0 +1,116 @@
+.gift-certificate-rail {
+  display: grid;
+  gap: var(--layout-page-gap);
+  inline-size: min(100%, 26rem);
+  min-inline-size: 0;
+  align-self: center;
+}
+
+.gift-certificate,
+.gift-certificate[data-slot="button"] {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr auto;
+  align-items: start;
+  justify-content: stretch;
+  gap: 0.5rem;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 1.7;
+  padding: clamp(1rem, 4vw, 1.5rem);
+  border: 1px solid #928273;
+  border-radius: 1rem;
+  background: radial-gradient(ellipse at 100% 4%, #654638, transparent 76%),
+    linear-gradient(142deg, #28201f, #19171d 55%, #392822);
+  color: #fff5e8;
+  text-align: start;
+  white-space: normal;
+  box-shadow: inset 0 1px 0 #f6d1a229;
+}
+
+.gift-certificate::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-radial-gradient(ellipse at 111% 35%, transparent 0 8px, #ffdfbd40 9px 10px, transparent 11px 15px);
+  mask-image: linear-gradient(106deg, transparent 46%, #000 100%);
+  opacity: 0.55;
+  content: "";
+  pointer-events: none;
+}
+
+.gift-certificate[data-slot="button"]:hover {
+  border-color: #e1bfa3;
+  color: #fff5e8;
+}
+
+.gift-certificate[data-slot="button"]:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 3px;
+}
+
+.gift-certificate__kind,
+.gift-certificate__balance > span,
+.gift-certificate__reference {
+  color: #e7c8ad;
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 400;
+}
+
+.gift-certificate__kind {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  align-self: start;
+  grid-column: 1 / -1;
+}
+
+.gift-certificate[data-slot="button"] .gift-certificate__kind {
+  grid-column: 1;
+}
+
+.gift-certificate__kind svg,
+.gift-certificate .gift-certificate__arrow {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.gift-certificate__arrow {
+  grid-column: 2;
+  grid-row: 1;
+  color: #e7c8ad;
+  justify-self: end;
+}
+
+.gift-certificate__issuer {
+  grid-column: 1 / -1;
+  align-self: center;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.gift-certificate__balance {
+  display: grid;
+  grid-column: 1;
+  gap: 0.25rem;
+  align-self: end;
+  line-height: var(--text-rollapp-body--line-height);
+}
+
+.gift-certificate__balance strong {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.gift-certificate__reference {
+  grid-column: 2;
+  align-self: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

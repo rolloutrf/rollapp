@@ -183,14 +183,16 @@ api.post = async (path, payload) => {
     state.cards.unshift(card);
   } else if (path.endsWith("/topup")) {
     kind = "topup";
+    card = state.cards.find((entry) => path === `/rolls/gift-cards/${entry.id}/topup`);
     card.balance += payload.amount; state.balance -= payload.amount;
   } else if (path.endsWith("/send")) {
     kind = "send";
+    card = state.cards.find((entry) => path === `/rolls/gift-cards/${entry.id}/send`);
     if (payload.expectedBalance !== undefined && payload.expectedBalance !== card.balance) {
       throw Object.assign(new Error("Остаток карты изменился. Проверьте сумму подарка и подтвердите отправку снова."),
         { status: 409, code: "GIFT_BALANCE_CHANGED" });
     }
-    state.cards = [];
+    state.cards = state.cards.filter((entry) => entry.id !== card.id);
   } else throw new Error(`Unexpected fixture mutation: ${path}`);
   const result = !kind
     ? { purchase: { id: crypto.randomUUID(), balance: state.balance, itemId: payload.itemId,
