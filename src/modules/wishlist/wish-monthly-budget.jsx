@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { PageActionButton } from "@/components/page-action-button";
 import { Spinner } from "@/components/ui/spinner";
 import { ControlBar } from "@/components/control-bar";
 import { useAsync } from "@/modules/shell/use-async";
@@ -59,9 +60,14 @@ export function WishMonthlyBudget({ month: currentMonth, plans, subscriptions })
     setSelected(next < currentMonth ? next : null);
   }
 
-  return <div className="grid min-w-0 gap-2 border-b pb-4">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 className="text-2xl leading-8 font-semibold" aria-live="polite" aria-atomic="true">Бюджет на {monthLabel.format(dateFromKey(`${month}-01`)).replace(/\sг\.$/u, "")}</h3>
+  return <section className="grid min-w-0 gap-3 rounded-2xl border bg-card p-4 sm:p-6" aria-label="Бюджет на покупки">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <h3 className="min-w-0 wrap-anywhere font-heading font-semibold" aria-live="polite" aria-atomic="true">
+        <span className="block text-caption text-muted-foreground">Бюджет на</span>{" "}
+        <span className="block text-xl leading-7 @md/purchases:text-2xl @md/purchases:leading-8">
+          {monthLabel.format(dateFromKey(`${month}-01`)).replace(/\sг\.$/u, "")}
+        </span>
+      </h3>
       <ControlBar role="group" aria-label="Месяц бюджета" className="flex shrink-0 gap-2">
         <Button data-control-icon type="button" variant="outline" size="icon" aria-label="Предыдущий месяц" disabled={month === "1000-01"}
           onClick={() => move(-1)}><ChevronLeft aria-hidden="true" /></Button>
@@ -70,11 +76,12 @@ export function WishMonthlyBudget({ month: currentMonth, plans, subscriptions })
       </ControlBar>
     </div>
     <MonthlyBudgetDetails key={month} month={month} plans={plans} subscriptions={subscriptions} />
-  </div>;
+  </section>;
 }
 
 function MonthlyBudgetDetails({ month, plans, subscriptions }) {
   const [editing, setEditing] = useState(null);
+  const limitOpener = useRef(null);
   const { data, loading, error, reload } = useAsync(() => readPurchaseMonth(month), [month, plans, subscriptions]);
   const totals = data?.totals;
   const limits = data?.limits ?? [];
@@ -87,9 +94,9 @@ function MonthlyBudgetDetails({ month, plans, subscriptions }) {
     </ul> : loading || !totals ? <p className="flex items-center gap-2" role="status"><Spinner />Считаем бюджет и траты…</p>
       : <p className="text-muted-foreground">На этот месяц пока нет планов и покупок.</p>}
     <PurchaseMonthLimits limits={limits} />
-    {!error && totals && <Button type="button" variant="outline" className="min-h-12 justify-self-start rounded-full"
-      onClick={() => setEditing({ month, limits, monthCurrencies: totals.map(({ currency }) => currency) })}>Настроить лимит</Button>}
-    {editing && <WishPurchaseLimitEditor {...editing} onClose={() => setEditing(null)}
+    {!error && totals && <PageActionButton ref={limitOpener} type="button" variant="outline" className="justify-self-start"
+      onClick={() => setEditing({ month, limits, monthCurrencies: totals.map(({ currency }) => currency) })}>Настроить лимит</PageActionButton>}
+    {editing && <WishPurchaseLimitEditor {...editing} returnFocusRef={limitOpener} onClose={() => setEditing(null)}
       onSaved={() => reload({ background: true }).catch(() => {})} />}
   </>;
 }

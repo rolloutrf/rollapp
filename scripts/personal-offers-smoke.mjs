@@ -238,6 +238,7 @@ try {
     }
     await orderTasks.getByText("70 роллов", { exact: true }).waitFor();
     assert.equal(await orderTasks.locator("time").getAttribute("datetime"), "2026-11-19T10:00:00Z");
+    await page.getByRole("tab", { name: "Операции", exact: true }).click();
     await page.locator('[data-rolls-transaction="purchase"]').getByText("Покупка · Товар магазина").waitFor();
     await page.locator('[data-rolls-transaction="refund"]').getByText("Возврат · Товар магазина").waitFor();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Wallet breakdown overflow");

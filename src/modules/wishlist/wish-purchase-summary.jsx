@@ -1,13 +1,12 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Pencil, Share2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ClipboardList, Pencil, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { localDateKey } from "../../../shared/modules/planning/planning.js";
 import { dateFromKey } from "../../../shared/modules/calendar/planning-calendar.js";
 import { formatPurchaseBudget } from "../../../shared/modules/planning/purchase-plan.js";
 import { summarizePurchases } from "./purchase-summary.js";
 import { PurchasePriceNotice } from "./wish-price-watch.jsx";
-import { WishPurchaseHistory } from "./wish-purchase-history.jsx";
 import { WishMonthlyBudget } from "./wish-monthly-budget.jsx";
 import { WishSubscriptions } from "./wish-subscription.jsx";
 import { WishPurchaseForecast } from "./wish-purchase-forecast.jsx";
@@ -41,7 +40,7 @@ function PurchaseList({ title, plans, onOpen, onEditNeed, onCollaborate, overdue
           aria-label={`Пригласить к покупке: ${plan.title}`} title="Общая покупка и продавцы"
           onClick={() => onCollaborate({ id: plan.id, title: plan.title, criteria: plan.need.criteria, neededBy: plan.need.neededBy })}><Share2 aria-hidden="true" /></Button>}
       </li>)}
-    </ul> : <p className="text-muted-foreground">{overdue ? "Просрочек нет" : "Ближайших планов нет"}</p>}
+    </ul> : null}
     {plans.length > previewCount && <Button type="button" variant="ghost" aria-expanded={expanded} aria-controls={listId}
       className="min-h-12 justify-self-start rounded-full" onClick={() => setExpanded(!expanded)}>
       {expanded ? "Свернуть" : `Ещё ${plans.length - previewCount}`}<ChevronDown aria-hidden="true" className={expanded ? "rotate-180" : undefined} />
@@ -50,8 +49,7 @@ function PurchaseList({ title, plans, onOpen, onEditNeed, onCollaborate, overdue
   </div>;
 }
 
-export function WishPurchaseSummary({ plans, subscriptions, collaborations, onOpen, onEditNeed, onCollaborate, onOpenSubscription, onOpenPurchase, historyRevision }) {
-  const headingId = useId();
+export function WishPurchaseSummary({ plans, subscriptions, collaborations, onOpen, onEditNeed, onCollaborate, onOpenSubscription }) {
   const [today, setToday] = useState(() => localDateKey(new Date()));
   useEffect(() => {
     let timer;
@@ -71,21 +69,18 @@ export function WishPurchaseSummary({ plans, subscriptions, collaborations, onOp
   const hasPlans = Boolean(overdue.length || upcoming.length);
   const matches = plans.filter(({ priceWatch }) => priceWatch?.notice)
     .sort((left, right) => right.priceWatch.notice.checkedAt.localeCompare(left.priceWatch.notice.checkedAt));
-  return <Card role="region" aria-labelledby={headingId} data-wish-purchase-summary=""
-    className="@container/purchases not-typeset rollapp-body w-full min-w-0 gap-4 p-4 sm:p-6">
-    <h2 id={headingId} className="font-heading text-3xl leading-9 font-semibold">Покупки</h2>
+  return <>
+    <WishMonthlyBudget month={today.slice(0, 7)} plans={plans} subscriptions={subscriptions} />
     {matches.length > 0 && <section className="grid min-w-0 gap-2" aria-live="polite" aria-label="Уведомления о цене">
       <h3 className="text-2xl leading-8 font-semibold">Цена уложилась в бюджет</h3>
       {matches.map((plan) => <PurchasePriceNotice key={plan.id} title={plan.title} notice={plan.priceWatch.notice} onOpen={() => onOpen(plan)} />)}
     </section>}
-    <WishMonthlyBudget month={today.slice(0, 7)} plans={plans} subscriptions={subscriptions} />
     <WishPurchaseForecast today={today} plans={plans} subscriptions={subscriptions} onOpen={onOpen} onOpenSubscription={onOpenSubscription} />
-    {hasPlans ? <div className="grid min-w-0 gap-4 @2xl/purchases:grid-cols-2 @2xl/purchases:gap-6">
-      <PurchaseList title="Просроченные пересмотры" plans={overdue} onOpen={onOpen} onEditNeed={onEditNeed} onCollaborate={onCollaborate} overdue />
-      <PurchaseList title="Ближайшие планы" plans={upcoming} onOpen={onOpen} onEditNeed={onEditNeed} onCollaborate={onCollaborate} />
-    </div> : <p className="text-muted-foreground">Запланируйте покупку из меню желания.</p>}
+    {hasPlans ? <div className="grid min-w-0 gap-4">
+      {overdue.length > 0 && <PurchaseList title="Просроченные пересмотры" plans={overdue} onOpen={onOpen} onEditNeed={onEditNeed} onCollaborate={onCollaborate} overdue />}
+      {upcoming.length > 0 && <PurchaseList title="Ближайшие планы" plans={upcoming} onOpen={onOpen} onEditNeed={onEditNeed} onCollaborate={onCollaborate} />}
+    </div> : <EmptyState compact icon={ClipboardList} title="Планов пока нет" text="Запланируйте покупку из меню желания." />}
     <WishSubscriptions subscriptions={subscriptions} onOpen={onOpenSubscription} />
     <WishPurchaseCollaborations records={collaborations} onOpen={onCollaborate} />
-    <WishPurchaseHistory revision={historyRevision} onOpen={onOpenPurchase} />
-  </Card>;
+  </>;
 }

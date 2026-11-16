@@ -9,10 +9,11 @@ import { WishPurchaseCare } from "./wish-purchase-care.jsx";
 import { WishPurchaseCollaboration } from "./wish-purchase-collaboration.jsx";
 import { WishPurchaseNeed } from "./wish-purchase-need.jsx";
 import { WishPurchaseReview } from "./wish-purchase-review.jsx";
+import { WishPurchaseHistory } from "./wish-purchase-history.jsx";
 import { WishPurchaseSummary } from "./wish-purchase-summary.jsx";
 import { WishSubscription } from "./wish-subscription.jsx";
 
-export function WishPurchasesPanel({ viewerId }) {
+export function WishPurchasesPanel({ viewerId, historyAction }) {
   const { data, error, loading, reload, updateData } = useAsync(() => api.get("/dashboard/purchases"), [viewerId]);
   const [dialog, setDialog] = useState(null);
   const [historyRevision, setHistoryRevision] = useState(0);
@@ -52,7 +53,10 @@ export function WishPurchasesPanel({ viewerId }) {
 
   const collaborationPlan = dialog?.type === "collaboration" && data?.purchasePlans?.find(({ id }) => id === dialog.entry.id);
 
-  return <>
+  return <section role="region" aria-label="Покупки" data-wish-purchase-summary=""
+    className="@container/purchases grid min-w-0 gap-6">
+    <p className="text-muted-foreground">Планы, лимиты и траты в валюте покупки.</p>
+    <WishPurchaseHistory revision={historyRevision} onOpen={(id) => setDialog({ type: "care", id })} action={historyAction} />
     {loading && <p role="status" className="flex items-center gap-2 text-muted-foreground"><Spinner />Загружаем покупки…</p>}
     {error && <Alert variant="destructive">
       <AlertDescription className="flex flex-wrap items-center gap-3">
@@ -64,9 +68,7 @@ export function WishPurchasesPanel({ viewerId }) {
       onOpen={openReview}
       onEditNeed={(plan) => setDialog({ type: "need", plan })}
       onCollaborate={(entry) => setDialog({ type: "collaboration", entry })}
-      onOpenSubscription={(id) => setDialog({ type: "subscription", id })}
-      onOpenPurchase={(id) => setDialog({ type: "care", id })}
-      historyRevision={historyRevision} />}
+      onOpenSubscription={(id) => setDialog({ type: "subscription", id })} />}
     {dialog?.type === "review" && <WishPurchaseReview key={dialog.plan.id} purchase={dialog.plan} onClose={close} onSaved={finishReview} onPriceChecked={refresh} />}
     {dialog?.type === "need" && <WishPurchaseNeed key={dialog.plan.id} plan={dialog.plan} wishes={data.wishes} onClose={close} onSaved={refresh} />}
     {dialog?.type === "subscription" && <WishSubscription key={dialog.id} id={dialog.id} onClose={close} onSaved={(_, action) => {
@@ -78,5 +80,5 @@ export function WishPurchasesPanel({ viewerId }) {
       onClose={close} onChanged={(id, next) => updateData((current) => ({ ...current,
         purchaseCollaborations: [...(next ? [next] : []), ...(current.purchaseCollaborations ?? []).filter((item) => item.id !== id)],
       }))} onReview={collaborationPlan ? () => openReview(collaborationPlan) : undefined} />}
-  </>;
+  </section>;
 }

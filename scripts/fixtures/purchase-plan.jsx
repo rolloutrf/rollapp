@@ -116,26 +116,26 @@ function SummaryFixture() {
   return <SessionContext.Provider value={{ user: { id: viewer, username: viewer } }}><ToastContext.Provider value={() => {}}><ProfileEditorProvider>
     <div className="app-layout app-layout--dark"><main className="app-main app-main--wishes"><MobileFormPages>
       {search.has("subscription-todo") ? <>
-        <Link to="/__purchase-plan?summary">К покупкам</Link>
+        <Link to="/__purchase-plan?summary&finance=purchases">К покупкам</Link>
         <PlanningSpace />
       </> : search.has("need-todo") ? <div className="app-page">
-        <Link to="/__purchase-plan?summary">К покупкам</Link>
+        <Link to="/__purchase-plan?summary&finance=purchases">К покупкам</Link>
         <PlanningDailyTodo tasks={summaryNeedTasks()} columns={columns} onCreate={() => {}} onEdit={() => {}} onReview={setReviewTask} />
         {reviewTask && <WishPurchaseReview purchase={plannedPurchaseItem(reviewTask)} onClose={() => setReviewTask(null)}
           onSaved={() => { setReviewTask(null); saved((value) => value + 1); }} />}
       </div> : <>
         {search.has("wishes") ? <>
           <WishesPage key={viewer} version={0} onAdd={() => {}} />
-          <Link to="/__purchase-plan?summary">К покупкам</Link>
+          <Link to="/__purchase-plan?summary&finance=purchases">К покупкам</Link>
         </> : <>
           <RollsWallet key={viewer} user={{ id: viewer, username: viewer }} />
-          <Link to="?summary&wishes">Открыть Мои желания</Link>
+          <Link to="?summary&finance=purchases&wishes">Открыть Мои желания</Link>
         </>}
-        <Link to="?summary&need-todo&date=2026-12-03">Открыть задачи потребностей</Link>
-        <Link to="?summary&subscription-todo&tab=todo&date=2026-12-03">Открыть основной To Do</Link>
-        <Link to="?summary&collaborator=member">Сеанс участника</Link>
-        <Link to="?summary&collaborator=seller">Сеанс продавца</Link>
-        <Link to="?summary">Сеанс владельца</Link>
+        <Link to="?summary&finance=purchases&need-todo&date=2026-12-03">Открыть задачи потребностей</Link>
+        <Link to="?summary&finance=purchases&subscription-todo&tab=todo&date=2026-12-03">Открыть основной To Do</Link>
+        <Link to="?summary&finance=purchases&collaborator=member">Сеанс участника</Link>
+        <Link to="?summary&finance=purchases&collaborator=seller">Сеанс продавца</Link>
+        <Link to="?summary&finance=purchases">Сеанс владельца</Link>
       </>}
     </MobileFormPages></main></div>
   </ProfileEditorProvider></ToastContext.Provider></SessionContext.Provider>;

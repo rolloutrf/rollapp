@@ -34,6 +34,17 @@ await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
 
 async function checkActivity(page, viewport, surface) {
+  const tabs = page.getByRole("tablist", { name: "Разделы финансов" });
+  await tabs.getByRole("tab", { name: "Операции", exact: true }).click();
+  await tabs.getByRole("tab", { name: "Операции", selected: true }).waitFor();
+  await page.locator("[data-rolls-balance]").waitFor({ state: "hidden" });
+  if (surface === "wallet") {
+    assert.equal(new URL(page.url()).searchParams.get("finance"), "activity");
+    await page.goBack();
+    await tabs.getByRole("tab", { name: "Кошелёк", selected: true }).waitFor();
+    await page.goForward();
+    await tabs.getByRole("tab", { name: "Операции", selected: true }).waitFor();
+  }
   const open = page.getByRole("button", { name: "Сводка по роллам", exact: true });
   const walletReceipt = page.getByRole("button", { name: "Квитанция · От Мария", exact: true });
   await walletReceipt.press("Enter");
@@ -109,8 +120,10 @@ async function checkActivity(page, viewport, surface) {
   await report.getByText("За этот период операций не было.").waitFor();
   await page.evaluate(async () => { window.finishRollActivity(); await new Promise(requestAnimationFrame); });
   assert.equal(await report.getByRole("button", { name: /Покупки и продажи/ }).count(), 0);
-  await page.getByRole("button", { name: "Скрыть сводку" }).click();
+  await page.getByRole("button", { name: "Журнал", exact: true }).click();
   await report.waitFor({ state: "hidden" });
+  await walletReceipt.waitFor();
+  await tabs.getByRole("tab", { name: "Кошелёк", exact: true }).click();
 }
 
 async function checkTransfers(page, { width, height, surface, expectRetry = false }) {
@@ -192,7 +205,10 @@ async function checkTransfers(page, { width, height, surface, expectRetry = fals
   }
   await dialog.waitFor({ state: "hidden" });
   await page.locator("[data-rolls-balance]").getByText("15", { exact: true }).waitFor();
+  const tabs = page.getByRole("tablist", { name: "Разделы финансов" });
+  await tabs.getByRole("tab", { name: "Операции", exact: true }).click();
   await page.getByRole("button", { name: "Квитанция · Иван", exact: true }).waitFor();
+  await tabs.getByRole("tab", { name: "Кошелёк", exact: true }).click();
   assert.equal(await stored(), null);
   const after = await readFixture();
   assert.deepEqual(after.attempts, expectRetry ? [initial, initial] : [initial]);
@@ -246,6 +262,8 @@ try {
     await checkActivity(page, { width, height }, "drawer");
     await checkTransfers(page, { width, height, surface: "drawer" });
     await page.evaluate(() => sessionStorage.removeItem("purchase-history-transfer-fixture"));
+    const purchaseTab = page.getByRole("tab", { name: "Покупки", exact: true });
+    await purchaseTab.click();
     const open = page.getByRole("button", { name: "Импорт покупок" });
     const trigger = await open.evaluate((node) => {
       const css = getComputedStyle(node);
@@ -254,7 +272,7 @@ try {
     assert.deepEqual(trigger.slice(0, 3), ["24px", "24px", 48]);
     assert(Number.parseFloat(trigger[3]) >= 24);
     assert(await open.evaluate((node) => {
-      const box = node.querySelector("span")?.getBoundingClientRect() ?? node.getBoundingClientRect();
+      const box = node.getBoundingClientRect();
       return box.left < innerWidth - 25 && box.right > 25;
     }), "Import action should be visible within the finance surface");
     await open.click();
@@ -362,11 +380,27 @@ try {
     }
     await heading.waitFor({ state: "hidden" });
     await open.waitFor();
-    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Импорт покупок");
+    assert.equal(await purchaseTab.getAttribute("aria-selected"), "true");
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Импорт покупок");
     assert.deepEqual(errors, []);
     const expectRetry = width === 390 || width === 1440;
     await page.goto(smokeOrigin(server) + fixture + `?wallet${expectRetry ? "&transferMiss" : ""}`, { waitUntil: "commit" });
     await checkActivity(page, { width, height }, "wallet");
+    if (width === 320 || width === 1440) {
+      const purchaseTab = page.getByRole("tab", { name: "Покупки", exact: true });
+      await purchaseTab.click();
+      const directImport = page.getByRole("button", { name: "Импорт покупок", exact: true });
+      await directImport.click();
+      const formTitle = page.getByRole("heading", { name: "Импорт покупок", exact: true });
+      await formTitle.waitFor();
+      assert.equal(new URL(page.url()).searchParams.get("finance"), "purchases");
+      if (width < 768) await page.goBack();
+      else await page.getByRole("dialog", { name: "Импорт покупок" }).getByRole("button", { name: "Назад" }).click();
+      await formTitle.waitFor({ state: "hidden" });
+      await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Импорт покупок");
+      assert.equal(await purchaseTab.getAttribute("aria-selected"), "true");
+      await page.getByRole("tab", { name: "Кошелёк", exact: true }).click();
+    }
     await checkTransfers(page, { width, height, surface: "wallet", expectRetry });
     assert.deepEqual(errors, []);
     console.log(`PASS ${width}×${height}: confirmed transfers, private status, roll receipts and statements, native import`);

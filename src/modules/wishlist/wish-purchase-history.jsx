@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, ShoppingBag } from "lucide-react";
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -70,7 +71,7 @@ function PurchaseHistoryFeed({ onOpen }) {
     <Alert variant="destructive"><AlertDescription>Не удалось загрузить историю покупок.</AlertDescription></Alert>
     <Button variant="outline" className="min-h-12 justify-self-start rounded-full" onClick={() => reload().catch(() => {})}>Повторить</Button>
   </div>;
-  if (!data?.items.length) return <p className="text-muted-foreground">Подтверждённые покупки появятся здесь.</p>;
+  if (!data?.items.length) return <EmptyState compact icon={ShoppingBag} title="История пока пуста" text="Подтверждённые покупки появятся здесь." />;
 
   return <div className="grid min-w-0 gap-2">
     <ul className="min-w-0 divide-y" aria-label="Подтверждённые покупки">
@@ -83,16 +84,21 @@ function PurchaseHistoryFeed({ onOpen }) {
   </div>;
 }
 
-export function WishPurchaseHistory({ revision, onOpen }) {
+export function WishPurchaseHistory({ revision, onOpen, action }) {
   const id = useId();
   const [expanded, setExpanded] = useState(false);
-  return <section className="grid min-w-0 gap-2 border-t pt-2" aria-labelledby={`${id}-title`}>
-    <h3 id={`${id}-title`}>
-      <Button type="button" variant="ghost" className="min-h-12 w-full justify-between gap-2 rounded-xl px-2 text-left font-semibold"
-        aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}>
-        История покупок <ChevronDown aria-hidden="true" className={expanded ? "rotate-180" : undefined} />
-      </Button>
-    </h3>
+  return <section className="grid min-w-0 gap-3" aria-labelledby={`${id}-title`}>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+      <h3 id={`${id}-title`} className="min-w-0">
+        <Button type="button" variant="ghost" className="min-h-12 max-w-full justify-between gap-2 rounded-full px-3 text-left font-semibold"
+          aria-label="История покупок" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}>
+          <span className="@md/purchases:hidden">История</span>
+          <span className="hidden @md/purchases:inline">История покупок</span>
+          <ChevronDown aria-hidden="true" className={expanded ? "rotate-180" : undefined} />
+        </Button>
+      </h3>
+      {action}
+    </div>
     <div id={id} hidden={!expanded}>{expanded && <PurchaseHistoryFeed key={revision} onOpen={onOpen} />}</div>
   </section>;
 }

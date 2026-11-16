@@ -346,9 +346,32 @@ try {
     await page.getByRole("heading", { name: "Персональные офферы" }).waitFor();
     assert.equal(await page.getByRole("region", { name: "Подарочные карты" }).count(), 0);
     assert.equal(await page.evaluate(() => window.giftCardReads || 0), 0);
-    const wallet = balance.locator("xpath=ancestor::div[contains(@class, 'rolls-page--embedded')]");
+    const wallet = page.locator(".rolls-page--embedded:visible");
+    const tabs = page.getByRole("tablist", { name: "Разделы финансов" });
+    const walletTab = tabs.getByRole("tab", { name: "Кошелёк", exact: true });
+    const purchasesTab = tabs.getByRole("tab", { name: "Покупки", exact: true });
+    const activityTab = tabs.getByRole("tab", { name: "Операции", exact: true });
+    assert.equal(await walletTab.getAttribute("aria-selected"), "true");
+    assert.equal(await wallet.getByRole("region", { name: "Покупки", exact: true }).count(), 0);
+    const tabMetrics = await tabs.getByRole("tab").evaluateAll(nodes => nodes.map(node => {
+      const css = getComputedStyle(node), box = node.getBoundingClientRect();
+      return { height: box.height, left: box.left, right: box.right, scroll: node.scrollWidth, width: node.clientWidth,
+        color: css.color, background: css.backgroundColor, size: css.fontSize, leading: css.lineHeight };
+    }));
+    assert.equal(tabMetrics.length, 3);
+    assert(tabMetrics.every(({ height, left, right, scroll, width: client, size, leading }) => height === 48
+      && left >= 0 && right <= width && scroll <= client + 1 && size === "18px" && leading === "28px"));
+    assert.notEqual(tabMetrics[0].color, tabMetrics[0].background);
+    await walletTab.focus();
+    await page.keyboard.press("ArrowRight");
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Покупки");
+    await page.keyboard.press("Enter");
+    await tabs.getByRole("tab", { name: "Покупки", selected: true }).waitFor();
+    await balance.waitFor({ state: "hidden" });
     const purchases = wallet.getByRole("region", { name: "Покупки", exact: true });
     const limitOpener = purchases.getByRole("button", { name: "Настроить лимит", exact: true });
+    await limitOpener.waitFor();
+    await page.screenshot({ path: `/tmp/rollapp-profile-purchases-top-${width}x${height}.png` });
     await limitOpener.click();
     const limits = page.getByRole("heading", { name: "Лимит месяца", exact: true });
     await limits.waitFor();
@@ -357,6 +380,13 @@ try {
     await limits.waitFor({ state: "hidden" });
     await financeTitle.waitFor();
     await limitOpener.waitFor();
+    assert.equal(await purchasesTab.getAttribute("aria-selected"), "true");
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Настроить лимит");
+    await page.screenshot({ path: `/tmp/rollapp-profile-purchases-${width}x${height}.png` });
+    await activityTab.click();
+    await tabs.getByRole("tab", { name: "Операции", selected: true }).waitFor();
+    await purchases.waitFor({ state: "hidden" });
+    await wallet.getByRole("heading", { name: "Операции с роллами", exact: true }).waitFor();
 
     const backBox = await back.boundingBox();
     assert.equal(backBox.width, 48);
@@ -376,6 +406,10 @@ try {
     const lastBox = await lastTransaction.boundingBox();
     assert(lastBox.y + lastBox.height <= (mobile ? backBox.y : height));
     assert.deepEqual(await back.boundingBox(), backBox);
+    await page.screenshot({ path: `/tmp/rollapp-profile-operations-${width}x${height}.png` });
+    await walletTab.click();
+    await balance.getByText(/23\s999\s870/).waitFor();
+    await page.screenshot({ path: `/tmp/rollapp-profile-wallet-${width}x${height}.png` });
     const sendRolls = button("Отправить роллы");
     await sendRolls.click();
     await page.getByRole("heading", { name: "Перевод" }).waitFor();

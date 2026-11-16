@@ -47,6 +47,11 @@ size or a claim about Notion's exact minimum. Shared figure/caption flow remains
 
 Standard content tiles use the shared `list-tile-label` and `list-tile-count` roles in `src/index.css`: a 16px/19px label and a 24px/29px semibold numeric value. Desktop daily To Do dates reuse these roles, with the weekday above the date number; they are separate from the 18px/28px navigation control role.
 
+The available balance uses tabular numerals in the shared finance card. Its
+32–48px display size follows the card width in `src/modules/payments/finance.css`.
+Currency labels, actions and other financial values use the existing body or
+caption roles. Transfer and top-up titles use the semantic heading scale.
+
 The document renderer preserves ordered-list HTML `type` and mirrors it in
 `data-list-marker` (`a`, `A`, `i`, `I`), which the typography preset styles in
 reading and editing. The data attribute avoids case-insensitive HTML `type`

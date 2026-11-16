@@ -246,7 +246,7 @@ try {
     await openNext("2027-01-14", "Фильтр для воды");
 
     await page.clock.setFixedTime(new Date("2026-12-03T12:00:00Z"));
-    await page.goto(`${origin}/__purchase-plan?summary${width === 320 ? "&month-error" : ""}`);
+    await page.goto(`${origin}/__purchase-plan?summary&finance=purchases${width === 320 ? "&month-error" : ""}`);
     const summary = page.getByRole("region", { name: "Покупки", exact: true });
     const totals = summary.getByLabel("Бюджет на месяц по валютам");
     const openWishes = async () => {
@@ -306,9 +306,9 @@ try {
       card: element.scrollWidth <= element.clientWidth + 1,
       rows: [...element.querySelectorAll('li button')].every((button) => button.scrollWidth <= button.clientWidth + 1 && button.getBoundingClientRect().height >= 48),
       inFinance: Boolean(element.closest(".rolls-page")),
-      after: element.nextElementSibling.getBoundingClientRect().top - element.getBoundingClientRect().bottom,
+      active: element.closest('[role="tabpanel"]')?.getBoundingClientRect().height > 0,
     }));
-    assert.deepEqual(geometry, { root: true, card: true, rows: true, inFinance: true, after: 24 });
+    assert.deepEqual(geometry, { root: true, card: true, rows: true, inFinance: true, active: true });
     assert(await totals.evaluate((list) => [...list.children].every((row) => row.scrollWidth <= row.clientWidth + 1)));
     await totals.evaluate((list) => list.scrollIntoView({ block: "start", behavior: "instant" }));
     await page.screenshot({ path: `/tmp/rollapp-monthly-budget-${width}-${height}.png` });
@@ -412,14 +412,14 @@ try {
       await summary.getByRole("heading", { name: "Бюджет на январь 2027" }).waitFor();
       await planned("USD").getByText(/120\s?\$/).waitFor();
       await page.clock.setFixedTime(new Date("2026-12-03T12:00:00Z"));
-      await page.goto(`${origin}/__purchase-plan?summary&empty`);
+      await page.goto(`${origin}/__purchase-plan?summary&finance=purchases&empty`);
       await summary.getByText("Запланируйте покупку из меню желания.").waitFor();
       await summary.getByText("На этот месяц пока нет планов и покупок.").waitFor();
       await historyToggle.click();
       await summary.getByText("Подтверждённые покупки появятся здесь.").waitFor();
     }
     await page.clock.setFixedTime(new Date("2026-12-03T12:00:00Z"));
-    await page.goto(`${origin}/__purchase-plan?summary`);
+    await page.goto(`${origin}/__purchase-plan?summary&finance=purchases`);
     await page.getByRole("button", { name: "Настроить лимит", exact: true }).click();
     const limitInput = page.getByRole("textbox", { name: "Сумма лимита", exact: true });
     await limitInput.fill("5500");

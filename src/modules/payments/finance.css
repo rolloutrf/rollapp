@@ -1,0 +1,26 @@
+[data-finance-navigation] [role="tab"][aria-selected="true"] {
+  background-color: var(--foreground);
+  color: var(--background);
+}
+
+.finance-balance {
+  container-type: inline-size;
+  background-image: radial-gradient(ellipse at 100% 0%, color-mix(in oklch, var(--foreground) 5%, transparent), transparent 70%);
+}
+
+.finance-balance__amount {
+  font-size: clamp(2rem, 10cqi, 3rem);
+  line-height: 1.12;
+}
+
+.finance-balance__mark {
+  color: oklch(0.52 0.12 67);
+  background-color: color-mix(in oklch, currentColor 9%, transparent);
+  border-color: color-mix(in oklch, currentColor 24%, transparent);
+}
+
+.dark .finance-balance__mark { color: oklch(0.84 0.12 78); }
+
+.finance-balance__details {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+}

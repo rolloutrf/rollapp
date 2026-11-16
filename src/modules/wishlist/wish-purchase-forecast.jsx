@@ -14,7 +14,7 @@ export function WishPurchaseForecast({ today, plans, subscriptions = [], onOpen,
   const { end, currencies } = forecastPurchases(plans, subscriptions, today);
   if (!currencies.length) return null;
   const planById = new Map(plans.map((plan) => [plan.id, plan]));
-  return <section className="grid min-w-0 gap-2 border-b pb-4" aria-labelledby={`${id}-title`}>
+  return <section className="grid min-w-0 gap-2" aria-labelledby={`${id}-title`}>
     <h3 id={`${id}-title`} className="text-2xl leading-8 font-semibold">Деньги на 30 дней</h3>
     <p className="text-xs text-muted-foreground">{displayDate(today)} – {displayDate(end)} · покупки по дате пересмотра, подписки по ближайшему списанию</p>
     <ul className="grid min-w-0 gap-2" aria-label="Прогноз по валютам">

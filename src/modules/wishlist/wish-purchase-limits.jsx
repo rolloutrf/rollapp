@@ -49,7 +49,7 @@ export function PurchaseMonthLimits({ limits }) {
   </ul>;
 }
 
-export function WishPurchaseLimitEditor({ month, limits, monthCurrencies, onClose, onSaved }) {
+export function WishPurchaseLimitEditor({ month, limits, monthCurrencies, returnFocusRef, onClose, onSaved }) {
   const id = useId();
   const [currency, setCurrency] = useState(limits[0]?.currency || "RUB");
   const initialValue = (key) => {
@@ -84,7 +84,7 @@ export function WishPurchaseLimitEditor({ month, limits, monthCurrencies, onClos
   }
 
   return <Drawer open disablePointerDismissal={busy} onOpenChange={(open) => { if (!open && !saving.current) onClose(); }}>
-    <DrawerContent className="rollapp-body app-drawer--form">
+    <DrawerContent className="rollapp-body app-drawer--form" finalFocus={returnFocusRef}>
       <DrawerHeader className="pr-16 text-left!">
         <DrawerTitle>Лимит месяца</DrawerTitle>
         <DrawerDescription>{monthLabel.format(dateFromKey(`${month}-01`))}. Свободная сумма учитывает траты и открытые планы.</DrawerDescription>
