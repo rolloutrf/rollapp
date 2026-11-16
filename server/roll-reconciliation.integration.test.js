@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
+import { createPersonalOffer, createPersonalOfferItem, payPersonalOffer } from "./personal-offers.js";
+import { readPersonalOfferAudit } from "./modules/checkout/personal-offer-ledger.js";
+import { refundPersonalOffer } from "./modules/checkout/personal-offer-refunds.js";
 import { readRollTopupAudit } from "./modules/payments/roll-topup-audit.js";
 import { reconcileRollAccounting, rollAccountingMatches } from "./modules/payments/roll-reconciliation.js";
 import { ensureRollWallet, transferRolls } from "./modules/payments/rolls.js";
@@ -211,6 +214,88 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
         assert.equal(rollAccountingMatches(reconciled), rollAccountingMatches(baseline));
         assert.equal((await readRollTopupAudit(client, { provider: "ton", id: ton })).state, "credited");
       } finally { await client.query("ROLLBACK TO SAVEPOINT topup_audit"); }
+    });
+
+    await t.test("detects personal invoice evidence damage independently from wallet and system balances", async () => {
+      await client.query("SAVEPOINT invoice_audit");
+      try {
+        const baseline = await inspect();
+        assert.equal(baseline.personalOffers, true);
+        const item = await createPersonalOfferItem(client, business, {
+          title: "Проверка проводки счёта", priceRolls: 23, sphere: "education", itemType: "service", idempotencyKey: randomUUID(),
+        });
+        await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [owner, business]);
+        const offer = await createPersonalOffer(client, business, {
+          itemId: item.id, recipientId: owner, priceRolls: 23, durationHours: 24, idempotencyKey: randomUUID(),
+        });
+        const readInvoice = () => readPersonalOfferAudit(client, offer.id);
+        const unpaid = await readInvoice();
+        assert.equal(unpaid.state, "unpaid");
+        assert.equal(unpaid.evidenceIssue, null);
+        assert.equal(await readPersonalOfferAudit(client, randomUUID()), null);
+        const { id: order } = await payPersonalOffer(client, owner, offer.id);
+        const paid = await readInvoice();
+        assert.equal(paid.amount, "23");
+        assert.equal(paid.state, "paid");
+        assert.equal(paid.orderId, order);
+        assert.equal(typeof paid.debitId, "string");
+        assert.equal(paid.evidenceIssue, null);
+        assert.equal(JSON.stringify(paid).includes(owner), false);
+        assert.equal(JSON.stringify(paid).includes(business), false);
+        assert.equal((await inspect()).personalOfferMismatches, baseline.personalOfferMismatches);
+
+        const verifyDamage = async (reason, sql, args, rejectCode = null) => {
+          await client.query("SAVEPOINT invoice_damage");
+          try {
+            await client.query(sql, args);
+            const result = await inspect(100);
+            assert.equal(result.personalOfferMismatches, baseline.personalOfferMismatches + 1);
+            assert.equal(result.walletMismatches, baseline.walletMismatches);
+            assert.equal(result.unaccountedRolls, baseline.unaccountedRolls);
+            assert.equal(rollAccountingMatches(result), false);
+            const incident = result.details.personalOffers.find(({ id }) => id === offer.id);
+            assert.equal(incident.evidenceIssue, reason);
+            assert.equal(incident.orderId, order);
+            assert.equal(incident.amount, "23");
+            assert.equal((await readInvoice()).evidenceIssue, reason);
+            if (rejectCode) await assert.rejects(refundPersonalOffer(client, business, offer.id), { code: rejectCode });
+            assert.equal(JSON.stringify(await inspect()).includes(offer.id), false);
+          } finally {
+            await client.query("ROLLBACK TO SAVEPOINT invoice_damage");
+            await client.query("RELEASE SAVEPOINT invoice_damage");
+          }
+        };
+        await verifyDamage("order_terms", "UPDATE roll_store_purchases SET amount=24 WHERE id=$1", [order], "OFFER_ORDER_MISMATCH");
+        await verifyDamage("debit_missing", "UPDATE roll_transactions SET idempotency_key=$2 WHERE id=$1", [paid.debitId, randomUUID()], "ORDER_PAYMENT_NOT_FOUND");
+        await verifyDamage("debit_terms", "UPDATE roll_store_purchases SET delivery=jsonb_set(delivery,'{paymentTransactionId}',to_jsonb($2::text)) WHERE id=$1",
+          [order, randomUUID()], "ORDER_PAYMENT_NOT_FOUND");
+        await verifyDamage("refund_missing", "UPDATE roll_store_purchases SET refunded_at=clock_timestamp() WHERE id=$1", [order], "OFFER_ORDER_MISMATCH");
+
+        await client.query("UPDATE roll_store_purchases SET delivery=delivery-'paymentTransactionId' WHERE id=$1", [order]);
+        assert.equal((await readInvoice()).evidenceIssue, null);
+        assert.equal((await refundPersonalOffer(client, business, offer.id)).replayed, false);
+        const refunded = await readInvoice();
+        assert.equal(refunded.state, "refunded");
+        assert.equal(typeof refunded.refundId, "string");
+        assert.equal(refunded.evidenceIssue, null);
+        await verifyDamage("refund_unmarked", "UPDATE roll_store_purchases SET refunded_at=NULL WHERE id=$1", [order], "OFFER_ORDER_MISMATCH");
+        await verifyDamage("refund_terms", `
+          WITH changed AS (UPDATE roll_transactions SET recipient_id=$2 WHERE id=$1 RETURNING amount)
+          UPDATE roll_wallets SET balance=balance+CASE WHEN user_id=$2 THEN changed.amount ELSE -changed.amount END
+          FROM changed WHERE user_id IN ($2,$3)
+        `, [refunded.refundId, other, owner], "OFFER_ORDER_MISMATCH");
+
+        await client.query("UPDATE business_personal_offers SET purchase_id=NULL WHERE id=$1", [offer.id]);
+        assert.equal((await readInvoice()).evidenceIssue, "payment_key_unlinked");
+        const detached = await inspect(100);
+        assert.equal(detached.personalOfferMismatches, baseline.personalOfferMismatches + 2);
+        const incidents = Object.fromEntries(detached.details.personalOffers.map(({ id, evidenceIssue }) => [id, evidenceIssue]));
+        assert.equal(incidents[offer.id], "payment_key_unlinked");
+        assert.equal(incidents[order], "order_unlinked");
+        const limited = await inspect(1);
+        assert.equal(limited.personalOfferMismatches, detached.personalOfferMismatches);
+        assert.equal(limited.details.personalOffers.length, 1);
+      } finally { await client.query("ROLLBACK TO SAVEPOINT invoice_audit"); }
     });
 
     await t.test("detects offsetting balance damage and an incorrect payout recipient even when totals agree", async () => {

@@ -1,3 +1,4 @@
+import { personalOfferLedgerSql } from "../checkout/personal-offer-ledger.js";
 import { rollTopupSnapshot } from "./roll-topup-audit.js";
 import { hasAutomaticRewardConfirmation } from "../loyalty/need-reward-settlement-terms.js";
 import { openMarketplaceReserves, openRewardReserves, readRollAccountingSources, rollWalletEntries } from "./roll-accounting.js";
@@ -53,6 +54,13 @@ const marketplaceIssues = `
              OR refund.actor_id<>o.buyer_id))))
 `;
 
+const personalOfferIssues = `
+  SELECT id::text AS id,jsonb_build_object(
+    'entity','invoice','amount',price_rolls::text,'orderId',purchase_id,
+    'debitId',payment_id,'refundId',reversal_id,'evidenceIssue',evidence_issue
+  ) AS detail FROM (${personalOfferLedgerSql}) evidence WHERE evidence_issue IS NOT NULL
+`;
+
 const noAttention = "SELECT NULL::text AS id,NULL::text AS reason,0::bigint AS amount,NULL::timestamptz AS since WHERE FALSE";
 
 const rewardAttention = `
@@ -77,7 +85,7 @@ const marketplaceAttention = `
     WHERE status='fulfilled' AND review_until<=transaction_timestamp()
 `;
 
-function reconciliationSql({ gifts, rewards, marketplace }) {
+function reconciliationSql({ gifts, rewards, marketplace, personalOffers }) {
   const cardBalances = gifts ? `
     SELECT c.id,c.balance,COALESCE(e.recorded,0) AS recorded
     FROM business_gift_cards c LEFT JOIN (
@@ -131,6 +139,13 @@ function reconciliationSql({ gifts, rewards, marketplace }) {
       UNION ALL
       SELECT 'marketplace',i.* FROM (${marketplace ? marketplaceIssues : noIssues}) i
       UNION ALL
+      SELECT 'personalOffers',i.* FROM (${personalOffers ? personalOfferIssues : noIssues}) i
+      UNION ALL
+      SELECT 'personalOffers',p.id,jsonb_build_object('entity','order','amount',p.amount::text,'evidenceIssue','order_unlinked')
+      FROM roll_store_purchases p
+      WHERE (p.delivery->>'personalOfferId' IS NOT NULL OR p.product_id LIKE 'offer:%')
+        ${personalOffers ? "AND NOT EXISTS (SELECT 1 FROM business_personal_offers o WHERE o.purchase_id=p.id)" : ""}
+      UNION ALL
       SELECT 'topups',id,jsonb_build_object('provider',provider,'state',state,'evidenceIssue',evidence_issue)
       FROM topups WHERE evidence_issue IS NOT NULL
     ),
@@ -182,9 +197,10 @@ function reconciliationSql({ gifts, rewards, marketplace }) {
       (SELECT COUNT(*)::int FROM issues WHERE scope='rewards') AS "rewardMismatches",
       (SELECT COUNT(*)::int FROM issues WHERE scope='marketplace') AS "marketplaceMismatches",
       (SELECT COUNT(*)::int FROM issues WHERE scope='topups') AS "topupMismatches",
+      (SELECT COUNT(*)::int FROM issues WHERE scope='personalOffers') AS "personalOfferMismatches",
       CASE WHEN $1::int > 0 THEN (
         SELECT jsonb_object_agg(scopes.scope,COALESCE(sample.items,'[]'::jsonb))
-        FROM (VALUES ('wallets'),('giftCards'),('rewards'),('marketplace'),('topups')) AS scopes(scope)
+        FROM (VALUES ('wallets'),('giftCards'),('rewards'),('marketplace'),('topups'),('personalOffers')) AS scopes(scope)
         CROSS JOIN LATERAL (
           SELECT jsonb_agg(jsonb_build_object('id',id) || detail ORDER BY id,detail) AS items
           FROM (SELECT id,detail FROM issues WHERE scope=scopes.scope ORDER BY id,detail LIMIT $1) limited
@@ -205,5 +221,6 @@ export async function reconcileRollAccounting(client, { sampleLimit = 0 } = {}) 
 
 export function rollAccountingMatches(report) {
   return report.unaccountedRolls === "0" && report.walletMismatches === 0 && report.cardMismatches === 0
-    && report.rewardMismatches === 0 && report.marketplaceMismatches === 0 && report.topupMismatches === 0;
+    && report.rewardMismatches === 0 && report.marketplaceMismatches === 0 && report.topupMismatches === 0
+    && report.personalOfferMismatches === 0;
 }

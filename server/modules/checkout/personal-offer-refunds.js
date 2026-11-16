@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { readPersonalOfferOperation, requirePersonalOfferPrice } from "./personal-offer-status.js";
+import { requirePersonalOfferPrice } from "./personal-offer-status.js";
+import { readPersonalOfferLedger } from "./personal-offer-ledger.js";
 import { reverseRollTransfer, RollsError } from "../payments/rolls.js";
 
 export async function refundPersonalOffer(client, businessId, offerId, { expectedPriceRolls } = {}) {
@@ -16,25 +17,21 @@ export async function refundPersonalOffer(client, businessId, offerId, { expecte
   requirePersonalOfferPrice(offer.price_rolls, expectedPriceRolls);
   if (!offer.purchase_id) throw new RollsError("Возврат доступен после оплаты счёта", "OFFER_NOT_PAID", 409);
   // Take a fresh READ COMMITTED snapshot after waiting for the offer lock.
-  const { rows: [order] } = await client.query(
-    `SELECT user_id,amount,refunded_at,idempotency_key,delivery->>'personalOfferId' AS linked_offer,
-       delivery->>'paymentTransactionId' AS payment_transaction_id FROM roll_store_purchases WHERE id=$1`,
-    [offer.purchase_id],
-  );
-  if (!order || order.idempotency_key !== id || order.linked_offer !== id || order.user_id !== offer.recipient_id || order.amount !== offer.price_rolls) {
-    throw new RollsError("Заказ не соответствует оплаченному счёту", "OFFER_ORDER_MISMATCH", 409);
+  const recorded = await readPersonalOfferLedger(client, businessId, id, "refund");
+  if (["debit_missing", "debit_terms"].includes(recorded?.evidence_issue)) {
+    throw new RollsError("Исходный перевод по заказу не найден", "ORDER_PAYMENT_NOT_FOUND", 409);
   }
-  if (order.refunded_at) {
-    const recorded = await readPersonalOfferOperation(client, businessId, { id, action: "refund" });
-    return { id: recorded.id, refundedAt: recorded.refundedAt, replayed: true };
+  if (!recorded || recorded.evidence_issue) {
+    throw new RollsError("Записи по счёту расходятся. Обратитесь в поддержку.", "OFFER_ORDER_MISMATCH", 409);
   }
+  if (recorded.refunded_at) return { id: offer.purchase_id, refundedAt: recorded.refunded_at, replayed: true };
 
   await reverseRollTransfer(client, {
     senderId: offer.recipient_id,
     recipientId: businessId,
     amount: Number(offer.price_rolls),
     idempotencyKey: id,
-    transactionId: order.payment_transaction_id,
+    transactionId: recorded.payment_id,
     note: `Возврат по счёту: ${offer.item_title}`,
   });
   const { rows: [refunded] } = await client.query(`

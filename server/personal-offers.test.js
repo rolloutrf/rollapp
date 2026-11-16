@@ -56,8 +56,7 @@ test("payment is private and paid retries never touch balances, including after 
   await reject(payPersonalOffer(other, "other", id), "OFFER_NOT_FOUND");
   assert.deepEqual(other.calls[0].params, [id, "other"]); other.done();
   const paid = scripted([[/FOR UPDATE/, [{ purchase_id: "purchase" }]], [/payment.id AS payment_id/, [{
-    id, linked_offer: id, order_key: id, purchase_id: "purchase", order_id: "purchase", recipient_id: "buyer",
-    order_recipient: "buyer", price_rolls: "50", order_amount: "50", payment_id: "transfer", refunded_at: null,
+    id, purchase_id: "purchase", recipient_id: "buyer", price_rolls: "50", refunded_at: null, evidence_issue: null,
   }]]]);
   assert.deepEqual(await payPersonalOffer(paid, "buyer", id), { id: "purchase", replayed: true }); paid.done();
   await reject(payPersonalOffer(scripted([]), "buyer", "invalid"), "OFFER_NOT_FOUND");

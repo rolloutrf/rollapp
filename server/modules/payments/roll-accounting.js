@@ -8,13 +8,17 @@ export async function readRollAccountingSources(client) {
            to_regclass('business_gift_card_events') IS NOT NULL AS card_events,
            to_regclass('reward_needs') IS NOT NULL AS needs,
            to_regclass('reward_need_offers') IS NOT NULL AS need_offers,
-           to_regclass('reward_need_entries') IS NOT NULL AS need_entries
+           to_regclass('reward_need_entries') IS NOT NULL AS need_entries,
+           to_regclass('business_personal_offers') IS NOT NULL AS personal_offers
   `);
   if (sources.cards !== sources.card_events ||
       sources.needs !== sources.need_offers || sources.needs !== sources.need_entries) {
     throw new Error("The rolls accounting schema contains an incomplete source.");
   }
-  return { gifts: sources.cards, rewards: sources.need_entries, marketplace: await hasMarketplaceSettlementSchema(client) };
+  return {
+    gifts: sources.cards, rewards: sources.need_entries, personalOffers: sources.personal_offers,
+    marketplace: await hasMarketplaceSettlementSchema(client),
+  };
 }
 
 // Personal offers already post a transfer, and restricted gift card purchases
