@@ -17,7 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { APP_STORE_PATH } from "../shell/app-routing.js";
 import { readPendingMarketplaceAction } from "../checkout/marketplace-action-dialog.jsx";
 import { MarketplaceOrder } from "./marketplace-order.jsx";
-import { OrderReceipt } from "./roll-receipt.jsx";
+import { OrderReceipt, useRollReceiptScreen } from "./roll-receipt.jsx";
 import { marketplaceOrderAttentionFilter, marketplaceOrderAttentionLabels } from "../../../shared/modules/history/marketplace-order-attention.js";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 
@@ -35,7 +35,7 @@ function OrderSkeleton() {
   </div>;
 }
 
-function OrderCard({ order, product, busy, onRefund }) {
+function OrderCard({ order, product, busy, onRefund, onOpenReceipt }) {
   const point = order.delivery?.point;
   const refunded = order.status === "refunded";
   const gift = Boolean(order.delivery?.giftCardId);
@@ -65,7 +65,7 @@ function OrderCard({ order, product, busy, onRefund }) {
       <div className="min-w-0"><strong>CDEK · {point.city}</strong><span>{point.address}</span><small>{point.code}{point.workTime ? ` · ${point.workTime}` : ""}</small></div>
     </section>}
     {!refunded && !order.delivery?.personalOfferId && <Button variant="outline" className="col-span-full justify-self-start" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
-    <OrderReceipt order={order} />
+    <OrderReceipt order={order} onOpenReceipt={onOpenReceipt} />
   </article>;
 }
 
@@ -81,6 +81,7 @@ export function OrdersDrawerContent({ products, userId }) {
 }
 
 function OrderList({ products, userId }) {
+  const { openReceipt, receiptScreen } = useRollReceiptScreen();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -164,8 +165,9 @@ function OrderList({ products, userId }) {
         <EmptyState compact icon={ShoppingBag} title="Заказов пока нет" text="Здесь будут ваши покупки и продажи за роллы." />
         <PageActionButton to={APP_STORE_PATH} replace><ShoppingBag aria-hidden="true" />В магазин</PageActionButton>
       </div>
-        : visibleOrders.map((order) => order.settlement ? <MarketplaceOrder key={order.id} order={order} userId={userId} filtered={Boolean(filter)} onReload={refreshMarketplaceOrder} fallbackFocus={() => list.current} /> : <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
+        : visibleOrders.map((order) => order.settlement ? <MarketplaceOrder key={order.id} order={order} userId={userId} filtered={Boolean(filter)} onReload={refreshMarketplaceOrder} fallbackFocus={() => list.current} onOpenReceipt={openReceipt} /> : <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onOpenReceipt={openReceipt} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
 
+    {receiptScreen}
     <AlertDialog open={Boolean(refundTarget)} onOpenChange={(open) => { if (!open && !refunding) setRefundTarget(null); }}>
       <AlertDialogContent className="rollapp-body w-[calc(100%-2rem)] overflow-y-auto">
         <AlertDialogHeader><AlertDialogTitle>Вернуть «{refundTarget?.productTitle}»?</AlertDialogTitle><AlertDialogDescription>{refundTarget ? `${formatRolls(refundTarget.amount)} вернутся на ваш баланс. Заказ будет отмечен как возвращённый.` : ""}</AlertDialogDescription></AlertDialogHeader>

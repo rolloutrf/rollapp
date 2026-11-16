@@ -51,7 +51,7 @@ async function checkActivity(page, viewport, surface) {
   const receipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
   await receipt.getByText("Мария · @maria").waitFor();
   await receipt.getByText("16 нояб. 2026 г., 01:30:00").waitFor();
-  await walletReceipt.press("Space");
+  await receipt.getByRole("button", { name: "Назад", exact: true }).click();
   await receipt.waitFor({ state: "hidden" });
   assert(await walletReceipt.evaluate(node => node === document.activeElement));
   await open.click();
@@ -89,8 +89,10 @@ async function checkActivity(page, viewport, surface) {
     await receipt.getByRole("heading").scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(activityScreenshots, `receipt-${surface}-${viewport.width}.png`) });
   }
-  await refundReceipt.click();
+  await page.goBack();
   await receipt.waitFor({ state: "hidden" });
+  await refundReceipt.waitFor();
+  assert(await refundReceipt.evaluate(node => node === document.activeElement));
   assert.deepEqual(await page.evaluate(() => window.activityRequests.filter(({ mode }) => mode === "detail")), [
     { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments" },
     { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments" },
