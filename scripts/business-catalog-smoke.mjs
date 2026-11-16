@@ -46,24 +46,33 @@ try {
     for (const item of await cards.all()) {
       const bounds = await item.evaluate(node => {
         const avatar = node.querySelector('[data-slot="avatar"]').getBoundingClientRect();
-        const title = node.querySelector("strong").getBoundingClientRect();
+        const identity = node.querySelector(".business-catalog-card__identity");
+        const title = identity.querySelector("strong").getBoundingClientRect();
+        const handle = identity.querySelector("span").getBoundingClientRect();
         const footer = node.querySelector("footer");
         const button = footer?.querySelector("button");
+        const actionBox = button?.getBoundingClientRect();
         const style = button && getComputedStyle(button);
+        const frame = node.getBoundingClientRect();
+        const center = frame.left + frame.width / 2;
         return {
+          aligned: [avatar, title, handle, actionBox].filter(Boolean).every(box => Math.abs(box.left + box.width / 2 - center) <= 1),
+          textAlign: getComputedStyle(identity).textAlign,
+          balanced: Math.abs(avatar.top - frame.top - (frame.bottom - (actionBox || handle).bottom)) <= 1,
+          ordered: avatar.bottom < title.top && title.bottom <= handle.top && (!actionBox || handle.bottom < actionBox.top),
           fits: node.scrollWidth <= node.clientWidth + 1,
           radius: getComputedStyle(node).borderRadius,
           avatarSize: avatar.width,
-          titleBelowAvatar: title.top > avatar.bottom,
-          divider: footer && getComputedStyle(footer).borderTopWidth,
+          divider: footer && getComputedStyle(footer).borderBlockStartWidth,
           action: style && [button.offsetHeight, style.paddingInlineStart, style.paddingInlineEnd, parseFloat(style.borderRadius) >= button.offsetHeight / 2],
         };
       });
-      assert(bounds.fits && bounds.titleBelowAvatar);
+      assert(bounds.fits && bounds.aligned && bounds.balanced && bounds.ordered, JSON.stringify(bounds));
+      assert.equal(bounds.textAlign, "center");
       assert.equal(bounds.radius, width <= 560 ? "21px" : "24px");
       assert.equal(bounds.avatarSize, width <= 560 ? 54 : 60);
       if (bounds.action) {
-        assert.equal(bounds.divider, "1px");
+        assert.equal(bounds.divider, "0px");
         assert.deepEqual(bounds.action, [48, "24px", "24px", true]);
       }
     }
