@@ -39,7 +39,8 @@ test("statement totals retain exact whole rolls above JS safe-integer precision"
     assert.deepEqual(params, ["account", 30, null]);
     assert.match(sql, /WHERE e.account_id=\$1/);
     assert.match(sql, /Europe\/Moscow/);
-    assert.match(sql, /invoice.purchase_id IS NOT NULL/);
+    assert.match(sql, /invoice\.purchase_id=invoice_order\.id/);
+    assert.match(sql, /invoice_order\.delivery->>'paymentTransactionId'/);
   }]]);
   const summary = await readRollActivity(client, "account", { days: 30 });
   assert.deepEqual(summary.totals, { received: "9007199254741024", debited: "9007199254741088", change: "-64", count: 33 });

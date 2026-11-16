@@ -92,14 +92,14 @@ export function PersonalOfferOperationDialog({ userId, offer, action, client, re
       <div className="grid min-h-0 min-w-0 gap-2 overflow-y-auto overscroll-contain px-px">
         <AlertDialogDescription className="wrap-anywhere">{description}</AlertDialogDescription>
         {recovery.error && <Alert variant="destructive"><AlertDescription>{recovery.error}</AlertDescription></Alert>}
-        {recovery.pending && <p role="status">Операция ожидает проверки.</p>}
+        {recovery.pending && recovery.result !== "conflict" && <p role="status">Операция ожидает проверки.</p>}
         {recovery.result === "missing" && <>
           <p role="status">Операция пока не записана.</p>
           {expired ? <PageActionButton variant="outline" onClick={recovery.closeUnrecorded}>Закрыть истёкший запрос</PageActionButton>
             : <PageActionButton variant="outline" disabled={busy} onClick={() => recovery.send()}>{refunding ? "Повторить возврат" : "Повторить оплату"}</PageActionButton>}
         </>}
         {recovery.result === "conflict" && <>
-          <p role="status">По счёту записана операция с другими реквизитами. Сверьте историю.</p>
+          <p role="status">Реквизиты операции расходятся. Сверьте историю или обратитесь в поддержку.</p>
           <PageActionButton variant="outline" onClick={recovery.closeConflict}>Закрыть запрос</PageActionButton>
         </>}
       </div>

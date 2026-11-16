@@ -3,7 +3,7 @@ import { z } from "zod";
 import { readPersonalOfferOperation, readPersonalOfferTerms, requirePersonalOfferPrice } from "./modules/checkout/personal-offer-status.js";
 import { refundPersonalOffer } from "./modules/checkout/personal-offer-refunds.js";
 import { createRateLimit } from "./modules/runtime/rate-limit.js";
-import { RollsError, transferRolls } from "./modules/payments/rolls.js";
+import { RollsError, transferPersonalOfferRolls } from "./modules/payments/rolls.js";
 import { canManageWishlistSpace } from "../shared/modules/wishlist/wishlist-business.js";
 import { BUSINESS_OFFER_SPHERES, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { SPHERE_SECTIONS } from "../shared/modules/access/sphere-sharing.js";
@@ -175,8 +175,8 @@ export async function payPersonalOffer(client, recipientId, offerId, { expectedP
   const offer = result.rows[0];
   requirePersonalOfferPrice(offer.price_rolls, expectedPriceRolls);
   if (offer.purchase_id) {
-    const { rows: [order] } = await client.query("SELECT refunded_at FROM roll_store_purchases WHERE id=$1", [offer.purchase_id]);
-    return { id: offer.purchase_id, replayed: true, ...(order?.refunded_at && { refundedAt: order.refunded_at }) };
+    const recorded = await readPersonalOfferOperation(client, recipientId, { id: offerId, action: "pay" });
+    return { id: recorded.id, replayed: true, ...(recorded.refundedAt && { refundedAt: recorded.refundedAt }) };
   }
   const checkExpiry = async () => {
     const valid = await client.query("SELECT id FROM business_personal_offers WHERE id=$1 AND expires_at > clock_timestamp()", [offerId]);
@@ -186,14 +186,19 @@ export async function payPersonalOffer(client, recipientId, offerId, { expectedP
   await lockPersonalOfferPaymentAccess(client, offer, recipientId);
   // Acquire both wallet locks before the final expiry check; clock_timestamp
   // must observe time spent waiting, rather than the transaction start time.
-  await transferRolls(client, recipientId, { recipientId: offer.business_user_id,
-    amount: Number(offer.price_rolls), note: `Оффер: ${offer.item_title}`, idempotencyKey: offer.id });
+  const payment = await transferPersonalOfferRolls(client, recipientId, {
+    recipientId: offer.business_user_id, priceRolls: Number(offer.price_rolls), title: offer.item_title, offerId: offer.id,
+  });
   await checkExpiry();
   const id = randomUUID();
+  const delivery = {
+    provider: "business", personalOfferId: offer.id, paymentTransactionId: payment.id,
+    marketplaceItemId: offer.item_id, wishlistItemId: offer.wishlist_item_id, business: { id: offer.business_user_id },
+  };
   await client.query(`INSERT INTO roll_store_purchases
     (id,user_id,product_id,product_title,amount,idempotency_key,delivery)
     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)`, [id, recipientId, `offer:${offer.id}`, offer.item_title,
-    Number(offer.price_rolls), offer.id, JSON.stringify({ provider: "business", personalOfferId: offer.id, marketplaceItemId: offer.item_id, wishlistItemId: offer.wishlist_item_id, business: { id: offer.business_user_id } })]);
+    Number(offer.price_rolls), offer.id, JSON.stringify(delivery)]);
   await client.query("UPDATE business_personal_offers SET purchase_id=$2 WHERE id=$1", [offerId, id]);
   return { id, replayed: false };
 }

@@ -102,6 +102,9 @@ const client = {
       persistFixture();
       return { purchase: { id: "purchase", refundedAt: base.expiresAt } };
     }
+    if (scenario === "payment-conflict" && path.endsWith("/pay")) {
+      throw rollbackError("Этот запрос уже использован для другой операции", "IDEMPOTENCY_CONFLICT");
+    }
     if (!paymentFailed) {
       paymentFailed = true;
       if (recording) { paid = true; persistFixture(); throw new Error("Ответ об оплате потерян"); }

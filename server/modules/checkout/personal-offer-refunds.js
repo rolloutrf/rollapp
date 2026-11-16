@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requirePersonalOfferPrice } from "./personal-offer-status.js";
+import { readPersonalOfferOperation, requirePersonalOfferPrice } from "./personal-offer-status.js";
 import { reverseRollTransfer, RollsError } from "../payments/rolls.js";
 
 export async function refundPersonalOffer(client, businessId, offerId, { expectedPriceRolls } = {}) {
@@ -17,19 +17,24 @@ export async function refundPersonalOffer(client, businessId, offerId, { expecte
   if (!offer.purchase_id) throw new RollsError("Возврат доступен после оплаты счёта", "OFFER_NOT_PAID", 409);
   // Take a fresh READ COMMITTED snapshot after waiting for the offer lock.
   const { rows: [order] } = await client.query(
-    "SELECT user_id,amount,refunded_at,delivery->>'personalOfferId' AS linked_offer FROM roll_store_purchases WHERE id=$1",
+    `SELECT user_id,amount,refunded_at,idempotency_key,delivery->>'personalOfferId' AS linked_offer,
+       delivery->>'paymentTransactionId' AS payment_transaction_id FROM roll_store_purchases WHERE id=$1`,
     [offer.purchase_id],
   );
-  if (!order || order.linked_offer !== id || order.user_id !== offer.recipient_id || order.amount !== offer.price_rolls) {
+  if (!order || order.idempotency_key !== id || order.linked_offer !== id || order.user_id !== offer.recipient_id || order.amount !== offer.price_rolls) {
     throw new RollsError("Заказ не соответствует оплаченному счёту", "OFFER_ORDER_MISMATCH", 409);
   }
-  if (order.refunded_at) return { id: offer.purchase_id, refundedAt: order.refunded_at, replayed: true };
+  if (order.refunded_at) {
+    const recorded = await readPersonalOfferOperation(client, businessId, { id, action: "refund" });
+    return { id: recorded.id, refundedAt: recorded.refundedAt, replayed: true };
+  }
 
   await reverseRollTransfer(client, {
     senderId: offer.recipient_id,
     recipientId: businessId,
     amount: Number(offer.price_rolls),
     idempotencyKey: id,
+    transactionId: order.payment_transaction_id,
     note: `Возврат по счёту: ${offer.item_title}`,
   });
   const { rows: [refunded] } = await client.query(`

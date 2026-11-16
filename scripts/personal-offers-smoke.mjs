@@ -161,7 +161,7 @@ try {
     assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);
     await page.screenshot({ path: `${output}/${width}-${height}.png`, fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Root overflow");
-    for (const scenario of ["empty", "error", "loading", "unavailable", "seller"]) {
+    for (const scenario of ["empty", "error", "loading", "unavailable", "payment-conflict", "seller"]) {
       await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=${scenario}`);
       if (scenario === "empty") await page.getByText("Здесь появятся персональные счета от бизнеса.").waitFor();
       if (scenario === "error") { await page.getByText("Не удалось загрузить счета").waitFor(); await page.getByRole("button", { name: "Повторить" }).click(); }
@@ -171,6 +171,21 @@ try {
         assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);
         assert.deepEqual(await page.evaluate(() => window.offerCalls), []);
         if (width === 390 || width === 1440) await page.screenshot({ path: `${output}/unavailable-${width}-${height}.png`, fullPage: true });
+      }
+      if (scenario === "payment-conflict") {
+        await page.getByRole("button", { name: "Оплатить", exact: true }).click();
+        const confirmation = page.getByRole("alertdialog");
+        await confirmation.getByRole("button", { name: "Подтвердить оплату" }).click();
+        await confirmation.getByRole("status").filter({ hasText: "Реквизиты операции расходятся" }).waitFor();
+        assert.equal(await confirmation.getByText("Операция ожидает проверки.").count(), 0);
+        assert.equal(await confirmation.getByRole("button", { name: "Повторить оплату" }).count(), 0);
+        const bounds = await confirmation.boundingBox();
+        assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1);
+        if (width === 390 || width === 1440) await page.screenshot({ path: `${output}/conflict-${width}-${height}.png` });
+        await confirmation.getByRole("button", { name: "Закрыть запрос" }).click();
+        await confirmation.waitFor({ state: "hidden" });
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), [{ path: "/personal-offers/active/pay", body: { expectedPriceRolls: 50 } }]);
+        assert.equal(await page.getByRole("button", { name: "Открыть проверку" }).count(), 0);
       }
       if (scenario === "seller") {
         await page.getByText("Ожидает оплаты").waitFor();

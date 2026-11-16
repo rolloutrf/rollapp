@@ -55,7 +55,10 @@ test("payment is private and paid retries never touch balances, including after 
   const other = scripted([[/recipient_id=\$2 FOR UPDATE/, []]]);
   await reject(payPersonalOffer(other, "other", id), "OFFER_NOT_FOUND");
   assert.deepEqual(other.calls[0].params, [id, "other"]); other.done();
-  const paid = scripted([[/FOR UPDATE/, [{ purchase_id: "purchase" }]], [/SELECT refunded_at/, [{ refunded_at: null }]]]);
+  const paid = scripted([[/FOR UPDATE/, [{ purchase_id: "purchase" }]], [/payment.id AS payment_id/, [{
+    id, linked_offer: id, order_key: id, purchase_id: "purchase", order_id: "purchase", recipient_id: "buyer",
+    order_recipient: "buyer", price_rolls: "50", order_amount: "50", payment_id: "transfer", refunded_at: null,
+  }]]]);
   assert.deepEqual(await payPersonalOffer(paid, "buyer", id), { id: "purchase", replayed: true }); paid.done();
   await reject(payPersonalOffer(scripted([]), "buyer", "invalid"), "OFFER_NOT_FOUND");
 });
@@ -104,7 +107,10 @@ test("payment rechecks expiry after wallet locks and stores a single purchase wi
       assert.equal(purchase.replayed, false);
       const inserted = client.calls.find(call => call.sql.includes("INSERT INTO roll_store_purchases"));
       assert.deepEqual(inserted.params.slice(1, 6), ["buyer", `offer:${id}`, "Frozen", 50, id]);
-      assert.equal(JSON.parse(inserted.params[6]).personalOfferId, id);
+      const transfer = client.calls.find(call => call.sql.includes("VALUES ($1,'transfer'"));
+      const delivery = JSON.parse(inserted.params[6]);
+      assert.equal(delivery.personalOfferId, id);
+      assert.equal(delivery.paymentTransactionId, transfer.params[0]);
     }
     client.done();
   }

@@ -76,13 +76,17 @@ export const rollInvoiceJoins = `
     LEFT JOIN roll_transactions original ON t.idempotency_key LIKE 'reverse:%'
       AND original.id=substring(t.idempotency_key FROM 9)
       AND original.sender_id=t.recipient_id AND original.recipient_id=t.sender_id AND original.amount=t.amount
-    LEFT JOIN business_personal_offers invoice ON invoice.id=CASE
-      WHEN COALESCE(original.idempotency_key,t.idempotency_key) ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'
-      THEN COALESCE(original.idempotency_key,t.idempotency_key)::uuid END
-      AND invoice.purchase_id IS NOT NULL
-      AND invoice.recipient_id=COALESCE(original.sender_id,t.sender_id)
+    LEFT JOIN roll_store_purchases invoice_order ON invoice_order.user_id=COALESCE(original.sender_id,t.sender_id)
+      AND invoice_order.idempotency_key=COALESCE(original.idempotency_key,t.idempotency_key)
+      AND invoice_order.delivery->>'personalOfferId' IS NOT NULL
+    LEFT JOIN business_personal_offers invoice ON invoice.purchase_id=invoice_order.id
+      AND invoice.id::text=invoice_order.delivery->>'personalOfferId'
+      AND invoice.id::text=invoice_order.idempotency_key
+      AND invoice.recipient_id=invoice_order.user_id
       AND invoice.business_user_id=COALESCE(original.recipient_id,t.recipient_id)
-      AND invoice.price_rolls=t.amount
+      AND invoice.price_rolls=t.amount AND invoice.price_rolls=invoice_order.amount
+      AND COALESCE(original.id,t.id)=COALESCE(invoice_order.delivery->>'paymentTransactionId',original.id,t.id)
+      AND (original.id IS NULL OR invoice_order.refunded_at IS NOT NULL)
 `;
 
 export const openRewardReserves = `

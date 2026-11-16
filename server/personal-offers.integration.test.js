@@ -4,6 +4,7 @@ import test from "node:test";
 import { createPersonalOffer, payPersonalOffer, createPersonalOfferItem, registerPersonalOfferRoutes } from "./personal-offers.js";
 import { registerWishlistBusinessRoutes } from "./modules/wishlist/wishlist-business.js";
 import { ensureRollWallet } from "./modules/payments/rolls.js";
+import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
 import { readPersonalOfferOperation } from "./modules/checkout/personal-offer-status.js";
 import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
@@ -75,6 +76,7 @@ test("personal offers on existing production schema: every test write is rolled 
         },
       };
       registerPersonalOfferRoutes(app, dependencies);
+      registerRollsRoutes(app, dependencies);
       registerWishlistBusinessRoutes(app, dependencies);
       app.use((error, _req, res, _next) => res.status(500).json({ error: error.message }));
       const server = app.listen(0, "127.0.0.1");
@@ -174,6 +176,29 @@ test("personal offers on existing production schema: every test write is rolled 
             }
           }
           assert.equal((await listOffer(buyer)).status, "active");
+          const transferUrl = `http://127.0.0.1:${server.address().port}/api/rolls/transfers`;
+          const transferUsingReservedKey = await fetch(transferUrl, {
+            method: "POST", headers: { "x-test-user": buyer, "Content-Type": "application/json" },
+            body: JSON.stringify({ recipientId: other, amount: 1, idempotencyKey: created.body.offer.id }),
+          });
+          assert.equal(transferUsingReservedKey.status, 409);
+          assert.equal((await transferUsingReservedKey.json()).code, "IDEMPOTENCY_CONFLICT");
+          assert.deepEqual(await balances(), beforeStatus);
+          await client.query("SAVEPOINT independent_sender");
+          try {
+            const anotherSender = await fetch(transferUrl, {
+              method: "POST", headers: { "x-test-user": other, "Content-Type": "application/json" },
+              body: JSON.stringify({ recipientId: buyer, amount: 1, idempotencyKey: created.body.offer.id }),
+            });
+            assert.equal(anotherSender.status, 201);
+            const anotherTransfer = await anotherSender.json();
+            const anotherLookup = await fetch(`${transferUrl}/${created.body.offer.id}`, { headers: { "x-test-user": other } });
+            assert.equal((await anotherLookup.json()).transfer.id, anotherTransfer.transfer.id);
+          } finally {
+            await client.query("ROLLBACK TO SAVEPOINT independent_sender");
+            await client.query("RELEASE SAVEPOINT independent_sender");
+          }
+
           const paid = await post(path, buyer, { expectedPriceRolls: 1 });
           assert.equal(paid.status, 201);
           const replay = await post(path, buyer);
@@ -185,6 +210,27 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal(recorded.result.purchase.businessId, seller);
           assert.equal(recorded.result.purchase.priceRolls, 1);
           assert.equal(recorded.result.purchase.refundedAt, null);
+          const { rows: [debit] } = await client.query(`
+            SELECT t.id,p.delivery->>'paymentTransactionId' AS linked_payment
+            FROM roll_transactions t JOIN roll_store_purchases p ON p.id=$1
+            WHERE t.sender_id=$2 AND t.idempotency_key=$3
+          `, [paid.body.purchase.id, buyer, created.body.offer.id]);
+          assert.equal(debit.linked_payment, debit.id);
+          const publicLookup = await fetch(`${transferUrl}/${created.body.offer.id}`, { headers: { "x-test-user": buyer } });
+          assert.equal(publicLookup.status, 200);
+          assert.deepEqual(await publicLookup.json(), { transfer: null });
+          await client.query("SAVEPOINT invoice_payment_link");
+          try {
+            await client.query("UPDATE roll_store_purchases SET delivery=jsonb_set(delivery,'{paymentTransactionId}',to_jsonb($2::text)) WHERE id=$1",
+              [paid.body.purchase.id, randomUUID()]);
+            assert.equal((await status(path, buyer)).result.code, "OFFER_ORDER_MISMATCH");
+            assert.equal((await post(path, buyer)).body.code, "OFFER_ORDER_MISMATCH");
+            assert.equal((await post(refundPath, seller)).body.code, "ORDER_PAYMENT_NOT_FOUND");
+            assert.equal((await readRollReceipt(client, buyer, { kind: "transfer", id: debit.id })).orderId, null);
+          } finally {
+            await client.query("ROLLBACK TO SAVEPOINT invoice_payment_link");
+            await client.query("RELEASE SAVEPOINT invoice_payment_link");
+          }
           assert.deepEqual(await status(refundPath, seller), { code: 200, result: { purchase: null } });
           await client.query("SAVEPOINT corrupt_lookup");
           try {
@@ -224,6 +270,18 @@ test("personal offers on existing production schema: every test write is rolled 
           await client.query("UPDATE business_marketplace_items SET active=FALSE WHERE id=$1", [product.id]);
           assert.equal((await listOffer(buyer)).status, "paid");
           assert.equal((await status(path, buyer)).result.purchase.id, paid.body.purchase.id);
+          await client.query("SAVEPOINT historical_invoice");
+          try {
+            await client.query("UPDATE roll_store_purchases SET delivery=delivery-'paymentTransactionId' WHERE id=$1", [paid.body.purchase.id]);
+            assert.equal((await status(path, buyer)).result.purchase.id, paid.body.purchase.id);
+            assert.equal((await post(refundPath, seller, { expectedPriceRolls: 1 })).body.purchase.replayed, false);
+            assert.equal((await post(refundPath, seller)).body.purchase.replayed, true);
+            assert.equal((await readRollReceipt(client, buyer, { kind: "transfer", id: debit.id })).orderId, paid.body.purchase.id);
+          } finally {
+            await client.query("ROLLBACK TO SAVEPOINT historical_invoice");
+            await client.query("RELEASE SAVEPOINT historical_invoice");
+          }
+
           const refunded = await post(refundPath, seller, { expectedPriceRolls: 1 });
           assert.equal(refunded.status, 200);
           assert.equal(refunded.body.purchase.replayed, false);
@@ -231,7 +289,7 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal(refundStatus.result.purchase.refundedAt, refunded.body.purchase.refundedAt);
           assert.equal(refundStatus.result.purchase.id, paid.body.purchase.id);
           assert.equal((await status(path, buyer)).result.purchase.refundedAt, refunded.body.purchase.refundedAt);
-          assert.equal(readOnlyRequests, 10);
+          assert.equal(readOnlyRequests, 14);
           assert.equal((await post(refundPath, seller)).body.purchase.replayed, true);
           assert.equal((await post(`/${created.body.offer.id.toUpperCase()}/refund`, seller)).body.purchase.replayed, true);
           const paidReplay = await post(path, buyer);

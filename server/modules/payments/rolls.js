@@ -116,10 +116,31 @@ export async function ensureRollWallet(client, userId) {
   return grant.rowCount > 0;
 }
 
+async function readReservedInvoice(client, senderId, requestKey) {
+  const { rows: [schema] } = await client.query("SELECT to_regclass('business_personal_offers') IS NOT NULL AS offers");
+  if (!schema.offers) return null;
+  const { rows: [invoice] } = await client.query(
+    "SELECT id::text AS transfer_key,purchase_id FROM business_personal_offers WHERE recipient_id=$1 AND id=$2",
+    [senderId, requestKey],
+  );
+  return invoice ?? null;
+}
+
 export async function transferRolls(client, senderId, input) {
   const parsed = rollTransferSchema.safeParse(input);
   if (!parsed.success) throw new RollsError("Укажите получателя, целое количество роллов и комментарий до 280 символов", "INVALID_TRANSFER");
+  if (await readReservedInvoice(client, senderId, parsed.data.idempotencyKey)) throw transferKeyConflict();
   return transferRollsWithKey(client, senderId, parsed.data);
+}
+
+export async function transferPersonalOfferRolls(client, senderId, { recipientId, priceRolls, title, offerId }) {
+  // A committed invoice payment always comes back through the locked invoice.
+  // An unpaid invoice must post its own transfer.
+  const transfer = await transferRollsWithKey(client, senderId, {
+    recipientId, amount: priceRolls, note: `Оффер: ${title}`.trim(), idempotencyKey: offerId,
+  });
+  if (transfer.replayed) throw transferKeyConflict();
+  return transfer;
 }
 
 export async function readRollTransferStatus(client, senderId, requestKey) {
@@ -128,16 +149,18 @@ export async function readRollTransferStatus(client, senderId, requestKey) {
   const { rows: [row] } = await client.query(`
     SELECT id,recipient_id,amount,note,created_at
     FROM roll_transactions WHERE kind='transfer' AND sender_id=$1 AND idempotency_key=$2`, [senderId, key.data]);
-  return row ? {
-    id: row.id, recipientId: row.recipient_id, amount: Number(row.amount), note: row.note, createdAt: row.created_at,
-  } : null;
+  if (!row) return null;
+  const invoice = await readReservedInvoice(client, senderId, key.data);
+  if (invoice?.purchase_id && invoice.transfer_key === key.data) return null;
+  return { id: row.id, recipientId: row.recipient_id, amount: Number(row.amount), note: row.note, createdAt: row.created_at };
 }
 
-export async function reverseRollTransfer(client, { senderId, recipientId, amount, idempotencyKey, note }) {
+export async function reverseRollTransfer(client, { senderId, recipientId, amount, idempotencyKey, transactionId, note }) {
   const { rows: [original] } = await client.query(
     `SELECT id FROM roll_transactions WHERE kind='transfer'
-     AND sender_id=$1 AND recipient_id=$2 AND amount=$3 AND idempotency_key=$4`,
-    [senderId, recipientId, amount, idempotencyKey],
+     AND sender_id=$1 AND recipient_id=$2 AND amount=$3 AND idempotency_key=$4
+     AND ($5::text IS NULL OR id=$5)`,
+    [senderId, recipientId, amount, idempotencyKey, transactionId ?? null],
   );
   if (!original) throw new RollsError("Исходный перевод по заказу не найден", "ORDER_PAYMENT_NOT_FOUND", 409);
   return transferRollsWithKey(client, recipientId, {
@@ -145,8 +168,10 @@ export async function reverseRollTransfer(client, { senderId, recipientId, amoun
   });
 }
 
-// A public transfer uses a UUID. Internal reversals use a reserved namespace
-// which callers of the public transfer endpoint cannot submit.
+function transferKeyConflict() {
+  return new RollsError("Этот запрос уже использован для другой операции", "IDEMPOTENCY_CONFLICT", 409);
+}
+
 async function transferRollsWithKey(client, senderId, { recipientId, amount, note, idempotencyKey }) {
   if (senderId === recipientId) throw new RollsError("Выберите другого участника", "SELF_TRANSFER");
   const recipient = await client.query("SELECT id FROM users WHERE id=$1", [recipientId]);
@@ -162,7 +187,7 @@ async function transferRollsWithKey(client, senderId, { recipientId, amount, not
   if (previous.rowCount) {
     const row = previous.rows[0];
     if (row.recipient_id !== recipientId || Number(row.amount) !== amount || row.note !== note) {
-      throw new RollsError("Этот запрос уже использован для другого перевода", "IDEMPOTENCY_CONFLICT", 409);
+      throw transferKeyConflict();
     }
     return { id: row.id, replayed: true };
   }
