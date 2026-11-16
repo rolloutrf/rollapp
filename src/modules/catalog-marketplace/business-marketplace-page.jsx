@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Coins, Image as ImageIcon, Package, ShoppingBag, Store } from "lucide-react";
+import { Coins, Image as ImageIcon, Package } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
 import { PurchaseRecoveryNotice, usePurchaseRecovery } from "../checkout/purchase-recovery.jsx";
-import { APP_ORDERS_PATH, businessMarketplacePath } from "@/modules/shell/app-routing.js";
+import { APP_ORDERS_PATH } from "@/modules/shell/app-routing.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -13,7 +13,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ControlBar } from "@/components/control-bar";
 import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { PersonalOfferComposer } from "@/components/personal-offers";
@@ -25,24 +24,6 @@ import { Spinner } from "@/components/ui/spinner";
 
 function initials(value = "") {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-}
-
-export function SphereBusinessControls({ sphereId, catalogPath }) {
-  const storePath = businessMarketplacePath(sphereId);
-  if (!storePath) return null;
-  const controlClass = buttonVariants({ variant: "outline", size: "icon" });
-  return (
-    <ControlBar as="nav" className="sphere-business-controls horizontal-action-scroller" aria-label="Бизнес-разделы">
-      {catalogPath && (
-        <Link to={catalogPath} data-control-icon className={controlClass} aria-label="Открыть каталог брендов" title="Каталог брендов">
-          <ShoppingBag aria-hidden="true" />
-        </Link>
-      )}
-      <Link to={storePath} data-control-icon className={controlClass} aria-label="Открыть магазин за роллы" title="Магазин за роллы">
-        <Store aria-hidden="true" />
-      </Link>
-    </ControlBar>
-  );
 }
 
 function MarketplaceItem({ item, busy, onBuy, user }) {

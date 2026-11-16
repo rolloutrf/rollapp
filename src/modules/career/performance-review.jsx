@@ -7,7 +7,6 @@ import {
   MessageSquareQuote,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
 import {
   Accordion,
   AccordionContent,
@@ -353,19 +352,14 @@ export function PerformanceReview() {
   return (
     <article className="not-typeset rollapp-body career-content-rail page-stack">
       {!readOnly && <AddFab actions={[{ label: "Импортировать PDF", disabled: mutationBusy, onSelect: () => fileInputRef.current?.click() }]} />}
-      {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
-        <div className="page-actions horizontal-action-scroller" role="group" aria-label="Действия с перфоманс-ревью">
-          <SphereBusinessControls sphereId="career" />
-          <input
-            ref={fileInputRef}
-            className="sr-only"
-            type="file"
-            accept="application/pdf,.pdf"
-            aria-label="Импортировать перфоманс-ревью из PDF"
-            onChange={importPdf}
-          />
-        </div>
-      </header>}
+      {!readOnly && <input
+        ref={fileInputRef}
+        className="sr-only"
+        type="file"
+        accept="application/pdf,.pdf"
+        aria-label="Импортировать перфоманс-ревью из PDF"
+        onChange={importPdf}
+      />}
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
       {actionFeedback && (
         <Alert variant={actionFeedback.tone === "error" ? "destructive" : "default"}>

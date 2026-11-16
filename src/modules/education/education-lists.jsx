@@ -3,7 +3,6 @@ import { WishListNavigation } from "@/modules/categories/wish-list-navigation.js
 import { useEffect, useId, useState } from "react";
 import { FolderInput, ListPlus, MoreHorizontal, Trash2, Ungroup, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -150,18 +149,13 @@ export function EducationItemListMenu({
   );
 }
 
-export function EducationSectionHeader({ title, titleId, addLabel, onAdd, onCreateList, sphereId = "education" }) {
+export function EducationSectionHeader({ title, titleId, addLabel, onAdd, onCreateList }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return <h2 className="sr-only" id={titleId}>{title}</h2>;
   return (
     <>
     <AddFab actions={[{ label: addLabel, onSelect: onAdd }, onCreateList && { label: "Новый список", icon: ListPlus, onSelect: onCreateList }]} />
-    <header className="page-toolbar w-full justify-center">
-      <h2 className="sr-only" id={titleId}>{title}</h2>
-      <div className="page-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${title}»`}>
-        <SphereBusinessControls sphereId={sphereId} />
-      </div>
-    </header>
+    <h2 className="sr-only" id={titleId}>{title}</h2>
     </>
   );
 }

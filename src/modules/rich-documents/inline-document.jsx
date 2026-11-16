@@ -4,8 +4,6 @@ import { useInlineAutosave } from "@/modules/rich-documents/use-inline-autosave.
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 import { Button } from "@/components/ui/button";
 import { AddFab } from "@/components/add-fab";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
-import { businessMarketplacePath } from "@/modules/shell/app-routing.js";
 
 export function InlineSaveStatus({ autosave }) {
   return <div className="inline-save-status not-typeset" role="status" aria-live="polite" data-save-status={autosave.status}>
@@ -19,16 +17,11 @@ export function useDocumentDraft(value, onSave, documentKey, enabled = true) {
   return useInlineAutosave({ value, onSave, enabled, storageKey: owner?.id ? `rollapp:text:${owner.id}:${documentKey}` : undefined });
 }
 
-export function InlineDocument({ value, onSave, label, documentKey, scope = "identity", readOnly = false, disabled = false, addBlock, placeholder, className = "", showBusinessControls = true, focusOnEntry = false }) {
+export function InlineDocument({ value, onSave, label, documentKey, readOnly = false, disabled = false, addBlock, placeholder, className = "", focusOnEntry = false }) {
   const autosave = useDocumentDraft(value, onSave, documentKey, !readOnly && !disabled);
   const editorRef = useRef(null);
   const editable = !readOnly && !disabled;
   return <>
-    {editable && showBusinessControls && (addBlock || businessMarketplacePath(scope)) && <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
-      <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${label}»`}>
-        <SphereBusinessControls sphereId={scope} />
-      </div>
-    </header>}
     {editable && addBlock && <AddFab actions={[{ label: "Добавить блок", onSelect: () => {
       const editor = editorRef.current;
       if (!editor) return;

@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/modules/card/collection-snippet-media.jsx";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -926,17 +925,11 @@ export function Medications() {
 
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-labelledby="medications-title">
+      <h2 className="sr-only" id="medications-title">Препараты</h2>
       {!readOnly && <AddFab actions={[
         { label: "Добавить препарат", onSelect: addMedication },
         !requestState.loading && !requestState.error && { label: "Новая группа", icon: ListPlus, onSelect: () => setGroupDrawerState({ group: null, moveItem: null }) },
       ]} />}
-      {!readOnly && <header className="page-toolbar w-full justify-center">
-        <h2 className="sr-only" id="medications-title">Препараты</h2>
-        <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Препараты»">
-          <SphereBusinessControls sphereId="health" />
-        </div>
-      </header>}
-
       {requestState.error && (
         <Alert variant="destructive">
           <AlertTriangle aria-hidden="true" />

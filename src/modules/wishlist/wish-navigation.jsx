@@ -2,11 +2,11 @@ import { APP_HOME } from "../shell/home-path.jsx";
 import { wishSalesPath, wishlistSpace } from "@/modules/wishlist/wishlist-business.jsx";
 import { canManageWishSales, canManageWishlistSpace } from "../../../shared/modules/wishlist/wishlist-business.js";
 import { isBrandCatalogSearch } from "../../../shared/modules/catalog-marketplace/catalog-links.js";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Gift, Newspaper, Send, ShoppingBag, Store, Tag } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
+import { ProfileSectionNavigation } from "../shell/profile-section-navigation.jsx";
 import { ProfilePublicationLinks } from "@/modules/profile/profile-publications.jsx";
-import { buttonVariants } from "@/components/ui/button";
 import { brandCatalogPath } from "@/modules/catalog-marketplace/catalog-brands.jsx";
 import { APP_ORDERS_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, APP_WISH_OFFERS_PATH, APP_WISH_SALES_PATH } from "../shell/app-routing.js";
 import { useSphereSharing } from "../access/sphere-sharing.jsx";
@@ -39,17 +39,10 @@ export function WishlistSectionNavigation({ user }) {
     links.push({ to: wishSalesPath(space), active: path === APP_WISH_SALES_PATH, label: "Мои продажи", title: "Мои продажи", icon: Tag });
   }
   return (
-    <ControlBar as="nav" className="page-actions horizontal-action-scroller wishlist-section-navigation" aria-label="Разделы Вишлиста">
-      {links.map(({ to, active, label, title, icon: Icon }) => (
-        <Link key={title} to={to} aria-current={active ? "page" : undefined}
-          className={buttonVariants({ variant: active ? "default" : "outline", size: "icon" })}
-          data-control-icon aria-label={label} title={title}>
-          <Icon aria-hidden="true" />
-        </Link>
-      ))}
+    <ProfileSectionNavigation label="Разделы Вишлиста" links={links} className="wishlist-section-navigation">
       {isOwner && user.username && <ProfilePublicationLinks activeSection={publication}
         toSection={section => wishlistPublicationPath(space, section)} />}
-    </ControlBar>
+    </ProfileSectionNavigation>
   );
 }
 

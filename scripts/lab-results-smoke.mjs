@@ -74,7 +74,7 @@ try {
         const oldest = '7 июля 2025';
         await tile(latest).waitFor();
         assert.equal(await page.getByRole('button', { name: 'Настройки списка', exact: true }).count(), 0);
-        assert.equal(await page.getByRole('link', { name: 'Открыть магазин за роллы' }).count(), 1);
+        assert.equal(await page.getByRole('link', { name: 'Открыть магазин за роллы' }).count(), 0, 'Store navigation belongs to the profile shell');
         assert.equal(await menu(previous).evaluate(button => {
           const box = button.getBoundingClientRect();
           const tile = button.closest('.list-tabs__editable-tile').querySelector('[data-list-tile]').getBoundingClientRect();

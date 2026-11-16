@@ -91,7 +91,7 @@
   /* Shared chrome must stay clear even when a local variant adds paint. */
   :is(
     .global-app-chrome, .public-profile > .profile-header, .friends-topbar,
-    .mobile-app-navigation, .wishlist-section-navigation, .mobile-content-page__nav, [data-content-page-actions],
+    .mobile-app-navigation, .profile-section-navigation, .mobile-content-page__nav, [data-content-page-actions],
     .planning-fab-controls, .add-fab,
     .daily-todo__header, .daily-todo__footer,
     .mobile-form-page__header, [data-native-form-actions],
@@ -562,7 +562,7 @@
 }
 
 @layer utilities {
-  .wishlist-section-navigation {
+  .profile-section-navigation {
     margin-block-start: var(--layout-inline-gap);
   }
 
@@ -590,12 +590,9 @@
 
   .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller::-webkit-scrollbar { display: none; }
 
-  .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller > :not(.sr-only),
-  .app-layout--dark .sphere-business-controls > a {
+  .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller > :not(.sr-only) {
     flex: 0 0 auto;
   }
-
-  .app-layout--dark .sphere-business-controls { display: contents; }
 
   /* Page-level horizontal collections share one viewport contract. Keep
      gutters INSIDE it: an inset clipping ancestor recreates a false screen edge. */

@@ -3,7 +3,6 @@ import { AlertTriangle, Pencil, Plus, RotateCcw, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/modules/career/career-icon-action.jsx";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
 import { MarkdownDocument } from "@/modules/identity/life-strategy.jsx";
 import { InlineDocument } from "@/modules/rich-documents/inline-document.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -83,7 +82,7 @@ export function CareerContentError({ error, onRetry }) {
   );
 }
 
-export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick, showLabel = false, sphereId = "career" }) {
+export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick, showLabel = false }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return null;
   const ActionIcon = Icon || Pencil;
@@ -114,7 +113,6 @@ export function CareerEditAction({ disabled = false, icon: Icon, loading = false
             {buttonContent}
           </CareerIconAction>
         )}
-        <SphereBusinessControls sphereId={sphereId} />
       </div>
     </header>
   );
@@ -332,7 +330,7 @@ export function EditableMarkdownDocument({
     {careerContent.loading && <span className="not-typeset text-muted-foreground" role="status">Загружаем…</span>}
     {!careerContent.loading && !careerContent.error && (sharing.readOnly
       ? <MarkdownDocument source={content} label={label} className={className} collapsibleAges={collapsibleAges} collapsibleStrategies={collapsibleStrategies} hideSourceLabels={hideSourceLabels} />
-      : <InlineDocument key={`${scope}:${section}:${sharing.owner?.id || "self"}`} documentKey={`${scope}:${section}`} scope={scope}
+      : <InlineDocument key={`${scope}:${section}:${sharing.owner?.id || "self"}`} documentKey={`${scope}:${section}`}
         value={content} onSave={careerContent.save} label={label} className={className}
         disabled={sharing.loading || Boolean(sharing.error)}
       />)}

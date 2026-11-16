@@ -11,26 +11,28 @@ await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
 async function checkSphereCatalog(page, sphere, section) {
   await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=sphere-catalog&sphere=${sphere}`);
-  const catalog = page.getByRole("link", { name: "Открыть каталог брендов" });
+  const rail = page.getByRole("navigation", { name: /^Разделы сферы/ });
+  const catalog = rail.getByRole("link", { name: "Открыть каталог брендов", exact: true });
   await catalog.waitFor();
+  assert.equal(await rail.locator("xpath=ancestor::section[@data-persistent-profile]").count(), 1);
   assert.deepEqual(await catalog.evaluate(link => [link.offsetWidth, link.offsetHeight]), [48, 48]);
   if (sphere === "career" && section === "contacts") {
-    const rail = page.getByRole("navigation", { name: "Бизнес-разделы", exact: true });
     const store = rail.getByRole("link", { name: "Открыть магазин за роллы", exact: true });
     assert.equal(await catalog.count(), 1);
     assert.deepEqual(await rail.getByRole("link").evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), [
-      "Открыть каталог брендов", "Открыть магазин за роллы",
+      "Карьера", "Открыть каталог брендов", "Открыть магазин за роллы", "Предложения",
     ]);
     assert.equal(await catalog.getAttribute("href"), "/app/spheres/career/business/catalog?tab=contacts");
-    assert.equal(await store.getAttribute("href"), "/app/spheres/career/business/store");
+    assert.equal(await store.getAttribute("href"), "/app/spheres/career/business/store?tab=contacts");
     const [catalogBox, storeBox] = await Promise.all([catalog.boundingBox(), store.boundingBox()]);
     assert.deepEqual([storeBox.width, storeBox.height], [48, 48]);
     assert.equal(catalogBox.y, storeBox.y);
     assert.equal(storeBox.x - (catalogBox.x + catalogBox.width), 8);
-    assert.equal((catalogBox.x + storeBox.x + storeBox.width) / 2, (await page.viewportSize()).width / 2);
+    const [first, last] = await Promise.all([rail.getByRole("link").first().boundingBox(), rail.getByRole("link").last().boundingBox()]);
+    assert.equal((first.x + last.x + last.width) / 2, (await page.viewportSize()).width / 2);
     const { width, height } = page.viewportSize();
     if ((width === 390 && height === 844) || width === 1440) {
-      await page.getByRole("group", { name: "Действия с контактами", exact: true }).screenshot({
+      await rail.screenshot({
         path: `${output}/contacts-catalog-store-${width}.png`,
         animations: "disabled",
       });
@@ -38,12 +40,14 @@ async function checkSphereCatalog(page, sphere, section) {
     await store.click();
     await page.waitForURL(url => url.pathname === "/app/spheres/career/business/store");
     await page.getByText("В магазине пока пусто").waitFor();
+    assert.equal(await store.getAttribute("aria-current"), "page");
     await page.goBack();
     await page.waitForURL(url => url.pathname === "/app/spheres/career" && url.searchParams.get("tab") === section);
     await catalog.waitFor();
   }
   await catalog.click();
   await page.waitForURL(url => url.pathname.endsWith("/business/catalog") && url.searchParams.get("tab") === section);
+  await rail.locator('a[aria-current="page"][title="Каталог брендов"]').waitFor();
   const subscribe = page.getByRole("button", { name: "Подписаться · Партнёр сферы" });
   const unsubscribe = page.getByRole("button", { name: "Отписаться · Партнёр сферы" });
   await subscribe.click();
@@ -52,7 +56,8 @@ async function checkSphereCatalog(page, sphere, section) {
   await unsubscribe.waitFor();
   await page.getByRole("link", { name: "Предложения", exact: true }).click();
   await page.getByRole("heading", { name: "Предложение партнёра" }).waitFor();
-  await page.getByRole("link", { name: "Каталог брендов", exact: true }).click();
+  assert.equal(await rail.getByRole("link", { name: "Предложения", exact: true }).getAttribute("aria-current"), "page");
+  await catalog.click();
   await unsubscribe.click();
   await subscribe.waitFor();
   assert.deepEqual(await page.evaluate(() => window.offerCalls), [true, true, false].map(following => ({ path: "/profile/brand/follow", body: { following } })));
@@ -125,7 +130,12 @@ try {
     page.on("pageerror", e => errors.push(e.message));
     await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
     for (const [sphere, section] of [["health", "sport"], ["education", "courses"], ["career", "contacts"], ["identity", "identity-reports"]]) {
-      await checkSphereCatalog(page, sphere, section);
+      try {
+        await checkSphereCatalog(page, sphere, section);
+      } catch (error) {
+        console.error(`Sphere ${sphere}/${section}: ${page.url()}`, errors, (await page.locator("body").innerText()).slice(0, 1200));
+        throw error;
+      }
     }
     console.log(`PASS ${width}x${height}: sphere catalogs, subscriptions, offers and return to section`);
     await page.goto(`${smokeOrigin(server)}/__offers-smoke`);

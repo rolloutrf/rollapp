@@ -29,10 +29,7 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/fo
 import { useAsync } from "../shell/use-async.jsx";
 import { Button, LoadingScreen } from "../shell/page-feedback.jsx";
 import { Navigate, useLocation } from "react-router-dom";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
 import { useSphereSharing } from "../access/sphere-sharing.jsx";
-import { useSession } from "../auth/session.jsx";
-import { ownedSphereCatalogPath } from "../catalog-marketplace/catalog-page-header.jsx";
 import { sharePageUrl } from "../../applications/location.js";
 import { AddFab } from "@/components/add-fab";
 import { useContactFeed } from "./use-contact-feed.js";
@@ -556,20 +553,6 @@ export function LegacyContactsRedirect() {
   return <Navigate to={{ pathname: location.pathname.replace("/app/spheres/contacts", "/app/spheres/career"), search: `?${search.toString()}`, hash: location.hash }} replace />;
 }
 
-export function ContactsProfileControls() {
-  const user = useSession()?.user;
-  const access = useSphereSharing();
-  const location = useLocation();
-  const catalogPath = ownedSphereCatalogPath(user, access, location);
-  return (
-    <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
-      <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
-        <SphereBusinessControls sphereId="career" catalogPath={catalogPath} />
-      </div>
-    </section>
-  );
-}
-
 export function ContactsSpherePage() {
   const toast = useToast();
   const access = useSphereSharing();
@@ -655,7 +638,7 @@ export function ContactsSpherePage() {
 
   return (
     <div data-read-only={access.readOnly ? "true" : undefined} className="app-page page-stack sphere-page sphere-page--contacts typeset typeset-rollapp">
-      {!access.readOnly && <><ContactsProfileControls /><AddFab actions={[{ label: "Добавить контакт", onSelect: () => setCreatingContact(true) }]} /></>}
+      {!access.readOnly && <AddFab actions={[{ label: "Добавить контакт", onSelect: () => setCreatingContact(true) }]} />}
       <section className="contacts-sphere not-typeset" aria-label="Контакты">
         <div className="contacts-sphere__toolbar">
           <InputGroup className="contacts-sphere__search">

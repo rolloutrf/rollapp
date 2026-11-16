@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { PlanningDayRibbon } from '@/components/planning-day-ribbon';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import { Plus, ArrowRight } from 'lucide-react';
+import { BrowserRouter, Link, MemoryRouter } from 'react-router-dom';
+import { Plus, ArrowRight, Store } from 'lucide-react';
 import { PageActionButton } from '@/components/page-action-button';
-import { SphereBusinessControls } from '@/modules/catalog-marketplace/business-marketplace-page.jsx';
+import { ProfileSectionNavigation } from '@/modules/shell/profile-section-navigation.jsx';
+import { buttonVariants } from '@/components/ui/button';
 import { EducationListNavigation, EducationSectionHeader } from '@/modules/education/education-lists.jsx';
-import { ContactsProfileControls, WishesProfileControls, WishesPage, AppShell, ProfileEditorProvider, SessionContext, ToastContext } from '../../src/App.jsx?action-rails-export';
+import { WishesProfileControls, WishesPage, AppShell, ProfileEditorProvider, SessionContext, ToastContext } from '../../src/App.jsx?action-rails-export';
 import { api } from '@/modules/runtime/api.js';
 import { WishListNavigation } from '@/modules/categories/wish-list-navigation.jsx';
 import { InlineDocument } from '@/modules/rich-documents/inline-document.jsx';
@@ -67,21 +68,21 @@ function Actions(){
   {variant==='overflow'&&Array.from({length:20},(_,i)=><PageActionButton key={i} variant="outline">Действие {i+1}</PageActionButton>)}
   {!icons&&variant!=='edit'&&<PageActionButton>{variant==='icon-labels'&&<Plus data-icon="inline-start"/>}Добавить</PageActionButton>}
   {!icons&&variant!=='short'&&<PageActionButton variant="outline">Редактировать{variant==='icon-labels'&&<ArrowRight data-icon="inline-end"/>}</PageActionButton>}
-  {variant!=='short'&&<SphereBusinessControls sphereId="career"/>}
+  {variant!=='short'&&<Link aria-label="Открыть магазин за роллы" data-control-icon className={buttonVariants({variant:'outline',size:'icon'})} to="/app/spheres/career/business/store"><Store aria-hidden="true" /></Link>}
  </div>
  {variant==='dynamic'&&<button onClick={()=>setEditing(!editing)} data-toggle-actions>Изменить набор действий</button>}
  </>;
 }
-function Fixture(){if(variant.startsWith('identity-document'))return <BrowserRouter><div className="app-layout app-layout--dark"><main className="app-main"><article className="app-page sphere-text-page page-stack"><InlineDocument scope="identity" documentKey="unsaved-identity-rail" label="Документ идентичности" value="Текст раздела" onSave={async value=>value} addBlock={variant==='identity-document-add'?[{type:'paragraph'}]:undefined}/></article></main></div></BrowserRouter>;if(variant==='wishlist-error')return <BrowserRouter><SessionContext.Provider value={{user:{id:'unsaved',username:'fixture'}}}><ToastContext.Provider value={()=>{}}><ProfileEditorProvider><AppShell wishlistChrome><WishesPage onAdd={()=>{}} version={0}/></AppShell></ProfileEditorProvider></ToastContext.Provider></SessionContext.Provider></BrowserRouter>;return <BrowserRouter><div className="app-layout app-layout--dark"><main className={`app-main ${wishlist?'app-main--wishes':''}`}>
+function Fixture(){if(variant.startsWith('identity-document'))return <BrowserRouter><div className="app-layout app-layout--dark"><main className="app-main"><article className="app-page sphere-text-page page-stack"><InlineDocument documentKey="unsaved-identity-rail" label="Документ идентичности" value="Текст раздела" onSave={async value=>value} addBlock={variant==='identity-document-add'?[{type:'paragraph'}]:undefined}/></article></main></div></BrowserRouter>;if(variant==='wishlist-error')return <BrowserRouter><SessionContext.Provider value={{user:{id:'unsaved',username:'fixture'}}}><ToastContext.Provider value={()=>{}}><ProfileEditorProvider><AppShell wishlistChrome><WishesPage onAdd={()=>{}} version={0}/></AppShell></ProfileEditorProvider></ToastContext.Provider></SessionContext.Provider></BrowserRouter>;return <BrowserRouter><div className="app-layout app-layout--dark"><main className={`app-main ${wishlist?'app-main--wishes':''}`}>
   <article className={`app-page ${wishlist?'wishes-page':'sphere-page--tabbed'}`}>
     <div className={wishlist?'wishes-page__profile-controls':'sphere-page__content tabbed-sphere'}>
       <div className={`sphere-tabs__content ${variant==='nested'?'page-stack':''}`}>
         {variant==='nested'&&<header className="not-typeset rollapp-body page-toolbar w-full justify-center"><Actions/></header>}
         <section className={variant==='narrow'?'mx-auto w-full max-w-(--layout-form-width)':variant==='report'?'identity-report-manager':variant==='text'?'sphere-text-page page-stack':'w-full'}>
           {variant==='collection'?<EducationSectionHeader title="Курсы" titleId="courses" addLabel="Добавить курс" onAdd={()=>{}}/>
-            :variant==='contacts-real'?<ContactsProfileControls onAdd={()=>{}}/>
             :variant==='wishlist-real'?<SessionContext.Provider value={{user:{id:'unsaved',username:'fixture',accountType:'business',businessCategory:'seller'}}}><WishesProfileControls selectedSpace="products"/></SessionContext.Provider>
             :variant!=='nested'&&<header className="not-typeset rollapp-body page-toolbar w-full justify-center"><Actions/></header>}
+          {variant==='collection'&&<ProfileSectionNavigation label="Разделы сферы" links={[{to:"/app/spheres/education/business/store",label:"Открыть магазин за роллы",icon:Store}]} />}
           {variant==='collection'&&<EducationListNavigation items={[]} lists={[{id:'courses',title:'Очень длинное название списка курсов, которое занимает несколько строк'},{id:'archive',title:'Архив'}]} selectedListId="courses" ariaLabel="Списки курсов" onEditList={()=>{}} onSelectList={()=>{}}/>}
           {variant==='wishlist-real'&&<WishListNavigation value="personal" items={[{ id: "personal", title: "Очень длинное название личного списка желаний", count: 999, privateList: true }, { id: "archive", title: "Архив", count: 0 }]} />}
           {variant==='wishlist-real'&&<div className="hidden md:block" data-day-tile-comparison><PlanningDayRibbon selected="2026-10-25" today="2026-10-25" onChange={()=>{}}/></div>}
@@ -93,4 +94,25 @@ function Fixture(){if(variant.startsWith('identity-document'))return <BrowserRou
     </div>
   </article>
 </main></div></BrowserRouter>;}
-createRoot(document.getElementById('root')).render(collections[variant] ? <CollectionFixture name={variant} /> : <Fixture />);
+const sphereRoutes = {
+  'contacts-real': '/app/spheres/career?tab=contacts',
+  'identity-nav': '/app/spheres/identity?tab=principles',
+  'education-nav': '/app/spheres/education?tab=courses',
+  'health-nav': '/app/spheres/health?tab=sleep',
+};
+function SphereRailFixture({ path }) {
+  const user = { id: 'fixture-owner', username: 'fixture', name: 'Профиль', accountType: 'personal', canDiscoverSpheres: true };
+  const shared = new URLSearchParams(location.search).has('readonly');
+  const owner = shared ? { id: 'shared-owner', username: 'shared', name: 'Общий профиль' } : user;
+  api.get = async () => ({ owner, isOwner: !shared, readOnly: shared, people: [], requests: [] });
+  return <MemoryRouter initialEntries={[shared ? `${path}&owner=shared` : path]}>
+    <SessionContext.Provider value={{user}}><ToastContext.Provider value={()=>{}}><ProfileEditorProvider>
+      <AppShell><section className="app-page"><p data-content-copy>Содержимое сферы</p>
+        {Array.from({length:24},(_,index)=><p className="mt-6" key={index}>Проверка прокрутки документа.</p>)}
+      </section></AppShell>
+    </ProfileEditorProvider></ToastContext.Provider></SessionContext.Provider>
+  </MemoryRouter>;
+}
+
+createRoot(document.getElementById('root')).render(collections[variant] ? <CollectionFixture name={variant} />
+  : sphereRoutes[variant] ? <SphereRailFixture path={sphereRoutes[variant]} /> : <Fixture />);

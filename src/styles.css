@@ -4040,12 +4040,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .profile-portrait > .wishes-page__hero-avatar:has(> [data-slot="avatar-image"])::after {
   display: none;
 }
-.app-layout--dark .sphere-share-avatars__people {
-  position: absolute;
-  left: calc(100% + 14px);
-  display: flex;
-  align-items: center;
-}
 .app-layout--dark .sphere-share-readonly-badge {
   min-height: 32px;
   gap: 7px;
@@ -4061,37 +4055,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   align-items: center;
   gap: 12px;
 }
-.app-layout--dark .sphere-business-controls {
-  display: contents;
-}
-.app-layout--dark .sphere-business-controls > a > svg { width: 18px; height: 18px; }
-.app-layout--dark .page-actions:has(> .sphere-business-controls),
-.app-layout--dark .identity-report-manager__actions:has(> .sphere-business-controls) {
-  width: 100%;
-  max-width: 720px;
-  margin-inline: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: nowrap;
-  gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  touch-action: pan-x;
-  -webkit-overflow-scrolling: touch;
-}
-.app-layout--dark .sphere-tabs__content > .page-toolbar:has(.sphere-business-controls) {
-  width: 100%;
-  max-width: 720px;
-  margin-inline: auto;
-  display: flex;
-  justify-content: center;
-}
-.app-layout--dark .page-actions:has(> .sphere-business-controls)::-webkit-scrollbar,
-.app-layout--dark .identity-report-manager__actions:has(> .sphere-business-controls)::-webkit-scrollbar { display: none; }
-.app-layout--dark .page-actions:has(> .sphere-business-controls) > *,
-.app-layout--dark .identity-report-manager__actions:has(> .sphere-business-controls) > * { flex: 0 0 auto; }
 .app-layout--dark .wishes-page__identity {
   max-width: min(100%, var(--layout-collection-width));
   padding: 0;
@@ -4457,7 +4420,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
     width: 112px;
     height: 112px;
   }
-  .app-layout--dark .sphere-share-avatars__people { left: calc(100% + 8px); }
   .app-layout--dark .wishes-page__hero-copy h1 { font-size: 36px; }
   .app-layout--dark .wishes-page__friend-links > a { font-size: 16px; line-height: 21px; }
   .app-layout--dark .friend-profile-page__stats > div { font-size: 16px; line-height: 21px; }

@@ -4,7 +4,6 @@ import {
   AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
 import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -283,11 +282,6 @@ export function LabResults() {
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
       {canManage && <AddFab actions={[{ label: "Добавить анализ", disabled: uploadState.loading || deleteState.busy, onSelect: () => fileInputRef.current?.click() }]} />}
-      {canManage && (
-        <div className="page-actions horizontal-action-scroller w-full justify-center" role="group" aria-label="Действия с анализами">
-          <SphereBusinessControls sphereId="health" />
-        </div>
-      )}
       {canManage && (
         <>
           <Input

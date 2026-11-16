@@ -28,14 +28,12 @@ export function DevelopmentPlan() {
         <InlineDocument
           key={`career:development:${sharing.owner?.id || "self"}`}
           documentKey="career:development"
-          scope="career"
           value={content}
           onSave={careerContent.save}
           label="Индивидуальный план развития"
           placeholder="Начните писать или введите / для выбора блока"
           readOnly={sharing.readOnly}
           disabled={sharing.loading || Boolean(sharing.error)}
-          showBusinessControls={false}
         />
       )}
     </div>
