@@ -159,6 +159,18 @@ function ContactNotes({ notes }) {
   });
 }
 
+function ContactIdentity({ avatar, name, company }) {
+  return (
+    <header className="contact-detail__identity">
+      {avatar}
+      <div className="grid min-w-0 w-full gap-1">
+        <h2 className="font-heading text-2xl font-semibold text-balance wrap-anywhere">{name}</h2>
+        {company && <p className="text-muted-foreground text-pretty wrap-anywhere">{company}</p>}
+      </div>
+    </header>
+  );
+}
+
 export function ContactEditForm({ contact = null, companies = [], favoriteSaving = false, onFavoriteToggle, onSaved, onDeleted }) {
   const toast = useToast();
   const contactFieldId = useId();
@@ -334,21 +346,23 @@ export function ContactEditForm({ contact = null, companies = [], favoriteSaving
       <ScrollArea className="contact-detail__scroll">
         <div className="contact-detail__edit-body">
           <div className="contact-detail__profile">
-            <div className="contact-detail__edit-heading contact-detail__edit-heading--editable">
-              <ShadcnButton
-                type="button"
-                variant="ghost"
-                className="contact-detail__avatar-picker rounded-full p-0"
-                aria-label={previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"}
-                title={previewAvatarUrl ? "Сменить фото" : "Добавить фото"}
-                aria-busy={imageUploading || avatarResolving || undefined}
-                disabled={saving || deleting || imageUploading}
-                onClick={() => avatarFileRef.current?.click()}
-              >
-                <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
-              </ShadcnButton>
-              <div><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
-            </div>
+            <ContactIdentity
+              name={creating ? (form.name.trim() || "Новый контакт") : contact.name}
+              avatar={(
+                <ShadcnButton
+                  type="button"
+                  variant="ghost"
+                  className="contact-detail__avatar-picker size-(--contact-detail-avatar-size) rounded-full border-0 p-0 active:translate-y-0"
+                  aria-label={previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"}
+                  title={previewAvatarUrl ? "Сменить фото" : "Добавить фото"}
+                  aria-busy={imageUploading || avatarResolving || undefined}
+                  disabled={saving || deleting || imageUploading}
+                  onClick={() => avatarFileRef.current?.click()}
+                >
+                  <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+                </ShadcnButton>
+              )}
+            />
             <Input
               ref={avatarFileRef}
               className="sr-only !size-px"
@@ -450,10 +464,11 @@ function ContactReadView({ contact }) {
   const socialLinks = (contact.links || []).filter((link) => link?.url);
   return (
     <article className="contact-detail__edit-form" aria-label={`Контакт ${contact.name}`}>
-      <div className="contact-detail__edit-heading">
-        <Avatar user={contact} size="xl" className="contact-detail__avatar" aria-hidden="true" />
-        <div><span>{contact.company || "Контакт"}</span><strong>{contact.name}</strong></div>
-      </div>
+      <ContactIdentity
+        name={contact.name}
+        company={contact.company || "Контакт"}
+        avatar={<Avatar user={contact} size="xl" className="contact-detail__avatar" aria-hidden="true" />}
+      />
       <div className="contact-detail__edit-fields">
         {contact.role && <div className="contact-detail__edit-field contact-detail__edit-field--wide"><span>Должность или роль</span><strong>{contact.role}</strong></div>}
         {contact.status && <div className="contact-detail__edit-field contact-detail__edit-field--wide"><span>Статус</span><strong>{contact.status}</strong></div>}

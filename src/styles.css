@@ -6335,48 +6335,25 @@ article.contact-detail__edit-form { padding: var(--layout-item-gap) var(--layout
 form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .contact-detail__edit-body { display: flex; flex-direction: column; gap: var(--layout-page-gap); padding: var(--layout-item-gap) var(--layout-page-inset); }
 .contact-detail__profile { display: flex; flex-direction: column; gap: var(--layout-item-gap); }
-.contact-detail__edit-heading {
-  min-height: var(--contact-detail-avatar-size);
-  position: relative;
+.contact-detail__identity {
   display: grid;
-  grid-template-columns: var(--contact-detail-avatar-size) minmax(0, 1fr);
-  align-items: center;
-  column-gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: var(--layout-item-gap);
+  text-align: center;
 }
-.contact-detail__edit-heading--editable { column-gap: var(--layout-inline-gap); }
-.contact-detail__edit-heading > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.contact-detail__avatar-picker {
-  display: grid;
-  place-items: center;
-  width: var(--contact-detail-avatar-size);
-  height: var(--contact-detail-avatar-size);
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
+.contact-detail__avatar-picker { cursor: pointer; }
 .contact-detail__avatar-picker:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 .contact-detail__avatar-picker:disabled { cursor: wait; }
 .contact-detail__avatar-message {
   margin: 0;
+  text-align: center;
   color: var(--muted-foreground);
   font-size: var(--text-xs);
   line-height: var(--text-xs--line-height);
   text-wrap: pretty;
 }
 .contact-detail__avatar-message.is-error { color: var(--destructive); }
-.contact-detail__edit-heading strong {
-  overflow: hidden;
-  color: var(--foreground);
-  font-size: 20px;
-  line-height: 25px;
-  font-weight: 700;
-  text-wrap: pretty;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
 .contact-detail__edit-fields {
   margin-top: 28px;
   display: grid;
