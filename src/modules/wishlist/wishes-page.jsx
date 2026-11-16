@@ -256,7 +256,7 @@ export function WishesPage({ onAdd, version }) {
   if (data && data.viewerId !== viewerId) return <LoadingScreen compact />;
   const share = async () => {
     if (publication) {
-      await navigator.clipboard.writeText(sharePageUrl(publication === "calendar" ? publicBookingPath(user.username) : publicPublicationPath(user.username, publication)));
+      await navigator.clipboard.writeText(sharePageUrl(publication === "calendar" ? publicBookingPath(user) : publicPublicationPath(user, publication)));
       toast("Ссылка скопирована");
       return;
     }
@@ -265,10 +265,10 @@ export function WishesPage({ onAdd, version }) {
       return;
     }
     const url = selectedValue === "all"
-      ? sharePageUrl(publicSpacePath(user.username, selectedSpace))
+      ? sharePageUrl(publicSpacePath(user, selectedSpace))
       : selectedList?.privacy === "link"
         ? sharePageUrl(`/s/${selectedList.shareToken}`)
-        : sharePageUrl(publicListPath(user.username, selectedList?.id));
+        : sharePageUrl(publicListPath(user, selectedList?.id));
     await navigator.clipboard.writeText(url);
     toast("Ссылка на список скопирована");
   };
@@ -1202,7 +1202,7 @@ export function WishesPage({ onAdd, version }) {
 ><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
 {wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
 <SharedWishes wishes={spaceSharedWishes} profile={user} onOpen={(id) => {
-  if (isMobile) navigate(publicWishPath(user.username, id), { state: { fromWishlistBoard: true } });
+  if (isMobile) navigate(publicWishPath(user, id), { state: { fromWishlistBoard: true } });
   else setSelectedWishId(id);
 }} onChanged={refreshWishes} />
 {selectedWish && <WishDetailsModal wish={selectedWish} owner={!selectedWish.sharedBy} profile={user} lists={data.lists} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}

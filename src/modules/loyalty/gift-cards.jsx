@@ -218,7 +218,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
 
 export function BusinessGiftAction({ business, user, labelled = false }) {
   const [open, setOpen] = useState(false);
-  const loginPath = `/login?next=${encodeURIComponent(publicProfilePath(business.username))}`;
+  const loginPath = `/login?next=${encodeURIComponent(publicProfilePath(business))}`;
   return <>
     {labelled ? (user
       ? <PageActionButton type="button" onClick={() => setOpen(true)}>Выпустить и подарить</PageActionButton>
@@ -272,10 +272,10 @@ export function ProfileGiftCards({ user, onNavigate }) {
     {error && <Alert variant="destructive"><AlertDescription>{error} <Button variant="outline" onClick={refresh}>Повторить</Button></AlertDescription></Alert>}
     {!loading && !error && !cards.length && <p className="text-muted-foreground">Полученные и выпущенные карты появятся здесь.</p>}
     {cards.map((card) => <article key={card.id} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4">
-      <Link className="break-words font-semibold underline underline-offset-4" to={publicProfilePath(card.business.username)} onClick={(event) => {
+      <Link className="break-words font-semibold underline underline-offset-4" to={publicProfilePath(card.business)} onClick={(event) => {
         if (!onNavigate || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
         event.preventDefault();
-        onNavigate(publicProfilePath(card.business.username));
+        onNavigate(publicProfilePath(card.business));
       }}>{card.business.name}</Link>
       <p>{formatRolls(card.balance)} · Только у этого бизнеса</p>
       <Button variant="outline" onClick={(event) => { cardOpener.current = event.currentTarget; setSelectedCard(card); }}>Открыть карту</Button>

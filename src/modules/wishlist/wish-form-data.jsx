@@ -70,5 +70,5 @@ export const wishSharePath = ({ wish, profile, lists = [], shareToken = "" }) =>
   const linkList = linkedLists.find((list) => list.privacy === "link" && list.shareToken);
   const publiclyReachable = linkedLists.some((list) => list.privacy === "public");
   if (!publiclyReachable && linkList) return `/s/${encodeURIComponent(linkList.shareToken)}/wishes/${encodeURIComponent(wish.id)}`;
-  return publicWishPath(profile?.username, wish.id);
+  return publicWishPath(profile, wish.id);
 };

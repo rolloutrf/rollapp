@@ -113,8 +113,8 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
   const mutation = useRef(false);
   const [booked, setBooked] = useState(null);
   const formOpener = useRef(null);
-  const profilePath = publicProfilePath(profile?.username || username);
-  const sharePath = publicBookingPath(profile?.username || username);
+  const profilePath = publicProfilePath(profile || username);
+  const sharePath = publicBookingPath(profile || username);
   const loginPath = (slot, zone) => `/login?next=${encodeURIComponent(`${sharePath}?${new URLSearchParams({ slot, zone })}`)}`;
   const Heading = returnTo ? "h2" : "h1";
 

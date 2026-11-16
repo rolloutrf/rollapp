@@ -65,7 +65,7 @@ function PlanningControls({ user }) {
     assistantWishResult.current = null;
     const source = assistantWishSource.current;
     assistantWishSource.current = null;
-    if (saved?.id) navigate(publicWishPath(user.username, saved.id));
+    if (saved?.id) navigate(publicWishPath(user, saved.id));
     else if (source === location.pathname) setAssistantOpen(true);
   };
   const closeAssistantWish = (saved) => {

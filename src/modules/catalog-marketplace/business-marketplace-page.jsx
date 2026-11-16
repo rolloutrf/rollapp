@@ -53,7 +53,7 @@ function MarketplaceItem({ item, busy, onBuy, user }) {
       price={<><Coins aria-hidden="true" />{formatRolls(item.priceRolls)}</>}
       mediaBadge={<Badge variant="secondary">{item.itemType === "product" ? "Товар" : "Услуга"}</Badge>}
       details={<>
-        <Link to={publicProfilePath(item.business.username)} className="business-marketplace-card__business min-h-12" aria-label={`Открыть бизнес-профиль ${item.business.name}`}>
+        <Link to={publicProfilePath(item.business)} className="business-marketplace-card__business min-h-12" aria-label={`Открыть бизнес-профиль ${item.business.name}`}>
           <Avatar className="size-9">
             {item.business.avatarUrl && <AvatarImage src={item.business.avatarUrl} alt="" />}
             <AvatarFallback>{initials(item.business.name)}</AvatarFallback>
@@ -63,7 +63,7 @@ function MarketplaceItem({ item, busy, onBuy, user }) {
         {item.category && <span data-typography="label" className="font-semibold uppercase">{item.category}</span>}
         {item.description && <p className="m-0 text-pretty">{item.description}</p>}
         {user ? <Button className="min-h-12 w-full" disabled={busy} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button> : (
-          <Link className={buttonVariants({ className: "min-h-12 w-full whitespace-normal" })} to={`/login?next=${encodeURIComponent(publicProfilePath(item.business.username))}`}>Войти для покупки</Link>
+          <Link className={buttonVariants({ className: "min-h-12 w-full whitespace-normal" })} to={`/login?next=${encodeURIComponent(publicProfilePath(item.business))}`}>Войти для покупки</Link>
         )}
         {user?.accountType === "business" && user.id === item.business.id && <PersonalOfferComposer item={item} />}
       </>}

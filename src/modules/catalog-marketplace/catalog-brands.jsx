@@ -56,7 +56,10 @@ export function BusinessCatalogSelect({ side = "bottom", fullWidth = false }) {
   const legacyBrand = new URLSearchParams(search).get("brand");
   return <Select value={legacyBrand ? null : "directory"} onValueChange={(value) => {
     if (value === "directory") navigate(brandCatalogPath(space));
-    else if (value) navigate(publicSpacePath(value.slice("account:".length), space));
+    else if (value) {
+      const username = value.slice("account:".length);
+      navigate(publicSpacePath(accounts.find(account => account.username === username) || username, space));
+    }
   }}>
     <SelectTrigger className="space-select global-service-select" aria-label="Бизнес-аккаунты" disabled={loading || (!legacyBrand && !accounts.length)}>
       <SelectValue>{() => <>{loading ? <Spinner /> : <Building2 aria-hidden="true" />}<span className="space-select__label">{error ? "Бизнес-аккаунты недоступны" : "Бизнес-аккаунты"}</span></>}</SelectValue>
@@ -87,7 +90,7 @@ export function BusinessCatalogList() {
   </Empty>;
   return <ul className="business-catalog-grid rollapp-body mx-auto grid w-full max-w-(--layout-collection-width) gap-3 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="Бизнес-аккаунты">
     {accounts.map(account => <BusinessCatalogAccount key={`${endpoint}:${account.username}`} account={account}
-      path={space ? publicSpacePath(account.username, space) : publicProfilePath(account.username)} onChange={updateFollowing} />)}
+      path={space ? publicSpacePath(account, space) : publicProfilePath(account)} onChange={updateFollowing} />)}
   </ul>;
 }
 

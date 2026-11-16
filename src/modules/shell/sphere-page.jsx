@@ -36,8 +36,7 @@ export function TabbedSpherePage({ sphereId, tabs }) {
     navigate({ pathname: location.pathname, search: `?${search.toString()}`, hash: location.hash }, { replace: true });
   };
   globalShareRef.current = async () => {
-    const ownerUsername = access.owner?.username;
-    const path = sphereSectionPath({ ownerUsername, sphere: sphereId, section: activeTab });
+    const path = sphereSectionPath({ owner: access.owner, sphere: sphereId, section: activeTab });
     try {
       await navigator.clipboard.writeText(sharePageUrl(path));
       toast(access.isOwner ? "Ссылка на раздел скопирована. Открыть её смогут выбранные люди." : "Ссылка на раздел скопирована");

@@ -112,7 +112,7 @@ export function FriendsPage() {
             <ul className="friends-list">
               {data.people.map((person) => (
                 <li className="friend-row" data-username={person.username} key={person.id}>
-                  <Link className="friend-row__profile" to={publicProfilePath(person.username)}>
+                  <Link className="friend-row__profile" to={publicProfilePath(person)}>
                     <Avatar user={person} size="md" aria-hidden="true" />
                     <span className="friend-row__identity">
                       <strong>{person.name}</strong>
@@ -127,7 +127,7 @@ export function FriendsPage() {
                         aria-label={`Действия для ${person.name}`}
                       ><MoreHorizontal /></DropdownMenuTrigger>
                       <DropdownMenuContent className="friend-row__menu static w-[210px]" align="end" sideOffset={8}>
-                        <DropdownMenuItem className="min-h-12 gap-2 px-3" render={<Link to={publicProfilePath(person.username)} />}><CircleUserRound />Открыть профиль</DropdownMenuItem>
+                        <DropdownMenuItem className="min-h-12 gap-2 px-3" render={<Link to={publicProfilePath(person)} />}><CircleUserRound />Открыть профиль</DropdownMenuItem>
                         <DropdownMenuItem className="min-h-12 gap-2 px-3" disabled={busyPersonId === person.id} onClick={() => toggleFollow(person)}>
                           {busyPersonId === person.id ? <LoaderCircle className="spin" /> : person.isFollowing ? <X /> : <UserPlus />}
                           {person.isFollowing ? "Отписаться" : "Подписаться"}

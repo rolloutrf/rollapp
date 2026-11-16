@@ -159,7 +159,7 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
   </>;
 
   if (isMobile && !screen) {
-    return <ScreenNavigation to={shareToken ? `/s/${encodeURIComponent(shareToken)}/wishes/${encodeURIComponent(wish.id)}` : publicWishPath(profile.username, wish.id)} />;
+    return <ScreenNavigation to={shareToken ? `/s/${encodeURIComponent(shareToken)}/wishes/${encodeURIComponent(wish.id)}` : publicWishPath(profile, wish.id)} />;
   }
   const Title = screen ? "h1" : DrawerTitle;
   const Description = screen ? "p" : DrawerDescription;

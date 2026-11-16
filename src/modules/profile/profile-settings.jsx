@@ -1,3 +1,4 @@
+import { profileNameAddress } from "../../../shared/modules/profile/profile-name-address.js";
 import { EXTERNAL_WISHLIST_PROVIDERS, EXTERNAL_WISHLIST_URL_MAX_LENGTH, externalWishlistUrl } from "../../../shared/modules/profile/external-wishlists.js";
 import { platformLink } from "../../applications/location.js";
 import { localDateKey } from "../../../shared/modules/planning/planning.js";
@@ -75,7 +76,6 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
   const logout = useLogout();
   const initialForm = useMemo(() => ({
     name: user.name,
-    username: user.username,
     bio: user.bio || "",
     birthday: user.birthday ? String(user.birthday).slice(0, 10) : "",
   }), [user]);
@@ -401,7 +401,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
         <div className="grid gap-4">
           <Field>
             <FieldLabel htmlFor="settings-profile-name">{user.accountType === "business" ? "Название бизнеса" : "Имя"}</FieldLabel>
-            <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+            <Input id="settings-profile-name" required placeholder={user.accountType === "business" ? undefined : "Имя Фамилия"} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
           </Field>
           <Field>
             <FieldLabel htmlFor="settings-profile-address">Адрес профиля</FieldLabel>
@@ -412,17 +412,11 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
               <InputGroupInput
                 id="settings-profile-address"
                 className="min-w-0"
-                required
-                pattern="[a-z0-9-]{3,32}"
-                autoCapitalize="none"
-                autoCorrect="off"
-                autoComplete="username"
-                spellCheck={false}
-                value={form.username}
-                onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
+                readOnly
+                value={form.name === user.name && user.profileSlug ? user.profileSlug : profileNameAddress(form.name, user.accountType)}
               />
             </InputGroup>
-            <FieldDescription>Латиница, цифры и дефис · 3–32 символа.</FieldDescription>
+            <FieldDescription>Создаётся из имени. Прежние ссылки продолжат работать.</FieldDescription>
           </Field>
         </div>
         <Field>

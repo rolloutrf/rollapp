@@ -614,7 +614,7 @@ export function ContactsSpherePage() {
   const hasFilters = Boolean(search || company || category || favoriteOnly);
   const clearFilters = () => { setSearch(""); setDebouncedSearch(""); setCompany(""); setCategory(""); setFavoriteOnly(false); };
   globalShareRef.current = async () => {
-    const path = sphereSectionPath({ ownerUsername: access.owner?.username, sphere: "career", section: "contacts" });
+    const path = sphereSectionPath({ owner: access.owner, sphere: "career", section: "contacts" });
     try {
       await navigator.clipboard.writeText(sharePageUrl(path));
       toast(access.isOwner ? "Ссылка на раздел скопирована. Открыть её смогут выбранные люди." : "Ссылка на раздел скопирована");

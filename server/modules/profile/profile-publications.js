@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { findProfileByUsername } from "./profile-aliases.js";
+import { findProfileForAddress, profileAddress } from "./profile-addresses.js";
 
 export const profilePublicationsSchema = `
   CREATE TABLE IF NOT EXISTS profile_session_slots (
@@ -65,7 +65,7 @@ export function registerProfilePublicationRoutes(app, { requireAuth, query, tran
     res.set("Cache-Control", "private, no-store");
     res.vary("Cookie");
     try {
-      const { rows: [owner] } = await findProfileByUsername({ query }, req.params.username);
+      const { rows: [owner] } = await findProfileForAddress(query, req.params.username);
       if (!owner) throw new PublicationError(404, "Профиль не найден");
       const viewerId = req.user?.id;
       const isOwner = viewerId === owner.id;
@@ -100,7 +100,7 @@ export function registerProfilePublicationRoutes(app, { requireAuth, query, tran
        ORDER BY s.starts_at,s.id`,
       [owner.id, viewerId ?? null, isOwner],
     );
-    res.json({ profile: { name: owner.name, username: owner.username }, isOwner, slots: rows.map(row => publicSessionSlot(row, access)).filter(Boolean) });
+    res.json({ profile: { name: owner.name, username: owner.username, profileSlug: await profileAddress(query, owner.id) }, isOwner, slots: rows.map(row => publicSessionSlot(row, access)).filter(Boolean) });
   }));
 
   app.post(calendar, requireAuth, route(async (req, res, { owner }) => {
@@ -212,7 +212,7 @@ export function registerProfilePublicationRoutes(app, { requireAuth, query, tran
        WHERE owner_id=$1 ORDER BY created_at DESC,id`,
       [owner.id],
     );
-    res.json({ profile: { name: owner.name, username: owner.username }, isOwner, announcements: rows });
+    res.json({ profile: { name: owner.name, username: owner.username, profileSlug: await profileAddress(query, owner.id) }, isOwner, announcements: rows });
   }));
 
   app.post(board, requireAuth, route(async (req, res, { owner }) => {

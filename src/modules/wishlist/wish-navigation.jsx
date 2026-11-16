@@ -59,7 +59,7 @@ export function WishesProfileControls({ selectedSpace }) {
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
-        {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" to={publicSpacePath(user.username, selectedSpace)}>Моя страница</PageActionButton>}
+        {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" to={publicSpacePath(user, selectedSpace)}>Моя страница</PageActionButton>}
       </ControlBar>
     </section>
   );

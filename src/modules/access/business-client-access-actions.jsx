@@ -30,7 +30,7 @@ export function BusinessClientAccessActions({ account, person, sections, onReque
               return (
                 <Link
                   key={`${sphere}:${section}`}
-                  to={sphereSectionPath({ ownerUsername: person.username, sphere, section: target })}
+                  to={sphereSectionPath({ owner: person, sphere, section: target })}
                   data-slot="button"
                   className={buttonVariants({ variant: "outline" })}
                 >

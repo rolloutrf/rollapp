@@ -93,7 +93,7 @@ const businessSphereLabel = (sphere) => SERVICE_SWITCHER_ITEMS.find((item) => it
 
 export const businessSectionLabel = (section) => SPHERE_SECTION_LABELS[section] || section;
 
-const businessSharePath = ({ owner, sphere, section }) => sphereSectionPath({ ownerUsername: owner.username, sphere, section });
+const businessSharePath = ({ owner, sphere, section }) => sphereSectionPath({ owner: owner, sphere, section });
 
 export function BusinessAccessPage() {
   const { user } = useSession();
@@ -241,7 +241,7 @@ function BusinessAccessContent({ user }) {
         <h1>Доступ к пространствам клиентов</h1>
         {category && <p>{category.label} · {category.sphereLabel}</p>}
         <p>Открытые владельцами разделы доступны только для чтения. Чтобы получить доступ к другому разделу, найдите пользователя и отправьте запрос.</p>
-        {category?.id === "seller" && <PageActionButton to={publicSpacePath(user.username, user.sellerSpace || "products")}>Моя страница</PageActionButton>}
+        {category?.id === "seller" && <PageActionButton to={publicSpacePath(user, user.sellerSpace || "products")}>Моя страница</PageActionButton>}
       </header>
 
       {category?.id !== "seller" && <BusinessPersonalOffers user={user} />}
