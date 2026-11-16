@@ -61,7 +61,9 @@ const sources = [
   ["wishlist_business_pages", "t.business_user_id=$1"],
   ["wishlist_business_items", "t.business_user_id=$1"],
   ["wishlist_business_offers", "t.buyer_user_id=$1"],
-  ["business_personal_offers", "(t.business_user_id=$1 OR t.recipient_id=$1)", strip("idempotency_key")],
+  ["business_personal_offers", "(t.business_user_id=$1 OR t.recipient_id=$1)",
+    `${strip("idempotency_key")} || jsonb_build_object('refunded_at',
+      (SELECT p.refunded_at FROM roll_store_purchases p WHERE p.id=t.purchase_id AND p.user_id=t.recipient_id))`],
   ["business_gift_cards", "t.owner_id=$1", strip("issue_key")],
   ["business_gift_card_events", "(t.actor_id=$1 OR t.recipient_id=$1)", strip("request_key")],
   ["wish_group_fundraisers", "t.owner_id=$1"],
@@ -83,7 +85,17 @@ const sources = [
 async function accountBackupSources(client) {
   const { rows: [schema] } = await client.query(`SELECT to_regclass('user_mood_entries') IS NOT NULL AS mood_ready,
     to_regclass('profile_session_slots') IS NOT NULL AS slots_ready,
-    to_regclass('profile_announcements') IS NOT NULL AS announcements_ready`);
+    to_regclass('profile_announcements') IS NOT NULL AS announcements_ready,
+    to_regclass('roll_marketplace_orders') IS NOT NULL AS marketplace_orders,
+    to_regclass('roll_marketplace_order_events') IS NOT NULL AS marketplace_events`);
+  if (schema.marketplace_orders !== schema.marketplace_events) throw new Error("Incomplete marketplace settlement schema");
+  const settlements = schema.marketplace_orders ? [
+    ["roll_marketplace_orders", "(t.buyer_id=$1 OR t.seller_id=$1)",
+      `${strip("request_key", "gift_card_id", "gift_payment_id")} || CASE WHEN t.buyer_id=$1
+        THEN jsonb_build_object('gift_card_id',t.gift_card_id) ELSE '{}'::jsonb END`],
+    ["roll_marketplace_order_events", `EXISTS (SELECT 1 FROM roll_marketplace_orders o
+      WHERE o.id=t.order_id AND (o.buyer_id=$1 OR o.seller_id=$1))`, strip("operator_label")],
+  ] : [];
   const [userSource, ...remaining] = sources;
   const bookings = schema.slots_ready ? [
     ["profile_session_slots", `(t.owner_id=$1 OR EXISTS (SELECT 1 FROM profile_session_bookings b
@@ -95,6 +107,7 @@ async function accountBackupSources(client) {
     schema.mood_ready ? [userSource[0], userSource[1], `${userSource[2]} || ${pick("mood_level", "mood_public")}`] : userSource,
     ...(schema.mood_ready ? [["user_mood_entries", owned, pick("user_id", "id", "level", "recorded_at")]] : []),
     ...bookings,
+    ...settlements,
     ...(schema.announcements_ready ? [["profile_announcements", "t.owner_id=$1", pick("id", "owner_id", "title", "body", "created_at")]] : []),
     ...remaining,
   ];

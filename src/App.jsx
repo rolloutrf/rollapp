@@ -139,10 +139,11 @@ function WishlistStoreRoute({ ordersOpen = false }) {
 
 function WishlistOffersRoute() {
   const { search } = useLocation();
+  const { user } = useSession();
   const space = wishlistSpace(search);
   const label = SPACES.find((entry) => entry.id === space)?.label;
   return <section className="app-page page-stack rollapp-body" aria-label={`Предложения: ${label}`}>
-    <WishlistBusinessListing key={space} space={space} offers />
+    <WishlistBusinessListing key={`${user.id}:${space}`} space={space} offers viewerId={user.id} />
   </section>;
 }
 
@@ -185,7 +186,7 @@ function SphereBusinessCatalogRoute() {
       <Link to={`${catalogPath.split("?")[0]}?${offerSearch}`} data-control-icon className={buttonVariants({ variant: offers ? "default" : "outline", size: "icon" })} aria-current={offers ? "page" : undefined} aria-label="Предложения" title="Предложения"><Send aria-hidden="true" /></Link>
     </ControlBar>
     <section className="page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label={offers ? "Предложения сферы" : "Каталог брендов"}>
-      {offers ? <PersonalOffers key={sphere} user={user} sphere={sphere} /> : <>
+      {offers ? <PersonalOffers key={`${user.id}:${sphere}`} user={user} sphere={sphere} /> : <>
         <header className="typeset typeset-rollapp">
           <h2>Бренды · {title}</h2>
           <p>Подпишитесь на бизнес, чтобы получать от него предложения.</p>

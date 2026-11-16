@@ -8,7 +8,7 @@ import { PageActionButton } from "@/components/page-action-button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { PersonalOfferOperationDialog, readPendingPersonalOffers } from "@/modules/checkout/personal-offer-operation.jsx";
 import { ControlBar } from "@/components/control-bar";
 import { BUSINESS_CATEGORIES, canBusinessAccessSection } from "../../shared/modules/catalog-marketplace/business-accounts.js";
 import { SPHERE_SECTIONS } from "../../shared/modules/access/sphere-sharing.js";
@@ -134,9 +134,9 @@ export function PersonalOffers({ user, sphere, onPaid, client = api }) {
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState(null);
-  const [paymentError, setPaymentError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const lock = useRef(false);
+  const [operationResult, setOperationResult] = useState(null);
+  const operationOpener = useRef(null);
+  const offerSection = useRef(null);
   const [now, setNow] = useState(Date.now());
   const [nextOffset, setNextOffset] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -196,21 +196,34 @@ export function PersonalOffers({ user, sphere, onPaid, client = api }) {
     setOffers([]); setNextOffset(null); setLoading(true); setError("");
     setRevision(value => value + 1);
   };
-  const pay = async () => {
-    if (!selected || lock.current) return;
-    lock.current = true; setBusy(true); setPaymentError("");
-    try {
-      const result = await client.post(`/personal-offers/${selected.id}/pay`, {});
-      setOffers(previous => previous.map(offer => offer.id === selected.id ? { ...offer, status: "paid", purchaseId: result.purchase.id } : offer));
-      setSelected(null); setRevision(value => value + 1); onPaid?.();
-    }
-    catch (e) { setPaymentError(e.message); setRevision(value => value + 1); }
-    finally { lock.current = false; setBusy(false); }
-  };
-  return <section className="flex min-w-0 flex-col gap-4" aria-labelledby="personal-offers-title">
+  const pending = readPendingPersonalOffers(user.id).filter(({ offer }) => !sphere || offers.some((entry) => entry.id === offer.id));
+  function openOperation(event, offer, action) {
+    operationOpener.current = event.currentTarget;
+    setOperationResult(null);
+    setSelected({ offer, action, userId: user.id });
+  }
+  function completeOperation(purchase, offer) {
+    setOffers(previous => previous.map(entry => entry.id === offer.id ? {
+      ...entry, status: purchase.refundedAt ? "refunded" : "paid", purchaseId: purchase.id,
+    } : entry));
+    setOperationResult({ id: offer.id, title: offer.title, refunded: Boolean(purchase.refundedAt) });
+    setSelected(null);
+    setRevision(value => value + 1);
+    onPaid?.();
+  }
+  return <section ref={offerSection} tabIndex={-1} className="flex min-w-0 flex-col gap-4" aria-labelledby="personal-offers-title">
     <header className="typeset typeset-rollapp"><h2 id="personal-offers-title">Персональные офферы</h2></header>
+    {pending.length > 0 && <div className="grid gap-2" role="group" aria-label="Счета, ожидающие проверки">
+      {pending.map(({ offer, action }) => <div key={`${offer.id}:${action}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border p-4">
+        <p className="min-w-0 wrap-anywhere">{action === "refund" ? "Возврат" : "Оплата"} · {offer.title} · {formatRolls(offer.priceRolls)}</p>
+        <PageActionButton variant="outline" onClick={(event) => openOperation(event, offer, action)}>Открыть проверку</PageActionButton>
+      </div>)}
+    </div>}
+    {operationResult && !offers.some(({ id }) => id === operationResult.id) && <p role="status" className="wrap-anywhere">
+      {operationResult.refunded ? `По счёту «${operationResult.title}» роллы возвращены.` : `Счёт «${operationResult.title}» оплачен.`}
+    </p>}
     {loading && <p role="status">Загружаем счета…</p>}
-    {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" disabled={busy || loadingMore} onClick={refreshOffers}>Повторить</Button></AlertDescription></Alert>}
+    {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" disabled={loadingMore} onClick={refreshOffers}>Повторить</Button></AlertDescription></Alert>}
     {!loading && !error && !offers.length && <p className="text-muted-foreground">Здесь появятся персональные счета от бизнеса.</p>}
     {offers.map(offer => {
       const expired = offer.status === "expired" || new Date(offer.expiresAt).getTime() <= now;
@@ -220,22 +233,35 @@ export function PersonalOffers({ user, sphere, onPaid, client = api }) {
         <p>{outgoing ? `Для: ${offer.recipient.name}` : `От: ${offer.business.name}`}</p>
         <p><strong>{formatRolls(offer.priceRolls)}</strong></p>
         <p className="text-muted-foreground">Действует до <time dateTime={offer.expiresAt}>{new Date(offer.expiresAt).toLocaleString("ru-RU")}</time></p></div>
-        {offer.status === "paid" ? <p role="status">Оплачен</p> : expired ? <p>Срок истёк</p> : outgoing ? <p>Ожидает оплаты</p> : <ControlBar><Button onClick={() => { setPaymentError(""); setSelected(offer); }}>Оплатить</Button></ControlBar>}
+        {offer.status === "refunded" ? <p role="status">Роллы возвращены</p>
+          : offer.status === "paid" ? <>
+            <p role="status">Оплачен</p>
+            {outgoing && <ControlBar><Button variant="outline" onClick={(event) => openOperation(event, offer, "refund")}>Вернуть роллы</Button></ControlBar>}
+          </> : expired ? <p>Срок истёк</p> : offer.status === "unavailable" ? <p role="status">Оплата сейчас недоступна</p> : outgoing ? <p>Ожидает оплаты</p> : <ControlBar><Button onClick={(event) => openOperation(event, offer, "pay")}>Оплатить</Button></ControlBar>}
       </article>;
     })}
     {(nextOffset != null || paginated.current) && <ControlBar className="flex flex-wrap gap-2">
-      {nextOffset != null && <Button variant="outline" disabled={loadingMore || busy} onClick={loadMore}>{loadingMore ? "Загружаем…" : "Показать ещё счета"}</Button>}
-      {paginated.current && <Button variant="outline" disabled={loadingMore || busy} onClick={refreshOffers}>Обновить счета</Button>}
+      {nextOffset != null && <Button variant="outline" disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Загружаем…" : "Показать ещё счета"}</Button>}
+      {paginated.current && <Button variant="outline" disabled={loadingMore} onClick={refreshOffers}>Обновить счета</Button>}
     </ControlBar>}
-    <AlertDialog open={Boolean(selected)} onOpenChange={open => { if (!open && !busy) setSelected(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Оплатить персональный счёт?</AlertDialogTitle><AlertDialogDescription>{selected && `${selected.title} · ${formatRolls(selected.priceRolls)}. Роллы будут переведены бизнесу ${selected.business.name}.`}</AlertDialogDescription></AlertDialogHeader>{paymentError && <Alert variant="destructive"><AlertDescription>{paymentError}</AlertDescription></Alert>}<AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={event => { event.preventDefault(); pay(); }}>{busy ? "Оплачиваем…" : "Подтвердить оплату"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    {selected?.userId === user.id && <PersonalOfferOperationDialog userId={user.id} offer={selected.offer} action={selected.action}
+      client={client} returnFocus={() => operationOpener.current?.isConnected ? operationOpener.current : offerSection.current}
+      onDone={completeOperation} onClose={() => setSelected(null)} />}
   </section>;
 }
 
-export function OfferPaymentAction({ offer, onPaid }) {
-  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(""),[paid,setPaid]=useState(offer.status==="paid");
-  const lock=useRef(false);
-  const pay=async()=>{if(lock.current)return;lock.current=true;setBusy(true);setError("");try{await api.post(`/personal-offers/${offer.id}/pay`,{});setPaid(true);setOpen(false);onPaid?.();}catch(e){setError(e.message);}finally{lock.current=false;setBusy(false);}};
-  if(paid)return <span role="status">Оплачен</span>;
-  if(offer.status==="expired"||new Date(offer.expiresAt).getTime()<=Date.now())return <span>Срок истёк</span>;
-  return <><Button className="min-w-0 flex-1" onClick={()=>setOpen(true)}>Оплатить</Button><AlertDialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Оплатить персональный счёт?</AlertDialogTitle><AlertDialogDescription>{offer.title} · {formatRolls(offer.priceRolls)}. Роллы получит {offer.business.name}.</AlertDialogDescription></AlertDialogHeader>{error&&<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}<AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={event=>{event.preventDefault();pay();}}>{busy?"Оплачиваем…":"Подтвердить оплату"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></>;
+export function OfferPaymentAction({ offer, userId, onPaid }) {
+  const [open, setOpen] = useState(false);
+  const [outcome, setOutcome] = useState(null);
+  const opener = useRef(null);
+  const pending = readPendingPersonalOffers(userId).some((entry) => entry.action === "pay" && entry.offer.id === offer.id);
+  if (!pending && (offer.status === "refunded" || outcome === "refunded")) return <span role="status">Роллы возвращены</span>;
+  if (!pending && (offer.status === "paid" || outcome === "paid")) return <span role="status">Оплачен</span>;
+  if (!pending && (offer.status === "expired" || new Date(offer.expiresAt).getTime() <= Date.now())) return <span>Срок истёк</span>;
+  return <>
+    <Button ref={opener} className="min-w-0 flex-1" onClick={() => setOpen(true)}>{pending ? "Открыть проверку" : "Оплатить"}</Button>
+    {open && <PersonalOfferOperationDialog userId={userId} offer={{ ...offer, recipient: offer.recipient ?? { id: userId } }} action="pay" returnFocus={opener}
+      onDone={(purchase) => { setOutcome(purchase.refundedAt ? "refunded" : "paid"); setOpen(false); onPaid?.(); }}
+      onClose={() => setOpen(false)} />}
+  </>;
 }

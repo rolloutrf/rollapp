@@ -12,15 +12,20 @@ export const NEED_REWARDS_STATUSES = {
 // ownership and locks the current database state before applying any action.
 export function needRewardActions(offer, business, now = Date.now()) {
   const expired = new Date(offer.expiresAt).getTime() <= now;
+  const canClaim = offer.claimAt != null && new Date(offer.claimAt).getTime() <= now;
   if (business) {
     if (offer.status === "offered") return ["cancel"];
     if (offer.status === "accepted") return ["deliver", "cancel"];
+    if (offer.status === "delivered" || (offer.status === "confirmed" && !canClaim)) return ["dispute"];
     return [];
   }
   if (offer.status === "offered") return expired ? ["decline"] : ["accept", "decline"];
   if (offer.status === "accepted") return ["dispute"];
   if (offer.status === "delivered") return ["confirm", "dispute"];
-  if (offer.status === "confirmed") return new Date(offer.claimAt).getTime() <= now ? ["claim", "dispute"] : ["dispute"];
+  if (offer.status === "confirmed") {
+    if (!canClaim) return ["dispute"];
+    return offer.automaticSettlement ? ["claim"] : ["claim", "dispute"];
+  }
   return [];
 }
 

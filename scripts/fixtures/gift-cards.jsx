@@ -14,7 +14,13 @@ const business = { id: "business", name: "Мастерская подарков 
 const user = { id: "owner", name: "Владелец" };
 const friend = { id: "friend", name: "Получатель подарочной карты", username: "friend" };
 const params = new URLSearchParams(location.search);
-const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], requests: new Map(), lost: false };
+const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], checkoutChecks: [], giftChecks: [], requests: new Map(), lost: false };
+const reloadGiftState = sessionStorage.getItem("gift-fixture-reload");
+if (reloadGiftState) {
+  const previous = JSON.parse(reloadGiftState);
+  sessionStorage.removeItem("gift-fixture-reload");
+  Object.assign(state, previous, { requests: new Map(previous.requests) });
+}
 state.reads = [];
 if (params.has("wallet-error")) {
   state.cards[1].balance = 0;
@@ -102,6 +108,17 @@ api.get = async (path) => {
   }
   if (params.has("store-only") && path === "/rolls/orders") return { orders: [] };
   if (params.has("store-only") && path === "/delivery/cdek/cities") return { cities: [] };
+  if (path.startsWith("/rolls/gift-cards/operations/")) {
+    const [, kind, key] = path.match(/\/operations\/(issue|topup|send)\/([^/]+)$/);
+    state.giftChecks.push({ kind, key });
+    const card = state.requests.get(key)?.card;
+    return { card: clone(card?.kind === kind ? card : null) };
+  }
+  if (path.startsWith("/business-marketplace/career/purchases/") && params.has("offers")) {
+    const key = path.split("/").at(-1);
+    state.checkoutChecks.push(key);
+    return { purchase: clone(state.requests.get(key)?.purchase ?? null) };
+  }
   if (path.startsWith("/rolls/recipients?q=")) return { people: [friend] };
   throw new Error(`Unexpected fixture read: ${path}`);
 };
@@ -152,18 +169,40 @@ api.post = async (path, payload) => {
     throw new Error("Ответ сервера потерян");
   }
   if (state.requests.has(payload.idempotencyKey)) return clone(state.requests.get(payload.idempotencyKey));
+  const loss = state.nextGiftLoss;
+  state.nextGiftLoss = undefined;
+  if (loss) state.lost = true;
+  if (loss === "missing") throw new Error("Запрос не дошёл");
+
   let card = state.cards[0];
+  let kind;
   if (path.includes("/purchases")) { state.cards.find((entry) => entry.id === payload.giftCardId).balance -= 20; }
   else if (path === "/rolls/gift-cards") {
+    kind = "issue";
     card = { id: crypto.randomUUID(), balance: 0, business };
     state.cards.unshift(card);
   } else if (path.endsWith("/topup")) {
+    kind = "topup";
     card.balance += payload.amount; state.balance -= payload.amount;
-  } else if (path.endsWith("/send")) state.cards = [];
-  else throw new Error(`Unexpected fixture mutation: ${path}`);
-  const result = { card: { id: card.id } };
+  } else if (path.endsWith("/send")) {
+    kind = "send";
+    if (payload.expectedBalance !== undefined && payload.expectedBalance !== card.balance) {
+      throw Object.assign(new Error("Остаток карты изменился. Проверьте сумму подарка и подтвердите отправку снова."),
+        { status: 409, code: "GIFT_BALANCE_CHANGED" });
+    }
+    state.cards = [];
+  } else throw new Error(`Unexpected fixture mutation: ${path}`);
+  const result = !kind
+    ? { purchase: { id: crypto.randomUUID(), balance: state.balance, itemId: payload.itemId,
+        sphere: "career", amount: 20, giftCardId: payload.giftCardId ?? null, status: "placed", protected: false } }
+    : { card: { id: card.id, kind, businessId: card.business.id,
+        ...(kind === "topup" && { amount: payload.amount }),
+        ...(kind === "send" && { recipientId: payload.recipientId }) } };
   state.requests.set(payload.idempotencyKey, result);
-  if ((path.endsWith("/topup") || path.includes("/purchases")) && !state.lost) { state.lost = true; throw new Error("Simulated lost response"); }
+  if (loss === "posted" || ((path.endsWith("/topup") || path.includes("/purchases")) && !state.lost)) {
+    state.lost = true;
+    throw new Error("Simulated lost response");
+  }
   return clone(result);
 };
 function Fixture() {

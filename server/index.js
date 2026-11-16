@@ -33,7 +33,8 @@ import helmet from "helmet";
 import { registerTonConnectRoutes, TON_CONNECT_BRIDGE_ORIGINS } from "./modules/payments/ton-connect.js";
 import { registerTonContactCardRoutes } from "./modules/contacts/ton-contact-cards.js";
 import { registerTonBalanceRoutes } from "./modules/payments/ton-balance.js";
-import { registerTonRollsRoutes, startTonPaymentPolling } from "./modules/payments/roll-ton.js";
+import { registerTonRollsRoutes } from "./modules/payments/roll-ton.js";
+import { startTonPaymentPolling } from "./modules/payments/ton-payment-poller.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -48,7 +49,7 @@ import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
 import { registerCdekRoutes } from "./modules/delivery/cdek-routes.js";
 import { registerPersonalOfferRoutes } from "./personal-offers.js";
 import { registerBusinessMarketplaceRoutes } from "./modules/catalog-marketplace/business-marketplace.js";
-import { registerNeedRewardsRoutes, startNeedRewardExpiryWorker } from "./modules/loyalty/need-rewards.js";
+import { registerNeedRewardsRoutes, startNeedRewardSettlementWorker } from "./modules/loyalty/need-rewards.js";
 import { checkRewardProofRuntime, startRewardProofWorker } from "./modules/loyalty/reward-proof-queue.js";
 
 import { registerPlanningRoutes } from "./modules/planning/planning.js";
@@ -1736,6 +1737,7 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
     version: process.env.APP_VERSION || "development",
     capabilities: {
       marketplaceDirect: true,
+      marketplaceSettlements: process.env.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true",
       marketplaceAi: sharedAiConfigured(),
       defaultAiProvider: yandexAiConfig().enabled ? "yandex" : process.env.OPENROUTER_API_KEY ? "openrouter" : null,
       personalAiCredentials: userCredentialsConfigured(),
@@ -3538,14 +3540,14 @@ if (databaseInitialization === "verify") console.log("Existing PostgreSQL schema
 let telegramPoller;
 let tonPaymentPoller;
 let rewardProofWorker;
-let needRewardExpiryWorker;
+let needRewardSettlementWorker;
 if (!sphereApplication) {
   await checkRewardProofRuntime();
   if (!isMemoryDatabase) memberAnchor = await startMemberTonAnchor({ pool });
   telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });
   tonPaymentPoller = startTonPaymentPolling({ query, transaction });
   rewardProofWorker = startRewardProofWorker({ transaction });
-  needRewardExpiryWorker = startNeedRewardExpiryWorker({ query, transaction });
+  needRewardSettlementWorker = startNeedRewardSettlementWorker({ query, transaction });
   if (isProduction && diskSyncAvailable) diskSyncWorker = startYandexDiskSync({ query, transaction, track: trackBackgroundTask });
 }
 
@@ -3558,7 +3560,7 @@ async function shutdown() {
   telegramPoller?.stop();
   tonPaymentPoller?.stop();
   rewardProofWorker?.stop();
-  needRewardExpiryWorker?.stop();
+  needRewardSettlementWorker?.stop();
   diskSyncWorker?.stop();
   server.close(async () => {
     if (backgroundTasks.size) {

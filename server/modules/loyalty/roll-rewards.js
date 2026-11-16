@@ -7,6 +7,7 @@ import {
   ROLLS_WISH_REWARD_LIMIT,
 } from "../../../shared/modules/payments/rolls.js";
 import { ensureRollWallet, RollsError } from "../payments/rolls.js";
+import { readRollIssuanceImpact } from "../payments/roll-accounting.js";
 import { randomUUID } from "node:crypto";
 
 export const rollGrantSchema = z.object({
@@ -24,12 +25,46 @@ export async function grantWelcomeRolls(client) {
   return { users: users.rowCount, credited, issued: credited * ROLLS_WELCOME_AMOUNT };
 }
 
+function grantTerms(input) {
+  const parsed = rollGrantSchema.safeParse(input);
+  if (!parsed.success) throw new RollsError("Некорректные данные начисления", "INVALID_GRANT");
+  return parsed.data;
+}
+
+function priorGrantMatches(row, userId, { amount, reason }) {
+  if (row.user_id !== userId || Number(row.amount) !== amount || row.reason !== reason) {
+    throw new RollsError("Этот ключ уже использован для другого начисления", "IDEMPOTENCY_CONFLICT", 409);
+  }
+}
+
+export async function previewRollGrant(client, userId, input, { includeIssuanceImpact = false } = {}) {
+  const terms = grantTerms(input);
+  const { rows: [target] } = await client.query(`
+    SELECT u.id,u.name,u.username,COALESCE(w.balance,0)::text AS balance,
+      EXISTS(SELECT 1 FROM roll_transactions t WHERE t.recipient_id=u.id AND t.kind='welcome') AS welcomed
+    FROM users u LEFT JOIN roll_wallets w ON w.user_id=u.id WHERE u.id=$1`, [userId]);
+  if (!target) throw new RollsError("Участник не найден", "RECIPIENT_NOT_FOUND", 404);
+  const { welcomed, ...account } = target;
+  const { rows: [previous] } = await client.query(
+    "SELECT id,user_id,amount,reason FROM roll_manual_grants WHERE idempotency_key=$1", [terms.idempotencyKey],
+  );
+  if (previous) priorGrantMatches(previous, userId, terms);
+  const welcomeAmount = welcomed ? 0 : ROLLS_WELCOME_AMOUNT;
+  const increase = BigInt(welcomeAmount) + BigInt(previous ? 0 : terms.amount);
+  const projected = BigInt(account.balance) + increase;
+  if (projected > BigInt(ROLLS_MAX_BALANCE)) throw new RollsError("Кошелёк достиг лимита", "BALANCE_LIMIT", 409);
+  return {
+    account, amount: terms.amount, reason: terms.reason, welcomeAmount,
+    projectedBalance: String(projected), existingGrantId: previous?.id ?? null,
+    ...(includeIssuanceImpact && { issuanceImpact: await readRollIssuanceImpact(client, userId, increase) }),
+  };
+}
+
 // Administrative grants are kept in their own append-only ledger so a manual
 // credit remains visible and the stored balance can always be audited.
 export async function grantRolls(client, userId, input) {
-  const parsed = rollGrantSchema.safeParse(input);
-  if (!parsed.success) throw new RollsError("Некорректные данные начисления", "INVALID_GRANT");
-  const { amount, reason, idempotencyKey } = parsed.data;
+  const terms = grantTerms(input);
+  const { amount, reason, idempotencyKey } = terms;
   const user = await client.query("SELECT id FROM users WHERE id=$1", [userId]);
   if (!user.rowCount) throw new RollsError("Участник не найден", "RECIPIENT_NOT_FOUND", 404);
 
@@ -40,9 +75,7 @@ export async function grantRolls(client, userId, input) {
   );
   if (previous.rowCount) {
     const row = previous.rows[0];
-    if (row.user_id !== userId || Number(row.amount) !== amount || row.reason !== reason) {
-      throw new RollsError("Этот ключ уже использован для другого начисления", "IDEMPOTENCY_CONFLICT", 409);
-    }
+    priorGrantMatches(row, userId, terms);
     const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
     return { id: row.id, replayed: true, balance: Number(wallet.rows[0].balance) };
   }

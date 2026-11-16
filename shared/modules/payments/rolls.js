@@ -5,7 +5,7 @@ export const ROLLS_MAX_TRANSFER = 1_000_000_000;
 export const ROLLS_MAX_BALANCE = Number.MAX_SAFE_INTEGER;
 
 export function rollsLabel(amount) {
-  const value = Math.abs(amount);
+  const value = Math.abs(typeof amount === "bigint" ? Number(amount % 100n) : amount);
   if (value % 100 >= 11 && value % 100 <= 14) return "роллов";
   if (value % 10 === 1) return "ролл";
   if (value % 10 >= 2 && value % 10 <= 4) return "ролла";

@@ -118,7 +118,7 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfte
      <Button type="button" disabled={!buyerId || busy || !item.active || !Number.isInteger(Number(price)) || Number(price) < 1 || Number(price) > 1000000} onClick={send}>Предложить</Button>
      <Button type="button" variant="outline" size="icon" data-control-icon aria-label={space === "products" ? "Редактировать товар" : "Редактировать позицию"} disabled={busy} onClick={() => onEdit(item)}><Pencil aria-hidden="true" /></Button>
    </>}
-   {!owner && item.personalOffer && <OfferPaymentAction offer={item.personalOffer} onPaid={() => { onDismiss(); onClose(); }} />}
+   {!owner && viewerId && item.personalOffer && <OfferPaymentAction key={`${viewerId}:${item.personalOffer.id}`} userId={viewerId} offer={item.personalOffer} onPaid={() => { onDismiss(); onClose(); }} />}
    {item.offerId && <Button type="button" variant="destructive" size="icon" data-control-icon aria-label="Отклонить предложение" title="Отклонить предложение" disabled={busy} onClick={dismiss}><Trash2 aria-hidden="true" /></Button>}
  </DrawerFooter>
  </DrawerContent></Drawer>;

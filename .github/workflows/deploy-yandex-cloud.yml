@@ -222,22 +222,29 @@ jobs:
         run: |
           set -euo pipefail
 
+          expected_marketplace="$(sed -nE 's/^      ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED: "(true|false)"$/\1/p' deploy/docker-compose.template.yml)"
+          if [[ "$expected_marketplace" != true && "$expected_marketplace" != false ]]; then
+            echo "Deployment template must declare exactly one protected checkout flag" >&2
+            exit 1
+          fi
+
           read_health() {
             curl -fsS --max-time 10 "${PUBLIC_URL}/api/healthz" 2>/dev/null || true
           }
 
           wait_for_expected_version() {
             local max_attempts="$1"
-            local health actual_version
+            local health actual_version actual_marketplace
             for attempt in $(seq 1 "$max_attempts"); do
               health="$(read_health)"
-              if jq -e --arg expected "$GITHUB_SHA" \
-                '.ok == true and .service == "rollapp" and .version == $expected' \
+              if jq -e --arg expected "$GITHUB_SHA" --argjson marketplace "$expected_marketplace" \
+                '.ok == true and .service == "rollapp" and .version == $expected and .capabilities.marketplaceSettlements == $marketplace' \
                 <<<"$health" >/dev/null 2>&1; then
                 return 0
               fi
               actual_version="$(jq -r '.version // "unavailable"' <<<"$health" 2>/dev/null || echo unavailable)"
-              echo "Waiting for production (${attempt}/${max_attempts}); current version: ${actual_version}"
+              actual_marketplace="$(jq -r 'if (.capabilities.marketplaceSettlements | type) == "boolean" then .capabilities.marketplaceSettlements else "unavailable" end' <<<"$health" 2>/dev/null || echo unavailable)"
+              echo "Waiting for production (${attempt}/${max_attempts}); current version: ${actual_version}, protected checkout: ${actual_marketplace}, expected: ${expected_marketplace}"
               sleep 5
             done
             return 1
@@ -251,6 +258,10 @@ jobs:
               stale_version="$(jq -r '.version' <<<"$current_health")"
               echo "Production is healthy but stale at ${stale_version}; keeping the running service available" >&2
               echo "Inspect COI pull errors and VM disk space before any manual restart; see docs/verification.md" >&2
+              exit 1
+            elif jq -e --arg expected "$GITHUB_SHA" \
+              '.ok == true and .service == "rollapp" and .version == $expected' <<<"$current_health" >/dev/null 2>&1; then
+              echo "Production is healthy at the expected SHA but protected checkout differs from the deployment template; keeping the service running" >&2
               exit 1
             else
               echo "Production became unhealthy while deploying; refusing an automatic restart: ${current_health}" >&2

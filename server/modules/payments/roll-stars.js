@@ -5,11 +5,16 @@ import { ROLLS_MAX_BALANCE } from "../../../shared/modules/payments/rolls.js";
 import { ensureRollWallet, RollsError } from "./rolls.js";
 import { callTelegramBotApi, getTelegramBotRuntimeConfig } from "../runtime/telegram-bot.js";
 
-export const starOrderInput = z.object({
-  packageId: z.enum(ROLL_STAR_PACKAGES.map((item) => item.id)),
-  idempotencyKey: z.string().uuid(),
-  termsVersion: z.literal(ROLL_STAR_TERMS_VERSION),
+const starRequestKey = z.string().uuid();
+const starOrderRequest = z.object({
+  packageId: z.string().min(1).max(80),
+  idempotencyKey: starRequestKey,
+  termsVersion: z.string().min(1).max(80),
 }).strict();
+export const starOrderInput = starOrderRequest.extend({
+  packageId: z.enum(ROLL_STAR_PACKAGES.map((item) => item.id)),
+  termsVersion: z.literal(ROLL_STAR_TERMS_VERSION),
+});
 
 export function getStarsConfig(env = process.env) {
   const bot = getTelegramBotRuntimeConfig(env);
@@ -36,18 +41,33 @@ export function publicStarOrder(row) {
   };
 }
 
+async function findStarOrderByRequest(client, userId, requestKey) {
+  const { rows: [row] } = await client.query("SELECT * FROM roll_star_orders WHERE user_id=$1 AND idempotency_key=$2", [userId, requestKey]);
+  return row;
+}
+
+export async function readStarOrderByRequest(client, userId, requestKey) {
+  const parsed = starRequestKey.safeParse(requestKey);
+  if (!parsed.success) throw new RollsError("Проверьте номер запроса", "INVALID_STAR_ORDER");
+  const row = await findStarOrderByRequest(client, userId, parsed.data);
+  return row ? { ...publicStarOrder(row), packageId: row.package_id, termsVersion: row.terms_version } : null;
+}
+
 export async function createStarOrder(client, userId, input) {
-  const parsed = starOrderInput.safeParse(input);
+  const parsed = starOrderRequest.safeParse(input);
   if (!parsed.success) throw new RollsError("Выберите пакет и примите условия покупки", "INVALID_STAR_ORDER");
   const { packageId, idempotencyKey, termsVersion } = parsed.data;
   const identity = await client.query("SELECT telegram_user_id FROM telegram_identities WHERE user_id=$1", [userId]);
   if (!identity.rowCount) throw new RollsError("Откройте Rollapp из Telegram и привяжите свой аккаунт", "TELEGRAM_LINK_REQUIRED", 409);
   await ensureRollWallet(client, userId);
-  const existing = await client.query("SELECT * FROM roll_star_orders WHERE user_id=$1 AND idempotency_key=$2", [userId, idempotencyKey]);
-  if (existing.rowCount) {
-    if (existing.rows[0].package_id !== packageId) throw new RollsError("Этот запрос уже использован для другого пакета", "IDEMPOTENCY_CONFLICT", 409);
-    return existing.rows[0];
+  const existing = await findStarOrderByRequest(client, userId, idempotencyKey);
+  if (existing) {
+    if (existing.package_id !== packageId || existing.terms_version !== termsVersion) {
+      throw new RollsError("Этот запрос уже использован для другого пакета или версии условий", "IDEMPOTENCY_CONFLICT", 409);
+    }
+    return existing;
   }
+  if (!starOrderInput.safeParse(parsed.data).success) throw new RollsError("Выберите пакет и примите действующие условия покупки", "INVALID_STAR_ORDER");
   const pack = ROLL_STAR_PACKAGES.find((item) => item.id === packageId);
   const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
   if (Number(wallet.rows[0].balance) > ROLLS_MAX_BALANCE - pack.rolls) throw new RollsError("Кошелёк достиг лимита", "BALANCE_LIMIT", 409);

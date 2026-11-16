@@ -6,6 +6,7 @@
 
 - `GET /api/rolls/stars`: availability, packages, terms, identity-link status.
 - `POST /api/rolls/stars/orders`: `{ packageId, idempotencyKey, termsVersion }`. Prices, recipient and Telegram identity come from the server. A committed order survives invoice-provider failures and lost HTTP responses.
+- `GET /api/rolls/stars/orders/by-request/:requestKey`: authenticated READ ONLY lookup of the original request. It returns `order: null` until the order is stored. The response includes the stored package and accepted terms version, uses private no-store caching, and makes no call to Telegram.
 - `GET /api/rolls/stars/orders/:id`: owner-only payment status.
 - `roll_star_orders`: order, fixed price, accepted terms version, invoice, checkout ID and unique `telegram_payment_charge_id`. This is also the immutable credit ledger for paid Stars purchases.
 - `pre_checkout_query`: validates XTR, exact amount, bound Telegram account, expiry and unused checkout. A given order permits one checkout query (redelivery of the same query is safe). A cancelled checkout requires a new order; the original payment is still reconciled if Telegram later confirms it.
@@ -13,6 +14,19 @@
 - The browser callback never credits rolls. It polls the authenticated API and refreshes the wallet after server confirmation.
 
 No outbound messages are sent to support automatically. Customers contact support themselves. The existing store-order refund endpoint returns **rolls** and is not a Stars refund endpoint. Stars refunds are handled by the operator via Telegram's `refundStarPayment`; resolve roll accounting explicitly before issuing any refund. Automatic chargeback reconciliation and automatic Stars refunds are outside this purchase implementation.
+
+## Recovering an invoice
+
+The wallet keeps the package, accepted terms version and request UUID in the
+current account’s tab before sending the request. After a network failure or
+reload, «Открыть счёт Stars» opens the saved request, including when sales are
+paused. «Найти счёт» reads by UUID and checks that both terms and package match.
+It never opens Telegram. When there is no order yet and sales are available,
+«Повторить создание счёта» sends the same request. A conflict keeps the original
+request available until the user closes it. An existing direct invoice waiting
+for a link can retry link generation on that same order. External workers still
+deliver links through the existing queue and the browser reads their status.
+Previously accepted payments still appear as credited while sales are paused.
 
 ## Runtime and rollout
 
@@ -31,12 +45,19 @@ For webhook delivery, run the updated `npm run telegram:configure` against the i
 ```sh
 node --test server/modules/payments/roll-stars.test.js server/modules/runtime/telegram-bot.test.js server/modules/payments/rolls.test.js
 npm run test:ui
+npm run test:stars
 npm run build
 npm run test:stars:production
 npm run test:stars:visual
 ```
 
-Database tests require the configured production PostgreSQL, with a working tunnel and Lockbox access when applicable. They create fixture accounts/orders and additive schema inside one outer transaction, then roll back every write. They never substitute another database. Their Telegram transport is a test double, so these checks never charge Stars or contact real customers. Visual tests use installed Chrome and save desktop/mobile screenshots in `exports/stars/`.
+Database tests require the configured production PostgreSQL and read the
+existing schema. They check READ ONLY mode on a real transaction and roll back
+every fixture account and order. Their Telegram transport is a test double, so
+these checks never charge Stars or contact real customers. `test:stars` checks
+the wallet and recovery on eight browser viewports and rejects real API calls.
+`test:stars:visual` serves the built app in Chrome against the rollback-only API
+and saves desktop and mobile screenshots in `exports/stars/`.
 
 After deployment, a real purchase by the owner is still needed to verify Telegram's live checkout and the worker's delivery end to end. Check one 10-Star purchase, its unique charge ID, a +100 ledger entry, and the new balance. Do not label a simulated receipt or an invoice-created response as a live payment test.
 

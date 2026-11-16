@@ -5,6 +5,7 @@ import { ROLLS_MAX_BALANCE } from "../../../shared/modules/payments/rolls.js";
 import { NEED_REWARDS_MAX_AMOUNT, NEED_REWARDS_HOLD_DAYS, needRewardActions } from "../../../shared/modules/loyalty/need-rewards.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
 import { enqueueRewardReceipt } from "./reward-proof-queue.js";
+import { AUTOMATIC_REWARD_CONFIRMATION, hasAutomaticRewardConfirmation } from "./need-reward-settlement-terms.js";
 
 export const createRewardNeedSchema = z.object({
   title: z.string().trim().min(3).max(160), description: z.string().trim().min(10).max(1200),
@@ -17,7 +18,9 @@ export const createRewardOfferSchema = z.object({
 export const rewardActionSchema = z.object({
   action: z.enum(["accept", "decline", "cancel", "deliver", "confirm", "claim", "dispute"]),
   reason: z.string().trim().max(1200).default(""),
-}).strict().refine(value => value.action !== "dispute" || value.reason.length >= 10);
+  automaticSettlement: z.literal(true).optional(),
+}).strict().refine(value => value.action !== "dispute" || value.reason.length >= 10)
+  .refine(value => value.action === "confirm" || value.automaticSettlement === undefined);
 
 function invalid(message = "Некорректные данные") { throw new RollsError(message, "INVALID_REWARD_REQUEST"); }
 function parse(schema, input) { const result = schema.safeParse(input); if (!result.success) invalid(); return result.data; }
@@ -32,12 +35,28 @@ function offer(row) {
     id: row.id, needId: row.need_id, businessId: row.business_id, businessName: row.business_name,
     description: row.description, reward: Number(row.reward), status: row.status,
     expiresAt: row.expires_at, claimAt: row.claim_at, settledAt: row.settled_at,
+    automaticSettlement: Boolean(row.automatic_settlement),
+    disputeReason: row.status === "disputed" ? row.dispute_reason : null,
     proofStatus: row.proof_status || null, receiptHash: row.receipt_hash || null,
     bitcoinHeight: row.bitcoin_height ?? null,
   };
 }
-async function event(client, offerId, actor, action) {
-  await client.query("INSERT INTO reward_need_events (id,offer_id,actor_id,action) VALUES ($1,$2,$3,$4)", [randomUUID(), offerId, actor, action]);
+async function event(client, offerId, actor, action, note = "") {
+  await client.query("INSERT INTO reward_need_events (id,offer_id,actor_id,action,note) VALUES ($1,$2,$3,$4,$5)", [randomUUID(), offerId, actor, action, note]);
+}
+
+async function lockRewardOffer(client, offerId, { skipLocked = false } = {}) {
+  // Every operation locks the need, then its offer, then the destination wallet.
+  const { rows: [found] } = await client.query("SELECT need_id FROM reward_need_offers WHERE id=$1", [offerId]);
+  if (!found) return null;
+  const { rows: [need] } = await client.query(
+    `SELECT * FROM reward_needs WHERE id=$1 FOR UPDATE${skipLocked ? " SKIP LOCKED" : ""}`, [found.need_id],
+  );
+  if (!need) return null;
+  const { rows: [row] } = await client.query(`
+    SELECT o.*,${hasAutomaticRewardConfirmation} AS automatic_settlement,clock_timestamp() AS server_now
+    FROM reward_need_offers o WHERE o.id=$1 FOR UPDATE OF o`, [offerId]);
+  return row ? { need, row } : null;
 }
 
 export async function createRewardNeed(client, userId, input) {
@@ -95,24 +114,51 @@ async function release(client, row, userId, kind) {
   await enqueueRewardReceipt(client, row, userId, kind);
 }
 
+async function recordRewardStatus(client, row, status) {
+  await client.query(`UPDATE reward_need_offers SET status=$2,
+    settled_at=CASE WHEN $2='settled' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=$1`, [row.id, status]);
+}
+
+async function settleReward(client, need, row, actor) {
+  await release(client, row, need.user_id, "reward");
+  await client.query("UPDATE reward_needs SET status='closed' WHERE id=$1", [need.id]);
+  await recordRewardStatus(client, row, "settled");
+  await event(client, row.id, actor, actor ? "claim" : "automatic_claim");
+}
+
 export async function actOnRewardOffer(client, userId, offerId, input) {
   uuid(offerId);
-  const { action, reason } = parse(rewardActionSchema, input);
-  // Every path locks the need before the offer. Never trust a client's status,
-  // amount, business ID, timestamp or statement that a transaction succeeded.
-  const found = await client.query("SELECT need_id FROM reward_need_offers WHERE id=$1", [offerId]);
-  if (!found.rowCount) throw new RollsError("Предложение не найдено", "OFFER_NOT_FOUND", 404);
-  const needs = await client.query("SELECT * FROM reward_needs WHERE id=$1 FOR UPDATE", [found.rows[0].need_id]);
-  const need = needs.rows[0];
-  const row = (await client.query("SELECT *,CURRENT_TIMESTAMP AS server_now FROM reward_need_offers WHERE id=$1 FOR UPDATE", [offerId])).rows[0];
+  const { action, reason, automaticSettlement = false } = parse(rewardActionSchema, input);
+  const locked = await lockRewardOffer(client, offerId);
+  if (!locked) throw new RollsError("Предложение не найдено", "OFFER_NOT_FOUND", 404);
+  const { need, row } = locked;
   const business = row.business_id === userId;
   if (!business && need.user_id !== userId) throw new RollsError("Предложение не найдено", "OFFER_NOT_FOUND", 404);
   const terminalReplay = { claim: "settled", cancel: "cancelled", decline: "declined", confirm: "confirmed", deliver: "delivered", accept: "accepted", dispute: "disputed" };
-  const ownerAction = business ? ["cancel", "deliver"].includes(action) : !["cancel", "deliver"].includes(action);
-  if (!ownerAction) throw new RollsError("Действие недоступно", "ACTION_FORBIDDEN", 403);
-  if (row.status === terminalReplay[action]) return { id: row.id, status: row.status, replayed: true };
-  if (!needRewardActions(offer(row), business, new Date(row.server_now).getTime()).includes(action)) throw new RollsError("Состояние изменилось. Обновите страницу", "REWARD_STATE_CONFLICT", 409);
+  const businessAction = ["cancel", "deliver"].includes(action);
+  if (action !== "dispute" && business !== businessAction) throw new RollsError("Действие недоступно", "ACTION_FORBIDDEN", 403);
+  if (row.status === terminalReplay[action] || (action === "confirm" && row.status === "settled" && row.automatic_settlement)) {
+    if (action === "confirm" && automaticSettlement !== row.automatic_settlement) {
+      throw new RollsError("Результат уже подтверждён с другими условиями", "REWARD_CONFIRMATION_CONFLICT", 409);
+    }
+    if (action === "dispute") {
+      const { rows: [recorded] } = await client.query(
+        "SELECT actor_id FROM reward_need_events WHERE offer_id=$1 AND action='dispute' ORDER BY created_at DESC,id DESC LIMIT 1", [row.id],
+      );
+      if (recorded?.actor_id !== userId || row.dispute_reason !== reason) {
+        throw new RollsError("Спор уже открыт", "REWARD_DISPUTE_CONFLICT", 409);
+      }
+    }
+    return { id: row.id, status: row.status, replayed: true };
+  }
+  if (!needRewardActions(offer(row), business, row.server_now.getTime()).includes(action)) {
+    throw new RollsError("Состояние изменилось. Обновите страницу", "REWARD_STATE_CONFLICT", 409);
+  }
   if (action === "accept" && need.status !== "open") throw new RollsError("Другая заявка уже принята", "NEED_CLOSED", 409);
+  if (action === "claim") {
+    await settleReward(client, need, row, userId);
+    return { id: row.id, status: "settled", replayed: false };
+  }
   let status;
   if (action === "accept") {
     status = "accepted";
@@ -124,17 +170,14 @@ export async function actOnRewardOffer(client, userId, offerId, input) {
   } else if (action === "deliver") status = "delivered";
   else if (action === "confirm") {
     status = "confirmed";
-    await client.query("UPDATE reward_need_offers SET claim_at=CURRENT_TIMESTAMP + INTERVAL '7 days' WHERE id=$1", [row.id]);
-  } else if (action === "claim") {
-    status = "settled";
-    await release(client, row, need.user_id, "reward");
-    await client.query("UPDATE reward_needs SET status='closed' WHERE id=$1", [need.id]);
+    await client.query("UPDATE reward_need_offers SET claim_at=$2::timestamptz+make_interval(hours=>$3) WHERE id=$1",
+      [row.id, row.server_now, NEED_REWARDS_HOLD_DAYS * 24]);
   } else {
     status = "disputed";
     await client.query("UPDATE reward_need_offers SET dispute_reason=$2 WHERE id=$1", [row.id, reason]);
   }
-  await client.query("UPDATE reward_need_offers SET status=$2,settled_at=CASE WHEN $2='settled' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=$1", [row.id, status]);
-  await event(client, row.id, userId, action);
+  await recordRewardStatus(client, row, status);
+  await event(client, row.id, userId, action, action === "confirm" && automaticSettlement ? AUTOMATIC_REWARD_CONFIRMATION : "");
   return { id: row.id, status, replayed: false };
 }
 
@@ -150,36 +193,68 @@ export async function closeRewardNeed(client, userId, needId) {
 
 export async function expireRewardOffer(client, offerId) {
   uuid(offerId);
-  const found = await client.query("SELECT need_id FROM reward_need_offers WHERE id=$1", [offerId]);
-  if (!found.rowCount) return false;
-  const locked = await client.query("SELECT id FROM reward_needs WHERE id=$1 FOR UPDATE SKIP LOCKED", [found.rows[0].need_id]);
-  if (!locked.rowCount) return false;
-  const offers = await client.query("SELECT * FROM reward_need_offers WHERE id=$1 AND status='offered' AND expires_at<=CURRENT_TIMESTAMP FOR UPDATE", [offerId]);
-  if (!offers.rowCount) return false;
-  const row = offers.rows[0];
+  const locked = await lockRewardOffer(client, offerId, { skipLocked: true });
+  if (!locked) return false;
+  const { row } = locked;
+  if (row.status !== "offered" || row.expires_at > row.server_now) return false;
   await release(client, row, row.business_id, "refund");
-  await client.query("UPDATE reward_need_offers SET status='cancelled' WHERE id=$1", [offerId]);
+  await recordRewardStatus(client, row, "cancelled");
   await event(client, offerId, null, "expire");
   return true;
 }
 
-export function startNeedRewardExpiryWorker({ query, transaction, env = process.env }) {
+export async function automaticallySettleRewardOffer(client, offerId) {
+  uuid(offerId);
+  const locked = await lockRewardOffer(client, offerId, { skipLocked: true });
+  if (!locked) return false;
+  const { need, row } = locked;
+  if (row.status !== "confirmed" || !row.automatic_settlement || !row.claim_at || row.claim_at > row.server_now) return false;
+  await settleReward(client, need, row, null);
+  return true;
+}
+
+const rewardSettlementBatchSize = 20;
+
+export async function processDueRewardOffers({ query, transaction, cursor, shouldStop = () => false, onError }) {
+  const { rows } = await query(`
+    WITH due AS (
+      SELECT id,'expire' AS action,expires_at AS due_at
+      FROM reward_need_offers WHERE status='offered' AND expires_at<=statement_timestamp()
+      UNION ALL
+      SELECT id,'automatic_claim',claim_at FROM reward_need_offers o
+      WHERE status='confirmed' AND claim_at<=statement_timestamp() AND ${hasAutomaticRewardConfirmation}
+    )
+    SELECT id,action,due_at::text AS "dueAt" FROM due
+    WHERE $1::timestamptz IS NULL OR (due_at,id)>($1::timestamptz,$2::uuid)
+    ORDER BY due_at,id LIMIT $3`, [cursor?.dueAt ?? null, cursor?.id ?? null, rewardSettlementBatchSize]);
+  for (const { id, action } of rows) {
+    if (shouldStop()) break;
+    try {
+      await transaction(async (client) => {
+        await client.query("SET LOCAL lock_timeout='2s'");
+        return action === "expire" ? expireRewardOffer(client, id) : automaticallySettleRewardOffer(client, id);
+      });
+    } catch (error) { if (!shouldStop()) onError(error); }
+  }
+  // A failure at the head must not prevent unrelated offers from completing.
+  // Wrap after the final page so blocked rows are retried on later ticks.
+  return rows.length === rewardSettlementBatchSize ? rows.at(-1) : null;
+}
+
+export function startNeedRewardSettlementWorker({ query, transaction, env = process.env }) {
   if (env.ROLLAPP_NEED_REWARDS_ENABLED !== "true") return { stop() {} };
-  let running = false, stopped = false;
+  let running = false, stopped = false, cursor = null;
   const tick = async () => {
     if (running || stopped) return;
     running = true;
     try {
-      const due = await query("SELECT id FROM reward_need_offers WHERE status='offered' AND expires_at<=CURRENT_TIMESTAMP ORDER BY expires_at,id LIMIT 20");
-      for (const row of due.rows) {
-        if (stopped) break;
-        try { await transaction(client => expireRewardOffer(client, row.id)); }
-        catch { if (!stopped) console.error("[need-rewards] Expired reserve could not be returned; retry scheduled."); }
-      }
-    } catch { if (!stopped) console.error("[need-rewards] Expiry queue unavailable; retry scheduled."); }
+      cursor = await processDueRewardOffers({
+        query, transaction, cursor, shouldStop: () => stopped,
+        onError: () => console.error("[need-rewards] Scheduled reserve settlement failed; retry scheduled."),
+      });
+    } catch { if (!stopped) console.error("[need-rewards] Settlement queue unavailable; retry scheduled."); }
     finally { running = false; }
   };
-  // Expiry is a scheduled business operation, not database startup cleanup.
   const timer = setInterval(tick, 60_000); timer.unref();
   return { stop() { stopped = true; clearInterval(timer); } };
 }
@@ -189,10 +264,9 @@ export function startNeedRewardExpiryWorker({ query, transaction, env = process.
 export async function resolveRewardDispute(client, offerId, outcome, reason) {
   uuid(offerId);
   if (!["refund", "reward"].includes(outcome) || typeof reason !== "string" || reason.trim().length < 10 || reason.length > 1200) invalid();
-  const found = await client.query("SELECT need_id FROM reward_need_offers WHERE id=$1", [offerId]);
-  if (!found.rowCount) throw new RollsError("Предложение не найдено", "OFFER_NOT_FOUND", 404);
-  const need = (await client.query("SELECT * FROM reward_needs WHERE id=$1 FOR UPDATE", [found.rows[0].need_id])).rows[0];
-  const row = (await client.query("SELECT * FROM reward_need_offers WHERE id=$1 FOR UPDATE", [offerId])).rows[0];
+  const locked = await lockRewardOffer(client, offerId);
+  if (!locked) throw new RollsError("Предложение не найдено", "OFFER_NOT_FOUND", 404);
+  const { need, row } = locked;
   if (row.status !== "disputed") throw new RollsError("Решение применимо только к открытому спору", "REWARD_STATE_CONFLICT", 409);
   await release(client, row, outcome === "reward" ? need.user_id : row.business_id, outcome);
   await client.query("UPDATE reward_need_offers SET status=$2,claim_at=CASE WHEN $2='settled' THEN CURRENT_TIMESTAMP ELSE claim_at END,settled_at=CASE WHEN $2='settled' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=$1", [offerId, outcome === "reward" ? "settled" : "cancelled"]);
@@ -209,7 +283,7 @@ export async function readRewardNeeds(client, userId, offset = 0) {
     ORDER BY n.created_at DESC,n.id LIMIT 51 OFFSET $3`, [userId, business, offset]);
   const rows = result.rows.slice(0, 50);
   const offers = rows.length ? await client.query(`SELECT o.*,u.name AS business_name,
-    r.status AS proof_status,r.digest AS receipt_hash,r.bitcoin_height FROM reward_need_offers o
+    ${hasAutomaticRewardConfirmation} AS automatic_settlement,r.status AS proof_status,r.digest AS receipt_hash,r.bitcoin_height FROM reward_need_offers o
     JOIN reward_needs n ON n.id=o.need_id JOIN users u ON u.id=o.business_id
     LEFT JOIN reward_blockchain_receipts r ON r.offer_id=o.id
     WHERE o.need_id=ANY($1::uuid[]) AND (n.user_id=$2 OR o.business_id=$2)
@@ -243,7 +317,7 @@ export function registerNeedRewardsRoutes(app, { requireAuth, transaction, env =
     }
   };
   app.get("/api/need-rewards/config", requireAuth, (_req, res) => {
-    res.set("Cache-Control", "no-store").json({ enabled: enabled(), proofsEnabled: env.ROLLAPP_REWARD_PROOFS_ENABLED === "true", holdDays: NEED_REWARDS_HOLD_DAYS, maxReward: NEED_REWARDS_MAX_AMOUNT, currency: "rolls" });
+    res.set("Cache-Control", "no-store").json({ enabled: enabled(), proofsEnabled: env.ROLLAPP_REWARD_PROOFS_ENABLED === "true", holdDays: NEED_REWARDS_HOLD_DAYS, automaticSettlement: enabled(), maxReward: NEED_REWARDS_MAX_AMOUNT, currency: "rolls" });
   });
   app.get("/api/need-rewards", requireAuth, handle(async (req, res) => {
     const offset = req.query.offset === undefined ? 0 : Number(req.query.offset);

@@ -17,6 +17,7 @@ services:
       ROLLAPP_DATABASE_INITIALIZATION: "verify"
       # Additive need-rewards migration is applied separately before rollout.
       ROLLAPP_NEED_REWARDS_ENABLED: "true"
+      ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED: "false"
       ROLLAPP_REWARD_PROOFS_ENABLED: "true"
       ROLLAPP_OTS_PYTHON: "/opt/rollapp-ots/bin/python"
       PORT: "8080"

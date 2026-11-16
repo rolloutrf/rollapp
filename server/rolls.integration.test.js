@@ -4,7 +4,7 @@ import { test } from "node:test";
 import express from "express";
 import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
 import { enrollWishRewards, grantRolls, grantWishReward } from "./modules/loyalty/roll-rewards.js";
-import { ensureRollWallet, rollsSchema, transferRolls } from "./modules/payments/rolls.js";
+import { ensureRollWallet, readRollTransferStatus, transferRolls } from "./modules/payments/rolls.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
 import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 
@@ -15,7 +15,6 @@ test("rolls transactions on configured production PostgreSQL, with every write r
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL lock_timeout='5s'");
-    await client.query(rollsSchema);
     const [alice, bob, other] = [randomUUID(), randomUUID(), randomUUID()];
     for (const [index, id] of [alice, bob, other].entries()) {
       await client.query("INSERT INTO users (id,email,username,name,password_hash) VALUES ($1,$2,$3,$4,$5)", [id, `${id}@rolls-test.invalid`, `rolls-test-${id}`, `Rolls test ${index}`, "unusable"]);
@@ -95,6 +94,31 @@ test("rolls transactions on configured production PostgreSQL, with every write r
     });
 
     const input = { recipientId: bob, amount: 75, note: "Спасибо!", idempotencyKey: randomUUID() };
+    await t.test("looking up an unsent request never creates a transfer or wallet", async () => {
+      assert.equal(await readRollTransferStatus(client, bob, input.idempotencyKey), null);
+      assert.equal((await client.query("SELECT 1 FROM roll_wallets WHERE user_id=$1", [bob])).rowCount, 0);
+      const app = express();
+      const principal = randomUUID();
+      registerRollsRoutes(app, {
+        requireAuth(req, res, next) {
+          if (req.get("x-test-principal") !== principal) return res.sendStatus(401);
+          req.user = { id: principal };
+          next();
+        },
+        query: db.query, transaction: db.transaction,
+      });
+      const server = await new Promise(resolve => { const handle = app.listen(0, "127.0.0.1", () => resolve(handle)); });
+      try {
+        const url = `http://127.0.0.1:${server.address().port}/api/rolls/transfers`;
+        const headers = { "x-test-principal": principal };
+        assert.equal((await fetch(`${url}/${input.idempotencyKey}`)).status, 401);
+        assert.equal((await fetch(`${url}/bad-key`, { headers })).status, 400);
+        const notPosted = await fetch(`${url}/${input.idempotencyKey}?senderId=${alice}`, { headers });
+        assert.equal(notPosted.headers.get("cache-control"), "private, no-store");
+        assert.deepEqual(await notPosted.json(), { transfer: null });
+        assert.equal((await db.query("SELECT 1 FROM roll_wallets WHERE user_id=$1", [principal])).rowCount, 0);
+      } finally { await new Promise(resolve => server.close(resolve)); }
+    });
     await t.test("transfer conserves balances and appears in both private histories", async () => {
       await transferRolls(client, alice, input);
       const sender = await readRollWallet(client, alice);
@@ -107,6 +131,12 @@ test("rolls transactions on configured production PostgreSQL, with every write r
       assert.equal(sent.note, "Спасибо!");
       assert.equal(received.direction, "incoming");
       assert.equal(sent.id, received.id);
+      const status = await readRollTransferStatus(client, alice, input.idempotencyKey);
+      assert.deepEqual({ ...status, createdAt: new Date(status.createdAt).toISOString() }, {
+        id: sent.id, recipientId: bob, amount: input.amount, note: input.note, createdAt: new Date(sent.createdAt).toISOString(),
+      });
+      assert.equal(await readRollTransferStatus(client, bob, input.idempotencyKey), null);
+      assert.equal(await readRollTransferStatus(client, other, input.idempotencyKey), null);
       assert.equal(sent.person.id, bob);
       assert.equal(received.person.id, alice);
       assert.equal(await ensureRollWallet(client, alice), false);
@@ -224,9 +254,10 @@ test("opposite transfers serialize across PostgreSQL connections without persist
   if (users.rowCount < 2) { await db.pool.end(); t.skip("Two funded wallets are needed for the rollback-only lock check."); return; }
   const [firstId, secondId] = users.rows.map((row) => row.user_id);
   const first = await db.pool.connect();
-  const second = await db.pool.connect();
+  let second;
   let secondTransfer;
   try {
+    second = await db.pool.connect();
     await first.query("BEGIN");
     await second.query("BEGIN");
     await second.query("SET LOCAL lock_timeout='5s'");
@@ -245,11 +276,14 @@ test("opposite transfers serialize across PostgreSQL connections without persist
     await first.query("ROLLBACK");
     assert.equal((await secondTransfer).replayed, false);
   } finally {
-    await first.query("ROLLBACK");
-    if (secondTransfer) await secondTransfer.catch(() => {});
-    await second.query("ROLLBACK");
-    first.release();
-    second.release();
-    await db.pool.end();
+    try {
+      await first.query("ROLLBACK");
+      if (secondTransfer) await secondTransfer.catch(() => {});
+      if (second) await second.query("ROLLBACK");
+    } finally {
+      first.release();
+      second?.release();
+      await db.pool.end();
+    }
   }
 });

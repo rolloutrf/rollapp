@@ -6,7 +6,7 @@ import { test } from "node:test";
 import express from "express";
 import { registerCdekRoutes } from "./modules/delivery/cdek-routes.js";
 import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
-import { ensureRollWallet, rollsSchema } from "./modules/payments/rolls.js";
+import { ensureRollWallet } from "./modules/payments/rolls.js";
 
 test("CDEK checkout against production PostgreSQL; fixture operations roll back", { skip: process.env.ROLLAPP_TEST_CDEK !== "1" }, async (t) => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");
@@ -18,7 +18,6 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
     await client.query("BEGIN");
     await client.query("SET LOCAL lock_timeout='5s'");
     await client.query("SET LOCAL idle_in_transaction_session_timeout='3min'");
-    await client.query(rollsSchema);
     const id = randomUUID();
     await client.query("INSERT INTO users(id,email,username,name,password_hash) VALUES($1,$2,$3,'Проверка CDEK','unusable')", [id, `${id}@cdek-test.invalid`, `cdek-${id}`]);
     await ensureRollWallet(client, id);
@@ -38,7 +37,18 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
     const query = (...args) => client.query(...args);
     const transaction = async (callback) => {
       await client.query("SAVEPOINT request");
-      try { return await callback(client); }
+      let lookupOnly = false;
+      const fixtureClient = { query(sql, ...params) {
+        if (sql === "SET TRANSACTION READ ONLY") {
+          // The fixture must see its own rollback-only order. The separate
+          // checkout recovery integration exercises the real READ ONLY route.
+          lookupOnly = true;
+          return;
+        }
+        if (lookupOnly) assert.match(sql, /^SELECT \* FROM roll_store_purchases WHERE user_id=\$1 AND idempotency_key=\$2$/);
+        return client.query(sql, ...params);
+      } };
+      try { return await callback(fixtureClient); }
       catch (error) { await client.query("ROLLBACK TO SAVEPOINT request"); throw error; }
       finally { await client.query("RELEASE SAVEPOINT request"); }
     };
@@ -46,12 +56,14 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
     registerCdekRoutes(app, { requireAuth, query });
     registerRollsRoutes(app, { requireAuth, query, transaction });
     app.use("/api", (_req, res) => res.sendStatus(404));
-    app.use(express.static(path.resolve("dist")));
-    app.get("*splat", (_req, res) => res.sendFile(path.resolve("dist/index.html")));
+    const buildRoot = path.resolve("dist");
+    app.use(express.static(buildRoot));
+    app.get("*splat", (_req, res) => res.sendFile("index.html", { root: buildRoot }));
     server = await new Promise((resolve) => { const instance = app.listen(0, "127.0.0.1", () => resolve(instance)); });
     const origin = `http://127.0.0.1:${server.address().port}`;
     const get = (search) => fetch(`${origin}/api/delivery/cdek/points?q=${encodeURIComponent(search)}`);
     const post = (payload) => fetch(`${origin}/api/rolls/purchases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const lookup = (key) => fetch(`${origin}/api/rolls/purchases/${key}`);
     const balance = async () => Number((await query("SELECT balance FROM roll_wallets WHERE user_id=$1", [id])).rows[0].balance);
     const purchases = async () => Number((await query("SELECT count(*) FROM roll_store_purchases WHERE user_id=$1", [id])).rows[0].count);
     let point;
@@ -86,19 +98,28 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
       const payload = { productId: "cat:red", idempotencyKey: randomUUID(), pickupPointCode: point.code };
       assert.equal((await post({ ...payload, pickupPointCode: undefined })).status, 400);
       assert.equal((await post({ ...payload, amount: 1 })).status, 400);
+      const stale = await post({ ...payload, expectedPrice: 999 });
+      assert.equal(stale.status, 409);
+      assert.equal((await stale.json()).code, "PRICE_CHANGED");
       assert.equal((await post({ ...payload, pickupPointCode: "NONEXISTENT" })).status, 409);
       assert.equal(await balance(), 5000);
+      assert.deepEqual(await (await lookup(payload.idempotencyKey)).json(), { purchase: null });
+      assert.equal(await purchases(), 0);
       const response = await post(payload);
       assert.equal(response.status, 201);
       const first = (await response.json()).purchase;
       assert.equal(first.delivery.point.code, point.code);
       assert.equal(first.delivery.point.address, point.address);
+      const found = (await (await lookup(payload.idempotencyKey)).json()).purchase;
+      assert.equal(found.id, first.id);
+      assert.equal(found.delivery.point.code, point.code);
       assert.equal(await balance(), 4000);
       const replay = await post(payload);
       assert.equal(replay.status, 200);
       assert.equal((await replay.json()).purchase.id, first.id);
       assert.equal(await purchases(), 1);
       assert.equal((await post({ ...payload, pickupPointCode: "ANOTHER" })).status, 409);
+      assert.equal((await post({ ...payload, expectedPrice: 999 })).status, 409);
       assert.equal(await balance(), 4000);
       await client.query("SAVEPOINT insufficient");
       await query("UPDATE roll_wallets SET balance=1 WHERE user_id=$1", [id]);
@@ -143,7 +164,7 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
       await t.test("desktop/mobile selection, cancellation, purchase and lost-response recovery", async () => {
         const { chromium } = await import("playwright-core");
         browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
-        const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+        const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
         const errors = [];
         page.on("pageerror", (error) => errors.push(error.message));
         await mkdir("/tmp/rollapp-cdek-checks", { recursive: true });
@@ -188,7 +209,9 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
           assert.ok(box.x >= 0 && box.x + box.width <= viewport.width + 1);
           assert.ok(box.y >= 0 && box.y + box.height <= viewport.height + 1);
           await dialog.getByRole("button", { name: "Выбрать другой пункт" }).click();
-          await dialog.getByRole("combobox", { name: "Город", exact: true }).fill("Санкт-Пет");
+          await dialog.locator('[data-slot="combobox-clear"]').click();
+          assert.equal(await dialog.getByLabel("Адрес пункта выдачи").isDisabled(), true);
+          await dialog.getByRole("combobox", { name: "Город", exact: true }).fill("Санкт-Петербург");
           await page.getByRole("option", { name: "Санкт-Петербург", exact: true }).click();
           assert.equal(await dialog.getByLabel("Адрес пункта выдачи").inputValue(), "");
           assert.equal(await dialog.getByRole("button", { name: "Продолжить" }).isDisabled(), true);
@@ -207,9 +230,9 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
           assert.equal(await purchases(), 1);
         }
         await page.getByRole("button", { name: /Купить «Белый кот»/ }).click();
-        await page.getByRole("combobox", { name: "Город", exact: true }).fill(cities.find((city) => city.code === point.cityCode).name.slice(0, 4));
-        await page.getByRole("option", { name: cities.find((city) => city.code === point.cityCode).label, exact: true }).click();
-        await page.getByLabel("Адрес пункта выдачи").fill(point.code);
+        await page.getByRole("combobox", { name: "Город", exact: true }).fill("Моск");
+        await page.getByRole("option", { name: "Москва", exact: true }).click();
+        await page.getByLabel("Адрес пункта выдачи").fill("Тверская");
         await page.getByRole("radio").first().click();
         await page.getByRole("button", { name: "Продолжить" }).click();
         await page.route("**/api/rolls/purchases", async (route) => {
@@ -220,10 +243,16 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
         await page.getByRole("button", { name: "Проверить покупку" }).waitFor();
         assert.equal(await purchases(), 2);
         await page.reload();
+        let repeatedPosts = 0;
+        await page.route("**/api/rolls/purchases", (route) => {
+          if (route.request().method() === "POST") repeatedPosts++;
+          return route.continue();
+        });
         await page.getByRole("button", { name: "Проверить покупку" }).click();
         await page.getByRole("heading", { name: "Кот куплен", exact: true }).waitFor();
         assert.equal(await purchases(), 2);
         assert.equal(await balance(), 3000);
+        assert.equal(repeatedPosts, 0);
         await page.screenshot({ path: "/tmp/rollapp-cdek-checks/success-mobile.png" });
         assert.deepEqual(errors, []);
       });

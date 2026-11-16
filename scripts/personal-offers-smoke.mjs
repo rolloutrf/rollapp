@@ -60,8 +60,66 @@ async function checkSphereCatalog(page, sphere, section) {
   await page.getByRole("link", { name: /^К сфере/ }).click();
   await page.waitForURL(url => url.pathname.endsWith(`/${sphere}`) && url.searchParams.get("tab") === section);
 }
+const viewports = [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,900],[1920,1080],[390,400]];
+async function checkRecordedOperations() {
+  for (const [width, height] of viewports) {
+    const page = await browser.newPage({ viewport: { width, height } });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", (route) => { errors.push("Unexpected API request"); return route.abort(); });
+    const orderType = width === 768 || width === 1440 ? "seller-recorded" : width === 1024 || height === 400 ? "wishlist-recorded" : width === 1920 ? "payment-archived" : "payment-recorded";
+    const refunding = orderType === "seller-recorded";
+    const wishlist = orderType === "wishlist-recorded";
+    const operationUrl = `${smokeOrigin(server)}/__offers-smoke?case=${orderType}`;
+    const action = refunding ? "refund" : "pay";
+    const offerId = refunding ? "paid" : wishlist ? "wishlist-invoice" : "active";
+    const posted = [{ path: `/personal-offers/${offerId}/${action}`, body: { expectedPriceRolls: wishlist ? 75 : 50 } }];
+    const popup = page.getByRole("alertdialog");
+    const openWishlist = () => page.getByRole("button", { name: 'Открыть «Wishlist товар»' }).click();
+    await page.goto(operationUrl);
+    if (wishlist) await openWishlist();
+    await page.getByRole("button", { name: refunding ? "Вернуть роллы" : "Оплатить", exact: true }).click();
+    await popup.getByRole("button", { name: refunding ? "Подтвердить возврат" : "Подтвердить оплату" }).click();
+    await popup.getByText(/Ответ потерян/).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.offerCalls), posted);
+    if (height < 500 || width === 1440) await page.screenshot({ path: `${output}/operation-recovery-${width}-${height}.png`, animations: "disabled" });
+    await popup.getByRole("button", { name: "Позже", exact: true }).click();
+    await popup.waitFor({ state: "hidden" });
+    await page.goto(operationUrl);
+    if (wishlist) await openWishlist();
+    const resume = page.getByRole("button", { name: "Открыть проверку", exact: true });
+    await resume.click();
+    const check = popup.getByRole("button", { name: "Проверить результат", exact: true });
+    await page.waitForFunction(() => [...document.querySelectorAll('[role="alertdialog"] button')].some(button =>
+      button.textContent === "Проверить результат" && button.getBoundingClientRect().height === 48));
+    assert.equal((await check.boundingBox()).height, 48);
+    assert.deepEqual(await page.evaluate(() => window.offerCalls), posted);
+    assert.deepEqual(await page.evaluate(() => window.offerChecks), []);
+    await check.click();
+    await popup.waitFor({ state: "hidden" });
+    if (wishlist) {
+      await page.waitForURL(url => !url.searchParams.has("formScreen"));
+      await openWishlist();
+    }
+    const result = wishlist ? page : page.getByRole("article").filter({ has: page.getByRole("heading", {
+      name: refunding ? "Оплаченный оффер" : "Активный оффер", exact: true,
+    }) });
+    if (orderType === "payment-archived") {
+      await page.getByRole("status").filter({ hasText: "Счёт «Активный оффер» оплачен." }).waitFor();
+      assert.equal(await result.count(), 0);
+    } else await result.getByRole("status").filter({ hasText: refunding ? "Роллы возвращены" : /^Оплачен$/ }).first().waitFor();
+    assert.equal(await resume.count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.offerCalls), posted);
+    assert.deepEqual(await page.evaluate(() => window.offerChecks), [`/personal-offers/${offerId}/${action}/status`]);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.deepEqual(errors, []);
+    await page.close();
+    console.log(`PASS invoice recovery ${width}×${height} ${orderType}: exact GET after reload without another POST`);
+  }
+}
 try {
-  for (const [width, height] of [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,900],[1920,1080],[390,400]]) {
+  await checkRecordedOperations();
+  for (const [width, height] of (process.argv.includes("--recovery-only") ? [] : viewports)) {
     const page = await browser.newPage({ viewport: { width, height } });
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
@@ -103,14 +161,77 @@ try {
     assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);
     await page.screenshot({ path: `${output}/${width}-${height}.png`, fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Root overflow");
-    for (const scenario of ["empty", "error", "loading", "seller"]) {
+    for (const scenario of ["empty", "error", "loading", "unavailable", "payment-conflict", "seller"]) {
       await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=${scenario}`);
       if (scenario === "empty") await page.getByText("Здесь появятся персональные счета от бизнеса.").waitFor();
       if (scenario === "error") { await page.getByText("Не удалось загрузить счета").waitFor(); await page.getByRole("button", { name: "Повторить" }).click(); }
       if (scenario === "loading") await page.getByText("Загружаем счета…").waitFor();
-      if (scenario === "seller") { await page.getByText("Ожидает оплаты").waitFor(); assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0); }
+      if (scenario === "unavailable") {
+        await page.getByRole("status").filter({ hasText: "Оплата сейчас недоступна" }).waitFor();
+        assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), []);
+        if (width === 390 || width === 1440) await page.screenshot({ path: `${output}/unavailable-${width}-${height}.png`, fullPage: true });
+      }
+      if (scenario === "payment-conflict") {
+        await page.getByRole("button", { name: "Оплатить", exact: true }).click();
+        const confirmation = page.getByRole("alertdialog");
+        await confirmation.getByRole("button", { name: "Подтвердить оплату" }).click();
+        await confirmation.getByRole("status").filter({ hasText: "Реквизиты операции расходятся" }).waitFor();
+        assert.equal(await confirmation.getByText("Операция ожидает проверки.").count(), 0);
+        assert.equal(await confirmation.getByRole("button", { name: "Повторить оплату" }).count(), 0);
+        const bounds = await confirmation.boundingBox();
+        assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1);
+        if (width === 390 || width === 1440) await page.screenshot({ path: `${output}/conflict-${width}-${height}.png` });
+        await confirmation.getByRole("button", { name: "Закрыть запрос" }).click();
+        await confirmation.waitFor({ state: "hidden" });
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), [{ path: "/personal-offers/active/pay", body: { expectedPriceRolls: 50 } }]);
+        assert.equal(await page.getByRole("button", { name: "Открыть проверку" }).count(), 0);
+      }
+      if (scenario === "seller") {
+        await page.getByText("Ожидает оплаты").waitFor();
+        assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);
+        const refund = page.getByRole("button", { name: "Вернуть роллы", exact: true });
+        await refund.click();
+        await page.getByRole("button", { name: "Отмена" }).click();
+        assert.equal((await page.evaluate(() => window.offerCalls)).length, 0);
+        await refund.click();
+        const confirmation = page.getByRole("alertdialog");
+        const confirm = confirmation.getByRole("button", { name: "Подтвердить возврат" });
+        await confirm.click();
+        await confirmation.getByText(/Ответ потерян/).waitFor();
+        const check = confirmation.getByRole("button", { name: "Проверить результат" });
+        await check.click();
+        await confirmation.getByText("Операция пока не записана.", { exact: true }).waitFor();
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), [{ path: "/personal-offers/paid/refund", body: { expectedPriceRolls: 50 } }]);
+        const popup = await confirmation.boundingBox();
+        assert(popup.x >= 0 && popup.y >= 0 && popup.x + popup.width <= width + 1 && popup.y + popup.height <= height + 1);
+        if ([390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${output}/refund-${width}.png` });
+        await confirmation.getByRole("button", { name: "Повторить возврат", exact: true }).click();
+        await confirmation.waitFor({ state: "hidden" });
+        await page.getByRole("status").filter({ hasText: "Роллы возвращены" }).waitFor();
+        assert.equal(await refund.count(), 0);
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), Array.from({length: 2}, () => ({ path: "/personal-offers/paid/refund", body: { expectedPriceRolls: 50 } })));
+      }
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${scenario} overflow`);
     }
+    await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=wallet-page`);
+    await page.getByText("В резерве для наград", { exact: true }).waitFor();
+    const orderTasks = page.getByRole("region", { name: "Действия по заказам" });
+    for (const [name, kind] of [["Проверить покупки · 2", "review"], ["Открытые споры · 1", "dispute"],
+      ["Исполнить заказы · 1", "fulfill"], ["Роллы к получению · 1", "claim"]]) {
+      const link = orderTasks.getByRole("link", { name, exact: true });
+      await link.waitFor();
+      assert.equal(await link.getAttribute("href"), `/app/orders?attention=${kind}`);
+      assert.deepEqual(await link.evaluate((element) => [
+        element.offsetHeight, getComputedStyle(element).paddingInlineStart, getComputedStyle(element).paddingInlineEnd,
+      ]), [48, "24px", "24px"]);
+    }
+    await orderTasks.getByText("70 роллов", { exact: true }).waitFor();
+    assert.equal(await orderTasks.locator("time").getAttribute("datetime"), "2026-11-19T10:00:00Z");
+    await page.locator('[data-rolls-transaction="purchase"]').getByText("Покупка · Товар магазина").waitFor();
+    await page.locator('[data-rolls-transaction="refund"]').getByText("Возврат · Товар магазина").waitFor();
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Wallet breakdown overflow");
+    if ([390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${output}/accounting-${width}.png`, fullPage: true });
     await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=business`);
     await page.getByText("У вашего бизнеса пока нет активных товаров или услуг.").waitFor();
     assert.deepEqual(await page.getByRole("button", { name: "Добавить товар" }).evaluate(button => [button.offsetWidth, button.offsetHeight]), [48, 48]);

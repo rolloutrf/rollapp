@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Coins, Image as ImageIcon, Package, ShoppingBag, Store } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
-import { businessMarketplacePath } from "@/modules/shell/app-routing.js";
+import { PurchaseRecoveryNotice, usePurchaseRecovery } from "../checkout/purchase-recovery.jsx";
+import { APP_ORDERS_PATH, businessMarketplacePath } from "@/modules/shell/app-routing.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -18,6 +19,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { PersonalOfferComposer } from "@/components/personal-offers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { publicProfilePath } from "../../../shared/modules/profile/profile-links.js";
+import { MARKETPLACE_REVIEW_DAYS } from "../../../shared/modules/checkout/marketplace-settlements.js";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -62,7 +64,7 @@ function MarketplaceItem({ item, busy, onBuy, user }) {
         </Link>
         {item.category && <span data-typography="label" className="font-semibold uppercase">{item.category}</span>}
         {item.description && <p className="m-0 text-pretty">{item.description}</p>}
-        {user ? <Button className="min-h-12 w-full" disabled={busy} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button> : (
+        {user ? <Button className="min-h-12 w-full" disabled={busy || user.id === item.business.id} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button> : (
           <Link className={buttonVariants({ className: "min-h-12 w-full whitespace-normal" })} to={`/login?next=${encodeURIComponent(publicProfilePath(item.business))}`}>Войти для покупки</Link>
         )}
         {user?.accountType === "business" && user.id === item.business.id && <PersonalOfferComposer item={item} />}
@@ -80,33 +82,67 @@ function restoredPurchase(storageKey) {
   } catch { return null; }
 }
 
+const businessRejections = new Set(["INVALID_PURCHASE", "PRODUCT_NOT_FOUND", "PRICE_CHANGED", "PRICE_CONFIRMATION_REQUIRED",
+  "SELF_PURCHASE", "GIFT_CARD_NOT_FOUND", "GIFT_CARD_BUSINESS_MISMATCH", "INSUFFICIENT_ROLLS", "INSUFFICIENT_GIFT_ROLLS"]);
+
 export function BusinessMarketplacePage({ sphere, kind = "store", businessUsername, user, hideEmpty = false }) {
+  const navigate = useNavigate();
   const storageKey = `rollapp:business-purchase:${user?.id || "guest"}:${businessUsername || sphere.id}:${kind}`;
-  const [pending, setPending] = useState(() => restoredPurchase(storageKey));
   const [giftCards, setGiftCards] = useState([]);
   const [giftCardId, setGiftCardId] = useState(() => restoredPurchase(storageKey)?.payload?.giftCardId || "wallet");
   const [giftError, setGiftError] = useState("");
   const [giftLoading, setGiftLoading] = useState(false);
-  const [state, setState] = useState({ loading: true, error: "", items: [] });
+  const [state, setState] = useState({ loading: true, error: "", items: [], protectedCheckout: false });
+  const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState(() => restoredPurchase(storageKey)?.item || null);
-  const [busyId, setBusyId] = useState("");
-  const busyRef = useRef(false);
   const title = businessUsername ? "Предложения бизнеса" : `Магазин · ${sphere.label}`;
   const endpoint = useMemo(() => businessUsername ? `/business-profiles/${encodeURIComponent(businessUsername)}/offers` : `/business-marketplace/${sphere.id}/${kind}`, [sphere?.id, kind, businessUsername]);
+
+  const recovery = usePurchaseRecovery({
+    storageKey, loadSaved: () => restoredPurchase(storageKey),
+    requestFor: ({ path, payload }) => ({ path, payload }),
+    acceptResponse: (purchase, mode) => typeof purchase?.id === "string" && (mode === "send" ||
+      (typeof purchase.itemId === "string" && typeof purchase.sphere === "string" && Number.isSafeInteger(purchase.amount) &&
+        (purchase.giftCardId === null || typeof purchase.giftCardId === "string") && typeof purchase.status === "string")),
+    readMatches: (purchase, intent) => purchase.itemId === intent.payload.itemId && purchase.sphere === intent.item.sphere &&
+      (intent.payload.expectedPrice === undefined || purchase.amount === intent.payload.expectedPrice) &&
+      purchase.giftCardId === (intent.payload.giftCardId ?? null),
+    onComplete(purchase, intent) {
+      const status = purchase.status;
+      const title = status === "refunded" ? "Роллы возвращены" : status === "released" ? "Расчёт завершён" :
+        status === "disputed" ? "Покупка найдена · открыт спор" : purchase.protected ? "Роллы зарезервированы" : "Покупка оформлена";
+      toast.success(title, {
+        description: `${intent.item.title} · ${formatRolls(purchase.amount ?? intent.payload.expectedPrice ?? intent.item.priceRolls)}`,
+        action: { label: "Заказы", onClick: () => navigate(APP_ORDERS_PATH, { state: { ordersFromStore: true } }) },
+      });
+      setSelected(null);
+    },
+    onReject(error) {
+      if (["PRICE_CHANGED", "PRICE_CONFIRMATION_REQUIRED"].includes(error.code)) {
+        setSelected(null);
+        setRevision((value) => value + 1);
+        toast.error(error.message);
+      }
+      return businessRejections.has(error.code);
+    },
+    onCloseConflict: () => setSelected(null),
+  });
+  const { pending, busy, requestMode, result, error } = recovery;
+  const reviewItem = pending?.item ?? selected;
 
   useEffect(() => {
     let active = true;
     setState({ loading: true, error: "", items: [] });
     api.get(endpoint).then((result) => {
-      if (active) setState({ loading: false, error: "", items: result.items || [] });
+      if (active) setState({ loading: false, error: "", items: result.items || [], protectedCheckout: result.protectedCheckout === true });
     }).catch((error) => {
       if (active) setState({ loading: false, error: error.message, items: [] });
     });
     return () => { active = false; };
-  }, [endpoint]);
+  }, [endpoint, revision]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selected || pending) return;
     let active = true;
     setGiftCards([]); setGiftError(""); setGiftLoading(true);
     api.get("/rolls/gift-cards").then((result) => {
@@ -114,35 +150,19 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
     }).catch((error) => { if (active) setGiftError(error.status === 401 ? "Войдите в аккаунт, чтобы оплатить покупку." : error.message); })
       .finally(() => { if (active) setGiftLoading(false); });
     return () => { active = false; };
-  }, [selected?.id]);
+  }, [selected?.id, Boolean(pending)]);
 
-  const buy = async () => {
-    if (!selected || busyRef.current) return;
-    busyRef.current = true;
-    const intent = pending || { item: selected, path: `/business-marketplace/${selected.sphere}/purchases`, payload: { itemId: selected.id, idempotencyKey: crypto.randomUUID(), ...(giftCardId !== "wallet" ? { giftCardId } : {}) } };
-    try { sessionStorage.setItem(storageKey, JSON.stringify(intent)); } catch { busyRef.current = false; toast.error("Разрешите хранение данных для безопасной оплаты"); return; }
-    setPending(intent);
-    setBusyId(selected.id);
-    try {
-      await api.post(intent.path, intent.payload);
-      sessionStorage.removeItem(storageKey); setPending(null);
-      toast.success("Покупка оформлена", { description: `${selected.title} · ${selected.priceRolls.toLocaleString("ru-RU")} роллов` });
-      setSelected(null);
-    } catch (error) {
-      const rejected = error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status);
-      if (rejected) { sessionStorage.removeItem(storageKey); setPending(null); }
-      toast.error(rejected ? error.message : "Ответ не получен. Повторная проверка не спишет роллы ещё раз.");
-    } finally {
-      busyRef.current = false;
-      setBusyId("");
-    }
-  };
+  const buy = () => recovery.send(!pending && selected && {
+    item: selected, path: `/business-marketplace/${selected.sphere}/purchases`,
+    payload: { itemId: selected.id, expectedPrice: selected.priceRolls, idempotencyKey: crypto.randomUUID(),
+      ...(giftCardId !== "wallet" && { giftCardId }) },
+  });
 
   if (hideEmpty && !state.loading && !state.error && !state.items.length && !pending && !selected) return null;
 
   return (
     <div className={`${businessUsername ? "" : "app-page"} business-marketplace-page rollapp-body`}>
-      {pending && !selected && <Alert><AlertDescription className="flex flex-col gap-3">Остался платёж с неизвестным результатом. Повторная проверка не спишет роллы ещё раз.<Button variant="outline" onClick={() => setSelected(pending.item)}>Проверить оплату</Button></AlertDescription></Alert>}
+      {pending && !selected && <Alert><AlertDescription className="flex flex-col gap-3">Остался платёж с неизвестным результатом. Проверьте исходный заказ в журнале.<Button variant="outline" onClick={() => { recovery.resetNotice(); setSelected(pending.item); }}>Проверить оплату</Button></AlertDescription></Alert>}
       {state.loading ? <div className="business-marketplace-page__status"><Spinner /><span>Загружаем предложения…</span></div> : null}
       {state.error ? <Alert variant="destructive"><AlertTitle>Не удалось загрузить раздел</AlertTitle><AlertDescription>{state.error}</AlertDescription></Alert> : null}
       {!hideEmpty && !state.loading && !state.error && !state.items.length ? (
@@ -155,27 +175,41 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
         </Empty>
       ) : null}
       {state.items.length ? <section className="business-marketplace-grid" aria-label={title}>
-        {state.items.map((item) => <MarketplaceItem key={item.id} item={item} user={user} kind={businessUsername ? item.kind : kind} busy={Boolean(busyId || pending)} onBuy={(item) => { setGiftCardId("wallet"); setSelected(item); }} />)}
+        {state.items.map((item) => <MarketplaceItem key={item.id} item={item} user={user} kind={businessUsername ? item.kind : kind} busy={Boolean(busy || pending)} onBuy={(item) => { recovery.resetNotice(); setGiftCardId("wallet"); setSelected(item); }} />)}
       </section> : null}
 
-      <AlertDialog open={Boolean(selected)} onOpenChange={(open) => { if (!open && !busyId) setSelected(null); }}>
-        <AlertDialogContent className="rollapp-body">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Купить за роллы?</AlertDialogTitle>
-            <AlertDialogDescription>{selected ? `${selected.title} — ${selected.priceRolls.toLocaleString("ru-RU")} роллов. Бизнес получит информацию о заказе.` : ""}</AlertDialogDescription>
+      <AlertDialog open={Boolean(selected)} onOpenChange={(open) => { if (!open && !recovery.inFlight.current) setSelected(null); }}>
+        <AlertDialogContent className="rollapp-body flex w-[calc(100%-2rem)] flex-col overflow-hidden">
+          <AlertDialogHeader className="shrink-0">
+            <AlertDialogTitle>{pending ? "Проверить оплату" : "Купить за роллы?"}</AlertDialogTitle>
+            <AlertDialogDescription className="wrap-anywhere">{reviewItem && <>
+              {reviewItem.title} · {formatRolls(pending?.payload.expectedPrice ?? reviewItem.priceRolls)}. {pending
+                ? (pending.payload.giftCardId ? "Исходная подарочная карта." : "Исходный кошелёк роллов.")
+                : state.protectedCheckout
+                  ? `Роллы уйдут в резерв. После исполнения у вас будет ${MARKETPLACE_REVIEW_DAYS} дней для проверки заказа. Комиссия составляет 0 роллов.`
+                  : "Бизнес получит информацию о заказе."}
+            </>}</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex min-w-0 flex-col gap-3">
-            {giftLoading && <p role="status">Загружаем способы оплаты…</p>}
-            {giftError && <p role="alert">{giftError}</p>}
-            <Select value={giftCardId} onValueChange={setGiftCardId} disabled={Boolean(busyId || pending)}>
+          <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain px-px">
+            <PurchaseRecoveryNotice error={error} result={result} />
+            {!pending && giftLoading && <p role="status">Загружаем способы оплаты…</p>}
+            {!pending && giftError && <p role="alert">{giftError}</p>}
+            {!pending && <Select value={giftCardId} onValueChange={setGiftCardId} disabled={busy}>
               <SelectTrigger className="w-full" aria-label="Оплатить покупку"><SelectValue>{() => giftCardId === "wallet" ? "Мой баланс роллов" : `Подарочная карта · ${formatRolls(giftCards.find((card) => card.id === giftCardId)?.balance || 0)}`}</SelectValue></SelectTrigger>
               <SelectContent alignItemWithTrigger={false}><SelectItem value="wallet">Мой баланс роллов</SelectItem>{giftCards.map((card) => <SelectItem key={card.id} value={card.id} disabled={card.balance < (selected?.priceRolls || 0)}>Карта · {formatRolls(card.balance)}</SelectItem>)}</SelectContent>
-            </Select>
-            {pending && <p role="status">Результат оплаты нужно проверить. Сумма и способ оплаты сохранены.</p>}
+            </Select>}
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={Boolean(busyId)}>{pending ? "Позже" : "Отмена"}</AlertDialogCancel>
-            <AlertDialogAction disabled={Boolean(busyId)} onClick={(event) => { event.preventDefault(); buy(); }}>{busyId ? <Spinner /> : null}{pending ? "Проверить оплату" : "Подтвердить"}</AlertDialogAction>
+          <AlertDialogFooter className="shrink-0 flex-row flex-wrap justify-end">
+            <AlertDialogCancel className="rounded-full" disabled={busy}>{pending ? "Позже" : "Отмена"}</AlertDialogCancel>
+            {pending && result === "missing" && <Button className="rounded-full" variant="outline" disabled={busy} onClick={buy}>Оплатить снова</Button>}
+            {pending && result === "conflict" && <Button className="rounded-full" variant="outline" disabled={busy} onClick={recovery.closeConflict}>Закрыть запрос</Button>}
+            <AlertDialogAction className="rounded-full" disabled={busy} onClick={(event) => {
+              event.preventDefault();
+              if (pending) recovery.check();
+              else buy();
+            }}>
+              {busy && <Spinner />}{busy ? (requestMode === "send" ? "Оплачиваем…" : "Проверяем…") : pending ? "Проверить оплату" : "Подтвердить"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

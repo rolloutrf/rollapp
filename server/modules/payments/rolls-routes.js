@@ -1,10 +1,13 @@
+import { registerRollActivityRoutes } from "../pfm/roll-activity-routes.js";
+import { readMarketplaceOrderAction, settleMarketplaceOrder } from "../checkout/marketplace-settlements.js";
 import { registerGiftCardRoutes } from "../loyalty/gift-cards.js";
 import { createRateLimit } from "../runtime/rate-limit.js";
-import { purchaseWithRolls, refundRollPurchase } from "../checkout/roll-purchases.js";
+import { purchaseWithRolls, readCatPurchaseStatus, refundRollPurchase } from "../checkout/roll-purchases.js";
 import { readRollOrders } from "../history/order-history.js";
+import { readRollReceipt, rollReceiptParams } from "../history/roll-receipts.js";
 import { readRollWallet } from "../history/wallet-history.js";
-import { RollsError, transferRolls } from "./rolls.js";
-import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder } from "./roll-stars.js";
+import { readRollTransferStatus, RollsError, transferRolls } from "./rolls.js";
+import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder, readStarOrderByRequest } from "./roll-stars.js";
 import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS, ROLL_STAR_TERMS_VERSION } from "../../../shared/modules/payments/roll-stars.js";
 import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js";
 
@@ -13,9 +16,11 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
     starsPurchases: starsConfig().enabled,
     tonWallet: env.TON_WALLET_ENABLED === "true",
     needRewards: env.ROLLAPP_NEED_REWARDS_ENABLED === "true",
+    rollActivity: true,
   });
   registerStarInvoiceWorkerRoutes(app, { query, starsConfig });
   registerGiftCardRoutes(app, { requireAuth, query, transaction });
+  registerRollActivityRoutes(app, { requireAuth, transaction });
   const handle = (handler) => async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     try { await handler(req, res); } catch (error) {
@@ -46,7 +51,17 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
     res.json({ order: publicStarOrder(order) });
   }));
 
+  app.get("/api/rolls/stars/orders/by-request/:requestKey", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const order = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readStarOrderByRequest(client, req.user.id, req.params.requestKey);
+    });
+    res.json({ order });
+  }));
+
   app.get("/api/rolls/stars/orders/:orderId", requireAuth, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
     const result = await query("SELECT * FROM roll_star_orders WHERE id=$1 AND user_id=$2", [req.params.orderId, req.user.id]);
     if (!result.rowCount) throw new RollsError("Счёт не найден", "STAR_ORDER_NOT_FOUND", 404);
     res.json({ order: publicStarOrder(result.rows[0]) });
@@ -55,7 +70,7 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
   app.get("/api/rolls", requireAuth, handle(async (req, res) => {
     const offset = req.query.offset === undefined ? 0 : Number(req.query.offset);
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) return res.status(400).json({ error: "Некорректная страница истории" });
-    const wallet = await transaction((client) => readRollWallet(client, req.user.id, { offset, needRewards: env.ROLLAPP_NEED_REWARDS_ENABLED === "true" }));
+    const wallet = await transaction((client) => readRollWallet(client, req.user.id, { offset }));
     res.json({ ...wallet, features: features() });
   }));
 
@@ -73,12 +88,30 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
     res.json({ people: people.rows });
   }));
 
+  app.get("/api/rolls/transfers/:requestKey", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const transfer = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readRollTransferStatus(client, req.user.id, req.params.requestKey);
+    });
+    res.json({ transfer });
+  }));
+
   app.post("/api/rolls/transfers", requireAuth, transferLimit, handle(async (req, res) => {
     const result = await transaction(async (client) => {
       const transfer = await transferRolls(client, req.user.id, req.body);
-      return { transfer, ...await readRollWallet(client, req.user.id, { needRewards: env.ROLLAPP_NEED_REWARDS_ENABLED === "true" }) };
+      return { transfer, ...await readRollWallet(client, req.user.id) };
     });
     res.status(result.transfer.replayed ? 200 : 201).json({ ...result, features: features() });
+  }));
+
+  app.get("/api/rolls/purchases/:requestKey", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const purchase = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readCatPurchaseStatus(client, req.user.id, req.params.requestKey);
+    });
+    res.json({ purchase });
   }));
 
   app.post("/api/rolls/purchases", requireAuth, transferLimit, handle(async (req, res) => {
@@ -86,8 +119,34 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
     res.status(purchase.replayed ? 200 : 201).json({ purchase });
   }));
 
+  app.get("/api/rolls/receipts/:kind/:id", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const parsed = rollReceiptParams.safeParse(req.params);
+    if (!parsed.success) throw new RollsError("Проверьте номер операции", "INVALID_ROLL_RECEIPT");
+    const receipt = await transaction(async (client) => {
+      await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
+      return readRollReceipt(client, req.user.id, parsed.data);
+    });
+    if (!receipt) throw new RollsError("Квитанция не найдена", "ROLL_RECEIPT_NOT_FOUND", 404);
+    res.json({ receipt });
+  }));
+
   app.get("/api/rolls/orders", requireAuth, handle(async (req, res) => {
     res.json(await transaction((client) => readRollOrders(client, req.user.id)));
+  }));
+
+  app.get("/api/rolls/orders/:purchaseId/actions/:action", requireAuth, searchLimit, handle(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const order = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readMarketplaceOrderAction(client, req.user.id, req.params.purchaseId, req.params.action);
+    });
+    res.json({ order });
+  }));
+
+  app.post("/api/rolls/orders/:purchaseId/actions", requireAuth, transferLimit, handle(async (req, res) => {
+    const result = await transaction((client) => settleMarketplaceOrder(client, req.user.id, req.params.purchaseId, req.body));
+    res.json({ order: result });
   }));
 
   app.post("/api/rolls/orders/:purchaseId/refund", requireAuth, transferLimit, handle(async (req, res) => {

@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageActionButton } from "@/components/page-action-button";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -12,6 +13,7 @@ import { APP_ORDERS_PATH, APP_STORE_PATH } from "../shell/app-routing.js";
 import { SPACES } from "../categories/wish-spaces.jsx";
 import { useToast } from "../shell/toast.jsx";
 import { CatalogPageHeader } from "../catalog-marketplace/catalog-page-header.jsx";
+import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 import { STORE_CATS, STORE_CAT_PRICE } from "../catalog-marketplace/store-cats.jsx";
 
 export function StorePage({ user, selectedSpace, ordersOpen }) {
@@ -26,6 +28,7 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
   const isProducts = selectedSpace === "products";
   const storageKey = `rollapp:pending-cat-purchase:${user.id}`;
   const [purchase, setPurchase] = useState(() => isProducts ? restoreCatPurchase(storageKey, STORE_CATS) : null);
+  const deferredPurchase = isProducts && !purchase ? restoreCatPurchase(storageKey, STORE_CATS) : null;
   const beginPurchase = (cat) => {
     setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
   };
@@ -37,8 +40,12 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
             <PackageCheck aria-hidden="true" />Заказы
           </DrawerTrigger>
         )} />
-        <OrdersDrawerContent products={STORE_CATS} />
+        <OrdersDrawerContent products={STORE_CATS} userId={user.id} />
       </Drawer>
+      {deferredPurchase && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+        <span>Ожидает проверки покупка · {formatRolls(deferredPurchase.expectedPrice)}</span>
+        <PageActionButton variant="outline" onClick={() => setPurchase(deferredPurchase)}>Проверить покупку</PageActionButton>
+      </AlertDescription></Alert>}
       {isProducts ? <div className="wish-grid catalog-wish-grid">
         {STORE_CATS.map((cat) => (
           <WishlistSnippet
@@ -66,6 +73,6 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
         ))}
       </div> : <Empty><EmptyHeader><EmptyTitle>В этом разделе магазина пока пусто</EmptyTitle></EmptyHeader></Empty>}
     </div>
-    {!ordersOpen && purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={() => toast(`${purchase.cat.name} кот куплен за 1 000 роллов`, "success")} />}
+    {!ordersOpen && purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={(cat, amount) => toast(`${cat.name} кот куплен за ${formatRolls(amount)}`, "success")} />}
   </>;
 }

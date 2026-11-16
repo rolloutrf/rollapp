@@ -6,9 +6,10 @@ import { createHash } from "node:crypto";
 import { processRewardProof } from "./modules/loyalty/reward-proof-queue.js";
 import express from "express";
 import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
-import { createRewardNeed, createRewardOffer, actOnRewardOffer, readRewardNeeds, closeRewardNeed, resolveRewardDispute, registerNeedRewardsRoutes, expireRewardOffer } from "./modules/loyalty/need-rewards.js";
+import { createRewardNeed, createRewardOffer, actOnRewardOffer, readRewardNeeds, closeRewardNeed, resolveRewardDispute, registerNeedRewardsRoutes, expireRewardOffer, automaticallySettleRewardOffer, processDueRewardOffers } from "./modules/loyalty/need-rewards.js";
 import { ensureRollWallet } from "./modules/payments/rolls.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
+import { reconcileRollAccounting } from "./modules/payments/roll-reconciliation.js";
 
 test("funded need rewards on verified production PostgreSQL; all writes rolled back, no schema initialization", { skip: process.env.ROLLAPP_TEST_NEED_REWARDS !== "1" }, async t => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");
@@ -53,7 +54,8 @@ test("funded need rewards on verified production PostgreSQL; all writes rolled b
       first = await createRewardOffer(client, business, need.id, input);
       assert.equal((await createRewardOffer(client, business, need.id, input)).id, first.id);
       await reject(() => createRewardOffer(client, business, need.id, { ...input, reward: 1 }), "IDEMPOTENCY_CONFLICT");
-      const wallet = await readRollWallet(client, business, { needRewards: true });
+      const wallet = await readRollWallet(client, business);
+      assert.equal(wallet.balances.reservedRewards, "60");
       assert.equal(wallet.balance, 40);
       assert(wallet.transactions.some(row => row.kind === "need_reserve" && row.amount === 60 && row.direction === "outgoing"));
       assert.equal((await readRewardNeeds(client, other)).needs.length, 0);
@@ -91,7 +93,7 @@ test("funded need rewards on verified production PostgreSQL; all writes rolled b
       } finally { await client.query("ROLLBACK TO SAVEPOINT balance_limit_check"); }
       await actOnRewardOffer(client, owner, first.id, { action: "claim" });
       assert.equal((await actOnRewardOffer(client, owner, first.id, { action: "claim" })).replayed, true);
-      const wallet = await readRollWallet(client, owner, { needRewards: true });
+      const wallet = await readRollWallet(client, owner);
       assert.equal(wallet.balance, 160);
       assert.equal(wallet.transactions.filter(row => row.kind === "need_reward").length, 1);
       assert.equal((await balances()).reduce((sum, row) => sum + Number(row.balance), 0), 400);
@@ -206,7 +208,7 @@ test("funded need rewards on verified production PostgreSQL; all writes rolled b
           const response = await fetch(`${url}/transfers`, { method: "POST", headers: { "Content-Type": "application/json" }, body });
           assert.equal(response.status, status);
           const data = await response.json();
-          assert.deepEqual(data.features, { starsPurchases: false, tonWallet: false, needRewards: true });
+          assert.deepEqual(data.features, { starsPurchases: false, tonWallet: false, needRewards: true, rollActivity: true });
           assert.equal(data.balance, 159);
           assert(data.transactions.some(row => row.kind === "need_reward" && row.amount === 60));
         }
@@ -214,6 +216,128 @@ test("funded need rewards on verified production PostgreSQL; all writes rolled b
         assert.equal(wallet.balance, 159); assert.equal(wallet.features.needRewards, true);
         assert.equal((await balances()).reduce((sum, row) => sum + Number(row.balance), 0), 400);
       } finally { await new Promise(resolve => server.close(resolve)); }
+    });
+
+    await t.test("the confirmation API supports an explicit automatic election and conserves rolls in the scheduled payout", async () => {
+      await client.query("SAVEPOINT auto_reward");
+      const preAudit = await reconcileRollAccounting(client);
+      const preWallet = (await readRollWallet(client, owner)).balance;
+      const app = express();
+      app.use(express.json());
+      registerNeedRewardsRoutes(app, {
+        env: { ROLLAPP_NEED_REWARDS_ENABLED: "true" }, transaction: fn => fn(client),
+        requireAuth: (req, _res, next) => { req.user = { id: req.get("x-verification-user") }; next(); },
+      });
+      const server = app.listen(0, "127.0.0.1");
+      await new Promise(resolve => server.once("listening", resolve));
+      try {
+        const n = await createRewardNeed(client, owner, makeNeed());
+        const o = await createRewardOffer(client, business, n.id, { ...input, reward: 10, idempotencyKey: randomUUID() });
+        await actOnRewardOffer(client, owner, o.id, { action: "accept" });
+        await actOnRewardOffer(client, business, o.id, { action: "deliver" });
+        const base = `http://127.0.0.1:${server.address().port}/api/need-rewards`;
+        const confirm = (id, body) => fetch(`${base}/offers/${o.id}/actions`, {
+          method: "POST", headers: { "Content-Type": "application/json", "x-verification-user": id }, body: JSON.stringify(body),
+        });
+        const settings = await fetch(`${base}/config`, { headers: { "x-verification-user": owner } }).then(res => res.json());
+        assert.equal(settings.automaticSettlement, true);
+        assert.equal(settings.holdDays, 7);
+        const election = { action: "confirm", automaticSettlement: true };
+        assert.equal((await confirm(other, election)).status, 404);
+        const response = await confirm(owner, election);
+        assert.equal(response.status, 200);
+        const now = (await client.query("SELECT clock_timestamp() AS now")).rows[0].now;
+        const offers = (await readRewardNeeds(client, business)).needs.find(({ id }) => id === n.id).offers;
+        assert.equal(offers[0].automaticSettlement, true);
+        assert(offers[0].claimAt.getTime() <= now.getTime() + 168 * 3600000);
+        assert(offers[0].claimAt.getTime() >= now.getTime() + 168 * 3600000 - 10_000);
+        assert.equal(await automaticallySettleRewardOffer(client, o.id), false);
+        assert.equal((await confirm(owner, { action: "confirm" })).status, 409);
+        const confirmReplay = await confirm(owner, election).then(res => res.json());
+        assert.equal(confirmReplay.offer.replayed, true);
+
+        await client.query("UPDATE reward_need_offers SET claim_at=transaction_timestamp() WHERE id=$1", [o.id]);
+        await reject(() => actOnRewardOffer(client, owner, o.id, { action: "dispute", reason: "Срок рассмотрения истёк" }), "REWARD_STATE_CONFLICT");
+        await reject(() => actOnRewardOffer(client, business, o.id, { action: "dispute", reason: "Срок рассмотрения истёк" }), "REWARD_STATE_CONFLICT");
+        const before = await reconcileRollAccounting(client, { sampleLimit: 100 });
+        assert(before.attention.reward_automatic_due.sample.some(({ id }) => id === o.id));
+
+        const queue = {
+          query: (sql, params) => client.query(sql.replace('AS "dueAt" FROM due', 'AS "dueAt" FROM (SELECT * FROM due WHERE id=$4) fixture'), [...params, o.id]),
+          transaction: fn => fn(client),
+          onError(error) { throw error; },
+        };
+        assert.equal(await processDueRewardOffers(queue), null);
+        assert.equal(await automaticallySettleRewardOffer(client, o.id), false);
+        assert.equal((await actOnRewardOffer(client, owner, o.id, { action: "claim" })).replayed, true);
+        assert.equal((await confirm(owner, election).then(res => res.json())).offer.replayed, true);
+        const { rows } = await client.query(
+          "SELECT actor_id FROM reward_need_events WHERE offer_id=$1 AND action='automatic_claim'", [o.id],
+        );
+        assert.deepEqual(rows, [{ actor_id: null }]);
+        const receipt = (await client.query("SELECT content FROM reward_blockchain_receipts WHERE offer_id=$1", [o.id])).rows[0];
+        assert.equal(JSON.parse(receipt.content).amount, 10);
+        assert.equal((await readRollWallet(client, owner)).balance, preWallet + 10);
+        const after = await reconcileRollAccounting(client);
+        assert.equal(after.unaccountedRolls, preAudit.unaccountedRolls);
+        assert.equal(after.rewardMismatches, preAudit.rewardMismatches);
+        assert.equal(after.issuedRolls, preAudit.issuedRolls);
+      } finally {
+        await new Promise(resolve => server.close(resolve));
+        await client.query("ROLLBACK TO SAVEPOINT auto_reward");
+      }
+    });
+
+    await t.test("business escalation protects unresolved delivery; neither disputes nor old confirmations are auto-paid", async () => {
+      await client.query("SAVEPOINT dispute_and_legacy");
+      try {
+        const prepare = async () => {
+          const n = await createRewardNeed(client, owner, makeNeed());
+          const o = await createRewardOffer(client, business, n.id, { ...input, reward: 5, idempotencyKey: randomUUID() });
+          await actOnRewardOffer(client, owner, o.id, { action: "accept" });
+          await actOnRewardOffer(client, business, o.id, { action: "deliver" });
+          return o;
+        };
+        const delivery = await prepare();
+        assert.equal(await automaticallySettleRewardOffer(client, delivery.id), false);
+        const dispute = { action: "dispute", reason: "Клиент не подтвердил полученный результат" };
+        assert.equal((await actOnRewardOffer(client, business, delivery.id, dispute)).status, "disputed");
+        assert.equal((await actOnRewardOffer(client, business, delivery.id, dispute)).replayed, true);
+        for (const participant of [owner, business]) {
+          const offers = (await readRewardNeeds(client, participant)).needs.flatMap(({ offers }) => offers);
+          assert.equal(offers.find(({ id }) => id === delivery.id).disputeReason, dispute.reason);
+        }
+        const visibleToOther = (await readRewardNeeds(client, competitor)).needs.flatMap(({ offers }) => offers);
+        assert(!visibleToOther.some(({ id }) => id === delivery.id));
+        await reject(() => actOnRewardOffer(client, owner, delivery.id, dispute), "REWARD_DISPUTE_CONFLICT");
+        await reject(() => actOnRewardOffer(client, business, delivery.id, { ...dispute, reason: "Изменённое основание спора" }), "REWARD_DISPUTE_CONFLICT");
+        assert.equal(await automaticallySettleRewardOffer(client, delivery.id), false);
+        await resolveRewardDispute(client, delivery.id, "refund", "Оператор проверил условия и исполнение");
+
+        const marked = await prepare();
+        await actOnRewardOffer(client, owner, marked.id, { action: "confirm", automaticSettlement: true });
+        await actOnRewardOffer(client, business, marked.id, dispute);
+        await client.query("UPDATE reward_need_offers SET claim_at=transaction_timestamp() WHERE id=$1", [marked.id]);
+        assert.equal(await automaticallySettleRewardOffer(client, marked.id), false);
+        await reject(() => actOnRewardOffer(client, owner, marked.id, { action: "claim" }), "REWARD_STATE_CONFLICT");
+
+        const manual = await prepare();
+        await actOnRewardOffer(client, owner, manual.id, { action: "confirm" });
+        await reject(() => actOnRewardOffer(client, owner, manual.id, { action: "confirm", automaticSettlement: true }), "REWARD_CONFIRMATION_CONFLICT");
+        await client.query("UPDATE reward_need_offers SET claim_at=transaction_timestamp() WHERE id=$1", [manual.id]);
+        assert.equal(await automaticallySettleRewardOffer(client, manual.id), false);
+        assert.equal((await actOnRewardOffer(client, owner, manual.id, dispute)).status, "disputed");
+
+        const capacity = await prepare();
+        await actOnRewardOffer(client, owner, capacity.id, { action: "confirm", automaticSettlement: true });
+        await client.query("UPDATE reward_need_offers SET claim_at=transaction_timestamp() WHERE id=$1", [capacity.id]);
+        await client.query("SAVEPOINT full_wallet");
+        await client.query("UPDATE roll_wallets SET balance=$2 WHERE user_id=$1", [owner, ROLLS_MAX_BALANCE]);
+        await reject(() => automaticallySettleRewardOffer(client, capacity.id), "BALANCE_LIMIT");
+        await client.query("ROLLBACK TO SAVEPOINT full_wallet");
+        assert.equal((await client.query("SELECT status FROM reward_need_offers WHERE id=$1", [capacity.id])).rows[0].status, "confirmed");
+        assert.equal(await automaticallySettleRewardOffer(client, capacity.id), true);
+      } finally { await client.query("ROLLBACK TO SAVEPOINT dispute_and_legacy"); }
     });
 
   } finally {
