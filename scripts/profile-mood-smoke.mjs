@@ -24,7 +24,7 @@ async function assertMoodTiles(rail, mood, expectedCount) {
   const tiles = await rail.locator("[data-list-tile]").evaluateAll((elements) => elements.map((element) => {
     const style = getComputedStyle(element);
     return {
-      focused: element.matches('[aria-pressed="true"], [data-tile-preview-selected]'),
+      focused: element.matches('[aria-pressed="true"]'),
       accent: style.getPropertyValue("--list-tile-accent").trim(),
       gradient: style.backgroundImage,
       border: style.boxShadow,
@@ -86,7 +86,7 @@ try {
     const open = owner.getByRole("button", { name: "Редактировать профиль Александра" });
     const submit = page.getByRole("button", { name: "Сохранить настроение" });
     const visible = page.getByRole("switch", { name: "Показывать посетителям профиля" });
-    const preview = page.locator(".mood-settings__tiles");
+    const question = page.getByRole("region", { name: "Как вы сейчас?", exact: true });
     const ownerTiles = page.locator("[data-wishlist-list-navigation]");
     const ownerPortrait = owner.locator(".wishes-page__hero-avatar");
     const list = page.getByRole("list", { name: "Отметки настроения" });
@@ -103,27 +103,24 @@ try {
     } else {
       await page.getByText("Здесь появятся ваши отметки с датой и временем.").waitFor();
     }
-    const radios = page.getByRole("radio");
+    const scale = question.getByRole("radiogroup", { name: "Как вы сейчас?", exact: true });
+    const radios = scale.getByRole("radio");
     assert.equal(await radios.count(), 5);
     assert.equal(await visible.count(), 0);
-    await page.getByText(/все плитки списков окрасятся в один цвет/).waitFor();
+    assert.equal(await question.locator("[data-list-tile]").count(), 0);
     assert(await submit.isDisabled());
-    const colors = new Set();
     for (const [i, mood] of MOOD_LEVELS.entries()) {
       if (i === 0) await radios.nth(i).click();
       else await page.keyboard.press("ArrowRight");
-      assert.equal(await radios.nth(i).getAttribute("aria-checked"), "true");
-      colors.add(await assertMoodTiles(preview, mood, 2));
+      const picked = scale.getByRole("radio", { name: mood.label, exact: true });
+      assert.equal(await picked.getAttribute("aria-checked"), "true");
     }
-    assert.equal(colors.size, 5, "Each mood must produce a different tint");
     const geometry = await page.evaluate(() => {
       const boxes = [...document.querySelectorAll('[role="radio"]')].map((node) => node.getBoundingClientRect().toJSON());
       const footer = document.querySelector("form [data-control-bar]");
       const save = footer.querySelector('[type="submit"]');
-      const hint = document.querySelector("#profile-mood-visibility");
       return { boxes, screen: { width: innerWidth, height: innerHeight }, root: document.documentElement.scrollWidth,
         button: save.getBoundingClientRect().toJSON(), radius: getComputedStyle(save).borderTopLeftRadius,
-        hintFont: getComputedStyle(hint).fontSize, hintLeading: getComputedStyle(hint).lineHeight,
         nestedScroll: !!document.querySelector('form [data-slot="scroll-area-viewport"]') };
     });
     assert(geometry.root <= width, `root overflow ${width}`);
@@ -134,8 +131,6 @@ try {
     }
     assert.equal(geometry.button.height, 48);
     assert.equal(geometry.radius, "24px");
-    assert.equal(geometry.hintFont, "13px");
-    assert.equal(geometry.hintLeading, "16px");
     assert(geometry.button.bottom <= height + 1);
     assert.equal(geometry.nestedScroll, width >= 768);
     if (width < 768) assert.equal(await page.getByRole("button", { name: "Назад", exact: true }).count(), 1);
@@ -187,7 +182,6 @@ try {
     await submit.click();
     await page.getByText("Отметка добавлена в журнал", { exact: true }).waitFor();
     assert.equal(await list.locator("li").first().getByText("Нейтрально", { exact: true }).count(), 1);
-    await assertMoodTiles(preview, neutral, 2);
     await radios.first().click();
     if (width < 768) await page.goBack(); else await page.keyboard.press("Escape");
     await closeMenu();
@@ -227,8 +221,17 @@ try {
       if (published && screenshotDir && [390, 1440].includes(width) && height > 400)
         await page.screenshot({ path: `${screenshotDir}/guest-${width}.png` });
     }
+    if (width === 1440) {
+      const colors = new Set();
+      for (const mood of MOOD_LEVELS) {
+        await page.goto(`${smokeOrigin(server)}/__profile-mood?guest&published=${mood.level}`);
+        const tiles = page.locator("[data-public-collection] [data-wishlist-list-navigation]");
+        colors.add(await assertMoodTiles(tiles, mood, 3));
+      }
+      assert.equal(colors.size, 5, "Each mood gives the real tiles a distinct tint");
+    }
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height}: 5 levels, preview, retry, private log, one tile tint per level, no avatar halo, public color and neutral fallback, cancel, 48px controls`);
+    console.log(`PASS ${width}×${height}: 5 choices, retry, private log, real tile tints, no avatar halo, public color, neutral fallback, cancel, 48px controls`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

@@ -859,14 +859,10 @@
         inset 0 -2px 8px oklch(from var(--list-tile-accent) 0.72 calc(0.17 * var(--list-tile-saturation)) h / var(--list-tile-edge-alpha));
     }
 
-    [data-list-tile-palette] [data-list-tile]:is([aria-pressed="true"], [data-tile-preview-selected]) {
+    [data-list-tile-palette] [data-list-tile][aria-pressed="true"] {
       --list-tile-strength: 1;
       background-color: var(--list-tile-selected-surface);
       color: var(--list-tile-selected-ink);
-    }
-
-    [data-list-tile-palette] [data-tile-preview-selected] > [data-slot="list-tile-meta"] {
-      color: inherit;
     }
   }
 

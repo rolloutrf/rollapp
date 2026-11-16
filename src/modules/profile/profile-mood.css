@@ -1,24 +1,3 @@
-.mood-settings__preview {
-  display: grid;
-  gap: var(--layout-item-gap);
-  padding-block: var(--layout-item-gap);
-  padding-inline: var(--layout-inline-gap);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--card);
-}
-
-.mood-settings__preview > div:first-child {
-  padding-inline: var(--layout-inline-gap);
-}
-
-.mood-settings__tiles {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--layout-inline-gap);
-}
-
 .mood-settings__scale {
   position: relative;
   display: grid;

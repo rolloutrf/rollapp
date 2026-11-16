@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/modules/runtime/api.js";
 import { DrawerFooter } from "@/components/form-surface";
-import { ListTileContent } from "@/components/list-tile-content";
-import { tileMoodStyle } from "./profile-tile-mood.js";
 import "./profile-mood.css";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -43,7 +41,7 @@ export function ProfileMoodSettings({ onSaved, onBusyChange, transport = moodApi
     return () => { active = false; alive.current = false; };
   }, [retry, transport]);
 
-  const preview = moodAt(level ?? journal?.level);
+  const middleChoice = MOOD_LEVELS.slice(1, -1).find((mood) => mood.level === level);
   const changed = journal && level !== null;
   const submit = async (event) => {
     event.preventDefault();
@@ -97,18 +95,9 @@ export function ProfileMoodSettings({ onSaved, onBusyChange, transport = moodApi
           <Button type="button" variant="outline" onClick={() => { setError(null); setRetry((value) => value + 1); }}>Повторить</Button>
         </div> : <p className="flex items-center gap-2" role="status"><Spinner aria-hidden="true" />Загружаем настроение…</p> : <>
           <section className="grid gap-4" aria-labelledby="profile-mood-question">
-            <div className="mood-settings__preview">
-              <div className="grid min-w-0 gap-1">
-                <h2 id="profile-mood-question" className="font-heading text-xl font-semibold">Как вы сейчас?</h2>
-                <p className="text-xs text-muted-foreground" aria-live="polite">{level !== null ? `Новая отметка: ${preview.label.toLocaleLowerCase("ru-RU")}` : preview ? `Последняя отметка: ${preview.label.toLocaleLowerCase("ru-RU")}` : "Выберите отметку на шкале"}</p>
-              </div>
-              <div className="mood-settings__tiles" data-list-tile-palette style={tileMoodStyle(preview?.level)} aria-hidden="true">
-                <div data-list-tile data-tile-preview-selected><ListTileContent title="Выбранная" detail="Плитка списка" /></div>
-                <div data-list-tile><ListTileContent title="Другая" detail="Плитка списка" /></div>
-              </div>
-            </div>
+            <h2 id="profile-mood-question" className="font-heading text-xl font-semibold">Как вы сейчас?</h2>
             <div className="grid gap-1">
-              <RadioGroup aria-label="Шкала настроения" value={level === null ? "" : String(level)} onValueChange={(value) => { setLevel(Number(value)); setStatus(""); }} className="mood-settings__scale" style={{ "--mood-spectrum": spectrum }} disabled={!!busy}>
+              <RadioGroup aria-labelledby="profile-mood-question" value={level === null ? "" : String(level)} onValueChange={(value) => { setLevel(Number(value)); setStatus(""); }} className="mood-settings__scale" style={{ "--mood-spectrum": spectrum }} disabled={!!busy}>
                 {MOOD_LEVELS.map((mood) => <RadioGroupItem
                   key={mood.level}
                   value={String(mood.level)}
@@ -117,11 +106,12 @@ export function ProfileMoodSettings({ onSaved, onBusyChange, transport = moodApi
                   style={{ "--profile-mood-color": mood.color }}
                 />)}
               </RadioGroup>
-              <div className="flex justify-between gap-2 text-xs text-muted-foreground" aria-hidden="true">
-                <span>Очень плохо</span><span>Отлично</span>
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-2 text-xs text-muted-foreground">
+                <span aria-hidden="true">{MOOD_LEVELS[0].label}</span>
+                <span className="text-center text-foreground" aria-hidden="true">{middleChoice?.label}</span>
+                <span className="text-right" aria-hidden="true">{MOOD_LEVELS.at(-1).label}</span>
               </div>
             </div>
-            <p id="profile-mood-visibility" className="text-xs text-muted-foreground">После сохранения все плитки списков окрасятся в один цвет. Посетители профиля увидят этот цвет на ваших публичных списках. Нейтральное настроение даёт серые плитки. Журнал доступен только вам.</p>
             {error?.operation === "save" && <Alert variant="destructive"><AlertDescription>{error.message}</AlertDescription></Alert>}
             <div className="sr-only" role="status">{status}</div>
           </section>

@@ -45,7 +45,7 @@ api.get = async (path) => {
     return { user: guest ? visitor : { ...userBase, moodLevel: level, publicMood } };
   }
   if (guest && path === "/profile/mood-owner") return {
-    profile: { ...userBase, ...(params.has("published") && { publicMood: 5 }) },
+    profile: { ...userBase, ...(params.has("published") && { publicMood: Number(params.get("published")) || 5 }) },
     lists: items.map(({ id, title }) => ({ id, title, space: "products", privacy: "public" })), wishes: [], groups: [], isOwner: false, followersCount: 0, followingCount: 0,
   };
   const url = new URL(path, location.origin);
