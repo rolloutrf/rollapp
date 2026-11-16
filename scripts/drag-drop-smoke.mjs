@@ -120,6 +120,10 @@ async function checkMouseListTiles(page, width) {
     await page.mouse.down();
     await listPreview(page).waitFor();
     assert.equal(await listPreview(page).evaluate(node => node.inert && node.offsetWidth === 130 && node.offsetHeight === 100), true);
+    const sourceTint = await tiles(page).first().evaluate(node => getComputedStyle(node).backgroundImage);
+    assert.match(sourceTint, /^radial-gradient/);
+    assert.equal(await listPreview(page).evaluate(node => getComputedStyle(node).backgroundImage), sourceTint,
+      'The lifted tile must keep the original mood gradient outside the rail');
     await page.mouse.move(point.end.x, point.end.y);
     await waitForTileShift(page);
     if (action === 'escape') {

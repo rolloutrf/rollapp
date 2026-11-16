@@ -72,8 +72,8 @@ try{
       selected:{wishlist:style(wishlist),day:style(day)},
       wishlistPaint:expectedPaint(wishlist,'--list-tile-selected-surface','--list-tile-selected-ink','inherit'),
       dayPaint:expectedPaint(day,'--primary','--primary-foreground','var(--muted-foreground)'),
-      wishlistGlow:getComputedStyle(wishlist,'::before').backgroundImage,
-      dayGlow:getComputedStyle(day,'::before').backgroundImage,
+      wishlistGlow:getComputedStyle(wishlist).backgroundImage,
+      dayGlow:getComputedStyle(day).backgroundImage,
      };
     });
     assert.deepEqual(parity.idle.day,parity.idle.wishlist,'Unselected day and Wishlist tiles share geometry and paint');

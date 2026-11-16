@@ -17,17 +17,16 @@ export function PersistentProfileHero({ user, wishlistChrome = false, sectionNav
   const profile = !wishlistChrome && access.active && access.owner
     ? access.owner
     : user;
-  const moodLevel = profile.id === user.id ? user.moodLevel ?? user.publicMood : profile.publicMood;
   const editable = !access.active || access.isOwner;
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className="wishes-page__identity wishes-page__identity--readonly">
         <div className="sphere-share-avatars">
           {/^\/app\/friends(?:\/|$)/.test(location.pathname) ? <StoryAvatar user={profile} own={editable} onEditProfile={openProfileEditor}>
-            <ProfilePortrait user={profile} moodLevel={moodLevel} />
+            <ProfilePortrait user={profile} />
           </StoryAvatar> : editable ? <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
-            <ProfilePortrait user={profile} moodLevel={moodLevel} />
-          </ShadcnButton> : <ProfilePortrait user={profile} moodLevel={moodLevel} />}
+            <ProfilePortrait user={profile} />
+          </ShadcnButton> : <ProfilePortrait user={profile} />}
         </div>
         <div className="wishes-page__hero-copy">
           <h1 id="persistent-profile-name">{profile.name}</h1>

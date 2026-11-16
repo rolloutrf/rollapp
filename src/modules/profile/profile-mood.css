@@ -1,53 +1,22 @@
-.avatar[data-slot="avatar"][data-profile-mood] {
-  --mood-halo-blur: 12px;
-  --mood-halo-spread: 2px;
-  isolation: isolate;
-  overflow: visible;
-  border-color: transparent;
-}
-
-.avatar[data-profile-mood]:is(.wishes-page__hero-avatar, .mood-settings__portrait) {
-  --mood-halo-blur: 26px;
-  --mood-halo-spread: 4px;
-}
-
-.avatar[data-profile-mood]::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: 0 0 var(--mood-halo-blur) var(--mood-halo-spread)
-    color-mix(in oklch, var(--profile-mood-color) 40%, transparent);
-  opacity: 0.8;
-}
-
-.avatar[data-profile-mood]::after {
-  display: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .avatar[data-profile-mood]::before {
-    animation: profile-mood-breathe 5s ease-in-out infinite;
-  }
-}
-
-@keyframes profile-mood-breathe {
-  0%, 100% { opacity: 0.65; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.055); }
-}
-
 .mood-settings__preview {
-  min-height: 9rem;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  gap: var(--layout-item-gap);
+  padding-block: var(--layout-item-gap);
+  padding-inline: var(--layout-inline-gap);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background: radial-gradient(ellipse at 12% 52%, color-mix(in oklch, var(--profile-mood-color, var(--muted)) 21%, transparent), transparent 65%), var(--card);
+  background: var(--card);
+}
+
+.mood-settings__preview > div:first-child {
+  padding-inline: var(--layout-inline-gap);
+}
+
+.mood-settings__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--layout-inline-gap);
 }
 
 .mood-settings__scale {

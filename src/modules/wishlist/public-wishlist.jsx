@@ -342,7 +342,7 @@ export function PublicProfile({ shared = false }) {
   const sellerSpace = activeSpace;
   const managesStorefront = sellerProfile && data.isOwner && user?.id === data.profile.id
     && canManageWishlistSpace(user, sellerSpace);
-  const moodLevel = data.isOwner && data.profile.id === user?.id ? user.moodLevel ?? user.publicMood : data.profile.publicMood;
+  const moodLevel = (data.isOwner && data.profile.id === user?.id ? user.moodLevel ?? user.publicMood : data.profile.publicMood) ?? null;
   const identity = (
     <div className="wishes-page__identity friend-profile-page__identity">
       {data.isOwner ? <ShadcnButton
@@ -353,8 +353,8 @@ export function PublicProfile({ shared = false }) {
         title={businessProfile ? undefined : "Редактировать профиль"}
         onClick={openProfileEditor}
       >
-        <ProfilePortrait user={data.profile} moodLevel={moodLevel} />
-      </ShadcnButton> : <ProfilePortrait user={data.profile} moodLevel={moodLevel} />}
+        <ProfilePortrait user={data.profile} />
+      </ShadcnButton> : <ProfilePortrait user={data.profile} />}
       {businessProfile && <BusinessGiftAction business={data.profile} user={user} />}
       <div className="wishes-page__hero-copy">
         <h1 id="public-profile-name">{data.profile.name}</h1>
@@ -412,6 +412,7 @@ export function PublicProfile({ shared = false }) {
     ]} />}
     {!publication && !businessStorefront && shouldShowListNavigation({ shared, listCount: navigationLists.length, unlistedCount: unlistedWishes.length }) && <WishListNavigation
       value={selectedValue}
+      moodLevel={moodLevel}
       className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}
       items={shared ? [] : navigationLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: ownerCollection && list.privacy === "private" }))}
       leadingItem={showAllCollection ? { title: shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE, count: unlistedWishes.length } : null}

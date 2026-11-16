@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/modules/runtime/api.js";
 import { DrawerFooter } from "@/components/form-surface";
-import { Avatar } from "@/modules/profile/profile-avatar.jsx";
+import { ListTileContent } from "@/components/list-tile-content";
+import { tileMoodStyle } from "./profile-tile-mood.js";
+import "./profile-mood.css";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MOOD_LEVELS, highlightedMood, moodAt } from "../../../shared/modules/profile/profile-mood.js";
+import { MOOD_LEVELS, moodAt } from "../../../shared/modules/profile/profile-mood.js";
 
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" });
 const spectrum = `linear-gradient(to right, ${MOOD_LEVELS.map((mood) => mood.color).join(", ")})`;
@@ -17,7 +19,7 @@ const moodApi = {
   save: (payload) => api.patch("/me/mood", payload),
 };
 
-export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = moodApi }) {
+export function ProfileMoodSettings({ onSaved, onBusyChange, transport = moodApi }) {
   const isMobile = useIsMobile();
   const Body = isMobile ? "div" : ScrollArea;
   const [journal, setJournal] = useState(null);
@@ -42,7 +44,6 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
   }, [retry, transport]);
 
   const preview = moodAt(level ?? journal?.level);
-  const highlight = highlightedMood(preview?.level);
   const changed = journal && level !== null;
   const submit = async (event) => {
     event.preventDefault();
@@ -96,11 +97,14 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
           <Button type="button" variant="outline" onClick={() => { setError(null); setRetry((value) => value + 1); }}>Повторить</Button>
         </div> : <p className="flex items-center gap-2" role="status"><Spinner aria-hidden="true" />Загружаем настроение…</p> : <>
           <section className="grid gap-4" aria-labelledby="profile-mood-question">
-            <div className="mood-settings__preview" style={highlight ? { "--profile-mood-color": highlight.color } : undefined}>
-              <Avatar user={user} moodLevel={preview?.level ?? null} size="lg" className="mood-settings__portrait !size-16" aria-hidden="true" />
+            <div className="mood-settings__preview">
               <div className="grid min-w-0 gap-1">
                 <h2 id="profile-mood-question" className="font-heading text-xl font-semibold">Как вы сейчас?</h2>
                 <p className="text-xs text-muted-foreground" aria-live="polite">{level !== null ? `Новая отметка: ${preview.label.toLocaleLowerCase("ru-RU")}` : preview ? `Последняя отметка: ${preview.label.toLocaleLowerCase("ru-RU")}` : "Выберите отметку на шкале"}</p>
+              </div>
+              <div className="mood-settings__tiles" data-list-tile-palette style={tileMoodStyle(preview?.level)} aria-hidden="true">
+                <div data-list-tile data-tile-preview-selected><ListTileContent title="Выбранная" detail="Плитка списка" /></div>
+                <div data-list-tile><ListTileContent title="Другая" detail="Плитка списка" /></div>
               </div>
             </div>
             <div className="grid gap-1">
@@ -117,7 +121,7 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
                 <span>Очень плохо</span><span>Отлично</span>
               </div>
             </div>
-            <p id="profile-mood-visibility" className="text-xs text-muted-foreground">После сохранения цветное настроение видно всем посетителям профиля. Нейтральное убирает подсветку. Журнал доступен только вам.</p>
+            <p id="profile-mood-visibility" className="text-xs text-muted-foreground">После сохранения все плитки списков окрасятся в один цвет. Посетители профиля увидят этот цвет на ваших публичных списках. Нейтральное настроение даёт серые плитки. Журнал доступен только вам.</p>
             {error?.operation === "save" && <Alert variant="destructive"><AlertDescription>{error.message}</AlertDescription></Alert>}
             <div className="sr-only" role="status">{status}</div>
           </section>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useWishListDrag } from "@/hooks/use-wish-list-drag";
 import { wishCountNoun } from "@/modules/categories/list-navigation.js";
+import { useProfileTileMood } from "@/modules/profile/profile-tile-mood.js";
 import { cn } from "@/lib/utils";
 
 // Move only the list row; selecting a list must not scroll the page vertically.
@@ -72,7 +73,8 @@ function ListTile({ id, title, displayTitle = title, count, detail, detailLines,
   );
 }
 
-export function WishListNavigation({ value, className, items, leadingItem, orderScope, onSelect, onSettings, onOrderError, label = "Списки желаний", settingsLabel = title => `Настройки списка «${title}»`, settingsDisabled, renderSettings }) {
+export function WishListNavigation({ value, className, moodLevel, items, leadingItem, orderScope, onSelect, onSettings, onOrderError, label = "Списки желаний", settingsLabel = title => `Настройки списка «${title}»`, settingsDisabled, renderSettings }) {
+  const moodStyle = useProfileTileMood(moodLevel);
   const viewportRef = useRef(null);
   const storageKey = orderScope ? `rollapp:wishlist-list-order:${orderScope}` : null;
   const [preference, setPreference] = useState(() => ({ key: storageKey, order: readOrder(storageKey) }));
@@ -137,6 +139,8 @@ export function WishListNavigation({ value, className, items, leadingItem, order
       ref={viewportRef}
       className={cn("list-tabs horizontal-tile-scroller", className)}
       data-wishlist-list-navigation
+      data-list-tile-palette
+      style={moodStyle}
       aria-label={label}
       onClickCapture={suppressDragClick}
       onFocusCapture={(event) => {

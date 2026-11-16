@@ -616,7 +616,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
     blocked={loading || importingWishlist || imageUploading || loggingOut || openRouterBusy}
     onBusyChange={setAccountsBusy} isMobile={isMobile} />)
     || openRouterSection
-    || (section === "mood" && <ProfileMoodSettings user={user} onSaved={onMoodSaved} onBusyChange={setMoodBusy} />)
+    || (section === "mood" && <ProfileMoodSettings onSaved={onMoodSaved} onBusyChange={setMoodBusy} />)
     || (section === "mcp" && <ProfileMcpKeys key={user.id} onBusyChange={setMcpKeysBusy} />)
     || (section === "invites" && <InvitesManager key={user.id} />)
     || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);
