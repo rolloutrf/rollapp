@@ -1,4 +1,4 @@
-import { localizedPageUrl } from "../../shared/modules/shell/page-urls.js";
+import { spherePageUrl } from "../../shared/modules/shell/sphere-page-urls.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../../shared/modules/shell/applications.js";
@@ -8,13 +8,13 @@ test("sphere roots, deep links and service switches keep the destination query a
   for (const [application, { host, home }] of Object.entries(SPHERE_APPLICATIONS)) {
     const state = { application, hostname: host, pathname: "/", search: "?tab=detail", hash: "#section" };
     const path = `${home}${state.search}${state.hash}`;
-    assert.equal(applicationRedirect(state), localizedPageUrl(path));
+    assert.equal(applicationRedirect(state), null);
     assert.equal(applicationRedirect({ ...state, pathname: home }), null);
-    assert.equal(applicationRedirect({ ...state, pathname: home, hostname: PLATFORM_HOST, application: null }), `https://${host}${localizedPageUrl(path)}`);
+    assert.equal(applicationRedirect({ ...state, pathname: home, hostname: PLATFORM_HOST, application: null }), `https://${host}${spherePageUrl(path, application)}`);
     assert.equal(applicationRedirect({ ...state, pathname: home, hostname: PLATFORM_HOST, application: null, telegram: true }), null);
-    assert.equal(sphereLink(path, { hostname: PLATFORM_HOST }), `https://${host}${localizedPageUrl(path)}`);
+    assert.equal(sphereLink(path, { hostname: PLATFORM_HOST }), `https://${host}${spherePageUrl(path, application)}`);
     assert.equal(sphereLink(path, { hostname: "localhost" }), path);
-    assert.equal(platformLink("/app/planning", { hostname: host }), `https://${PLATFORM_HOST}${localizedPageUrl("/app/planning")}`);
+    assert.equal(platformLink("/app/planning", { hostname: host }), `https://${PLATFORM_HOST}${spherePageUrl("/app/planning")}`);
     assert.equal(applicationRedirect({ ...state, pathname: "/login", search: `?next=${encodeURIComponent(path)}`, hash: "" }),
       `https://${PLATFORM_HOST}/api/auth/sphere-session?next=${encodeURIComponent(path)}`);
   }
@@ -26,7 +26,7 @@ test("copied links resolve to the right host and keep the account name", () => {
   assert.equal(decodeURI(sharePageUrl("/gordeev/calendar/book", location)),
     `https://${PLATFORM_HOST}/gordeev/календарь/запись`);
   assert.equal(decodeURI(sharePageUrl("/app/spheres/health?tab=sleep&owner=gordeev", location)),
-    `https://${SPHERE_APPLICATIONS.health.host}/приложение/сферы/здоровье?раздел=сон&владелец=gordeev`);
+    `https://${SPHERE_APPLICATIONS.health.host}/сон?владелец=gordeev`);
   assert.equal(decodeURI(sharePageUrl("/s/opaque-token", location)),
     `https://${host}/поделиться/opaque-token`);
 });

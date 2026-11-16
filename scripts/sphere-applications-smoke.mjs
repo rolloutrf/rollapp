@@ -1,3 +1,4 @@
+import { spherePageUrl } from "../shared/modules/shell/sphere-page-urls.js";
 import assert from "node:assert/strict";
 import { stat } from "node:fs/promises";
 import path from "node:path";
@@ -9,11 +10,11 @@ import { browserLaunchOptions } from "./browser-runtime.mjs";
 const dist = path.resolve(import.meta.dirname, "../dist");
 const hostApplications = new Map(Object.entries(SPHERE_APPLICATIONS).map(([id, def]) => [def.host, id]));
 const routes = {
-  identity: { tab: "values", display: "идентичность", section: "ценности", api: "/api/identity/content/values" },
-  health: { tab: "sleep", display: "здоровье", section: "сон", api: "/api/health/trackers/sleep" },
-  career: { tab: "about", display: "карьера", section: "о-себе", api: "/api/career/content/about" },
-  education: { tab: "courses", display: "образование", section: "курсы", api: "/api/education/courses" },
-  wishlist: { tab: "products", display: "желания", section: "товары", api: "/api/dashboard" },
+  identity: { tab: "values", display: "/ценности", api: "/api/identity/content/values" },
+  health: { tab: "sleep", display: "/сон", api: "/api/health/trackers/sleep" },
+  career: { tab: "about", display: "/", api: "/api/career/content/about" },
+  education: { tab: "courses", display: "/", api: "/api/education/courses" },
+  wishlist: { tab: "products", display: "/", api: "/api/dashboard" },
 };
 const account = { id: "sphere-smoke", name: "Проверка сфер", username: "sphere-smoke", canDiscoverSpheres: true, accountType: "personal" };
 const browser = await chromium.launch(browserLaunchOptions());
@@ -58,7 +59,7 @@ try {
     });
     try {
       for (const [id, { host, home }] of Object.entries(SPHERE_APPLICATIONS)) {
-        const { tab, display, section, api } = routes[id];
+        const { tab, display, api } = routes[id];
         const query = `?tab=${tab}&owner=${account.username}#focus`;
         const roleRequest = page.waitForRequest(request => {
           const url = new URL(request.url());
@@ -66,12 +67,12 @@ try {
           if (id !== "wishlist") assert.equal(url.searchParams.get("owner"), account.username);
           return true;
         });
-        await page.goto(`https://${host}/${query}`);
-        const localized = localizedPageUrl(home + query);
+        await page.goto(`https://${host}${home}${query}`);
+        const localized = spherePageUrl(home + query, id);
         await page.waitForURL(`https://${host}${localized}`);
         const current = new URL(page.url());
-        assert.equal(decodeURI(current.pathname), `/приложение/${id === "wishlist" ? "" : "сферы/"}${display}`);
-        assert.equal(current.searchParams.get("раздел"), section);
+        assert.equal(decodeURI(current.pathname), display);
+        assert.equal(current.searchParams.has("раздел"), false);
         assert.equal(current.searchParams.get("владелец"), account.username);
         assert.equal(current.hash, "#focus");
         await roleRequest;
@@ -82,16 +83,32 @@ try {
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       }
 
+      const feed = page.getByRole("link", { name: "Открыть ленту", exact: true });
+      assert.equal(decodeURI(await feed.getAttribute("href")), "/каталог");
+      await feed.click();
+      await page.waitForURL(url => decodeURI(url.pathname) === "/каталог" && !url.search);
+      const brands = page.getByRole("link", { name: "Открыть каталог брендов", exact: true });
+      assert.equal(decodeURI(await brands.getAttribute("href")), "/каталог-брендов");
+      await brands.click();
+      await page.waitForURL(url => decodeURI(url.pathname) === "/каталог-брендов" && !url.search);
+      await page.reload();
+      await brands.waitFor();
+      assert.equal(await brands.getAttribute("aria-current"), "page");
+      await page.goBack();
+      await page.waitForURL(url => decodeURI(url.pathname) === "/каталог");
+      await page.goBack();
+      await page.waitForURL(url => url.pathname === "/");
+
       await page.getByRole("button", { name: "Открыть переключатель сфер", exact: true }).click();
       const link = page.getByRole("link", { name: "Здоровье", exact: true });
       const { host, home } = SPHERE_APPLICATIONS.health;
-      assert.equal(await link.getAttribute("href"), `https://${host}${localizedPageUrl(home)}`);
+      assert.equal(await link.getAttribute("href"), `https://${host}${spherePageUrl(home, "health")}`);
       await link.click();
-      await page.waitForURL(`https://${host}${localizedPageUrl(home)}`);
+      await page.waitForURL(`https://${host}${spherePageUrl(home, "health")}`);
       await page.goBack();
       await page.waitForURL((url) => url.hostname === SPHERE_APPLICATIONS.wishlist.host);
       await page.goto(`https://${PLATFORM_HOST}/app/spheres/health?tab=sleep#focus`);
-      await page.waitForURL(`https://${host}${localizedPageUrl(`${home}?tab=sleep#focus`)}`);
+      await page.waitForURL(`https://${host}${spherePageUrl(`${home}?tab=sleep#focus`, "health")}`);
       const sleepTab = page.getByRole("combobox", { name: "Раздел сервиса Здоровье" });
       await sleepTab.waitFor();
       assert.match(await sleepTab.innerText(), /Сон/);
@@ -106,7 +123,7 @@ try {
       await page.getByRole("link", { name: /Яндекс ID/ }).waitFor();
       assert(requests.some(([host, api]) => host === PLATFORM_HOST && api === "/api/auth/sphere-session"));
       assert.deepEqual(errors, []);
-      console.log(`PASS ${viewport.width}×${viewport.height}: Russian links, five entrypoints, owner scope, switch, Back, reload, auth handoff`);
+      console.log(`PASS ${viewport.width}×${viewport.height}: short Russian links, catalog switch, five entrypoints, owner scope, Back, reload, auth handoff`);
     } catch (error) {
       console.error(page.url(), requests, errors);
       throw error;

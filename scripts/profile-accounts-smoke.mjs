@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { internalPageUrl, localizedPageUrl } from "../shared/modules/shell/page-urls.js";
+import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
+import { internalSpherePageUrl } from "../shared/modules/shell/sphere-page-urls.js";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
@@ -20,7 +21,7 @@ const server = await createServer({
     },
     configureServer(vite) {
       vite.middlewares.use(async (req, res, next) => {
-        if (!/^\/(app\/wishes|login)?(?:\?|$)/.test(internalPageUrl(req.url))) return next();
+        if (!/^\/(app\/wishes|login)?(?:\?|$)/.test(internalSpherePageUrl(req.url))) return next();
         res.setHeader("Content-Type", "text/html");
         res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/profile-accounts.jsx"></script></body></html>'));
       });
@@ -294,7 +295,7 @@ try {
     await home(page, business).waitFor();
     await stale.locator("#profile-editor-form").evaluate((element) => element.requestSubmit());
     await home(stale, business).waitFor();
-    assert.equal(decodeURI(new URL(stale.url()).pathname), "/приложение/желания");
+    assert.equal(decodeURI(new URL(stale.url()).pathname), "/вишлист");
     assert.equal(staleWrites(), 1);
     await stale.close();
     await openAccounts(page, business);

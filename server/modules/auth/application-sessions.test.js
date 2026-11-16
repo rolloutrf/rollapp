@@ -1,4 +1,4 @@
-import { localizedPageUrl } from "../../../shared/modules/shell/page-urls.js";
+import { spherePageUrl } from "../../../shared/modules/shell/sphere-page-urls.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../../../shared/modules/shell/applications.js";
@@ -53,8 +53,8 @@ test("legacy session handoff preserves valid saved accounts and clears legacy sc
 });
 
 test("session handoff redirects only to registered sphere paths", () => {
-  for (const { host, home } of Object.values(SPHERE_APPLICATIONS)) {
-    assert.equal(sphereSessionDestination(`${home}?tab=demo#row`), `https://${host}${localizedPageUrl(`${home}?tab=demo#row`)}`);
+  for (const [application, { host, home }] of Object.entries(SPHERE_APPLICATIONS)) {
+    assert.equal(sphereSessionDestination(`${home}?tab=demo#row`), `https://${host}${spherePageUrl(`${home}?tab=demo#row`, application)}`);
   }
   assert.equal(sphereSessionDestination("/app/planning"), null);
   assert.equal(sphereSessionDestination("//example.org/app/spheres/health"), null);

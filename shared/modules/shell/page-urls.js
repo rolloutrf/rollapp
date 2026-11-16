@@ -216,3 +216,9 @@ export const internalPageUrl = path => pageUrl(path, false);
 export function internalPageSearch(search) {
   return search.startsWith("?") ? `?${pageParams(search.slice(1), queryWords, false, 0)}` : search;
 }
+
+export function localizedPageSearch(search) {
+  return search.startsWith("?") ? `?${pageParams(search.slice(1), queryWords, true, 0)}` : search;
+}
+
+export const localizedTabSegment = id => tabWords[id];

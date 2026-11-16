@@ -1,8 +1,9 @@
+import { internalSpherePageUrl, spherePageUrl } from "../shared/modules/shell/sphere-page-urls.js";
 import { publicProfileRoute, renamedProfileLocation } from "../shared/modules/profile/profile-links.js";
 import { findProfileForAddress, invalidateProfileDirectory, profileAddress, profileDirectory, saveProfileAddress } from "./modules/profile/profile-addresses.js";
 import { listSpaceValues } from "./modules/categories/wish-spaces.js";
 import { sphereApiOwner } from "../shared/modules/shell/applications.js";
-import { internalPageUrl, localizedPageUrl } from "../shared/modules/shell/page-urls.js";
+import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
 import { applicationSessionCookies, readBrowserSessionCookies, sphereSessionDestination } from "./modules/auth/application-sessions.js";
 import { applicationRuntime, requireApplicationApi } from "./modules/runtime/application-runtime.js";
 import { registerMessengerRoutes } from "./messenger.js";
@@ -1644,7 +1645,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
       }
       return res.redirect(303, yandexLoginRedirect(nextPath, "", "YANDEX_LINKED", backup));
     }
-    return res.redirect(303, localizedPageUrl(addingAccount ? "/app/wishes" : nextPath));
+    return res.redirect(303, spherePageUrl(addingAccount ? "/app/wishes" : nextPath));
   } catch (error) {
     const publicCode = error instanceof YandexAuthError
       ? {
@@ -3486,7 +3487,7 @@ if (isProduction) {
   app.use(express.static(distPath, { maxAge: "1y", immutable: true, index: false, redirect: false }));
   app.get("/{*splat}", asyncRoute(async (req, res) => {
     const url = new URL(req.originalUrl, "https://rollapp.invalid");
-    const pathname = internalPageUrl(url.pathname);
+    const pathname = internalSpherePageUrl(url.pathname, applicationId);
     const profile = !sphereApplication && publicProfileRoute(pathname);
     if (profile && !isReservedProfileUsername(profile.username)) {
       const { rows: [owner] } = await findProfileForAddress(query, profile.username);
@@ -3496,7 +3497,7 @@ if (isProduction) {
         return res.set("Cache-Control", "no-store").redirect(302, localizedPageUrl(target));
       }
     }
-    const localized = localizedPageUrl(req.originalUrl);
+    const localized = spherePageUrl(req.originalUrl, applicationId);
     if (localized !== req.originalUrl) return res.set("Cache-Control", "no-store").redirect(308, localized);
     return res.sendFile(path.join(distPath, entry), { maxAge: 0 });
   }));

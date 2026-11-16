@@ -1,3 +1,4 @@
+import { isSpherePageName } from "../../../shared/modules/shell/sphere-page-urls.js";
 import { profileNameAddress } from "../../../shared/modules/profile/profile-name-address.js";
 import { internalPageUrl } from "../../../shared/modules/shell/page-urls.js";
 import { findProfileByUsername, preserveProfileUsername } from "./profile-aliases.js";
@@ -13,7 +14,7 @@ function availableAddress(base, owners, userId) {
   for (let number = 1; ; number++) {
     const address = number === 1 ? base : `${base}-${number}`;
     const owner = owners.get(address);
-    if ((!owner || owner === userId) && address !== "поделиться" && internalPageUrl(`/${address}`) === `/${address}`) return address;
+    if ((!owner || owner === userId) && address !== "поделиться" && !isSpherePageName(address) && internalPageUrl(`/${address}`) === `/${address}`) return address;
   }
 }
 

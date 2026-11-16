@@ -7,7 +7,7 @@ import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 import { APP_ORDERS_PATH, APP_STORE_PATH } from "../src/modules/shell/app-routing.js";
-import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
+import { spherePageUrl } from "../shared/modules/shell/sphere-page-urls.js";
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-orders-drawer-smoke",
@@ -23,9 +23,9 @@ const server = await createServer({
 
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
-const ordersUrl = origin + localizedPageUrl(APP_ORDERS_PATH);
-const storeUrl = origin + localizedPageUrl(APP_STORE_PATH);
-const marketplaceUrl = origin + localizedPageUrl("/app/spheres/career/business/store");
+const ordersUrl = origin + spherePageUrl(APP_ORDERS_PATH);
+const storeUrl = origin + spherePageUrl(APP_STORE_PATH);
+const marketplaceUrl = origin + spherePageUrl("/app/spheres/career/business/store");
 const screenshots = await mkdtemp(join(tmpdir(), "rollapp-orders-drawer-"));
 let browser;
 try {

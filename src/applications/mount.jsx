@@ -10,7 +10,7 @@ import { loadTelegramWebAppSdk } from "../modules/identification/telegram.js";
 export async function mountApplication(application = null) {
   await loadTelegramWebAppSdk();
 
-  const history = createPageHistory();
+  const history = createPageHistory(window, application);
   createRoot(document.getElementById("root")).render(
     <StrictMode>
       <HistoryRouter history={history}>

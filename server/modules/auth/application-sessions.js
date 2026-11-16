@@ -1,4 +1,4 @@
-import { localizedPageUrl } from "../../../shared/modules/shell/page-urls.js";
+import { internalSpherePageUrl, spherePageUrl } from "../../../shared/modules/shell/sphere-page-urls.js";
 import { PLATFORM_HOST, SPHERE_APPLICATIONS, spherePageOwner } from "../../../shared/modules/shell/applications.js";
 import { savedSessionsCookie, sessionCookie } from "./account-sessions.js";
 
@@ -34,7 +34,8 @@ export function sphereSessionDestination(path) {
   const platform = `https://${PLATFORM_HOST}`;
   const destination = new URL(path, platform);
   if (destination.origin !== platform) return null;
-  const id = spherePageOwner(destination.pathname);
+  const internal = internalSpherePageUrl(`${destination.pathname}${destination.search}${destination.hash}`);
+  const id = spherePageOwner(internal.split(/[?#]/, 1)[0]);
   if (!id) return null;
-  return `https://${SPHERE_APPLICATIONS[id].host}${localizedPageUrl(`${destination.pathname}${destination.search}${destination.hash}`)}`;
+  return `https://${SPHERE_APPLICATIONS[id].host}${spherePageUrl(internal, id)}`;
 }
