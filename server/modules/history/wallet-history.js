@@ -1,4 +1,5 @@
 import { formatTon } from "../../../shared/modules/payments/ton.js";
+import { readMarketplaceOrderAttention } from "./marketplace-order-attention.js";
 import { ensureRollWallet } from "../payments/rolls.js";
 import { readRollAccountingSources, readRollBalanceBreakdown, rollWalletEntries } from "../payments/roll-accounting.js";
 
@@ -26,6 +27,7 @@ export async function readRollWallet(client, userId, { offset = 0, limit = 30 } 
   const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
   const sources = await readRollAccountingSources(client);
   const balances = await readRollBalanceBreakdown(client, userId, sources);
+  const orderAttention = sources.marketplace ? await readMarketplaceOrderAttention(client, userId) : [];
   const history = await client.query(
     `SELECT h.*,u.name AS person_name,u.username AS person_username,u.avatar_url AS person_avatar_url
      FROM (${rollWalletEntries(sources)}) h
@@ -37,6 +39,7 @@ export async function readRollWallet(client, userId, { offset = 0, limit = 30 } 
   return {
     balance: Number(wallet.rows[0].balance),
     balances,
+    orderAttention,
     transactions: history.rows.slice(0, limit).map(rollTransactionFromRow),
     nextOffset: history.rowCount > limit ? offset + limit : null,
   };

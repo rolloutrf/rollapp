@@ -1,4 +1,5 @@
 import { hasMarketplaceSettlementSchema } from "../checkout/marketplace-settlements-schema.js";
+import { marketplaceOrderAttentionSql } from "./marketplace-order-attention.js";
 import { marketplaceOrderActions } from "../../../shared/modules/checkout/marketplace-settlements.js";
 
 
@@ -36,7 +37,7 @@ export async function readRollOrders(client, userId, { orderId = null } = {}) {
   const history = orders.rows.map(orderFromRow);
   if (!await hasMarketplaceSettlementSchema(client)) return { orders: history };
   const { rows } = await client.query(`
-    SELECT o.*,statement_timestamp() AS now,
+    SELECT o.*,statement_timestamp() AS now,(${marketplaceOrderAttentionSql}) AS attention,
       COALESCE((SELECT jsonb_agg(jsonb_build_object(
         'action',e.action,'note',e.note,'createdAt',e.created_at
       ) ORDER BY e.created_at,e.action)
@@ -52,7 +53,7 @@ export async function readRollOrders(client, userId, { orderId = null } = {}) {
       refundedAt: order.status === "refunded" ? order.closed_at : null,
       settlement: {
         role, participant: buyer ? order.seller_name : order.buyer_name,
-        reviewUntil: order.review_until, source: buyer ? (order.gift_card_id ? "gift" : "wallet") : null,
+        attention: order.attention, reviewUntil: order.review_until, source: buyer ? (order.gift_card_id ? "gift" : "wallet") : null,
         actions: marketplaceOrderActions(order, role, order.now), events: order.events,
       },
     };

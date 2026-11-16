@@ -56,14 +56,14 @@ try {
       const fulfilled = {
         id: "650bc77a-2829-449f-86af-51d4439bd080", productTitle: "Получение консультации", amount: 50,
         createdAt: "2026-11-12T10:00:00Z", status: "fulfilled",
-        settlement: { role: "buyer", participant: "Студия", source: "gift", reviewUntil: "2026-11-19T10:00:00Z",
+        settlement: { role: "buyer", participant: "Студия", source: "gift", attention: "review", reviewUntil: "2026-11-19T10:00:00Z",
           actions: ["accept", "dispute"], events: [{ action: "fulfill", note: "Встреча состоялась", createdAt: "2026-11-12T10:00:00Z" }] },
       };
       if (savedAction) Object.assign(fulfilled, savedAction.order);
       const reserved = {
         id: "793550f5-1e76-4d40-b272-772f39c96717", productTitle: "Встреча с заказчиком", amount: 70,
         createdAt: "2026-11-12T09:00:00Z", status: "reserved",
-        settlement: { role: "seller", participant: "Мария", source: "wallet", reviewUntil: null, actions: ["fulfill", "refund"], events: [] },
+        settlement: { role: "seller", participant: "Мария", source: "wallet", attention: "fulfill", reviewUntil: null, actions: ["fulfill", "refund"], events: [] },
       };
       const item = { id: "protected-offer", sphere: "career", title: "Консультация студии", priceRolls: 50, itemType: "service",
         business: { id: "seller", name: "Студия", username: "studio" } };
@@ -149,9 +149,11 @@ try {
             const first = fixture.submittedActions.length === 1;
             if (!first || actionRecovery === "recorded") {
               fulfilled.status = "disputed";
+              fulfilled.settlement.attention = "dispute";
               fulfilled.settlement.actions = ["accept"];
               fulfilled.settlement.events.push({ action: input.action, note: input.note, createdAt: "2026-11-13T10:00:00Z" });
             } else if (actionRecovery === "unavailable") {
+              fulfilled.settlement.attention = null;
               fulfilled.settlement.actions = ["accept"];
               fulfilled.settlement.reviewUntil = "2026-11-13T10:00:00Z";
             }
@@ -162,6 +164,7 @@ try {
           if (path === `/rolls/orders/${reserved.id}/actions` && input.action === "fulfill") {
             fixture.submittedActions.push(input);
             reserved.status = "fulfilled";
+            reserved.settlement.attention = null;
             reserved.settlement.reviewUntil = "2026-11-19T10:00:00Z";
             reserved.settlement.actions = ["refund"];
             reserved.settlement.events = [{ action: input.action, note: input.note, createdAt: "2026-11-12T10:00:00Z" }];
@@ -282,6 +285,18 @@ try {
       await page.waitForURL(ordersUrl);
       const buyerOrder = drawer.locator('[data-order-role="buyer"]');
       const sellerOrder = drawer.locator('[data-order-role="seller"]');
+      const orderFilters = drawer.getByRole("group", { name: "Фильтр заказов" });
+      await orderFilters.getByRole("button", { name: "Исполнить заказы" }).waitFor();
+      assert.deepEqual(await orderFilters.getByRole("button").evaluateAll((buttons) => buttons.map((button) => [
+        button.offsetHeight, getComputedStyle(button).paddingInlineStart, getComputedStyle(button).paddingInlineEnd,
+      ])), [[48, "24px", "24px"], [48, "24px", "24px"], [48, "24px", "24px"]]);
+      await orderFilters.getByRole("button", { name: "Исполнить заказы" }).click();
+      await page.waitForURL((url) => url.searchParams.get("attention") === "fulfill");
+      await sellerOrder.waitFor();
+      await buyerOrder.waitFor({ state: "hidden" });
+      assert.equal(await orderFilters.getByRole("button", { name: "Исполнить заказы" }).getAttribute("aria-pressed"), "true");
+      await orderFilters.getByRole("button", { name: "Все заказы" }).click();
+      await page.waitForURL(ordersUrl);
       await buyerOrder.getByText("На проверке", { exact: true }).waitFor();
       await buyerOrder.getByText("Подарочная карта", { exact: false }).waitFor();
       await buyerOrder.getByRole("button", { name: "История заказа" }).click();
@@ -301,6 +316,9 @@ try {
       await page.keyboard.press("Escape");
       await confirmation.waitFor({ state: "hidden" });
       assert.equal(await page.evaluate(() => window.ordersDrawerFixture.submittedActions.length), 0);
+      await orderFilters.getByRole("button", { name: "Проверить покупки" }).click();
+      await page.waitForURL((url) => url.searchParams.get("attention") === "review");
+      await sellerOrder.waitFor({ state: "hidden" });
       await buyerOrder.getByRole("button", { name: "Открыть спор" }).click();
       const dispute = confirmation.getByRole("button", { name: "Открыть спор", exact: true });
       assert(await dispute.isDisabled());
@@ -317,7 +335,10 @@ try {
       if ([320, 1440].includes(width) || height === 400) await page.screenshot({ path: join(screenshots, `dispute-${width}x${height}.png`) });
       await later.click();
       await confirmation.waitFor({ state: "hidden" });
-      if (width === 1024) await page.reload();
+      if (width === 1024) {
+        await page.reload();
+        await page.waitForURL((url) => url.searchParams.get("attention") === "review");
+      }
       await buyerOrder.getByRole("button", { name: "Открыть проверку действия" }).click();
       assert.equal(await confirmation.getByLabel("Причина спора").inputValue(), "Уточните результат");
       assert.equal(await confirmation.getByLabel("Причина спора").evaluate((field) => field.readOnly), true);
@@ -350,7 +371,13 @@ try {
       assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.actionChecks), Array.from({ length: actionRecovery === "unavailable" ? 2 : 1 },
         () => "/rolls/orders/650bc77a-2829-449f-86af-51d4439bd080/actions/dispute"));
       assert.equal(await page.evaluate(() => sessionStorage.getItem("rollapp:marketplace-action:orders-smoke:650bc77a-2829-449f-86af-51d4439bd080")), null);
+      await drawer.getByText("В этой подборке сейчас нет заказов.").waitFor();
+      await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Список заказов");
+      assert.equal(await orderFilters.getByRole("button", { name: "Проверить покупки" }).getAttribute("aria-pressed"), "true");
+      const nextFilter = actionRecovery === "unavailable" ? "Все заказы" : "Открытые споры";
+      await orderFilters.getByRole("button", { name: nextFilter }).click();
       if (actionRecovery !== "unavailable") {
+        await sellerOrder.waitFor({ state: "hidden" });
         await buyerOrder.getByText("Открыт спор", { exact: true }).first().waitFor();
         if (!await buyerOrder.getByText("Уточните результат", { exact: true }).isVisible()) {
           await buyerOrder.getByRole("button", { name: "История заказа" }).click();
@@ -359,6 +386,8 @@ try {
       } else {
         await buyerOrder.getByRole("button", { name: "Открыть спор" }).waitFor({ state: "hidden" });
       }
+      await orderFilters.getByRole("button", { name: "Все заказы" }).click();
+      await page.waitForURL(ordersUrl);
       await page.evaluate(() => sessionStorage.removeItem("orders-fixture-action"));
       await sellerOrder.getByRole("button", { name: "Отметить исполнение" }).click();
       await confirmation.getByLabel("Комментарий для покупателя").fill("Доставка завершена");

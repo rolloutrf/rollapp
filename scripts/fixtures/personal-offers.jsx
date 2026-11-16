@@ -72,7 +72,12 @@ const client = {
     if (path === "/rolls") return { balance: 100, transactions: scenario === "wallet-page" ? [
       { id: "purchase:shop", kind: "purchase", direction: "outgoing", amount: 50, productTitle: "Товар магазина", createdAt: base.expiresAt },
       { id: "refund:shop", kind: "refund", direction: "incoming", amount: 50, productTitle: "Товар магазина", createdAt: base.expiresAt },
-    ] : [], balances: { giftCards: "300", reservedRewards: "70" }, features: {}, nextOffset: null };
+    ] : [], balances: { giftCards: "300", reservedRewards: "70" }, features: {}, nextOffset: null, orderAttention: scenario === "wallet-page" ? [
+      { kind: "review", count: 2, amount: "50", reviewUntil: "2026-11-19T10:00:00Z" },
+      { kind: "claim", count: 1, amount: "70", reviewUntil: null },
+      { kind: "dispute", count: 1, amount: "20", reviewUntil: null },
+      { kind: "fulfill", count: 1, amount: "40", reviewUntil: null },
+    ] : [] };
     if (path === "/business-access/requests") return { requests: [] };
     if (path === "/personal-offers/items") return { items: scenario === "business-page" ? [item] : createdItem ? [createdItem] : [] };
     if (path.startsWith("/business-access/users") || path.startsWith("/personal-offers/recipients")) return { people: [{ id: "buyer", name: scenario === "long-recipient" ? "И".repeat(80) : "Получатель", username: scenario === "long-recipient" ? "w".repeat(32) : "buyer" }] };

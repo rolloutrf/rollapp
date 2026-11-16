@@ -20,7 +20,7 @@ const eventLabels = {
   resolve_release: "Платформа завершила расчёт", resolve_refund: "Платформа вернула роллы",
 };
 
-export function MarketplaceOrder({ order, userId, onReload }) {
+export function MarketplaceOrder({ order, userId, onReload, fallbackFocus, filtered }) {
   const [action, setAction] = useState(null);
   const card = useRef(null);
   const opener = useRef(null);
@@ -34,11 +34,11 @@ export function MarketplaceOrder({ order, userId, onReload }) {
   function finish() {
     focusCard.current = true;
     setAction(null);
-    void onReload();
+    void onReload(order.id);
   }
   const { role, participant, reviewUntil, source, actions, events } = order.settlement;
   const buyer = role === "buyer";
-  return <article ref={card} tabIndex={-1} className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4" data-order-status={order.status} data-order-role={role}>
+  return <article ref={card} tabIndex={-1} className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4" data-order-status={order.status} data-order-role={role} data-marketplace-order={order.id}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="text-caption text-muted-foreground" title={order.id}>{buyer ? "Покупка" : "Продажа"} · № {order.id.slice(0, 8).toUpperCase()}</span>
       <Badge variant={order.status === "released" || order.status === "refunded" ? "secondary" : "outline"}>{statuses[order.status]}</Badge>
@@ -78,7 +78,11 @@ export function MarketplaceOrder({ order, userId, onReload }) {
     </ControlBar>}
     <OrderReceipt order={order} />
     {action && <MarketplaceActionDialog order={order} userId={userId} action={action}
-      returnFocus={() => !focusCard.current && opener.current?.isConnected ? opener.current : card.current}
+      returnFocus={() => {
+        if (focusCard.current && filtered) return fallbackFocus();
+        if (!focusCard.current && opener.current?.isConnected) return opener.current;
+        return card.current?.isConnected ? card.current : fallbackFocus();
+      }}
       onClose={() => setAction(null)} onDone={finish} />}
   </article>;
 }

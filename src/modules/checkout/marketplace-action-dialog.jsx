@@ -78,7 +78,7 @@ export function MarketplaceActionDialog({ order, userId, action, returnFocus, on
     if (recovery.pending) recovery.check();
     else recovery.send({
       userId, orderId: order.id, action: selected, role: order.settlement.role, source: order.settlement.source,
-      amount: order.amount, note: note.trim(), requestKey: crypto.randomUUID(),
+      amount: order.amount, attention: order.settlement.attention, note: note.trim(), requestKey: crypto.randomUUID(),
     });
   }
   return <AlertDialog open onOpenChange={(open, event) => {

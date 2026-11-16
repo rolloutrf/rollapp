@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
 import { APP_ORDERS_PATH } from "../shell/app-routing.js";
+import { MarketplaceOrderAttention } from "../history/marketplace-order-attention.jsx";
 import { RollsHistory } from "../history/rolls-history.jsx";
 import { RollsActivity } from "../pfm/rolls-activity.jsx";
 
@@ -391,6 +392,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
               }} disabled={!wallet || busy || Boolean(pending)}><ArrowRight aria-hidden="true" /></Button>
             </div>
           </section>
+          <MarketplaceOrderAttention attention={wallet?.orderAttention} />
 
           {embedded && <div className="flex justify-center">
             <PageActionButton ref={importOpener} type="button" variant="outline" onClick={() => setImportOpen(true)}>

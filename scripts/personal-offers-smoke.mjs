@@ -216,6 +216,18 @@ try {
     }
     await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=wallet-page`);
     await page.getByText("В резерве для наград", { exact: true }).waitFor();
+    const orderTasks = page.getByRole("region", { name: "Действия по заказам" });
+    for (const [name, kind] of [["Проверить покупки · 2", "review"], ["Открытые споры · 1", "dispute"],
+      ["Исполнить заказы · 1", "fulfill"], ["Роллы к получению · 1", "claim"]]) {
+      const link = orderTasks.getByRole("link", { name, exact: true });
+      await link.waitFor();
+      assert.equal(await link.getAttribute("href"), `/app/orders?attention=${kind}`);
+      assert.deepEqual(await link.evaluate((element) => [
+        element.offsetHeight, getComputedStyle(element).paddingInlineStart, getComputedStyle(element).paddingInlineEnd,
+      ]), [48, "24px", "24px"]);
+    }
+    await orderTasks.getByText("70 роллов", { exact: true }).waitFor();
+    assert.equal(await orderTasks.locator("time").getAttribute("datetime"), "2026-11-19T10:00:00Z");
     await page.locator('[data-rolls-transaction="purchase"]').getByText("Покупка · Товар магазина").waitFor();
     await page.locator('[data-rolls-transaction="refund"]').getByText("Возврат · Товар магазина").waitFor();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Wallet breakdown overflow");
