@@ -20,3 +20,5 @@ private-migrations/
 *.dump
 *.sqlite
 *.sqlite3
+
+storybook-static/

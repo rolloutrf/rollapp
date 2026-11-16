@@ -1,0 +1,13 @@
+.rollapp-story {
+  min-block-size: 100dvh;
+  background: var(--background);
+  color: var(--foreground);
+}
+.rollapp-story__examples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--layout-page-gap);
+  align-items: start;
+}
+.rollapp-story__examples > * { min-inline-size: 0; }
+.rollapp-story__examples > section { display: grid; gap: 0.5rem; }
