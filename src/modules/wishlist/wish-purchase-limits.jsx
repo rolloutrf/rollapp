@@ -41,9 +41,9 @@ export function PurchaseMonthLimits({ limits }) {
   return <ul className="grid min-w-0 gap-2" aria-label="Лимиты месяца">
     {limits.map(({ currency, minor, spentMinor, openMinor, missingAmountCount }) => {
       const balance = minor - spentMinor - openMinor;
-      return <li key={currency} className="grid min-w-0 gap-1 rounded-xl border px-3 py-2 sm:grid-cols-2 sm:gap-4">
+      return <li key={currency} className="grid min-w-0 gap-1 rounded-xl border px-3 py-2 @lg/purchases:grid-cols-2 @lg/purchases:gap-4">
         <span className="wrap-anywhere">Лимит {formatPurchaseBudget({ minor, currency })}</span>
-        <span className={`wrap-anywhere sm:text-right ${balance < 0 ? "font-semibold text-destructive" : "text-muted-foreground"}`}>{limitText(balance, currency, missingAmountCount)}</span>
+        <span className={`wrap-anywhere @lg/purchases:text-right ${balance < 0 ? "font-semibold text-destructive" : "text-muted-foreground"}`}>{limitText(balance, currency, missingAmountCount)}</span>
       </li>;
     })}
   </ul>;

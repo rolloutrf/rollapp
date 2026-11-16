@@ -22,7 +22,7 @@ export function WishPurchaseForecast({ today, plans, subscriptions = [], onOpen,
         const money = (minor) => formatPurchaseBudget({ minor, currency });
         return <li key={currency} className="grid min-w-0 gap-2 rounded-xl border p-3">
           <h4 className="text-xs font-semibold text-muted-foreground">{currency}</h4>
-          <dl className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3">
+          <dl className="grid min-w-0 grid-cols-2 gap-2 @lg/purchases:grid-cols-3">
             <div className="min-w-0"><dt className="text-xs text-muted-foreground">Запланировано</dt><dd className="wrap-anywhere tabular-nums">{money(scheduledMinor)}</dd></div>
             <div className="min-w-0"><dt className="text-xs text-muted-foreground">Уже отложили</dt><dd className="wrap-anywhere tabular-nums">{money(savedMinor)}</dd></div>
             <div className="min-w-0"><dt className="text-xs text-muted-foreground">Ещё понадобится</dt><dd className="wrap-anywhere font-semibold tabular-nums">{money(scheduledMinor - savedMinor)}</dd></div>

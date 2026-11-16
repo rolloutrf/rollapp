@@ -7,6 +7,7 @@ import { SessionContext } from "@/modules/auth/session";
 import { WishCard } from "@/modules/card/wish-card";
 import { MarketplaceOffers } from "@/modules/assistant/marketplace-offers.jsx";
 import { PlanningDailyTodo } from "@/modules/daily-todo/planning-daily-todo";
+import { RollsWallet } from "@/modules/payments/rolls-wallet.jsx";
 import { PlanningSpace } from "@/modules/planning/planning-space";
 import { ProfileEditorProvider } from "@/modules/profile/profile-editor";
 import { ToastContext } from "@/modules/shell/toast";
@@ -123,7 +124,13 @@ function SummaryFixture() {
         {reviewTask && <WishPurchaseReview purchase={plannedPurchaseItem(reviewTask)} onClose={() => setReviewTask(null)}
           onSaved={() => { setReviewTask(null); saved((value) => value + 1); }} />}
       </div> : <>
-        <WishesPage key={viewer} version={0} onAdd={() => {}} />
+        {search.has("wishes") ? <>
+          <WishesPage key={viewer} version={0} onAdd={() => {}} />
+          <Link to="/__purchase-plan?summary">К покупкам</Link>
+        </> : <>
+          <RollsWallet key={viewer} user={{ id: viewer, username: viewer }} />
+          <Link to="?summary&wishes">Открыть Мои желания</Link>
+        </>}
         <Link to="?summary&need-todo&date=2026-12-03">Открыть задачи потребностей</Link>
         <Link to="?summary&subscription-todo&tab=todo&date=2026-12-03">Открыть основной To Do</Link>
         <Link to="?summary&collaborator=member">Сеанс участника</Link>
@@ -196,7 +203,9 @@ if (summaryMode) {
   }
 
   api.get = async (path) => {
-    if (path === "/dashboard") return { wishes: viewerId() === "owner" ? wishes : [], lists: [], groups: [],
+    if (path === "/rolls") return { balance: 100, transactions: [] };
+    if (path === "/personal-offers") return { offers: [] };
+    if (path === "/dashboard" || path === "/dashboard/purchases") return { wishes: viewerId() === "owner" ? wishes : [], lists: [], groups: [],
       purchasePlans: viewerId() === "owner" ? structuredClone([...plans.values()].reverse()) : [],
       subscriptions: viewerId() === "owner" ? [...subscriptions.values()].filter((item) => !item.stopped) : [],
       purchaseCollaborations: [...collaborations.keys()].map(collaborationView).filter(Boolean) };

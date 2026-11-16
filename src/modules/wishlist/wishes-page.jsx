@@ -62,16 +62,9 @@ import { WishDetailsModal } from "../card/wish-details.jsx";
 import { ListModal, WishModal } from "./wish-editor.jsx";
 import { ProfilePublicationsPage } from "../profile/public-pages.jsx";
 
-import { plannedPurchaseItem } from "../../../shared/modules/planning/purchase-plan.js";
 import { WishPurchasePlan } from "./wish-purchase-plan.jsx";
-import { WishPurchaseReview } from "./wish-purchase-review.jsx";
 import { WishSubscription } from "./wish-subscription.jsx";
-import { WishPurchaseCare } from "./wish-purchase-care.jsx";
-import { WishPurchaseCollaboration } from "./wish-purchase-collaboration.jsx";
-import { WishPurchaseSummary } from "./wish-purchase-summary.jsx";
 import { WishPurchaseNeed } from "./wish-purchase-need.jsx";
-
-const emptyPurchasePlans = [];
 
 export function WishesPage({ onAdd, version }) {
   const { user } = useSession();
@@ -88,14 +81,6 @@ export function WishesPage({ onAdd, version }) {
     ...await api.get("/dashboard"), viewerId,
   }), [version, wishlistVersion, viewerId]);
   const purchasesAvailable = Boolean(viewerId && data?.viewerId === viewerId && Array.isArray(data.purchasePlans));
-  const hasPriceWatches = Boolean(purchasesAvailable && !publication && data.purchasePlans.some(({ priceWatch }) => priceWatch));
-  useEffect(() => {
-    if (!hasPriceWatches) return undefined;
-    const refresh = () => { if (!document.hidden) void reload({ background: true }).catch(() => {}); };
-    const timer = setInterval(refresh, 60_000);
-    window.addEventListener("focus", refresh);
-    return () => { clearInterval(timer); window.removeEventListener("focus", refresh); };
-  }, [hasPriceWatches, reload]);
   const { data: giftSuggestionData, reload: reloadGiftSuggestions } = useAsync(() => api.get("/gift-suggestions"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
@@ -106,22 +91,14 @@ export function WishesPage({ onAdd, version }) {
   const [editingWishId, setEditingWishId] = useState(null);
   const [plannedWishId, setPlannedWishId] = useState(null);
   const plannedWish = plannedWishId && data?.viewerId === viewerId ? data?.wishes.find((wish) => wish.id === plannedWishId && wish.status === "active") : null;
-  const [reviewPurchase, setReviewPurchase] = useState(null);
-  const [purchaseNeedForm, setPurchaseNeedForm] = useState(null);
-  const [subscriptionForm, setSubscriptionForm] = useState(null);
-  const [purchaseCareId, setPurchaseCareId] = useState(null);
-  const [purchaseCollaboration, setPurchaseCollaboration] = useState(null);
-  const [purchaseHistoryRevision, setPurchaseHistoryRevision] = useState(0);
+  const [purchaseNeedForm, setPurchaseNeedForm] = useState(false);
+  const [subscriptionForm, setSubscriptionForm] = useState(false);
   useLayoutEffect(() => {
     setPlannedWishId(null);
-    setReviewPurchase(null);
-    setPurchaseNeedForm(null);
-    setSubscriptionForm(null);
-    setPurchaseCareId(null);
-    setPurchaseCollaboration(null);
-    setPurchaseHistoryRevision(0);
+    setPurchaseNeedForm(false);
+    setSubscriptionForm(false);
   }, [viewerId, publication]);
-  const purchaseDialogOpen = Boolean(plannedWish || reviewPurchase || purchaseNeedForm || subscriptionForm || purchaseCareId || purchaseCollaboration);
+  const purchaseDialogOpen = Boolean(plannedWish || purchaseNeedForm || subscriptionForm);
   const [listModal, setListModal] = useState(null);
   const listSettingsTriggerRef = useRef(null);
   const [draggedWishId, setDraggedWishId] = useState(null);
@@ -319,24 +296,7 @@ export function WishesPage({ onAdd, version }) {
     reload({ background: true }),
     reloadGiftSuggestions({ background: true }),
   ]);
-  const refreshPurchases = () => { reload({ background: true }).catch(() => toast("Не удалось обновить сводку покупок", "error")); };
-  const finishPurchaseReview = (task, decision) => {
-    if (decision.action === "bought") setPurchaseHistoryRevision((value) => value + 1);
-    const purchase = plannedPurchaseItem(task);
-    updateData((current) => current.viewerId !== viewerId ? current : ({ ...current,
-      ...(decision.action === "bought" || decision.action === "declined" ? {
-        purchaseCollaborations: (current.purchaseCollaborations ?? []).filter((entry) => entry.id !== reviewPurchase.id),
-      } : {}),
-      purchasePlans: (current.purchasePlans || emptyPurchasePlans).flatMap((plan) => {
-      if (plan.id !== reviewPurchase.id) return [plan];
-      if (task.completed || (!purchase?.replenishment && decision.action !== "postpone")) return [];
-      const { priceWatch, ...previous } = plan;
-      return [{ ...previous, dueOn: task.dueOn, title: purchase?.title || plan.title,
-        ...(purchase?.need && { need: purchase.need }), ...(decision.action !== "replace" && priceWatch && { priceWatch }) }];
-    }) }));
-    if (decision.action !== "replace") setReviewPurchase(null);
-    refreshPurchases();
-  };
+  const refreshPurchases = () => { reload({ background: true }).catch(() => toast("Не удалось обновить список желаний", "error")); };
   const saveList = async (saved) => {
     const editingList = Boolean(listModal?.id);
     const attachWishId = listModal?.attachWishId;
@@ -1224,13 +1184,13 @@ export function WishesPage({ onAdd, version }) {
       ? renderGroupTile(item.group, item.wishes)
       : renderWish(item.wish)
   );
-  return <div className={purchasesAvailable && !publication ? "app-page wishes-page page-stack [&>.wishes-page__profile-controls]:pb-0! [&>.list-tabs]:mb-0!" : "app-page wishes-page"}>
+  return <div className="app-page wishes-page">
     {profileControls}{loadError}
     {!publication && data && <AddFab actions={[
       { label: "Добавить желание", onSelect: () => onAdd(selectedSpace, selectedList?.id) },
       ...(purchasesAvailable ? [
-        { label: "Новая потребность", icon: CalendarPlus, onSelect: () => setPurchaseNeedForm({}) },
-        { label: "Новая подписка", icon: Repeat2, onSelect: () => setSubscriptionForm({}) },
+        { label: "Новая потребность", icon: CalendarPlus, onSelect: () => setPurchaseNeedForm(true) },
+        { label: "Новая подписка", icon: Repeat2, onSelect: () => setSubscriptionForm(true) },
       ] : []),
       { label: "Новый список", icon: ListPlus, onSelect: () => setListModal({}) },
     ]} />}
@@ -1246,10 +1206,6 @@ export function WishesPage({ onAdd, version }) {
       onOrderError={() => toast("Не удалось сохранить порядок списков", "error")}
     />}
 {publicationContent || <>
-    {purchasesAvailable && <WishPurchaseSummary plans={data.purchasePlans} subscriptions={data?.subscriptions} collaborations={data?.purchaseCollaborations}
-      onOpen={setReviewPurchase} onCollaborate={setPurchaseCollaboration}
-      onEditNeed={(plan) => setPurchaseNeedForm({ plan })} onOpenSubscription={(id) => setSubscriptionForm({ id })}
-      onOpenPurchase={setPurchaseCareId} historyRevision={purchaseHistoryRevision} />}
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
 {openedGroup && <WishGroupDialog
   group={openedGroup}
@@ -1265,20 +1221,8 @@ export function WishesPage({ onAdd, version }) {
   onClose={() => setOpenedGroupId(null)}
 ><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
 {plannedWish && <WishPurchasePlan key={plannedWish.id} wish={plannedWish} onClose={() => setPlannedWishId(null)} onSaved={refreshPurchases} />}
-{purchaseNeedForm && <WishPurchaseNeed plan={purchaseNeedForm.plan} wishes={data.wishes} onClose={() => setPurchaseNeedForm(null)} onSaved={refreshPurchases} />}
-{subscriptionForm && <WishSubscription id={subscriptionForm.id} onClose={() => setSubscriptionForm(null)} onSaved={(_, action) => {
-  if (action === "paid") setPurchaseHistoryRevision((value) => value + 1);
-  refreshPurchases();
-}} />}
-{purchaseCareId && <WishPurchaseCare key={purchaseCareId} purchaseId={purchaseCareId} onClose={() => setPurchaseCareId(null)} />}
-{purchaseCollaboration && <WishPurchaseCollaboration key={purchaseCollaboration.id} entry={purchaseCollaboration} viewerId={user.id}
-  onClose={() => setPurchaseCollaboration(null)} onChanged={(id, next) => updateData((current) => current.viewerId !== viewerId ? current : ({ ...current,
-    purchaseCollaborations: [...(next ? [next] : []), ...(current.purchaseCollaborations ?? []).filter((item) => item.id !== id)],
-  }))} onReview={data.purchasePlans?.some((plan) => plan.id === purchaseCollaboration.id) ? () => {
-    setPurchaseCollaboration(null);
-    setReviewPurchase(data.purchasePlans.find((plan) => plan.id === purchaseCollaboration.id));
-  } : undefined} />}
-{reviewPurchase && <WishPurchaseReview key={reviewPurchase.id} purchase={reviewPurchase} onClose={() => setReviewPurchase(null)} onSaved={finishPurchaseReview} onPriceChecked={refreshPurchases} />}
+{purchaseNeedForm && <WishPurchaseNeed wishes={data.wishes} onClose={() => setPurchaseNeedForm(false)} onSaved={refreshPurchases} />}
+{subscriptionForm && <WishSubscription onClose={() => setSubscriptionForm(false)} onSaved={refreshPurchases} />}
 {wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
 <SharedWishes wishes={spaceSharedWishes} profile={user} onOpen={(id) => {
   if (isMobile) navigate(publicWishPath(user, id), { state: { fromWishlistBoard: true } });

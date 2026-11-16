@@ -40,6 +40,16 @@ import { createRateLimit } from "../runtime/rate-limit.js";
 import { canonicalRetailerProductUrl } from "../../../shared/modules/media-import/retailer-previews.js";
 import { bookmateApiUrl, isBookmateUrl, isKinopoiskUrl, isVkVideoUrl, isYandexMapsUrl, isYouTubeUrl, kinopoiskContentUrlError, parseBookmateMetadata, parseKinopoiskMetadata, parseProductMetadata, parseYandexMapsMetadata, parseYouTubeMetadata, parseYouTubeVideoId, youtubeThumbnailUrl } from "../media-import/metadata.js";
 
+function projectOpenPurchasePlans(openPlans, wishes) {
+  const ownedWishes = new Map(wishes.map((wish) => [wish.id, wish]));
+  return openPlans.flatMap(({ priceWatch, ...plan }) => {
+    if (plan.need) return [plan];
+    const wish = ownedWishes.get(purchaseProductId(plan));
+    if (!wish || (!plan.replenishment && wish.status !== "active")) return [];
+    return [{ ...plan, title: wish.title, ...(priceWatch && { priceWatch: purchasePriceWatchView(priceWatch, wish.url) }) }];
+  });
+}
+
 export function registerWishlistRoutes(app, {
   asyncRoute, backfillWishPreviews, canViewWish, cleanUser, decorateCatalogItems, formatEventDate, getLists, getSharedWishes, getVisibleWishGroups, getWishes, listSpaceValues, mapList, metadataRateLimit, moodColumns, openRouterCredentialRow, requireAuth, resolveCatalogActionItem, resolveOpenRouterApiKey, resolveVkVideoMetadata, runWishGroupTransaction, withMutationLock,
 }) {
@@ -495,6 +505,23 @@ export function registerWishlistRoutes(app, {
 
   registerWishPurchasePlanRoutes(app, { query, transaction, requireAuth, asyncRoute });
 
+  app.get("/api/dashboard/purchases", requireAuth, asyncRoute(async (req, res) => {
+    const userId = req.user.id;
+    const [openPlans, subscriptions, purchaseCollaborations, { rows: wishes }] = await Promise.all([
+      listOpenPurchasePlans(query, userId),
+      listSubscriptions(query, userId),
+      listPurchaseCollaborations(query, userId),
+      query("SELECT id,title,currency,url,status FROM wishes WHERE user_id=$1 ORDER BY created_at DESC,id", [userId]),
+    ]);
+    res.set("Cache-Control", "private, no-store");
+    res.json({
+      purchasePlans: projectOpenPurchasePlans(openPlans, wishes),
+      subscriptions,
+      purchaseCollaborations,
+      wishes: wishes.map(({ id, title, currency }) => ({ id, title, currency })),
+    });
+  }));
+
   app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
     const [lists, wishes, sharedWishes, openPlans, subscriptions, purchaseCollaborations, follows, birthdays, reservations, groupRows] = await Promise.all([
       getLists(req.user.id),
@@ -558,19 +585,12 @@ export function registerWishlistRoutes(app, {
       if (!groupsById.has(row.id)) groupsById.set(row.id, { id: row.id, listId: row.wishlist_id, space: row.space, title: row.title, wishIds: [] });
       if (row.wish_id) groupsById.get(row.id).wishIds.push(row.wish_id);
     }
-    const ownedWishes = new Map(wishes.map((wish) => [wish.id, wish]));
-    const purchasePlans = openPlans.flatMap(({ priceWatch, ...plan }) => {
-      if (plan.need) return [plan];
-      const wish = ownedWishes.get(purchaseProductId(plan));
-      if (!wish || (!plan.replenishment && wish.status !== "active")) return [];
-      return [{ ...plan, title: wish.title, ...(priceWatch && { priceWatch: purchasePriceWatchView(priceWatch, wish.url) }) }];
-    });
     res.set("Cache-Control", "private, no-store");
     res.json({
       lists,
       wishes,
       sharedWishes,
-      purchasePlans,
+      purchasePlans: projectOpenPurchasePlans(openPlans, wishes),
       subscriptions,
       purchaseCollaborations,
       groups: [...groupsById.values()],

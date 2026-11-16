@@ -30,9 +30,9 @@ function MonthlyBudgetRow({ total }) {
   const planned = missingBudgetCount ? (plannedMinor ? `От ${format(plannedMinor)}` : "Не сохранено") : format(plannedMinor);
   const spent = missingAmountCount === purchaseCount && missingAmountCount > 0 ? "Не указано"
     : missingAmountCount ? `От ${format(spentMinor)}` : format(spentMinor);
-  return <li className="grid min-w-0 gap-2 py-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] sm:items-start sm:gap-4">
-    <h4 className="text-xs font-semibold text-muted-foreground sm:min-w-12 sm:pt-1">{currency}</h4>
-    <dl className="grid min-w-0 grid-cols-2 gap-2 sm:gap-4">
+  return <li className="grid min-w-0 gap-2 py-3 @lg/purchases:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] @lg/purchases:items-start @lg/purchases:gap-4">
+    <h4 className="text-xs font-semibold text-muted-foreground @lg/purchases:min-w-12 @lg/purchases:pt-1">{currency}</h4>
+    <dl className="grid min-w-0 grid-cols-2 gap-2 @lg/purchases:gap-4">
       <div className="grid min-w-0 gap-1">
         <dt className="text-xs text-muted-foreground">Запланировали</dt>
         <dd className="wrap-anywhere font-semibold tabular-nums">{planned}</dd>
@@ -42,7 +42,7 @@ function MonthlyBudgetRow({ total }) {
         <dd className="wrap-anywhere font-semibold tabular-nums">{spent}</dd>
       </div>
     </dl>
-    <div className="grid min-w-0 gap-1 sm:text-right">
+    <div className="grid min-w-0 gap-1 @lg/purchases:text-right">
       <p className={over ? "wrap-anywhere font-semibold text-destructive" : "wrap-anywhere text-muted-foreground"}>{status}</p>
       {incomplete && <p className="text-xs text-muted-foreground">
         {[missingAmountCount && `${missingAmountCount} без суммы`, missingBudgetCount && `${missingBudgetCount} без сохранённого бюджета`].filter(Boolean).join(" · ")}

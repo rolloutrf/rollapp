@@ -72,7 +72,7 @@ export function WishPurchaseSummary({ plans, subscriptions, collaborations, onOp
   const matches = plans.filter(({ priceWatch }) => priceWatch?.notice)
     .sort((left, right) => right.priceWatch.notice.checkedAt.localeCompare(left.priceWatch.notice.checkedAt));
   return <Card role="region" aria-labelledby={headingId} data-wish-purchase-summary=""
-    className="not-typeset rollapp-body w-full min-w-0 gap-4 p-4 sm:p-6">
+    className="@container/purchases not-typeset rollapp-body w-full min-w-0 gap-4 p-4 sm:p-6">
     <h2 id={headingId} className="font-heading text-3xl leading-9 font-semibold">Покупки</h2>
     {matches.length > 0 && <section className="grid min-w-0 gap-2" aria-live="polite" aria-label="Уведомления о цене">
       <h3 className="text-2xl leading-8 font-semibold">Цена уложилась в бюджет</h3>
@@ -80,7 +80,7 @@ export function WishPurchaseSummary({ plans, subscriptions, collaborations, onOp
     </section>}
     <WishMonthlyBudget month={today.slice(0, 7)} plans={plans} subscriptions={subscriptions} />
     <WishPurchaseForecast today={today} plans={plans} subscriptions={subscriptions} onOpen={onOpen} onOpenSubscription={onOpenSubscription} />
-    {hasPlans ? <div className="grid min-w-0 gap-4 md:grid-cols-2 md:gap-6">
+    {hasPlans ? <div className="grid min-w-0 gap-4 @2xl/purchases:grid-cols-2 @2xl/purchases:gap-6">
       <PurchaseList title="Просроченные пересмотры" plans={overdue} onOpen={onOpen} onEditNeed={onEditNeed} onCollaborate={onCollaborate} overdue />
       <PurchaseList title="Ближайшие планы" plans={upcoming} onOpen={onOpen} onEditNeed={onEditNeed} onCollaborate={onCollaborate} />
     </div> : <p className="text-muted-foreground">Запланируйте покупку из меню желания.</p>}

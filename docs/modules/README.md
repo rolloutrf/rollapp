@@ -20,7 +20,7 @@
 | 08 | [Платежи](08-payments.md) | Роллы, переводы, восстановление счетов Stars и TON, сверка остатков, пополнений и счетов | [Клиент](../../src/modules/payments/) · [Сервер](../../server/modules/payments/) · [Сверка](../rolls-operations.md) · [Общий код](../../shared/modules/payments/) |
 | 09 | [Чекаут](09-checkout.md) | Подтверждение и проверка покупок, персональных счетов и действий по сделкам, резерв и возврат | [Клиент](../../src/modules/checkout/) · [Сервер](../../server/modules/checkout/) · [Общий код](../../shared/modules/checkout/) |
 | 10 | [История операций](10-history.md) | История роллов, заказы, подборки действий и квитанции | [Клиент](../../src/modules/history/) · [Сервер](../../server/modules/history/) · [Общий код](../../shared/modules/history/) |
-| 11 | [PFM](11-pfm.md) | Сводка по роллам, календарный период и выписка | [Клиент](../../src/modules/pfm/) · [Сервер](../../server/modules/pfm/) · [Общий код](../../shared/modules/pfm/) |
+| 11 | [PFM](11-pfm.md) | Сводка по роллам, календарный период, выписка и точка входа в покупки | [Клиент](../../src/modules/pfm/) · [Сервер](../../server/modules/pfm/) · [Общий код](../../shared/modules/pfm/) |
 | 12 | [Лояльность](12-loyalty.md) | Приветствие, подарочные карты и их восстановление, награды и расчёт по потребностям | [Клиент](../../src/modules/loyalty/) · [Сервер](../../server/modules/loyalty/) |
 | 13 | [Ассистент](13-assistant.md) | Рекомендации подарков, поиск предложений, OpenRouter | [Клиент](../../src/modules/assistant/) · [Сервер](../../server/modules/assistant/) |
 

@@ -71,6 +71,8 @@ function Fixture() {
 }
 
 api.get = async path => {
+  if (path === "/dashboard/purchases") return { purchasePlans: [], wishes: [], subscriptions: [], purchaseCollaborations: [] };
+  if (path.startsWith("/dashboard/purchase-month?")) return { totals: [], openTotals: [], limits: [] };
   if (path === "/rolls") return { balance: 500, transactions: [], features: {} };
   if (path === "/personal-offers") return { offers: [] };
   throw new Error(`Unexpected fixture request: ${path}`);

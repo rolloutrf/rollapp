@@ -55,6 +55,8 @@ api.get = async (path) => {
     }
     return { keys: mcpKeys };
   }
+  if (path === "/dashboard/purchases") return { purchasePlans: [], wishes: [], subscriptions: [], purchaseCollaborations: [] };
+  if (path.startsWith("/dashboard/purchase-month?")) return { totals: [], openTotals: [], limits: [] };
   if (path === "/rolls") {
     if (!window.finishWalletLoad) {
       await new Promise((resolve) => { window.finishWalletLoad = resolve; });

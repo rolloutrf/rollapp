@@ -24,7 +24,7 @@ export function PriceWatchSettings({ country, disabled, hasSource, onChange }) {
         disabled={disabled || (!country && !hasSource)} onCheckedChange={(checked) => onChange(checked ? "RU" : null)} />
     </div>
     <FieldDescription id={`${id}-description`}>
-      {hasSource ? "Уведомление появится в «Моих желаниях». Сравниваем только подтверждённые тарифы магазина." : "Для проверки добавьте ссылку на товар в желание."}
+      {hasSource ? "Уведомление появится в «Финансах», в разделе «Покупки». Сравниваем только подтверждённые тарифы магазина." : "Для проверки добавьте ссылку на товар в желание."}
     </FieldDescription>
     {country && <Field>
       <FieldLabel htmlFor={`${id}-country`}>Страна доставки</FieldLabel>

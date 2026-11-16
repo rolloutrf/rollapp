@@ -23,7 +23,7 @@ function PurchaseHistoryRow({ entry, onOpen }) {
   return <li className="min-w-0">
     <Button type="button" variant="ghost" aria-label={`Открыть покупку: ${title}`} aria-describedby={contextId} onClick={() => onOpen(entry.id)}
       className="h-auto min-h-12 w-full min-w-0 justify-between gap-2 rounded-xl px-2 py-3 text-left whitespace-normal font-normal">
-      <span id={contextId} className="grid min-w-0 flex-1 gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,auto)] sm:items-start">
+      <span id={contextId} className="grid min-w-0 flex-1 gap-x-4 gap-y-1 @lg/purchases:grid-cols-[minmax(0,1fr)_minmax(0,auto)] @lg/purchases:items-start">
         <span className="grid min-w-0 gap-1">
           <span className="wrap-anywhere font-medium">{title}</span>
           {purchaseType === "subscription" && <span className="text-xs text-muted-foreground">Подписка</span>}
@@ -32,7 +32,7 @@ function PurchaseHistoryRow({ entry, onOpen }) {
             {purchasedOn ? <time dateTime={purchasedOn}>{dateLabel.format(dateFromKey(purchasedOn))}</time> : "Дата не сохранена"}
           </span>
         </span>
-        <span className="grid min-w-0 gap-1 sm:text-right">
+        <span className="grid min-w-0 gap-1 @lg/purchases:text-right">
           <span className="wrap-anywhere tabular-nums">{amountMinor == null ? "Сумма не указана" : formatPurchaseBudget({ minor: amountMinor, currency })}</span>
           {change && <span className="text-xs tabular-nums text-muted-foreground">{change}</span>}
           {suited !== undefined && <span className="text-xs text-muted-foreground">{suited ? "Подошёл" : "Не подошёл"}</span>}

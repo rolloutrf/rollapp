@@ -347,6 +347,17 @@ try {
     assert.equal(await page.getByRole("region", { name: "Подарочные карты" }).count(), 0);
     assert.equal(await page.evaluate(() => window.giftCardReads || 0), 0);
     const wallet = balance.locator("xpath=ancestor::div[contains(@class, 'rolls-page--embedded')]");
+    const purchases = wallet.getByRole("region", { name: "Покупки", exact: true });
+    const limitOpener = purchases.getByRole("button", { name: "Настроить лимит", exact: true });
+    await limitOpener.click();
+    const limits = page.getByRole("heading", { name: "Лимит месяца", exact: true });
+    await limits.waitFor();
+    if (mobile) await page.goBack();
+    else await page.keyboard.press("Escape");
+    await limits.waitFor({ state: "hidden" });
+    await financeTitle.waitFor();
+    await limitOpener.waitFor();
+
     const backBox = await back.boundingBox();
     assert.equal(backBox.width, 48);
     assert.equal(backBox.height, 48);

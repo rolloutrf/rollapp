@@ -249,6 +249,15 @@ try {
     await page.goto(`${origin}/__purchase-plan?summary${width === 320 ? "&month-error" : ""}`);
     const summary = page.getByRole("region", { name: "Покупки", exact: true });
     const totals = summary.getByLabel("Бюджет на месяц по валютам");
+    const openWishes = async () => {
+      await page.getByRole("link", { name: "Открыть Мои желания", exact: true }).click();
+      await page.getByRole("button", { name: "Опции желания «Шапочка»" }).waitFor();
+      assert.equal(await summary.count(), 0, "The Wishlist must not display the purchases panel");
+    };
+    const openFinance = async () => {
+      await page.getByRole("link", { name: "К покупкам", exact: true }).click();
+      await summary.waitFor();
+    };
     await summary.getByRole("heading", { name: "Бюджет на декабрь 2026" }).waitFor();
     if (width === 320) {
       await summary.getByText("Не удалось загрузить бюджет и траты.").waitFor();
@@ -296,9 +305,10 @@ try {
       root: document.documentElement.scrollWidth <= innerWidth + 1,
       card: element.scrollWidth <= element.clientWidth + 1,
       rows: [...element.querySelectorAll('li button')].every((button) => button.scrollWidth <= button.clientWidth + 1 && button.getBoundingClientRect().height >= 48),
-      after: document.querySelector('.wishes-page > .wish-grid').getBoundingClientRect().top - element.getBoundingClientRect().bottom,
+      inFinance: Boolean(element.closest(".rolls-page")),
+      after: element.nextElementSibling.getBoundingClientRect().top - element.getBoundingClientRect().bottom,
     }));
-    assert.deepEqual(geometry, { root: true, card: true, rows: true, after: 24 });
+    assert.deepEqual(geometry, { root: true, card: true, rows: true, inFinance: true, after: 24 });
     assert(await totals.evaluate((list) => [...list.children].every((row) => row.scrollWidth <= row.clientWidth + 1)));
     await totals.evaluate((list) => list.scrollIntoView({ block: "start", behavior: "instant" }));
     await page.screenshot({ path: `/tmp/rollapp-monthly-budget-${width}-${height}.png` });
@@ -346,6 +356,7 @@ try {
     assert.match(await spentThisMonth("EUR").textContent(), /120\s€/);
 
     if (width === 390 && height === 844 || width === 1440) {
+      await openWishes();
       await page.getByRole("button", { name: "Опции желания «Шапочка»" }).click();
       await page.getByRole("menuitem", { name: "Запланировать покупку", exact: true }).click();
       await budget.fill("900");
@@ -354,6 +365,8 @@ try {
       await page.getByRole("combobox", { name: "Страна доставки" }).waitFor();
       await choose("03.12.2026");
       await save.click();
+      await budget.waitFor({ state: "hidden" });
+      await openFinance();
       await planRow("Шапочка").waitFor();
       await planned("RUB").getByText(/5\s310,60\s₽/).waitFor();
       await planRow("Шапочка").click();
@@ -381,6 +394,7 @@ try {
       await planRow("Шапочка").locator('time[datetime="2026-12-17"]').waitFor();
       await planned("RUB").getByText(/6\s210,60\s₽/).waitFor();
       assert.match(await spentThisMonth("RUB").textContent(), /2\s125,55\s₽/);
+      await historyToggle.click();
       const newest = historyList.getByRole("listitem").first();
       await newest.getByText("Шапочка", { exact: true }).waitFor();
       await newest.getByText(/875,55\s₽/).waitFor();
@@ -411,6 +425,7 @@ try {
     await limitInput.fill("5500");
     await save.click();
     await page.getByRole("list", { name: "Лимиты месяца" }).getByText(/Свободно 839,40\s₽/).waitFor();
+    await openWishes();
     await page.locator("[data-add-fab] button").click();
     await page.getByRole("menuitem", { name: "Новая потребность", exact: true }).click();
     const needForm = page.getByRole("heading", { name: "Новая потребность", exact: true });
@@ -436,6 +451,7 @@ try {
     await addVariant("Шапочка");
     await save.click();
     await needForm.waitFor({ state: "hidden" });
+    await openFinance();
     const needRow = planRow("Фильтр для кувшина");
     await needRow.waitFor();
     const forecast = summary.getByRole("region", { name: "Деньги на 30 дней", exact: true });
@@ -531,6 +547,7 @@ try {
     await historyList.getByText("Потребность · Фильтр для кувшина", { exact: true }).waitFor();
     await historyList.getByText("Подошёл", { exact: true }).waitFor();
 
+    await openWishes();
     await page.locator("[data-add-fab] button").click();
     await page.getByRole("menuitem", { name: "Новая подписка", exact: true }).click();
     const newSubscription = page.getByRole("heading", { name: "Новая подписка", exact: true });
@@ -552,6 +569,7 @@ try {
     await page.screenshot({ path: `/tmp/rollapp-subscription-create-${width}-${height}.png` });
     await save.click();
     await newSubscription.waitFor({ state: "hidden" });
+    await openFinance();
     const subscriptionRow = summary.getByRole("button", { name: "Открыть подписку: Видеосервис" });
     await subscriptionRow.getByText(/Первое списание.*500\s₽/).waitFor();
     await page.getByRole("link", { name: "Открыть основной To Do" }).click();

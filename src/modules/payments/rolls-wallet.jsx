@@ -28,6 +28,7 @@ import { APP_ORDERS_PATH } from "../shell/app-routing.js";
 import { MarketplaceOrderAttention } from "../history/marketplace-order-attention.jsx";
 import { RollsHistory } from "../history/rolls-history.jsx";
 import { RollsActivity } from "../pfm/rolls-activity.jsx";
+import { WishPurchasesPanel } from "../wishlist/wish-purchases-panel.jsx";
 
 const TonOrderStatus = lazy(() => import("./ton-topup.jsx").then((module) => ({ default: module.TonTopup })));
 const TonWallet = lazy(() => import("@/modules/payments/ton-wallet.jsx").then((module) => ({ default: module.TonWallet })));
@@ -393,6 +394,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             </div>
           </section>
           <MarketplaceOrderAttention attention={wallet?.orderAttention} />
+          <WishPurchasesPanel key={`purchases:${user.id}`} viewerId={user.id} />
 
           {embedded && <div className="flex justify-center">
             <PageActionButton ref={importOpener} type="button" variant="outline" onClick={() => setImportOpen(true)}>
