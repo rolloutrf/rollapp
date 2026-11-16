@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { APP_STORE_PATH } from "../shell/app-routing.js";
 import { readPendingMarketplaceAction } from "../checkout/marketplace-action-dialog.jsx";
 import { MarketplaceOrder } from "./marketplace-order.jsx";
 import { OrderReceipt } from "./roll-receipt.jsx";
@@ -161,7 +162,7 @@ function OrderList({ products, userId }) {
       : !error && filter && visibleOrders.length === 0 ? <EmptyState compact icon={ShoppingBag} title="В этой подборке сейчас нет заказов." />
       : !error && orders.length === 0 ? <div className="flex flex-col items-center gap-4">
         <EmptyState compact icon={ShoppingBag} title="Заказов пока нет" text="Здесь будут ваши покупки и продажи за роллы." />
-        <DrawerClose render={<PageActionButton />}><ShoppingBag aria-hidden="true" />В магазин</DrawerClose>
+        <PageActionButton to={APP_STORE_PATH} replace><ShoppingBag aria-hidden="true" />В магазин</PageActionButton>
       </div>
         : visibleOrders.map((order) => order.settlement ? <MarketplaceOrder key={order.id} order={order} userId={userId} filtered={Boolean(filter)} onReload={refreshMarketplaceOrder} fallbackFocus={() => list.current} /> : <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
 

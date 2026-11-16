@@ -71,6 +71,7 @@ try {
       fixture.api = {
         async get(path) {
           if (path === "/me") return { user };
+          if (path === "/auth/yandex/config") return { enabled: false };
           if (path === "/sphere-shares/incoming") return { shares: [] };
           if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, owner: user, people: [], requests: [] };
           if (path === "/business-marketplace/career/store") return { items: [item], protectedCheckout: true };
@@ -180,17 +181,20 @@ try {
     try {
       const store = `${storeUrl}?from=smoke#store`;
       await page.goto(store);
-      const trigger = page.getByRole("button", { name: "Заказы", exact: true });
-      await trigger.scrollIntoViewIfNeeded();
-      assert.deepEqual(await trigger.evaluate((el) => {
-        const style = getComputedStyle(el);
-        return [el.offsetHeight, style.paddingLeft, style.paddingRight];
-      }), [48, "24px", "24px"]);
+      const profile = page.getByRole("button", { name: /^Редактировать профиль/ });
+      const openOrders = async () => {
+        await profile.click();
+        await page.getByRole("navigation", { name: "Разделы профиля" })
+          .getByRole("button", { name: "Заказы", exact: true }).click();
+      };
+      await page.getByRole("heading", { name: "Магазин · Товары" }).waitFor();
+      await profile.scrollIntoViewIfNeeded();
+      assert.equal(await page.getByRole("button", { name: "Заказы", exact: true }).count(), 0);
       assert.equal(await page.evaluate(() => window.ordersDrawerFixture.reads), 0);
       await page.locator(".cat-store-page").evaluate((element) => { element.dataset.smokeMounted = "true"; });
       const storeScroll = await page.evaluate(() => scrollY);
 
-      await trigger.click();
+      await openOrders();
       await page.waitForURL(ordersUrl);
       const drawer = page.getByRole("dialog", { name: "Заказы", exact: true });
       const close = drawer.getByRole("button", { name: "Закрыть заказы" });
@@ -256,7 +260,8 @@ try {
       await close.click();
       await page.waitForURL(store);
       await drawer.waitFor({ state: "hidden" });
-      await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Заказы");
+      await profile.waitFor();
+      assert.equal(await page.getByRole("button", { name: "Заказы", exact: true }).count(), 0);
       assert.equal(await page.locator(".cat-store-page").getAttribute("data-smoke-mounted"), "true");
       assert.equal(await page.evaluate(() => scrollY), storeScroll);
       await page.goForward();
@@ -276,12 +281,12 @@ try {
       await page.evaluate(() => { window.ordersDrawerFixture.mode = "empty"; });
       await retry.click();
       await drawer.getByText("Заказов пока нет").waitFor();
-      await drawer.getByRole("button", { name: "В магазин" }).click();
+      await drawer.getByRole("link", { name: "В магазин" }).click();
       await page.waitForURL(storeUrl);
       await drawer.waitFor({ state: "hidden" });
 
       await page.evaluate(() => { window.ordersDrawerFixture.mode = "protected"; });
-      await trigger.click();
+      await openOrders();
       await page.waitForURL(ordersUrl);
       const buyerOrder = drawer.locator('[data-order-role="buyer"]');
       const sellerOrder = drawer.locator('[data-order-role="seller"]');

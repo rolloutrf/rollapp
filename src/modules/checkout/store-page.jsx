@@ -3,13 +3,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageActionButton } from "@/components/page-action-button";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Coins, PackageCheck, ShoppingBag } from "lucide-react";
+import { Coins, ShoppingBag } from "lucide-react";
 import { CatCheckout, restoreCatPurchase } from "@/modules/checkout/cat-checkout.jsx";
 import { OrdersDrawerContent } from "@/modules/history/orders-drawer.jsx";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
-import { Drawer, DrawerTrigger } from "@/components/form-surface";
-import { APP_ORDERS_PATH, APP_STORE_PATH } from "../shell/app-routing.js";
+import { Drawer } from "@/components/form-surface";
+import { APP_STORE_PATH } from "../shell/app-routing.js";
 import { SPACES } from "../categories/wish-spaces.jsx";
 import { useToast } from "../shell/toast.jsx";
 import { CatalogPageHeader } from "../catalog-marketplace/catalog-page-header.jsx";
@@ -20,8 +20,8 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
   function changeOrdersOpen(open) {
-    if (open) navigate(APP_ORDERS_PATH, { state: { ordersFromStore: true } });
-    else if (location.state?.ordersFromStore) navigate(-1);
+    if (open) return;
+    if (location.state?.ordersFromStore || location.state?.ordersFromProfile) navigate(-1);
     else navigate(APP_STORE_PATH, { replace: true });
   }
   const toast = useToast();
@@ -34,12 +34,8 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
   };
   return <>
     <div className="app-page wish-catalog-page cat-store-page page-stack">
+      {isProducts && <CatalogPageHeader title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} />}
       <Drawer mobileDrawer open={ordersOpen} onOpenChange={changeOrdersOpen}>
-        {isProducts && <CatalogPageHeader title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} action={(
-          <DrawerTrigger render={<PageActionButton variant="outline" />}>
-            <PackageCheck aria-hidden="true" />Заказы
-          </DrawerTrigger>
-        )} />}
         <OrdersDrawerContent products={STORE_CATS} userId={user.id} />
       </Drawer>
       {deferredPurchase && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">

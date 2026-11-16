@@ -71,6 +71,7 @@ async function checkRolloutStore(width, height) {
   const cats = page.locator(".cat-store-card");
   const orders = page.getByRole("button", { name: "Заказы", exact: true });
   const checkLayoutAndSource = async () => {
+    assert.equal(await orders.count(), 0);
     assert(await page.locator(".cat-store-page").evaluate(node => node.scrollWidth <= node.clientWidth + 1));
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.equal(await page.getByText(/Товар участника|Товар мастерской|Витрина продавца|Айтемов продавцов/).count(), 0);
@@ -89,7 +90,8 @@ async function checkRolloutStore(width, height) {
     await checkout.waitFor({ state: "hidden" });
     const storeUrl = page.url();
     const ordersDrawer = page.getByRole("dialog", { name: "Заказы", exact: true });
-    await orders.click();
+    await page.getByRole("button", { name: /^Редактировать профиль/ }).click();
+    await page.getByRole("navigation", { name: "Разделы профиля" }).getByRole("button", { name: "Заказы", exact: true }).click();
     await page.waitForURL(smokeOrigin(server) + APP_ORDERS_PATH);
     await ordersDrawer.getByText("Заказов пока нет", { exact: true }).waitFor();
     await page.goBack();
@@ -102,13 +104,11 @@ async function checkRolloutStore(width, height) {
     await page.goto(`${fixture}&business=studio`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     await cats.first().waitFor();
     assert.equal(await cats.count(), 6);
-    await orders.waitFor();
     await checkLayoutAndSource();
 
     await page.goto(`${fixture}=food`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.getByText("В этом разделе магазина пока пусто", { exact: true }).waitFor();
     assert.equal(await cats.count(), 0);
-    assert.equal(await orders.count(), 0);
     await checkLayoutAndSource();
     assert.deepEqual(errors, []);
     console.log(`PASS Rollout store ${width}x${height}`);

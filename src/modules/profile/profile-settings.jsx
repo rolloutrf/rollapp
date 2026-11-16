@@ -216,7 +216,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
   };
   const leaveSettingsFor = (path) => exitSettings(() => {
     onClose();
-    navigate(path);
+    navigate(path, path === APP_ORDERS_PATH ? { state: { ordersFromProfile: true } } : undefined);
   });
   const submit = async (event) => {
     event.preventDefault();
