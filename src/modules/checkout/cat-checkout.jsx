@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { MapPin } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { ArrowLeft, MapPin, X } from "lucide-react";
 import { PurchaseRecoveryNotice, usePurchaseRecovery } from "./purchase-recovery.jsx";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerSectionHeader } from "@/components/form-surface";
+import { PageActionButton } from "@/components/page-action-button";
 import { Spinner } from "@/components/ui/spinner";
 
 import { CAT_STORE_PRICE } from "../../../shared/modules/checkout/cat-store-price.js";
@@ -22,6 +23,9 @@ export function restoreCatPurchase(storageKey, cats) {
 const catRejections = new Set(["INVALID_PURCHASE", "PRODUCT_NOT_FOUND", "INVALID_PICKUP_POINT", "INSUFFICIENT_ROLLS", "PRICE_CHANGED"]);
 
 export function CatCheckout({ purchase, storageKey, onClose, onSuccess }) {
+  const [open, setOpen] = useState(true);
+  const titleRef = useRef(null);
+  const bodyRef = useRef(null);
   const [point, setPoint] = useState(purchase.pickupPoint || null);
   const [step, setStep] = useState(purchase.submitted ? "review" : "pickup");
   const [success, setSuccess] = useState(null);
@@ -44,7 +48,7 @@ export function CatCheckout({ purchase, storageKey, onClose, onSuccess }) {
       if (failure.code === "INVALID_PICKUP_POINT") { setPoint(null); setStep("pickup"); pickup.refresh(); }
       return catRejections.has(failure.code);
     },
-    onCloseConflict: onClose,
+    onCloseConflict: () => setOpen(false),
   });
   const { pending, busy, error, result, requestMode } = recovery;
   const cat = success?.cat ?? pending?.cat ?? purchase.cat;
@@ -54,20 +58,41 @@ export function CatCheckout({ purchase, storageKey, onClose, onSuccess }) {
     cat, pickupPoint: point, idempotencyKey: crypto.randomUUID(), expectedPrice: CAT_STORE_PRICE, submitted: true,
   });
 
-  return <Dialog open onOpenChange={(open) => { if (!open && !recovery.inFlight.current) onClose(); }}>
-    <DialogContent className="rollapp-body cat-checkout flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col overflow-hidden sm:max-w-2xl" showCloseButton={!busy}>
-      <DialogHeader className="shrink-0 pr-10">
-        <DialogTitle>{success ? (success.status === "refunded" ? "Роллы возвращены" : "Кот куплен") : step === "pickup" ? "Выберите пункт CDEK" : "Подтвердите покупку"}</DialogTitle>
-        <DialogDescription>{success ? (success.status === "refunded" ? "Сумма возвращена в кошелёк." : "Пункт выдачи сохранён в заказе.") : step === "pickup" ? "Шаг 1 из 2 · Найдите удобный пункт выдачи." : "Шаг 2 из 2 · Проверьте товар и пункт выдачи."}</DialogDescription>
-      </DialogHeader>
+  const view = success ? "complete" : step;
+  const previousView = useRef(view);
+  useLayoutEffect(() => {
+    if (previousView.current === view) return;
+    previousView.current = view;
+    bodyRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    titleRef.current?.focus({ preventScroll: true });
+  }, [view]);
 
-      <div data-cdek-checkout-body className="flex min-h-0 min-w-0 flex-col gap-4 overflow-x-hidden overflow-y-auto overscroll-contain px-px pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+  const title = success ? (success.status === "refunded" ? "Роллы возвращены" : "Кот куплен")
+    : step === "pickup" ? "Выберите пункт CDEK" : "Подтвердите покупку";
+  const description = success ? (success.status === "refunded" ? "Сумма возвращена в кошелёк." : "Пункт выдачи сохранён в заказе.")
+    : step === "pickup" ? "Шаг 1 из 2 · Найдите удобный пункт выдачи." : "Шаг 2 из 2 · Проверьте товар и пункт выдачи.";
+
+  return <Drawer mobileDrawer open={open} onAfterClose={onClose} onOpenChange={(nextOpen, event) => {
+    if (nextOpen) return;
+    if (recovery.inFlight.current) event?.cancel?.();
+    else setOpen(false);
+  }}>
+    <DrawerContent className="rollapp-body cat-checkout app-drawer--form" initialFocus={titleRef}>
+      <DrawerSectionHeader title={title} titleRef={titleRef} description={description} endAction={
+        <DrawerClose render={<Button type="button" variant="outline" size="icon" disabled={busy} />} aria-label="Закрыть оформление покупки">
+          <X aria-hidden="true" />
+        </DrawerClose>
+      } />
+
+      <div ref={bodyRef} data-cdek-checkout-body className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 wrap-anywhere">
         <div className="flex min-w-0 items-center gap-3 rounded-xl border p-3">
           <img src={cat.image} alt="" className="size-16 rounded-lg object-cover" />
           <div className="flex min-w-0 flex-col gap-1"><span className="font-medium">{cat.name} кот{cat.mood ? ` — ${cat.mood}` : ""}</span><span className="text-muted-foreground">{price}</span></div>
         </div>
 
         {!success && <PurchaseRecoveryNotice error={error} result={result} />}
+        {pending && result === "missing" && <PageActionButton type="button" variant="outline" className="self-start" disabled={busy} onClick={confirm}>Оплатить снова</PageActionButton>}
+        {pending && result === "conflict" && <PageActionButton type="button" variant="outline" className="self-start" disabled={busy} onClick={recovery.closeConflict}>Закрыть запрос</PageActionButton>}
         {!success && step === "pickup" && !point && <CdekPickupPicker pickup={pickup} />}
 
         {selectedPoint && <section className="flex min-w-0 max-w-full flex-col gap-3 overflow-hidden rounded-xl border p-4" aria-label="Выбранный пункт выдачи">
@@ -81,19 +106,21 @@ export function CatCheckout({ purchase, storageKey, onClose, onSuccess }) {
         {!success && step === "review" && <p>{pending ? "Проверка ищет исходный заказ в журнале." : `После подтверждения с кошелька спишется ${price}.`}</p>}
       </div>
 
-      <DialogFooter className="shrink-0 flex-row flex-wrap justify-end">
-        {success ? <Button className="rounded-full" onClick={onClose}>Готово</Button> : step === "pickup" ? <>
-          <Button className="rounded-full" variant="outline" onClick={onClose}>Отмена</Button>
-          <Button className="rounded-full" disabled={!point} onClick={() => setStep("review")}>Продолжить</Button>
+      <DrawerFooter>
+        {success ? <DrawerClose render={<Button type="button" />}>Готово</DrawerClose> : step === "pickup" ? <>
+          <DrawerClose render={<Button type="button" variant="outline" />}>Отмена</DrawerClose>
+          <Button type="button" disabled={!point} onClick={() => setStep("review")}>Продолжить</Button>
         </> : <>
-          <Button className="rounded-full" variant="outline" disabled={busy} onClick={() => pending ? onClose() : setStep("pickup")}>{pending ? "Позже" : "Изменить пункт"}</Button>
-          {pending && result === "missing" && <Button className="rounded-full" variant="outline" disabled={busy} onClick={confirm}>Оплатить снова</Button>}
-          {pending && result === "conflict" && <Button className="rounded-full" variant="outline" disabled={busy} onClick={recovery.closeConflict}>Закрыть запрос</Button>}
-          <Button className="rounded-full" disabled={busy || !selectedPoint} onClick={pending ? recovery.check : confirm}>
+          {pending
+            ? <DrawerClose render={<Button type="button" variant="outline" disabled={busy} />}>Позже</DrawerClose>
+            : <Button type="button" variant="outline" size="icon" data-control-icon aria-label="Изменить пункт" title="Изменить пункт" onClick={() => setStep("pickup")}>
+              <ArrowLeft aria-hidden="true" />
+            </Button>}
+          <Button type="button" disabled={busy || !selectedPoint} onClick={pending ? recovery.check : confirm}>
             {busy && <Spinner />}{busy ? (requestMode === "send" ? "Оплачиваем…" : "Проверяем…") : pending ? "Проверить покупку" : `Купить за ${price}`}
           </Button>
         </>}
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>;
+      </DrawerFooter>
+    </DrawerContent>
+  </Drawer>;
 }
