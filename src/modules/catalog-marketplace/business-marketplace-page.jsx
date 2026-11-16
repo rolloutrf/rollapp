@@ -155,7 +155,7 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
           </EmptyHeader>
         </Empty>
       ) : null}
-      {state.items.length ? <section className="business-marketplace-grid" aria-label={title}>
+      {state.items.length ? <section className="business-marketplace-grid snippet-grid" aria-label={title}>
         {state.items.map((item) => <MarketplaceItem key={item.id} item={item} user={user} kind={businessUsername ? item.kind : kind} busy={Boolean(busy || pending)} onBuy={(item) => { recovery.resetNotice(); setGiftCardId("wallet"); setSelected(item); }} />)}
       </section> : null}
 

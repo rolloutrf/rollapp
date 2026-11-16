@@ -6,12 +6,11 @@ import {
   ImagePlus, RotateCcw, TicketCheck, Trash2, Users, X,
 } from "lucide-react";
 import { api, sessionFetch } from "@/modules/runtime/api.js";
-import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/modules/card/collection-snippet-media.jsx";
+import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
+import { CollectionSnippetBadge } from "@/modules/card/collection-snippet-media.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/form-surface";
@@ -129,18 +128,19 @@ function ConferenceCard({
   const status = CONFERENCE_STATUS[conference.status] || CONFERENCE_STATUS.planned;
   const StatusIcon = status.icon;
   return (
-    <div className="relative h-full min-w-0">
-      <Button
-        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
-        variant="ghost"
-        type="button"
-        data-card-drag-trigger={draggable ? "" : undefined}
-        aria-describedby={dragDescriptionId || undefined}
-        aria-haspopup="dialog"
-        aria-label={draggable ? `Открыть и переместить конференцию «${conference.title}»` : `Открыть конференцию «${conference.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой конференции и дождитесь подсветки" : "Нажмите, чтобы открыть"}
-        onClick={() => onEdit(conference)}
-        onKeyDown={(event) => {
+    <CollectionSnippet
+      title={conference.title}
+      media={{ src: conference.logoUrl, icon: TicketCheck }}
+      status={<CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>}
+      openButton={{
+        "data-card-drag-trigger": draggable ? "" : undefined,
+        "aria-describedby": dragDescriptionId,
+        className: draggable ? "cursor-grab active:cursor-grabbing" : undefined,
+        "aria-haspopup": "dialog",
+        "aria-label": draggable ? `Открыть и переместить конференцию «${conference.title}»` : `Открыть конференцию «${conference.title}»`,
+        title: draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой конференции и дождитесь подсветки" : "Нажмите, чтобы открыть",
+        onClick: () => onEdit(conference),
+        onKeyDown: (event) => {
           if (!draggable) return;
           if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
@@ -150,52 +150,35 @@ function ConferenceCard({
             event.preventDefault();
             onMove(conference.id, 1);
           }
-        }}
-      >
-        <span className="sr-only">Открыть или переместить конференцию «{conference.title}»</span>
-      </Button>
-      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
-        <CollectionSnippetMedia src={conference.logoUrl} icon={TicketCheck}>
-          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
-        </CollectionSnippetMedia>
-        <CardHeader>
-          <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
-            <div className="flex min-w-0 flex-col items-start gap-1">
-              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium" title={conference.title}>{conference.title}</h3>
-              {conference.location && <CardDescription className="w-full truncate" title={conference.location}>{conference.location}</CardDescription>}
-            </div>
-          </CardTitle>
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <EducationItemListMenu
-              currentListId={conference.listId}
-              grouping={grouping}
-              disabled={moveDisabled}
-              itemLabel="конференцию"
-              itemTitle={conference.title}
-              lists={lists}
-              moving={moving}
-              onCreateList={onCreateList}
-              onMove={(listId) => onMoveToList(conference, listId)}
-              onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(conference) : undefined}
-              removeBusy={removeBusy}
-            />
-          </CardAction>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col gap-4">
-          {conference.description && <p className="m-0 text-sm text-muted-foreground text-pretty">{conference.description}</p>}
-          <div className="mt-auto flex flex-col gap-2 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="size-4" aria-hidden="true" />
-              <span>{conferenceDateLabel(conference)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="size-4" aria-hidden="true" />
-              <span>{CONFERENCE_ROLE[conference.role]} · {CONFERENCE_FORMAT[conference.format]}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        },
+      }}
+      menu={
+        <EducationItemListMenu
+          currentListId={conference.listId}
+          grouping={grouping}
+          disabled={moveDisabled}
+          itemLabel="конференцию"
+          itemTitle={conference.title}
+          lists={lists}
+          moving={moving}
+          onCreateList={onCreateList}
+          onMove={(listId) => onMoveToList(conference, listId)}
+          onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(conference) : undefined}
+          removeBusy={removeBusy}
+        />
+      }
+    >
+      {conference.location && <span className="w-full truncate" title={conference.location}>{conference.location}</span>}
+      {conference.description && <p className="line-clamp-3 text-pretty">{conference.description}</p>}
+      <div className="flex items-center gap-2">
+        <CalendarDays className="size-4" aria-hidden="true" />
+        <span>{conferenceDateLabel(conference)}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Users className="size-4" aria-hidden="true" />
+        <span>{CONFERENCE_ROLE[conference.role]} · {CONFERENCE_FORMAT[conference.format]}</span>
+      </div>
+    </CollectionSnippet>
   );
 }
 
@@ -859,7 +842,7 @@ export function Conferences() {
       )}
 
       {!requestState.loading && visibleConferences.length > 0 && (
-        <ul ref={cardOrder.listRef} className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label="Порядок и группы конференций" aria-busy={cardOrder.orderBusy}>
+        <ul ref={cardOrder.listRef} className="snippet-grid list-none p-0" aria-label="Порядок и группы конференций" aria-busy={cardOrder.orderBusy}>
           {visibleGroups.map((group) => (
             <EducationItemGroupTile
               key={group.id}

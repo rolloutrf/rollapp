@@ -6,7 +6,8 @@ import {
   ImagePlus, MoreHorizontal, Pencil, PlayCircle, RotateCcw, Trash2, Ungroup, X,
 } from "lucide-react";
 import { api, sessionFetch } from "@/modules/runtime/api.js";
-import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/modules/card/collection-snippet-media.jsx";
+import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
+import { CollectionSnippetBadge } from "@/modules/card/collection-snippet-media.jsx";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -134,18 +135,19 @@ function CourseCard({
   const status = COURSE_STATUS[course.status] || COURSE_STATUS.planned;
   const StatusIcon = status.icon;
   return (
-    <div className="relative h-full min-w-0">
-      <Button
-        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
-        variant="ghost"
-        type="button"
-        data-card-drag-trigger={draggable ? "" : undefined}
-        aria-describedby={dragDescriptionId || undefined}
-        aria-haspopup="dialog"
-        aria-label={draggable ? `Открыть и переместить курс «${course.title}»` : `Открыть курс «${course.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другого курса и дождитесь подсветки" : "Нажмите, чтобы открыть"}
-        onClick={() => onEdit(course)}
-        onKeyDown={(event) => {
+    <CollectionSnippet
+      title={course.title}
+      media={{ sources: courseLogoUrls(course), icon: GraduationCap }}
+      status={<CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>}
+      openButton={{
+        "data-card-drag-trigger": draggable ? "" : undefined,
+        "aria-describedby": dragDescriptionId,
+        className: draggable ? "cursor-grab active:cursor-grabbing" : undefined,
+        "aria-haspopup": "dialog",
+        "aria-label": draggable ? `Открыть и переместить курс «${course.title}»` : `Открыть курс «${course.title}»`,
+        title: draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другого курса и дождитесь подсветки" : "Нажмите, чтобы открыть",
+        onClick: () => onEdit(course),
+        onKeyDown: (event) => {
           if (!draggable) return;
           if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
@@ -155,44 +157,31 @@ function CourseCard({
             event.preventDefault();
             onMove(course.id, 1);
           }
-        }}
-      >
-        <span className="sr-only">Открыть или переместить курс «{course.title}»</span>
-      </Button>
-      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
-        <CollectionSnippetMedia sources={courseLogoUrls(course)} icon={GraduationCap}>
-          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
-        </CollectionSnippetMedia>
-        <CardHeader>
-          <CardTitle className="flex min-w-0 flex-col items-start gap-2 pr-2">
-            <div className="flex w-full min-w-0 flex-col items-start gap-1">
-              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium" title={course.title}>{course.title}</h3>
-              {course.provider && <span className="w-full truncate text-sm font-normal text-muted-foreground" title={course.provider}>{course.provider}</span>}
-            </div>
-            {course.description && <p className="m-0 w-full min-w-0 line-clamp-3 wrap-anywhere text-sm font-normal text-muted-foreground text-pretty">{course.description}</p>}
-            <div className="flex w-full min-w-0 items-center gap-2 text-sm font-normal text-muted-foreground">
-              <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 wrap-anywhere">{courseDateLabel(course)}</span>
-            </div>
-          </CardTitle>
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <EducationItemListMenu
-              currentListId={course.listId}
-              grouping={grouping}
-              disabled={moveDisabled}
-              itemLabel="курс"
-              itemTitle={course.title}
-              lists={lists}
-              moving={moving}
-              onCreateList={onCreateList}
-              onMove={(listId) => onMoveToList(course, listId)}
-              onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(course) : undefined}
-              removeBusy={removeBusy}
-            />
-          </CardAction>
-        </CardHeader>
-      </Card>
-    </div>
+        },
+      }}
+      menu={
+        <EducationItemListMenu
+          currentListId={course.listId}
+          grouping={grouping}
+          disabled={moveDisabled}
+          itemLabel="курс"
+          itemTitle={course.title}
+          lists={lists}
+          moving={moving}
+          onCreateList={onCreateList}
+          onMove={(listId) => onMoveToList(course, listId)}
+          onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(course) : undefined}
+          removeBusy={removeBusy}
+        />
+      }
+    >
+      {course.provider && <span className="w-full truncate" title={course.provider}>{course.provider}</span>}
+      {course.description && <p className="line-clamp-3 text-pretty">{course.description}</p>}
+      <div className="flex items-center gap-2">
+        <CalendarDays className="size-4" aria-hidden="true" />
+        <span>{courseDateLabel(course)}</span>
+      </div>
+    </CollectionSnippet>
   );
 }
 
@@ -440,7 +429,7 @@ function CourseGroupOpen({
             />
           )}
       />
-      <ul className="mx-auto grid w-full max-w-(--layout-collection-width) list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label={`Курсы группы «${group.title}»`}>
+      <ul className="snippet-grid list-none p-0" aria-label={`Курсы группы «${group.title}»`}>
         {courses.map((course) => (
           <li className="min-w-0" key={course.id}>
             <CourseCard
@@ -1120,7 +1109,7 @@ export function Courses() {
       )}
 
       {!requestState.loading && visibleCourses.length > 0 && (
-        <ul ref={cardOrder.listRef} className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label="Порядок и группы курсов" aria-busy={cardOrder.orderBusy}>
+        <ul ref={cardOrder.listRef} className="snippet-grid list-none p-0" aria-label="Порядок и группы курсов" aria-busy={cardOrder.orderBusy}>
           {visibleGroups.map((group) => (
             <CourseGroupTile
               key={group.id}

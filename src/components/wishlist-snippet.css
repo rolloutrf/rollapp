@@ -147,10 +147,39 @@
     overflow-wrap: anywhere;
   }
 
+  /* Domain content within the same cover: keep logos legible and status clear
+     of the touch drag handle and the menu. */
+  .collection-snippet__media img { object-fit: contain; object-position: center; }
+  .collection-snippet__placeholder {
+    display: grid;
+    height: 100%;
+    place-items: center;
+    color: var(--muted-foreground);
+    background: var(--muted);
+  }
+  .collection-snippet__placeholder svg { width: 36px; height: 36px; }
+  .collection-snippet__media .wish-card__media-badge {
+    inset-block: auto 12px;
+  }
+  .collection-snippet__media .collection-snippet__badge {
+    overflow: hidden;
+    border: 1px solid color-mix(in oklch, white 26%, transparent);
+    color: white;
+    background: color-mix(in oklch, black 70%, transparent);
+    backdrop-filter: blur(10px);
+  }
+  .collection-snippet .wish-card__top { display: contents; }
+  .collection-snippet .wish-card__details > * { min-width: 0; max-width: 100%; }
+  .collection-snippet .wish-card__details svg { flex-shrink: 0; }
+  .collection-snippet .wish-card__details [data-slot="card-footer"] { width: 100%; }
+  .collection-snippet .wish-card__menu-trigger:empty { display: none; }
+
   @media (hover: hover) {
     .wish-card .wish-card__menu-trigger { opacity: 0; }
     .wish-card:hover .wish-card__menu-trigger,
     .wish-card .wish-card__menu-trigger:focus-visible,
+    .wish-card .wish-card__menu-trigger:focus-within,
+    .wish-card .wish-card__menu-trigger:has(> [aria-expanded="true"]),
     .wish-card .wish-card__menu-trigger[aria-expanded="true"] { opacity: 1; }
   }
 

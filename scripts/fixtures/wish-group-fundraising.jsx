@@ -66,7 +66,7 @@ function Fixture() {
       request={request}
       description="6 желаний"
     />
-    <div className="wish-grid">{Array.from({ length: 6 }, (_, i) => <div key={i} className="flex min-w-0 flex-col gap-2"><div className="aspect-square rounded-2xl bg-muted" /><span>Часы {i + 1}</span></div>)}</div>
+    <div className="wish-grid snippet-grid">{Array.from({ length: 6 }, (_, i) => <div key={i} className="flex min-w-0 flex-col gap-2"><div className="aspect-square rounded-2xl bg-muted" /><span>Часы {i + 1}</span></div>)}</div>
   </GroupDialog>;
 }
 

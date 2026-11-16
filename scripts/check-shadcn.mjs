@@ -752,7 +752,7 @@ for (const source of [catalogWishCardSource, businessItemSource, storeSnippetSou
 }
 assert.equal((catalogWishCardSource.match(/<ShadcnButton\b/g) || []).length, 1, "Catalog cards must supply one independent Wishlist action");
 assert.equal((catalogWishCardSource.match(/catalog-wish-card__action\b/g) || []).length, 1, "Catalog cards must expose exactly one Wishlist action");
-assert.match(wishlistSnippetSource, /<Button \{\.\.\.openButton\}[^>]+className="wish-card__open/, "The shared snippet must use an official shadcn overlay button for details");
+assert.match(wishlistSnippetSource, /<Button \{\.\.\.openButton\}[^>]+className=\{cn\("wish-card__open/, "The shared snippet must use an official shadcn overlay button for details");
 for (const className of ["absolute", "inset-0", "h-full", "w-full", "bg-transparent", "hover:bg-transparent"]) {
   assert(wishlistSnippetSource.includes(className), `The shared detail trigger must cover the card and keep ${className}`);
 }

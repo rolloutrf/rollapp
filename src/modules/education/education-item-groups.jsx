@@ -321,7 +321,7 @@ export function EducationItemGroupOverlay({
             />
           )}
       />
-      <ul className="mx-auto grid w-full max-w-(--layout-collection-width) list-none gap-4 sm:grid-cols-2" aria-label={`Элементы группы «${group.title}»`}>
+      <ul className="snippet-grid list-none p-0" aria-label={`Элементы группы «${group.title}»`}>
         {items.map((item) => (
           <li className="min-w-0" key={item.id}>
             {renderItem(item, { busy, removeBusy: moveItemId === item.id })}

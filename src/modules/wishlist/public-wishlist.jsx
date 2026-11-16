@@ -64,7 +64,7 @@ export function SharedWishes({ wishes, profile, onOpen, onChanged }) {
   if (!wishes.length) return null;
   return <section className="page-stack min-w-0" aria-labelledby={titleId}>
     <h2 id={titleId} className="font-semibold">Совместные со мной</h2>
-    <div className="wish-grid">
+    <div className="wish-grid snippet-grid">
       {wishes.map((wish) => <WishCard key={wish.id} wish={wish} profile={profile} onChanged={onChanged} onOpen={(opener) => onOpen(wish.id, opener)} />)}
     </div>
   </section>;
@@ -93,7 +93,7 @@ export function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = f
     onCreateList={ownerCollection ? () => cardProps.onCreateList(wish.id) : undefined}
   />;
   return <>
-    <div className="wish-grid" ref={gridRef} aria-busy={saving || undefined}>
+    <div className="wish-grid snippet-grid" ref={gridRef} aria-busy={saving || undefined}>
       {buildWishGroupGridItems({ wishes: orderedWishes, groups }).slice(0, visibleLimit).map((item) => item.type === "group"
         ? <WishGroupTile key={item.id} group={item.group} wishes={item.wishes} onOpen={() => setOpenedGroupId(item.id)} />
         : renderWish(item.wish))}
@@ -105,7 +105,7 @@ export function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = f
         shareToken={cardProps.shareToken}
         description={`${openedGroupWishes.length} ${wishCountNoun(openedGroupWishes.length)}`}
       />
-      <div className="wish-grid">{openedGroupWishes.map(renderWish)}</div>
+      <div className="wish-grid snippet-grid">{openedGroupWishes.map(renderWish)}</div>
     </GroupDialog>}
   </>;
 }

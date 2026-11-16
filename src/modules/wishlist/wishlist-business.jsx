@@ -184,7 +184,7 @@ function SellerStorefront({ space }) {
     </div>
     <AddFab actions={[{ label: addLabel, onSelect: () => setEditor({}) }]} />
     {items.length ? (
-      <div className="wish-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={{ ...item, published }} storefront onOpen={setSelected} />)}</div>
+      <div className="wish-grid snippet-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={{ ...item, published }} storefront onOpen={setSelected} />)}</div>
     ) : (
       <Blank title={isProduct ? "Добавьте первый товар" : "Добавьте первую позицию"} text="Загрузите фото, укажите название и цену." />
     )}
@@ -243,7 +243,7 @@ export function WishlistBusinessListing({space,offers=false,business="",publicPr
  return <Status state={state}><div className="page-stack">
  {brands.length>0&&<Field><FieldLabel htmlFor={`seller-brands-${offers?"offers":"store"}`}>Бренд</FieldLabel><Select value={brand} onValueChange={setBrand}><SelectTrigger id={`seller-brands-${offers?"offers":"store"}`}><SelectValue>{selected=>selected==="all"?"Все бренды":selected}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}><SelectItem value="all">Все бренды</SelectItem>{brands.map(value=><SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field>}
  {!offers&&!publicProfile&&state.data?.pages?.map(page=><article className="typeset typeset-rollapp" key={page.username}><h2><Link to={`${APP_WISH_LISTINGS_PATH}?tab=${space}&business=${encodeURIComponent(page.username)}`}>{page.title}</Link></h2>{page.description&&<p className="whitespace-pre-wrap">{page.description}</p>}</article>)}
- {items.length?<div className="wish-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} storefront={publicProfile} onOpen={setSelected}/>)}</div>:<Blank title={offers?"Предложений пока нет":publicProfile?"Товаров пока нет":"Объявлений пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":publicProfile?"Здесь появятся опубликованные товары этого бизнеса.":"Здесь появятся опубликованные объявления продавцов."}/>}
+ {items.length?<div className="wish-grid snippet-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} storefront={publicProfile} onOpen={setSelected}/>)}</div>:<Blank title={offers?"Предложений пока нет":publicProfile?"Товаров пока нет":"Объявлений пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":publicProfile?"Здесь появятся опубликованные товары этого бизнеса.":"Здесь появятся опубликованные объявления продавцов."}/>}
  {selected&&<ItemDetails key={selected.id} item={selected} space={space} onClose={()=>setSelected(null)} onDismiss={state.reload} viewerId={viewerId} storefront={publicProfile}/>}
  </div></Status>;
 }
@@ -270,7 +270,7 @@ function WishSalesManager({ user, space, wishId }) {
    <Status state={state}>
      <AddFab actions={[{ label: space === "products" ? "Добавить товар" : "Добавить позицию", onSelect: () => openEditor({ space, active: false }) }]} />
      {state.data?.items.length ? (
-       <div className="wish-grid catalog-wish-grid">
+       <div className="wish-grid snippet-grid catalog-wish-grid">
          {state.data.items.map(item => <BusinessItem key={item.id} item={item} onOpen={openEditor} />)}
        </div>
      ) : <Blank title="Объявлений пока нет" text="Добавьте объявление здесь или выставьте на продажу исполненное желание." />}

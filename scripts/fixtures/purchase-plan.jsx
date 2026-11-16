@@ -92,7 +92,7 @@ function Fixture() {
         <PlanningDailyTodo tasks={tasks} columns={columns} onCreate={() => {}} onEdit={() => {}} onReview={setReviewTask} />
       </> : <>
         <h1>Мои желания</h1>
-        <div className="wish-grid"><WishCard wish={wish} owner onPlanPurchase={() => setShowForm(true)} /><WishCard wish={guestWish} /></div>
+        <div className="wish-grid snippet-grid"><WishCard wish={wish} owner onPlanPurchase={() => setShowForm(true)} /><WishCard wish={guestWish} /></div>
         <Link to={`?todo&date=${plan.dueOn || "2026-12-03"}${replenishmentMode ? "&replenishment" : ""}`}>Открыть To Do</Link>
       </>}
       <output aria-label="Результат">{status}</output>

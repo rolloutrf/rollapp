@@ -1219,11 +1219,11 @@ export function WishesPage({ onAdd, version }) {
   busy={Boolean(removingGroupId)}
   suspended={Boolean(selectedWish || editingWish || purchaseDialogOpen || listModal)}
   onClose={() => setOpenedGroupId(null)}
-><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
+><div className="wish-grid snippet-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
 {plannedWish && <WishPurchasePlan key={plannedWish.id} wish={plannedWish} onClose={() => setPlannedWishId(null)} onSaved={refreshPurchases} />}
 {purchaseNeedForm && <WishPurchaseNeed wishes={data.wishes} onClose={() => setPurchaseNeedForm(false)} onSaved={refreshPurchases} />}
 {subscriptionForm && <WishSubscription onClose={() => setSubscriptionForm(false)} onSaved={refreshPurchases} />}
-{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
+{wishes.length ? <div className="wish-grid snippet-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
 <SharedWishes wishes={spaceSharedWishes} profile={user} onOpen={(id) => {
   if (isMobile) navigate(publicWishPath(user, id), { state: { fromWishlistBoard: true } });
   else setSelectedWishId(id);

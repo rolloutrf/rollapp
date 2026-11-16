@@ -7,12 +7,11 @@ import {
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { CollectionSnippetLink } from "@/modules/card/collection-snippet-link.jsx";
-import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/modules/card/collection-snippet-media.jsx";
+import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
+import { CollectionSnippetBadge } from "@/modules/card/collection-snippet-media.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/form-surface";
@@ -124,18 +123,19 @@ function CoachingSessionCard({
   const StatusIcon = status.icon;
   const FormatIcon = session.format === "online" ? Video : MapPin;
   return (
-    <div className="relative h-full min-w-0">
-      <Button
-        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
-        variant="ghost"
-        type="button"
-        data-card-drag-trigger={draggable ? "" : undefined}
-        aria-describedby={dragDescriptionId || undefined}
-        aria-haspopup="dialog"
-        aria-label={draggable ? `Открыть и переместить коучинг-сессию «${session.title}»` : `Открыть коучинг-сессию «${session.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой сессии и дождитесь подсветки" : "Нажмите, чтобы открыть"}
-        onClick={() => onEdit(session)}
-        onKeyDown={(event) => {
+    <CollectionSnippet
+      title={session.title}
+      media={{ icon: Video }}
+      status={<CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>}
+      openButton={{
+        "data-card-drag-trigger": draggable ? "" : undefined,
+        "aria-describedby": dragDescriptionId,
+        className: draggable ? "cursor-grab active:cursor-grabbing" : undefined,
+        "aria-haspopup": "dialog",
+        "aria-label": draggable ? `Открыть и переместить коучинг-сессию «${session.title}»` : `Открыть коучинг-сессию «${session.title}»`,
+        title: draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой сессии и дождитесь подсветки" : "Нажмите, чтобы открыть",
+        onClick: () => onEdit(session),
+        onKeyDown: (event) => {
           if (!draggable) return;
           if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
@@ -145,55 +145,38 @@ function CoachingSessionCard({
             event.preventDefault();
             onMove(session.id, 1);
           }
-        }}
-      >
-        <span className="sr-only">Открыть или переместить коучинг-сессию «{session.title}»</span>
-      </Button>
-      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
-        <CollectionSnippetMedia icon={Video}>
-          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
-        </CollectionSnippetMedia>
-        <CardHeader>
-          <CardTitle className="flex min-w-0 flex-col items-start gap-1">
-            <h3 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{session.title}</h3>
-          </CardTitle>
-          {session.coach && <CardDescription className="min-w-0 truncate" title={session.coach}>{session.coach}</CardDescription>}
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <EducationItemListMenu
-              currentListId={session.listId}
-              grouping={grouping}
-              disabled={moveDisabled}
-              itemLabel="коучинг-сессию"
-              itemTitle={session.title}
-              lists={lists}
-              moving={moving}
-              onCreateList={onCreateList}
-              onMove={(listId) => onMoveToList(session, listId)}
-              onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(session) : undefined}
-              removeBusy={removeBusy}
-            />
-          </CardAction>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col gap-4">
-          {session.description && <p className="m-0 text-sm text-muted-foreground text-pretty">{session.description}</p>}
-          <div className="mt-auto flex flex-col gap-2 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="size-4" aria-hidden="true" />
-              <span>{sessionScheduleLabel(session)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <FormatIcon className="size-4" aria-hidden="true" />
-              <span>{SESSION_FORMAT[session.format]}{session.location ? ` · ${session.location}` : ""}</span>
-            </div>
-          </div>
-        </CardContent>
-        {session.url && (
-          <CardFooter className="justify-end">
-            <CollectionSnippetLink href={session.url} label={`Открыть ссылку коучинг-сессии «${session.title}»`}>Открыть ссылку</CollectionSnippetLink>
-          </CardFooter>
-        )}
-      </Card>
-    </div>
+        },
+      }}
+      menu={
+        <EducationItemListMenu
+          currentListId={session.listId}
+          grouping={grouping}
+          disabled={moveDisabled}
+          itemLabel="коучинг-сессию"
+          itemTitle={session.title}
+          lists={lists}
+          moving={moving}
+          onCreateList={onCreateList}
+          onMove={(listId) => onMoveToList(session, listId)}
+          onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(session) : undefined}
+          removeBusy={removeBusy}
+        />
+      }
+    >
+      {session.coach && <span className="w-full truncate" title={session.coach}>{session.coach}</span>}
+      {session.description && <p className="line-clamp-3 text-pretty">{session.description}</p>}
+      <div className="flex items-center gap-2">
+        <CalendarDays className="size-4" aria-hidden="true" />
+        <span>{sessionScheduleLabel(session)}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <FormatIcon className="size-4" aria-hidden="true" />
+        <span>{SESSION_FORMAT[session.format]}{session.location ? ` · ${session.location}` : ""}</span>
+      </div>
+      {session.url && <div data-slot="card-footer">
+        <CollectionSnippetLink href={session.url} label={`Открыть ссылку коучинг-сессии «${session.title}»`}>Открыть ссылку</CollectionSnippetLink>
+      </div>}
+    </CollectionSnippet>
   );
 }
 
@@ -723,7 +706,7 @@ export function CoachingSessions() {
       )}
 
       {!requestState.loading && visibleSessions.length > 0 && (
-        <ul ref={cardOrder.listRef} className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label="Порядок и группы коучинг-сессий" aria-busy={cardOrder.orderBusy}>
+        <ul ref={cardOrder.listRef} className="snippet-grid list-none p-0" aria-label="Порядок и группы коучинг-сессий" aria-busy={cardOrder.orderBusy}>
           {visibleGroups.map((group) => (
             <EducationItemGroupTile
               key={group.id}

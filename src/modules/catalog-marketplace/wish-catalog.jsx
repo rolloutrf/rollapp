@@ -519,7 +519,7 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
   const brand = catalog.filter === catalogFilter ? catalog.brand : null;
   const certificates = brand ? catalog.certificates : [];
   const renderCards = (items) => (
-    <div className="wish-grid catalog-wish-grid">
+    <div className="wish-grid snippet-grid catalog-wish-grid">
       {items.map((item) => (
         <CatalogWishCard
           key={item.id}

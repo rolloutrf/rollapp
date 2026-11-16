@@ -65,7 +65,7 @@ function Collection() {
   window.dragTest.switchScope = () => { setScope('other'); setItems(wishes.slice(6)); };
   window.dragTest.disable = () => setDisabled(true);
   const drag = useCardReorder({ scopeKey: scope, items, onItemsChange: setItems, disabled, persistOrder: ids => api.patch('/collection/reorder', { ids }), getItemLabel: item => item.title, collectionLabel: 'карточек', groupingEnabled: true, onCreateGroup: (id, target) => api.post('/collection/groups', { id, target }) });
-  return <div className="app-page"><div className="wish-grid" ref={drag.listRef}>{items.map(item => <article key={item.id} data-sortable-card-id={item.id} onPointerDown={event => drag.beginPointerDrag(event, item.id)} className={`education-card ${drag.draggedId === item.id ? 'is-dragging' : ''}`}><CardDragHandle title={item.title} disabled={disabled} /><button data-card-drag-trigger className="w-full touch-pan-y bg-muted p-8">{item.title}</button></article>)}</div><output hidden data-order-busy>{String(drag.orderBusy)}</output></div>;
+  return <div className="app-page"><div className="wish-grid snippet-grid" ref={drag.listRef}>{items.map(item => <article key={item.id} data-sortable-card-id={item.id} onPointerDown={event => drag.beginPointerDrag(event, item.id)} className={`education-card ${drag.draggedId === item.id ? 'is-dragging' : ''}`}><CardDragHandle title={item.title} disabled={disabled} /><button data-card-drag-trigger className="w-full touch-pan-y bg-muted p-8">{item.title}</button></article>)}</div><output hidden data-order-busy>{String(drag.orderBusy)}</output></div>;
 }
 function CollectionBadges() {
   return <div className="app-page"><ul className="grid list-none grid-cols-2 gap-x-3 gap-y-7 lg:grid-cols-4">

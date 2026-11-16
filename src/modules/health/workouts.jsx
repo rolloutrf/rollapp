@@ -6,14 +6,15 @@ import {
   Dumbbell, Flame, Footprints, Gauge, RotateCcw, Route, Timer, Trash2, Trophy, Waves, X,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
-import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/modules/card/collection-snippet-media.jsx";
+import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
+import { CollectionSnippetBadge } from "@/modules/card/collection-snippet-media.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -109,18 +110,19 @@ function WorkoutCard({
   const StatusIcon = status.icon;
   const TypeIcon = type.icon;
   return (
-    <div className="relative h-full min-w-0">
-      <Button
-        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
-        variant="ghost"
-        type="button"
-        data-card-drag-trigger={draggable ? "" : undefined}
-        aria-describedby={dragDescriptionId}
-        aria-haspopup="dialog"
-        aria-label={draggable ? `Открыть и переместить тренировку «${workout.title}»` : `Тренировка «${workout.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Перетащите, чтобы изменить порядок" : undefined}
-        onClick={() => onEdit(workout)}
-        onKeyDown={(event) => {
+    <CollectionSnippet
+      title={workout.title}
+      media={{ icon: TypeIcon }}
+      status={<CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>}
+      openButton={{
+        "data-card-drag-trigger": draggable ? "" : undefined,
+        "aria-describedby": dragDescriptionId,
+        className: draggable ? "cursor-grab active:cursor-grabbing" : undefined,
+        "aria-haspopup": "dialog",
+        "aria-label": draggable ? `Открыть и переместить тренировку «${workout.title}»` : `Тренировка «${workout.title}»`,
+        title: draggable ? "Нажмите, чтобы редактировать. Перетащите, чтобы изменить порядок" : undefined,
+        onClick: () => onEdit(workout),
+        onKeyDown: (event) => {
           if (!draggable) return;
           if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
@@ -130,69 +132,56 @@ function WorkoutCard({
             event.preventDefault();
             onMove(workout.id, 1);
           }
-        }}
-      >
-        <span className="sr-only">Открыть или переместить тренировку «{workout.title}»</span>
-      </Button>
-      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
-        <CollectionSnippetMedia icon={TypeIcon}>
-          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
-        </CollectionSnippetMedia>
-        <CardHeader>
-          <CardTitle className="flex min-w-0 flex-col items-start gap-1">
-            <h4 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{workout.title}</h4>
-          </CardTitle>
-          <CardDescription className="flex items-center gap-2">
-            <TypeIcon className="size-4" aria-hidden="true" />
-            {type.label}
-          </CardDescription>
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <EducationItemListMenu
-              currentListId={workout.listId}
-              disabled={moveDisabled}
-              itemLabel="тренировку"
-              itemTitle={workout.title}
-              lists={lists}
-              moving={moving}
-              onCreateList={onCreateList}
-              onDelete={() => onDelete(workout)}
-              onMove={(listId) => onMoveToList(workout, listId)}
-            />
-          </CardAction>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col gap-4">
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <CalendarDays className="size-4" aria-hidden="true" />
-              {formatDate(workout.workoutOn)}{workout.startTime ? ` · ${workout.startTime}` : ""}
-            </span>
-            {workout.durationMinutes && (
-              <span className="flex items-center gap-2">
-                <Timer className="size-4" aria-hidden="true" />
-                {workout.durationMinutes} мин
-              </span>
-            )}
-            {workout.distanceKm && (
-              <span className="flex items-center gap-2">
-                <Route className="size-4" aria-hidden="true" />
-                {formatDistance(workout.distanceKm)} км
-              </span>
-            )}
-            {workout.calories && (
-              <span className="flex items-center gap-2">
-                <Flame className="size-4" aria-hidden="true" />
-                {workout.calories} ккал
-              </span>
-            )}
-            <span className="flex items-center gap-2">
-              <Gauge className="size-4" aria-hidden="true" />
-              {WORKOUT_INTENSITY[workout.intensity] || WORKOUT_INTENSITY.moderate}
-            </span>
-          </div>
-          {workout.notes && <p className="m-0 text-sm text-muted-foreground text-pretty">{workout.notes}</p>}
-        </CardContent>
-      </Card>
-    </div>
+        },
+      }}
+      menu={
+        <EducationItemListMenu
+          currentListId={workout.listId}
+          disabled={moveDisabled}
+          itemLabel="тренировку"
+          itemTitle={workout.title}
+          lists={lists}
+          moving={moving}
+          onCreateList={onCreateList}
+          onDelete={() => onDelete(workout)}
+          onMove={(listId) => onMoveToList(workout, listId)}
+        />
+      }
+    >
+      <div className="flex items-center gap-2">
+        <TypeIcon className="size-4" aria-hidden="true" />
+        <span>{type.label}</span>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
+        <span className="flex items-center gap-2">
+          <CalendarDays className="size-4" aria-hidden="true" />
+          {formatDate(workout.workoutOn)}{workout.startTime ? ` · ${workout.startTime}` : ""}
+        </span>
+        {workout.durationMinutes && (
+          <span className="flex items-center gap-2">
+            <Timer className="size-4" aria-hidden="true" />
+            {workout.durationMinutes} мин
+          </span>
+        )}
+        {workout.distanceKm && (
+          <span className="flex items-center gap-2">
+            <Route className="size-4" aria-hidden="true" />
+            {formatDistance(workout.distanceKm)} км
+          </span>
+        )}
+        {workout.calories && (
+          <span className="flex items-center gap-2">
+            <Flame className="size-4" aria-hidden="true" />
+            {workout.calories} ккал
+          </span>
+        )}
+        <span className="flex items-center gap-2">
+          <Gauge className="size-4" aria-hidden="true" />
+          {WORKOUT_INTENSITY[workout.intensity] || WORKOUT_INTENSITY.moderate}
+        </span>
+      </div>
+      {workout.notes && <p className="line-clamp-3 text-pretty">{workout.notes}</p>}
+    </CollectionSnippet>
   );
 }
 
@@ -442,7 +431,7 @@ function WorkoutSection({
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-labelledby={id}>
       <h3 className={hideTitle ? "sr-only" : "m-0 font-heading text-lg leading-7 font-semibold"} id={id}>{title}</h3>
-      <ul className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4">
+      <ul className="snippet-grid list-none p-0">
         {workouts.map((workout) => (
           <li
             className={`education-card is-draggable min-w-0 rounded-xl ${cardOrder.draggedId === workout.id ? "is-dragging" : ""}`}

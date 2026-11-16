@@ -46,7 +46,7 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
         <span>Ожидает проверки покупка · {formatRolls(deferredPurchase.expectedPrice)}</span>
         <PageActionButton variant="outline" onClick={() => setPurchase(deferredPurchase)}>Проверить покупку</PageActionButton>
       </AlertDescription></Alert>}
-      {isProducts ? <div className="wish-grid catalog-wish-grid">
+      {isProducts ? <div className="wish-grid snippet-grid catalog-wish-grid">
         {STORE_CATS.map((cat) => (
           <WishlistSnippet
             key={cat.id}
