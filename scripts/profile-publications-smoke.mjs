@@ -339,6 +339,8 @@ try {
       await boardLink.click();
       await page.getByRole("heading", { name: "Открыта запись на ноябрь", exact: true }).waitFor();
       assert.equal(await boardLink.getAttribute("aria-current"), "page");
+      assert.equal(await page.getByRole("heading", { name: "Доска объявлений", exact: true }).count(), 0);
+      assert.equal(await publicationBack.count(), 0);
       await assertPublication();
       if ((width === 390 && height === 844) || width === 1440) {
         await page.screenshot({ path: `/tmp/rollapp-publication-shell-${routing}-${width}.png`, animations: "disabled" });

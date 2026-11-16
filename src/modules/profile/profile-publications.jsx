@@ -103,6 +103,7 @@ function Announcements({ announcements, owner, busy, onEdit, onRemove }) {
 
 export function ProfilePublications({ section, endpoint, username, user, data, loading, error, reload, returnTo, showIntro = true }) {
   const calendar = section === "calendar";
+  const intro = showIntro && (calendar || !returnTo);
   const { title, icon: Icon } = sections[section];
   const profile = data?.profile;
   const owner = Boolean(user && data?.isOwner);
@@ -168,9 +169,9 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
 
   return <div className={returnTo ? "page-stack" : "app-page page-stack"}>
     {!returnTo && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-    <article aria-label={showIntro ? undefined : title}
+    <article aria-label={intro ? undefined : title}
       className={`page-stack mx-auto w-full typeset typeset-rollapp typeset-document ${calendar ? "max-w-(--layout-collection-width)" : "max-w-(--layout-text-width)"}`}>
-      {showIntro && <>
+      {intro && <>
         <div className="not-typeset flex flex-wrap gap-2">
           <PageActionButton nativeButton={false} role="link" variant="outline" render={<Link to={returnTo || profilePath} />}>
             <ArrowLeft className="size-5" aria-hidden="true" />{returnTo ? "К Вишлисту" : "К профилю"}

@@ -286,7 +286,9 @@ async function checkAnnouncementsEntry(width, height) {
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
   const fixture = `${smokeOrigin(server)}/__business-profile`;
-  const board = page.getByRole("heading", { name: "Доска объявлений", exact: true });
+  const board = page.getByRole("article", { name: "Доска объявлений", exact: true });
+  const introHeading = page.getByRole("heading", { name: "Доска объявлений", exact: true });
+  const backToWishlist = page.getByRole("link", { name: "К Вишлисту", exact: true });
   const announcement = page.getByRole("heading", { name: "Объявление профиля", exact: true });
   try {
     for (const account of ["personal", "seller"]) {
@@ -311,6 +313,8 @@ async function checkAnnouncementsEntry(width, height) {
       await page.goto(`${fixture}?classifieds=legacy${owner}`);
       await board.waitFor();
       await announcement.waitFor();
+      assert.equal(await introHeading.count(), 0);
+      assert.equal(await backToWishlist.count(), 0);
       const legacyDestination = new URL(page.url());
       assert.equal(legacyDestination.pathname, destination.pathname);
       assert.equal(legacyDestination.searchParams.get("publication"), destination.searchParams.get("publication"));

@@ -263,7 +263,7 @@ export function WishesPage({ onAdd, version }) {
   const profileControls = <WishesProfileControls selectedSpace={selectedSpace} />;
   const wishlistPath = wishlistPublicationPath(selectedSpace);
   const publicationContent = publication && <ProfilePublicationsPage key={`${user.id}:${user.username}:${publication}`} section={publication}
-    username={user.username} user={user} returnTo={wishlistPath} showIntro={publication !== "calendar"} />;
+    username={user.username} user={user} returnTo={wishlistPath} showIntro={false} />;
   const loadError = error && <Alert variant="destructive" className="not-typeset rollapp-body">
     <AlertTitle>Не удалось загрузить Вишлист</AlertTitle>
     <AlertDescription className="grid gap-3">{error.message}<ShadcnButton type="button" variant="outline" onClick={() => reload({ background: Boolean(data) }).catch(() => {})}>Повторить</ShadcnButton></AlertDescription>
