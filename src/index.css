@@ -698,7 +698,7 @@
     font-size: 1rem;
     line-height: 1.1875rem;
     color: var(--secondary-foreground);
-    background-color: var(--secondary);
+    background-color: var(--list-tile-idle-surface, var(--secondary));
     background-image: var(--list-tile-art, none);
   }
 
@@ -761,7 +761,7 @@
   }
 
   :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile]):hover {
-    background-color: color-mix(in oklch, var(--secondary), var(--foreground) 5%);
+    background-color: color-mix(in oklch, var(--list-tile-idle-surface, var(--secondary)), var(--foreground) 5%);
   }
 
   :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile]):active {
@@ -825,23 +825,39 @@
 
   @media (forced-colors: none) {
     [data-list-tile-palette] {
-      --list-tile-selected-surface: color-mix(in oklab, var(--secondary), var(--list-tile-accent) 16%);
+      --list-tile-glass: color-mix(in oklab, var(--background), var(--secondary) 22%);
+      --list-tile-highlight: color-mix(in oklab, var(--list-tile-accent), white 36%);
+      --list-tile-selected-surface: color-mix(in oklab, var(--list-tile-glass), var(--list-tile-accent) 7%);
       --list-tile-selected-ink: var(--foreground);
     }
 
-    /* Paint the tile itself so the cloned drag preview retains the same color. */
+    /* A concentrated lower highlight and a soft side reflection use the same
+       mood color. Paint both on the tile so they survive the drag snapshot. */
     [data-list-tile-palette] [data-list-tile] {
-      --list-tile-glow: 39%;
-      --list-tile-line: 24%;
-      --list-tile-art: radial-gradient(ellipse 112% 73% at 50% 116%,
-        color-mix(in oklab, var(--list-tile-accent) var(--list-tile-glow), transparent),
-        transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--list-tile-accent) var(--list-tile-line), transparent);
+      --list-tile-hotspot: 76%;
+      --list-tile-glow: 61%;
+      --list-tile-reflection: 24%;
+      --list-tile-line: 34%;
+      --list-tile-art:
+        radial-gradient(ellipse 96% 56% at 44% 112%,
+          color-mix(in oklab, var(--list-tile-highlight) var(--list-tile-hotspot), transparent),
+          color-mix(in oklab, var(--list-tile-accent) var(--list-tile-glow), transparent) 36%,
+          color-mix(in oklab, var(--list-tile-accent) 18%, transparent) 68%,
+          transparent),
+        radial-gradient(ellipse 94% 87% at 100% 90%,
+          color-mix(in oklab, var(--list-tile-accent) var(--list-tile-reflection), transparent),
+          transparent 84%);
+      --list-tile-idle-surface: var(--list-tile-glass);
+      box-shadow:
+        inset 0 0 0 1px color-mix(in oklab, var(--list-tile-accent) var(--list-tile-line), transparent),
+        inset 0 -2px 9px color-mix(in oklab, var(--list-tile-accent) var(--list-tile-reflection), transparent);
     }
 
     [data-list-tile-palette] [data-list-tile]:is([aria-pressed="true"], [data-tile-preview-selected]) {
-      --list-tile-glow: 69%;
-      --list-tile-line: 66%;
+      --list-tile-hotspot: 100%;
+      --list-tile-glow: 90%;
+      --list-tile-reflection: 40%;
+      --list-tile-line: 65%;
       background-color: var(--list-tile-selected-surface);
       color: var(--list-tile-selected-ink);
     }

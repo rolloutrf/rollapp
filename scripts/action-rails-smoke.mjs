@@ -71,12 +71,14 @@ try{
       idle:{wishlist:style(tile('.list-tabs','false')),day:style(tile('[data-day-tile-comparison]','false'))},
       selected:{wishlist:style(wishlist),day:style(day)},
       wishlistPaint:expectedPaint(wishlist,'--list-tile-selected-surface','--list-tile-selected-ink','inherit'),
+      wishlistIdlePaint:expectedPaint(tile('.list-tabs','false'),'--list-tile-idle-surface','--secondary-foreground','var(--muted-foreground)'),
       dayPaint:expectedPaint(day,'--primary','--primary-foreground','var(--muted-foreground)'),
       wishlistGlow:getComputedStyle(wishlist).backgroundImage,
       dayGlow:getComputedStyle(day).backgroundImage,
      };
     });
-    assert.deepEqual(parity.idle.day,parity.idle.wishlist,'Unselected day and Wishlist tiles share geometry and paint');
+    assert.deepEqual(parity.idle.day.geometry,parity.idle.wishlist.geometry,'Unselected day and Wishlist tiles share geometry');
+    assert.deepEqual(parity.idle.wishlist.paint,parity.wishlistIdlePaint,'Unselected Wishlist tiles keep their mood surface and muted metadata');
     assert.deepEqual(parity.selected.day.geometry,parity.selected.wishlist.geometry,'Selected day and Wishlist tiles share geometry and typography');
     assert.deepEqual(parity.selected.day.paint,parity.dayPaint,'Selected days use the shared primary colors');
     assert.deepEqual(parity.selected.wishlist.paint,parity.wishlistPaint,'Selected Wishlist tiles use the dedicated surface and equal title and count colors');
