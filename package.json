@@ -128,7 +128,10 @@
     "check:release:profile": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:profile && npm run test:profile-mood && npm run build",
     "test:product-suggestions": "node scripts/product-suggestions-smoke.mjs",
     "mcp": "node scripts/mcp/server.mjs",
-    "mcp:auth": "node scripts/mcp/auth.mjs"
+    "mcp:auth": "node scripts/mcp/auth.mjs",
+    "storybook": "storybook dev --host 127.0.0.1 --port 6006 --exact-port --no-open",
+    "build-storybook": "storybook build --disable-telemetry",
+    "test:storybook": "node scripts/storybook-smoke.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -186,12 +189,15 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.4.0",
+    "@storybook/addon-docs": "10.6.7",
+    "@storybook/react-vite": "10.6.7",
     "@ton/sandbox": "^0.45.0",
     "@ton/tolk-js": "^1.5.0",
     "concurrently": "^9.2.5",
     "fflate": "^0.8.3",
     "shadcn": "^4.22.1",
     "sharp": "^0.35.5",
+    "storybook": "10.6.7",
     "vite": "8.1.6"
   }
 }
