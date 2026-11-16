@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Copy, KeyRound } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api } from "@/modules/runtime/api.js";
 import { ControlBar } from "@/components/control-bar";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
@@ -13,6 +14,43 @@ import { Switch } from "@/components/ui/switch";
 
 const scopeLabels = { read: "Только чтение", write: "Чтение и запись" };
 const expiryFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" });
+
+const serverUrl = "https://роллапп.рф/mcp";
+const codexCommands = [
+  "read -rs ROLLAPP_MCP_TOKEN",
+  "export ROLLAPP_MCP_TOKEN",
+  "codex mcp add rollapp \\",
+  `  --url ${new URL(serverUrl).href} \\`,
+  "  --bearer-token-env-var ROLLAPP_MCP_TOKEN",
+  "codex",
+].join("\n");
+
+function McpSetupGuide() {
+  return <>
+    <section aria-labelledby="mcp-setup-heading" className="typeset typeset-rollapp" data-typeset-group>
+      <h3 id="mcp-setup-heading">Как подключить</h3>
+      <ol>
+        <li>Нажмите «Создать ключ» и скопируйте его. Полный ключ показывается только при создании и действует 30 дней. Не отправляйте его в чат.</li>
+        <li>Добавьте в MCP-клиенте сервер <strong>Streamable HTTP</strong>. Укажите адрес <code className="wrap-anywhere">{serverUrl}</code> и передайте ключ как <strong>Bearer token</strong>.</li>
+        <li>Чтобы проверить подключение, попросите ассистента: «Покажи мои списки To Do в Роллаппе».</li>
+      </ol>
+    </section>
+    <Accordion>
+      <AccordionItem value="codex">
+        <AccordionTrigger headerAs="h4" className="min-h-12 items-center gap-2 text-rollapp-body! hover:no-underline">
+          Codex в терминале
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="typeset typeset-rollapp" data-typeset-group>
+            <p>В терминале macOS или Linux с установленным Codex CLI выполните первую строку. Вставьте ключ и нажмите Enter: ввод скрыт. Затем выполните остальные строки в том же окне.</p>
+            <pre className="whitespace-pre-wrap wrap-anywhere"><code>{codexCommands}</code></pre>
+            <p><a href="https://developers.openai.com/codex/mcp/#connect-an-existing-mcp-server" target="_blank" rel="noreferrer">Инструкция Codex в OpenAI Docs</a></p>
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  </>;
+}
 
 export function ProfileMcpKeys({ onBusyChange }) {
   const [keys, setKeys] = useState(null);
@@ -73,9 +111,9 @@ export function ProfileMcpKeys({ onBusyChange }) {
 
   return <form onSubmit={issueKey} className="flex min-h-0 flex-1 flex-col">
     <ScrollArea className="mx-auto min-h-0 w-full max-w-full flex-1">
-      <section aria-label="Ключи доступа MCP" className="not-typeset rollapp-body grid min-w-0 gap-4 px-4 py-4">
-        <p>Подключите Codex или другой MCP-клиент к своим задачам и вишлистам. Ключ действует 30 дней.</p>
-        <p className="break-all text-muted-foreground">https://роллапп.рф/mcp</p>
+      <section aria-label="Ключи доступа MCP" className="rollapp-body grid min-w-0 gap-4 px-4 py-4">
+        <p>MCP позволяет Codex и другим ассистентам работать с задачами и вишлистами вашего аккаунта Роллапп.</p>
+        <McpSetupGuide />
         {!keys && (loadError
           ? <div className="grid gap-2" role="alert">
             <p className="text-destructive">{loadError}</p>
@@ -86,7 +124,7 @@ export function ProfileMcpKeys({ onBusyChange }) {
           <Field orientation="horizontal">
             <FieldContent>
               <FieldLabel htmlFor="mcp-allow-write">Разрешить запись</FieldLabel>
-              <FieldDescription id="mcp-write-description">Запись позволяет создавать и обновлять задачи и желания.</FieldDescription>
+              <FieldDescription id="mcp-write-description">По умолчанию ключ только для чтения. Запись позволяет менять задачи, добавлять желания и менять их статус.</FieldDescription>
             </FieldContent>
             <Switch id="mcp-allow-write" aria-describedby="mcp-write-description" checked={allowWrite}
               disabled={issuing || revoking} onCheckedChange={setAllowWrite} />
@@ -94,7 +132,7 @@ export function ProfileMcpKeys({ onBusyChange }) {
           {issueError && <p role="alert" className="text-destructive">{issueError}</p>}
           {issuedKey && <Field>
             <FieldLabel htmlFor="mcp-issued-key">Новый ключ MCP</FieldLabel>
-            <FieldDescription>Ключ показывается один раз. Скопируйте его сейчас.</FieldDescription>
+            <FieldDescription>Скопируйте ключ сейчас и укажите его только в настройках клиента или в скрытом вводе терминала.</FieldDescription>
             <Input id="mcp-issued-key" readOnly value={issuedKey.token} spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} />
             <Button type="button" variant="outline" className="min-h-12 w-fit rounded-full" onClick={copyKey}>
               <Copy aria-hidden="true" />Скопировать ключ

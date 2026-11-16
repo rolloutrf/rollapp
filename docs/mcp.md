@@ -4,15 +4,20 @@ Rollapp поддерживает Streamable HTTP по адресу `https://ро
 
 ## Подключение по HTTPS
 
-В настройках профиля Rollapp откройте **Ключи MCP**, нажмите **Создать ключ** и скопируйте его. Ключ получает права чтения и действует 30 дней. Включите **Разрешить запись** перед выпуском, если клиенту нужны операции записи. Список активных ключей и отзыв доступны в том же разделе.
+В настройках профиля Rollapp откройте **Ключи MCP**, нажмите **Создать ключ** и скопируйте его. Ключ получает права чтения и действует 30 дней. Включите **Разрешить запись** перед выпуском, если клиенту нужны операции записи. Список активных ключей и отзыв доступны в том же разделе. Блок «Как подключить»
+показывает адрес, тип транспорта, пример запроса для проверки и команды
+под «Codex в терминале». Полный ключ показывается только при создании;
+не отправляйте его в чат.
 
 ```bash
 read -rs ROLLAPP_MCP_TOKEN
 export ROLLAPP_MCP_TOKEN
 codex mcp add rollapp --url https://xn--80avakiab.xn--p1ai/mcp --bearer-token-env-var ROLLAPP_MCP_TOKEN
+codex
 ```
 
-Первая команда ждёт ввода ключа и скрывает ввод. Запускайте Codex из окружения, где задан `ROLLAPP_MCP_TOKEN`. Другие MCP-клиенты могут передать ключ через `Authorization: Bearer …` или `X-API-Key`. [OpenAI Docs о подключении MCP](https://developers.openai.com/codex/mcp/), [MCP SDK о Streamable HTTP](https://ts.sdk.modelcontextprotocol.io/v2/serving/http).
+Выполните первую строку отдельно: команда ждёт вставки ключа и Enter,
+не показывая ключ на экране. Затем выполните остальные строки в том же окне. Запускайте Codex из окружения, где задан `ROLLAPP_MCP_TOKEN`. Другие MCP-клиенты могут передать ключ через `Authorization: Bearer …` или `X-API-Key`. [OpenAI Docs о подключении MCP](https://developers.openai.com/codex/mcp/), [MCP SDK о Streamable HTTP](https://ts.sdk.modelcontextprotocol.io/v2/serving/http).
 
 В режиме входа только через Яндекс ID создавайте новые ключи в настройках профиля. При наличии сохранённой сессии MCP ключ также можно выпустить из терминала командой `npm run --silent mcp:auth -- token` (с `--write` для записи). Чтобы отозвать ключ из `ROLLAPP_MCP_TOKEN`, выполните `npm run mcp:auth -- revoke`.
 

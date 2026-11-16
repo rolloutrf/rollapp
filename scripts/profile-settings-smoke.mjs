@@ -696,6 +696,27 @@ try {
     assert(initialFooter.ownsSubmit && initialFooter.outsideScroll && initialFooter.hit);
     if (mobile) assert.equal((await back.boundingBox()).y, initialFooter.y);
     else assert(Math.abs(initialFooter.drawerGap) < 1);
+    const setup = keys.getByRole("region", { name: "Как подключить" });
+    await setup.getByText("https://роллапп.рф/mcp", { exact: true }).waitFor();
+    assert.equal(await setup.getByRole("listitem").count(), 3);
+    assert.equal(await setup.getByRole("list").evaluate(node => getComputedStyle(node).listStyleType), "decimal");
+    if (shortMobile || width === 1440) {
+      const terminal = keys.getByRole("button", { name: "Codex в терминале", exact: true });
+      assert.equal(await terminal.getAttribute("aria-expanded"), "false");
+      await terminal.press("Enter");
+      const commands = keys.locator("pre");
+      await commands.waitFor();
+      const instructions = await commands.textContent();
+      assert.match(instructions, /^read -rs ROLLAPP_MCP_TOKEN/);
+      assert.match(instructions, /codex mcp add rollapp/);
+      assert.match(instructions, /--url https:\/\/xn--80avakiab\.xn--p1ai\/mcp/);
+      assert.match(instructions, /--bearer-token-env-var ROLLAPP_MCP_TOKEN/);
+      assert.equal(await secret.count(), 0);
+      assert(await commands.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+      assert.deepEqual(await footerGeometry(), initialFooter);
+      await terminal.press("Enter");
+      await commands.waitFor({ state: "hidden" });
+    }
     await createKey.click();
     await secret.waitFor();
     const readToken = `rwmcp_read_${"x".repeat(43)}`;
