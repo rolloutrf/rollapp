@@ -59,12 +59,17 @@ test("payment is private and paid retries never touch balances, including after 
   assert.deepEqual(await payPersonalOffer(paid, "buyer", id), { id: "purchase", replayed: true }); paid.done();
   await reject(payPersonalOffer(scripted([]), "buyer", "invalid"), "OFFER_NOT_FOUND");
 });
-test("status gives paid priority over expiry and does not expose request keys", () => {
+test("status keeps paid and expired history when payment access changes", () => {
   const row = { id: randomUUID(), price_rolls: "50", expired: true, purchase_id: "purchase", idempotency_key: "secret" };
   assert.equal(personalOfferFromRow(row).status, "paid");
   assert.equal(personalOfferFromRow({ ...row, refunded_at: "2026-11-16" }).status, "refunded");
   assert.equal(personalOfferFromRow({ ...row, purchase_id: null }).status, "expired");
-  assert.equal(personalOfferFromRow({ ...row, purchase_id: null, expired: false }).status, "active");
+  const unpaid = { ...row, purchase_id: null, expired: false, current_item_id: "item",
+    current_item_live: true, current_sphere: "education", account_type: "business" };
+  assert.equal(personalOfferFromRow({ ...unpaid, subscribed: true }).status, "active");
+  assert.equal(personalOfferFromRow({ ...unpaid, subscribed: false }).status, "unavailable");
+  assert.equal(personalOfferFromRow({ ...unpaid, subscribed: true, current_item_live: false }).status, "unavailable");
+  assert.equal(personalOfferFromRow({ ...unpaid, subscribed: true, business_category: "doctor" }).status, "unavailable");
   assert.equal(personalOfferFromRow(row).idempotencyKey, undefined);
 });
 
@@ -80,6 +85,9 @@ test("payment rechecks expiry after wallet locks and stores a single purchase wi
     const steps = [
       [/recipient_id=\$2 FOR UPDATE/, [{ id, item_id: "item", item_title: "Frozen", price_rolls: "50", business_user_id: "seller" }]],
       [/expires_at > clock_timestamp/, [{ id }]],
+      [/ORDER BY id FOR SHARE/, [{ id: "buyer", account_type: "personal" }, { id: "seller", account_type: "business", business_category: "teacher" }]],
+      [/FROM business_marketplace_items.*FOR SHARE/, [{ id: "item", sphere: "education" }]],
+      [/FROM follows.*FOR SHARE/, [{ one: 1 }]],
       [/SELECT id FROM users/, [{ id: "seller" }]],
       // ensureRollWallet locks in sorted order: buyer, seller.
       ...["buyer", "seller"].flatMap(() => [[/INSERT INTO roll_wallets/, []], [/FOR UPDATE/, []], [/INSERT INTO roll_transactions/, []]]),

@@ -139,6 +139,12 @@ test("personal offers on existing production schema: every test write is rolled 
             return { code: response.status, result: await response.json() };
           };
           const refundPath = `/${created.body.offer.id}/refund`;
+          const listOffer = async (userId) => {
+            const response = await fetch(`http://127.0.0.1:${server.address().port}/api/personal-offers`, { headers: { "x-test-user": userId } });
+            assert.equal(response.status, 200);
+            const { offers } = await response.json();
+            return offers.find(({ id }) => id === created.body.offer.id);
+          };
           const beforeStatus = await balances();
           assert.deepEqual(await status(path, buyer), { code: 200, result: { purchase: null } });
           assert.equal((await status(path, seller)).code, 404);
@@ -148,6 +154,26 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal((await post(path, other)).status, 404);
           assert.equal((await post(path, buyer, { expectedPriceRolls: 2 })).body.code, "OFFER_PRICE_CHANGED");
           assert.deepEqual(await balances(), beforeStatus);
+          for (const [sql, params] of [
+            ["DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [buyer, seller]],
+            ["UPDATE business_marketplace_items SET active=FALSE WHERE id=$1", [product.id]],
+            ["UPDATE users SET business_category='doctor' WHERE id=$1", [seller]],
+          ]) {
+            await client.query("SAVEPOINT payment_access");
+            try {
+              await client.query(sql, params);
+              for (const actorId of [buyer, seller]) assert.equal((await listOffer(actorId)).status, "unavailable");
+              const denied = await post(path, buyer, { expectedPriceRolls: 1 });
+              assert.equal(denied.status, 403);
+              assert.equal(denied.body.code, "OFFER_ACCESS_REVOKED");
+              assert.deepEqual(await balances(), beforeStatus);
+              assert.equal((await client.query("SELECT purchase_id FROM business_personal_offers WHERE id=$1", [created.body.offer.id])).rows[0].purchase_id, null);
+            } finally {
+              await client.query("ROLLBACK TO SAVEPOINT payment_access");
+              await client.query("RELEASE SAVEPOINT payment_access");
+            }
+          }
+          assert.equal((await listOffer(buyer)).status, "active");
           const paid = await post(path, buyer, { expectedPriceRolls: 1 });
           assert.equal(paid.status, 201);
           const replay = await post(path, buyer);
@@ -194,6 +220,10 @@ test("personal offers on existing production schema: every test write is rolled 
             assert.equal((await readRollOrders(client, buyer)).orders[0].status, "placed");
           } finally { await client.query("ROLLBACK TO SAVEPOINT refund_recipient_capacity"); }
 
+          await client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [buyer, seller]);
+          await client.query("UPDATE business_marketplace_items SET active=FALSE WHERE id=$1", [product.id]);
+          assert.equal((await listOffer(buyer)).status, "paid");
+          assert.equal((await status(path, buyer)).result.purchase.id, paid.body.purchase.id);
           const refunded = await post(refundPath, seller, { expectedPriceRolls: 1 });
           assert.equal(refunded.status, 200);
           assert.equal(refunded.body.purchase.replayed, false);
@@ -201,7 +231,7 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal(refundStatus.result.purchase.refundedAt, refunded.body.purchase.refundedAt);
           assert.equal(refundStatus.result.purchase.id, paid.body.purchase.id);
           assert.equal((await status(path, buyer)).result.purchase.refundedAt, refunded.body.purchase.refundedAt);
-          assert.equal(readOnlyRequests, 9);
+          assert.equal(readOnlyRequests, 10);
           assert.equal((await post(refundPath, seller)).body.purchase.replayed, true);
           assert.equal((await post(`/${created.body.offer.id.toUpperCase()}/refund`, seller)).body.purchase.replayed, true);
           const paidReplay = await post(path, buyer);
@@ -243,12 +273,32 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal(recommendation.status,200,JSON.stringify(recommendation.body));
           const paymentId=recommendation.body.personalOfferId;
           assert(paymentId); assert.equal((await request(path,terms,seller)).body.personalOfferId,paymentId);
+          const invoiceStatus = async () => (await request("/personal-offers")).body.offers.find(({ id }) => id === paymentId).status;
+          assert.equal(await invoiceStatus(), "active");
           const listed=await request('/wishlist-business/products/offers');
           assert.equal(listed.body.items[0].personalOffer.priceRolls,40);assert.equal(listed.body.items[0].personalOffer.id,paymentId);
           assert.equal((await request('/wishlist-business/products/offers',null,other)).body.items.length,0);
           await client.query("UPDATE wishlist_business_items SET title='Changed',price='10000 RUB' WHERE id=$1",[wishlistItem]);
           assert.equal((await request('/wishlist-business/products/offers')).body.items[0].title,'Original wishlist item');
+          await client.query("SAVEPOINT wishlist_grant_only");
+          try {
+            const paymentPath = `/personal-offers/${paymentId}/pay`;
+            const before = await balances();
+            await client.query("UPDATE wishlist_business_pages SET published=FALSE WHERE business_user_id=$1 AND space='products'", [seller]);
+            assert.equal(await invoiceStatus(), "unavailable");
+            const unpublished = await request(paymentPath, {});
+            assert.equal(unpublished.status, 403);
+            assert.equal(unpublished.body.code, "OFFER_ACCESS_REVOKED");
+            assert.deepEqual(await balances(), before);
+            await client.query("UPDATE wishlist_business_pages SET published=TRUE WHERE business_user_id=$1 AND space='products'", [seller]);
+            const granted = await request(paymentPath, {});
+            assert.equal(granted.status, 201, JSON.stringify(granted.body));
+          } finally {
+            await client.query("ROLLBACK TO SAVEPOINT wishlist_grant_only");
+            await client.query("RELEASE SAVEPOINT wishlist_grant_only");
+          }
           await client.query("DELETE FROM sphere_section_shares WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist'",[buyer,seller]);
+          assert.equal(await invoiceStatus(), "unavailable");
           const denied=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(denied.status,403);assert.equal(denied.body.code,'OFFER_ACCESS_REVOKED');
           await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [buyer,seller]);
           const buyers = await request('/wishlist-business/products/buyers',null,seller);

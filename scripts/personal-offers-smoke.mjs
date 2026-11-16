@@ -161,11 +161,17 @@ try {
     assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);
     await page.screenshot({ path: `${output}/${width}-${height}.png`, fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Root overflow");
-    for (const scenario of ["empty", "error", "loading", "seller"]) {
+    for (const scenario of ["empty", "error", "loading", "unavailable", "seller"]) {
       await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=${scenario}`);
       if (scenario === "empty") await page.getByText("Здесь появятся персональные счета от бизнеса.").waitFor();
       if (scenario === "error") { await page.getByText("Не удалось загрузить счета").waitFor(); await page.getByRole("button", { name: "Повторить" }).click(); }
       if (scenario === "loading") await page.getByText("Загружаем счета…").waitFor();
+      if (scenario === "unavailable") {
+        await page.getByRole("status").filter({ hasText: "Оплата сейчас недоступна" }).waitFor();
+        assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), []);
+        if (width === 390 || width === 1440) await page.screenshot({ path: `${output}/unavailable-${width}-${height}.png`, fullPage: true });
+      }
       if (scenario === "seller") {
         await page.getByText("Ожидает оплаты").waitFor();
         assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 0);

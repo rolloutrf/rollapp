@@ -237,7 +237,7 @@ export function PersonalOffers({ user, sphere, onPaid, client = api }) {
           : offer.status === "paid" ? <>
             <p role="status">Оплачен</p>
             {outgoing && <ControlBar><Button variant="outline" onClick={(event) => openOperation(event, offer, "refund")}>Вернуть роллы</Button></ControlBar>}
-          </> : expired ? <p>Срок истёк</p> : outgoing ? <p>Ожидает оплаты</p> : <ControlBar><Button onClick={(event) => openOperation(event, offer, "pay")}>Оплатить</Button></ControlBar>}
+          </> : expired ? <p>Срок истёк</p> : offer.status === "unavailable" ? <p role="status">Оплата сейчас недоступна</p> : outgoing ? <p>Ожидает оплаты</p> : <ControlBar><Button onClick={(event) => openOperation(event, offer, "pay")}>Оплатить</Button></ControlBar>}
       </article>;
     })}
     {(nextOffset != null || paginated.current) && <ControlBar className="flex flex-wrap gap-2">

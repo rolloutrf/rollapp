@@ -77,6 +77,7 @@ const client = {
     if (path === "/personal-offers/items") return { items: scenario === "business-page" ? [item] : createdItem ? [createdItem] : [] };
     if (path.startsWith("/business-access/users") || path.startsWith("/personal-offers/recipients")) return { people: [{ id: "buyer", name: scenario === "long-recipient" ? "И".repeat(80) : "Получатель", username: scenario === "long-recipient" ? "w".repeat(32) : "buyer" }] };
     if (scenario === "empty" || (scenario === "payment-archived" && paid)) return { offers: [] };
+    if (scenario === "unavailable") return { offers: [{ ...base, id: "unavailable", title: "Счёт с закрытым доступом", status: "unavailable" }] };
     if (scenario === "error") throw new Error("Не удалось загрузить счета");
     if (scenario === "loading") return new Promise(() => {});
     return { offers: [ { ...base, id: "active", title: "Активный оффер", status: paid ? "paid" : "active" }, { ...base, id: "expired", title: "Истёкший оффер", status: "expired", expiresAt: new Date(0).toISOString() }, { ...base, id: "paid", title: "Оплаченный оффер", status: refunded ? "refunded" : "paid" } ] };
