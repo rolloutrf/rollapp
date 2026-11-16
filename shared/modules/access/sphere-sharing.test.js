@@ -38,7 +38,7 @@ test("builds an authenticated shared-section path", () => {
   );
   assert.equal(
     sphereSectionPath({ ownerUsername: "synthetic-user", sphere: "wishlist", section: "wishlist" }),
-    "/u/synthetic-user",
+    "/synthetic-user",
   );
 });
 

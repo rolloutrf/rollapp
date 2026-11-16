@@ -67,6 +67,6 @@ export function isAssistantPath(pathname) {
 
 export function messagesHostPath(user) {
   return user.accountType === "business"
-    ? publicSpacePath(user.username, user.sellerSpace || "products")
+    ? publicSpacePath(user, user.sellerSpace || "products")
     : APP_HOME;
 }

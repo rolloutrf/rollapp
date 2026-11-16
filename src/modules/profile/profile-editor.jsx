@@ -51,7 +51,7 @@ export function ProfileEditorProvider({ children }) {
         onProfileUpdated={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
         onWishlistsImported={refreshWishlist}
         onSaved={async (savedUser) => {
-          const target = renamedProfileLocation(location, user.username, savedUser.username);
+          const target = renamedProfileLocation(location, user, savedUser);
           setSession({ user: savedUser, loading: false, error: null });
           if (target !== `${location.pathname}${location.search}${location.hash}`) navigate(target, { replace: true, state: location.state });
           closeProfileEditor();

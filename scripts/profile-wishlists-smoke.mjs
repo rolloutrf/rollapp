@@ -4,8 +4,8 @@ import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
 
-async function assertProfileHeading(hero, { owner }) {
-  const heading = hero.getByRole('heading', { name: 'Профиль', exact: true, level: 1 });
+async function assertProfileHeading(hero, { owner, name = 'Профиль' }) {
+  const heading = hero.getByRole('heading', { name, exact: true, level: 1 });
   await heading.waitFor();
   const memberNumber = hero.getByText("ID #12345", { exact: true });
   const friends = hero.getByRole('link', { name: 'Друзья', exact: true });
@@ -332,11 +332,15 @@ try {
       await open.click();
       await personalEntry.click();
       const address = page.getByRole('textbox', { name: 'Адрес профиля' });
-      await address.fill('fixture-renamed');
-      await address.press('Enter');
-      await page.waitForURL(origin + '/fixture-renamed');
+      assert.equal(await address.isEditable(), false);
+      const name = page.getByRole('textbox', { name: 'Имя', exact: true });
+      await name.fill('Mikhail Koloskov');
+      assert.equal(await address.inputValue(), 'колосков-михаил');
+      await name.press('Enter');
+      await page.waitForURL(url => decodeURI(url.pathname) === '/колосков-михаил');
+      assert.deepEqual(await page.evaluate(() => window.profilePatches.at(-1)), { name: 'Mikhail Koloskov' });
       await page.locator('.profile-settings-dialog').waitFor({ state: 'detached' });
-      await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: true });
+      await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: true, name: 'Mikhail Koloskov' });
       assert.equal(await badges.count(), 0);
     }
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);

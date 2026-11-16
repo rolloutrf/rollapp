@@ -11,7 +11,7 @@ export function GiftSuggestionPeople({ suggestion }) {
   return <div className="flex flex-wrap gap-2" aria-label={`Участники: ${suggestion.participants.map((person) => person.name || person.username).join(", ")}`}>
     {suggestion.participants.map((person) => <Link
       key={person.id}
-      to={publicProfilePath(person.username)}
+      to={publicProfilePath(person)}
       className="inline-flex min-h-10 max-w-full items-center gap-2 rounded-full border border-border bg-muted/50 py-1 pr-3 pl-1 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       title={`Открыть профиль ${person.name || person.username}`}
     >

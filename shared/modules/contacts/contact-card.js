@@ -7,7 +7,7 @@ export function publicContactCard(profile, origin) {
   if (!username || !name) throw new Error("Профиль ещё не загружен");
   const base = new URL(origin);
   if (!["https:", "http:"].includes(base.protocol)) throw new Error("Недопустимый адрес профиля");
-  return { format: "rollapp-contact-card", version: 1, name, username, url: new URL(publicProfilePath(username), base.origin).href };
+  return { format: "rollapp-contact-card", version: 1, name, username, url: new URL(publicProfilePath(profile), base.origin).href };
 }
 
 const escapeText = (value) => String(value).replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\n").replace(/;/g, "\\;").replace(/,/g, "\\,");

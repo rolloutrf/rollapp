@@ -2,12 +2,13 @@ export const PROFILE_SPACES = ["products", "places", "events", "media", "food", 
 const PROFILE_PUBLICATIONS = ["calendar", "announcements"];
 export const profilePublicationSection = (value) => PROFILE_PUBLICATIONS.includes(value) ? value : null;
 const segment = (value) => encodeURIComponent(String(value || ""));
-export const publicProfilePath = (username) => `/${segment(username)}`;
-export const publicSpacePath = (username, space = "products") => `${publicProfilePath(username)}/${PROFILE_SPACES.includes(space) ? space : "products"}`;
-export const publicListPath = (username, listId) => `${publicProfilePath(username)}/lists/${segment(listId)}`;
-export const publicWishPath = (username, wishId) => `${publicProfilePath(username)}/wishes/${segment(wishId)}`;
-export const publicPublicationPath = (username, section) => `${publicProfilePath(username)}/${segment(section)}`;
-export const publicBookingPath = (username) => `${publicPublicationPath(username, "calendar")}/book`;
+export const publicProfileAddress = profile => typeof profile === "string" ? profile : profile?.profileSlug || profile?.username;
+export const publicProfilePath = profile => `/${segment(publicProfileAddress(profile))}`;
+export const publicSpacePath = (profile, space = "products") => `${publicProfilePath(profile)}/${PROFILE_SPACES.includes(space) ? space : "products"}`;
+export const publicListPath = (profile, listId) => `${publicProfilePath(profile)}/lists/${segment(listId)}`;
+export const publicWishPath = (profile, wishId) => `${publicProfilePath(profile)}/wishes/${segment(wishId)}`;
+export const publicPublicationPath = (profile, section) => `${publicProfilePath(profile)}/${segment(section)}`;
+export const publicBookingPath = (profile) => `${publicPublicationPath(profile, "calendar")}/book`;
 
 export function publicProfileRoute(pathname) {
   const parts = pathname.split("/").filter(Boolean);
@@ -24,12 +25,20 @@ export function publicProfileRoute(pathname) {
   return null;
 }
 
-export function renamedProfileLocation(location, previousUsername, username) {
+export function renamedProfileLocation(location, previousProfile, profile) {
   const route = publicProfileRoute(location.pathname);
-  const pathname = route?.username.toLowerCase() === previousUsername.toLowerCase()
-    ? `${publicProfilePath(username)}${location.pathname.slice(location.pathname.indexOf("/", 1) < 0 ? location.pathname.length : location.pathname.indexOf("/", 1))}`
+  const legacy = typeof previousProfile === "object" ? previousProfile?.username : previousProfile;
+  const current = publicProfileAddress(previousProfile);
+  const next = publicProfileAddress(profile);
+  const isPrevious = value => Boolean(value && [current, legacy].some(old => old && old.toLowerCase() === value.toLowerCase()));
+  if (!next) return `${location.pathname}${location.search || ""}${location.hash || ""}`;
+  const pathname = isPrevious(route?.username) && route.username !== next
+    ? `${publicProfilePath(next)}${location.pathname.slice(location.pathname.indexOf("/", 1) < 0 ? location.pathname.length : location.pathname.indexOf("/", 1))}`
     : location.pathname;
   const search = new URLSearchParams(location.search);
-  if (search.get("owner") === previousUsername) search.set("owner", username);
-  return `${pathname}${search.size ? `?${search}` : ""}${location.hash || ""}`;
+  const owner = search.get("owner");
+  const replaceOwner = isPrevious(owner) && owner !== next;
+  if (replaceOwner) search.set("owner", next);
+  const searchText = replaceOwner ? `?${search}` : location.search || "";
+  return `${pathname}${searchText}${location.hash || ""}`;
 }

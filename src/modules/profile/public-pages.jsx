@@ -3,7 +3,7 @@ import { useSession } from "../auth/session.jsx";
 import { LoadingScreen } from "../shell/page-feedback.jsx";
 import { api } from "../runtime/api.js";
 import { ProfilePublications } from "@/modules/profile/profile-publications.jsx";
-import { renamedProfileLocation } from "../../../shared/modules/profile/profile-links.js";
+import { publicProfileAddress, renamedProfileLocation } from "../../../shared/modules/profile/profile-links.js";
 import { useAsync } from "../shell/use-async.jsx";
 import { AppShell } from "../shell/app-shell.jsx";
 
@@ -18,8 +18,8 @@ export function ProfilePublicationsPage({ section, username, user, returnTo, sho
   const location = useLocation();
   const endpoint = `/profile/${encodeURIComponent(username)}/${section}`;
   const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
-  if (data && data.profile.username !== username && !returnTo) {
-    return <Navigate to={renamedProfileLocation(location, username, data.profile.username)} replace />;
+  if (data && publicProfileAddress(data.profile) !== username && !returnTo) {
+    return <Navigate to={renamedProfileLocation(location, username, data.profile)} replace />;
   }
   const page = <ProfilePublications {...{ section, endpoint, username, user, data, loading, error, reload, returnTo, showIntro }} />;
   if (returnTo) return page;

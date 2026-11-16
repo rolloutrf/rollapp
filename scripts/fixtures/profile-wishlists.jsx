@@ -43,7 +43,7 @@ api.get = async (path) => {
       requests: [{ id: "access-request", requester: { name: "Продавец", username: "seller" }, sphere: "wishlist", section: "products" }],
     };
   }
-  if (["/profile/fixture", "/profile/fixture-renamed"].includes(path)) {
+  if (path === "/profile/fixture" || path === `/profile/${encodeURIComponent("колосков-михаил")}`) {
     return { profile, isOwner: !guest, lists: [], wishes: guest ? [] : [...importedWishes.values()], followingCount: 0, followersCount: 0 };
   }
   return unexpected(path);
@@ -82,6 +82,7 @@ api.patch = async (path, patch) => {
     else delete wishlistLinks[provider];
   }
   profile = { ...profile, ...patch, wishlistLinks };
+  if (patch.name === "Mikhail Koloskov") profile.profileSlug = "колосков-михаил";
   return { user: profile };
 };
 

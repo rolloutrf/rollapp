@@ -1,3 +1,4 @@
+import { useLocation, useNavigate } from "react-router-dom";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "@/modules/runtime/api.js";
 import { isSphereSection } from "../../../shared/modules/access/sphere-sharing.js";
@@ -27,6 +28,8 @@ export function sphereScopeFromLocation(pathname, search, tabsBySphere = {}) {
 }
 
 export function SphereSharingProvider({ children, currentUser, scope, search }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const requestedOwner = scope?.sphere === "wishlist" ? "" : new URLSearchParams(search).get("owner")?.trim().toLowerCase() || "";
   const scopeKey = scope ? JSON.stringify([currentUser?.id, scope.sphere, scope.section, requestedOwner]) : "";
   const [version, setVersion] = useState(0);
@@ -48,6 +51,14 @@ export function SphereSharingProvider({ children, currentUser, scope, search }) 
     });
     return () => { current = false; };
   }, [requestedOwner, scope?.section, scope?.sphere, scopeKey, version]);
+
+  const ownerAddress = state?.context?.owner?.profileSlug;
+  useEffect(() => {
+    if (!requestedOwner || !ownerAddress || requestedOwner === ownerAddress) return;
+    const params = new URLSearchParams(location.search);
+    params.set("owner", ownerAddress);
+    navigate({ pathname: location.pathname, search: `?${params}`, hash: location.hash }, { replace: true, state: location.state });
+  }, [requestedOwner, ownerAddress, location, navigate]);
 
   const value = useMemo(() => {
     const context = state?.context;

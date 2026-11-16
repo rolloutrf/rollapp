@@ -46,7 +46,7 @@ export function GlobalAppChrome() {
   const selectTab = (tabId) => {
     if (!tabId || tabId === current?.id) return;
     if (publicRoute) {
-      navigate(publicSpacePath(publicRoute.username, tabId));
+      navigate(publicSpacePath(publicRoute, tabId));
       return;
     }
     const search = new URLSearchParams(location.search);

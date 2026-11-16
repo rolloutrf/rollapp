@@ -1,6 +1,8 @@
+import { publicProfileRoute, renamedProfileLocation } from "../shared/modules/profile/profile-links.js";
+import { findProfileForAddress, invalidateProfileDirectory, profileAddress, profileDirectory, saveProfileAddress } from "./modules/profile/profile-addresses.js";
 import { listSpaceValues } from "./modules/categories/wish-spaces.js";
 import { sphereApiOwner } from "../shared/modules/shell/applications.js";
-import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
+import { internalPageUrl, localizedPageUrl } from "../shared/modules/shell/page-urls.js";
 import { applicationSessionCookies, readBrowserSessionCookies, sphereSessionDestination } from "./modules/auth/application-sessions.js";
 import { applicationRuntime, requireApplicationApi } from "./modules/runtime/application-runtime.js";
 import { registerMessengerRoutes } from "./messenger.js";
@@ -442,16 +444,17 @@ function cleanUser(row) {
 async function cleanAuthenticatedUser(row) {
   if (!row) return null;
   const moodLevel = profileMoodAvailable ? row.mood_level ?? null : null;
+  const profileSlug = await profileAddress(query, row.id);
   const hasCapabilities = ["has_yandex", "can_discover_spheres"]
     .every((property) => Object.prototype.hasOwnProperty.call(row, property));
-  if (hasCapabilities) return { ...cleanUser(row), moodLevel };
+  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug };
   const capabilities = await query(
     `SELECT
        EXISTS(SELECT 1 FROM yandex_identities WHERE user_id=$1) AS has_yandex,
        EXISTS(SELECT 1 FROM default_follow_targets WHERE user_id=$1) AS can_discover_spheres`,
     [row.id],
   );
-  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel };
+  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug };
 }
 
 function mapList(row) {
@@ -615,11 +618,12 @@ function requireBusinessAccount(req, res, next) {
   next();
 }
 
-function shareUser(row) {
+function shareUser(row, addresses) {
   return {
     id: row.id,
     memberNumber: formatMemberNumber(row.member_number),
     username: row.username,
+    profileSlug: addresses?.get(row.id),
     name: row.name,
     avatarUrl: row.avatar_url,
     publicMood: profileMoodAvailable ? publicMood(row) : null,
@@ -629,11 +633,11 @@ function shareUser(row) {
   };
 }
 
-function incomingSphereShare(row) {
+function incomingSphereShare(row, addresses) {
   return {
     ...canonicalSphereSection(row.sphere, row.section),
     createdAt: row.created_at,
-    owner: shareUser(row),
+    owner: shareUser(row, addresses),
   };
 }
 
@@ -651,13 +655,14 @@ async function sphereShareOwner(viewer, requestedOwner, sphere, section) {
     if (!viewer.can_discover_spheres && !(sphere === "wishlist" && viewer.account_type === "personal")) return { status: 403, error: "Раздел доступен только владельцу профиля" };
     return { owner: viewer, isOwner: true };
   }
+  const resolved = await findProfileForAddress(query, ownerUsername);
+  if (!resolved.rowCount) return { status: 404, error: "Владелец раздела не найден" };
   const owner = await query(
     `SELECT u.*,(dft.user_id IS NOT NULL) AS can_discover_spheres
      FROM users u
      LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
-     WHERE (u.username=$1 OR u.id IN (SELECT user_id FROM profile_username_aliases WHERE username=$1))
-       AND (dft.user_id IS NOT NULL OR ($2='wishlist' AND u.account_type='personal'))`,
-    [ownerUsername, sphere],
+     WHERE u.id=$1 AND (dft.user_id IS NOT NULL OR ($2='wishlist' AND u.account_type='personal'))`,
+    [resolved.rows[0].id, sphere],
   );
   if (!owner.rowCount) return { status: 404, error: "Владелец раздела не найден" };
   if (owner.rows[0].id === viewer.id) return { owner: owner.rows[0], isOwner: true };
@@ -1137,7 +1142,10 @@ async function insertYandexUser(client, yandexUser, userId, unusablePasswordHash
       [userId, yandexUser.email, username, yandexUser.name, unusablePasswordHash, yandexUser.avatarUrl,
         account.accountType, account.businessCategory ?? null, account.sellerSpace ?? null],
     );
-    if (created.rowCount) return { kind: "success", user: created.rows[0] };
+    if (created.rowCount) {
+      await saveProfileAddress(client, created.rows[0]);
+      return { kind: "success", user: created.rows[0] };
+    }
     const existingEmail = await client.query("SELECT id FROM users WHERE email=$1", [yandexUser.email]);
     if (existingEmail.rowCount) return { kind: "link-required" };
   }
@@ -1149,7 +1157,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
     return { kind: "link-session-missing" };
   }
 
-  return withMutationLock(`yandex-auth:${yandexUser.id}`, () => transaction(async (client) => {
+  const result = await withMutationLock(`yandex-auth:${yandexUser.id}`, () => transaction(async (client) => {
     await lockYandexMutation(client, yandexUser, attempt);
     const knownIdentity = await client.query(
       "SELECT user_id FROM yandex_identities WHERE yandex_user_id=$1",
@@ -1206,8 +1214,10 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
     await enrollWishRewards(client, userId);
     await saveYandexIdentity(client, yandexUser, userId);
     const session = await createSessionRecord(client, userId);
-    return { kind: "success", user: created.user, session };
+    return { kind: "success", user: created.user, session, created: true };
   }));
+  if (result.created) invalidateProfileDirectory(query);
+  return result;
 }
 
 function phoneAuthUnavailable(res) {
@@ -2056,8 +2066,9 @@ app.get("/api/sphere-shares/incoming", requireAuth, requireBusinessAccount, asyn
     [req.user.id],
   );
   res.set("Cache-Control", "private, no-store");
+  const { addresses } = await profileDirectory(query);
   return res.json({
-    shares: result.rows.filter((row) => canBusinessAccessSection(req.user, row.sphere, row.section)).map(incomingSphereShare),
+    shares: result.rows.filter((row) => canBusinessAccessSection(req.user, row.sphere, row.section)).map(row => incomingSphereShare(row, addresses)),
   });
 }));
 
@@ -2094,7 +2105,7 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
         [access.owner.id, sphere, section],
       ),
     ]);
-    people = peopleResult.rows.filter((row) => canBusinessAccessSection(row, sphere, section)).map(shareUser);
+    people = peopleResult.rows.filter((row) => canBusinessAccessSection(row, sphere, section)).map(row => shareUser(row));
     requests = requestResult.rows.filter((row) => canBusinessAccessSection(row, row.sphere, row.section)).map((row) => ({
       id: row.id,
       ...canonicalSphereSection(row.sphere, row.section),
@@ -2104,7 +2115,8 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
     }));
   }
   res.set("Cache-Control", "private, no-store");
-  return res.json({ owner: shareUser(access.owner), people, requests, isOwner: access.isOwner, ...canonicalSphereSection(sphere, section) });
+  const { addresses } = await profileDirectory(query);
+  return res.json({ owner: shareUser(access.owner, addresses), people, requests, isOwner: access.isOwner, ...canonicalSphereSection(sphere, section) });
 }));
 
 app.get("/api/business-catalog/:sphere", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
@@ -2113,14 +2125,15 @@ app.get("/api/business-catalog/:sphere", requireAuth, requirePrivateSphereOwner,
   if (!BUSINESS_OFFER_SPHERES.includes(sphere)) return res.status(404).json({ error: "Каталог не найден" });
   const category = BUSINESS_CATEGORIES.find(item => item.sphere === sphere);
   const { rows } = await query(
-    `SELECT u.username,u.name,u.avatar_url AS "avatarUrl", (f.follower_id IS NOT NULL) AS "isFollowing"
+    `SELECT u.id,u.username,u.name,u.avatar_url AS "avatarUrl", (f.follower_id IS NOT NULL) AS "isFollowing"
      FROM users u
      LEFT JOIN follows f ON f.follower_id=$1 AND f.following_id=u.id
      WHERE u.account_type='business' AND u.business_category=$2 AND u.id<>$1
      ORDER BY lower(u.name),u.username`,
     [req.user.id, category.id],
   );
-  res.set("Cache-Control", "private, no-store").json({ accounts: rows });
+  const { addresses } = await profileDirectory(query);
+  res.set("Cache-Control", "private, no-store").json({ accounts: rows.map(({ id, ...row }) => ({ ...row, profileSlug: addresses.get(id) })) });
 }));
 
 app.get("/api/sphere-shares/candidates", requireAuth, requireShareOwner, asyncRoute(async (req, res) => {
@@ -2159,7 +2172,7 @@ app.get("/api/business-access/users", requireAuth, requireBusinessAccount, async
     [req.user.id, search, `%${search}%`, canBusinessAccessSection(req.user,"wishlist",req.user.seller_space || "products")],
   );
   res.set("Cache-Control", "private, no-store");
-  return res.json({ people: result.rows.map(shareUser) });
+  return res.json({ people: result.rows.map(row => shareUser(row)) });
 }));
 
 app.get("/api/business-access/requests", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
@@ -2377,7 +2390,7 @@ app.post("/api/sphere-shares", requireAuth, requireShareOwner, asyncRoute(async 
 const diskProfiles = createDiskProfileStorage({ query, transaction, updateProfile: saveProfile });
 
 async function saveProfile(userId, patch, prepare) {
-  return transaction(async (client) => {
+  const saved = await transaction(async (client) => {
     await lockProfileUsernames(client, isMemoryDatabase);
     const storage = prepare ? await prepare(client) : null;
     const previous = storage?.previous || (await client.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [userId])).rows[0];
@@ -2386,6 +2399,7 @@ async function saveProfile(userId, patch, prepare) {
     const next = storage?.next || patchEditableProfile(editableProfile(previous), patch);
     await preserveProfileUsername(client, userId, previous.username);
     await preserveProfileUsername(client, userId, next.username);
+    if (next.name !== previous.name) await saveProfileAddress(client, { ...previous, name: next.name }, previous);
     const params = [next.name, next.username, next.bio, next.birthday, next.avatar_url, userId,
       storage || patch.wishlistLinks ? JSON.stringify(next.wishlist_links) : null];
     if (storage) params.push(storage.nextHead);
@@ -2395,6 +2409,8 @@ async function saveProfile(userId, patch, prepare) {
       params,
     )).rows[0];
   });
+  invalidateProfileDirectory(query);
+  return saved;
 }
 
 function sendDiskProfileError(res, error) {
@@ -2734,7 +2750,7 @@ async function getVisibleWishGroups(userId, lists, wishes) {
 app.get("/api/profile/:username", asyncRoute(async (req, res) => {
   res.set("Cache-Control", "private, no-store");
   res.vary("Cookie");
-  const found = await findProfileByUsername({ query }, req.params.username);
+  const found = await findProfileForAddress(query, req.params.username);
   if (!found.rowCount) return res.status(404).json({ error: "Профиль не найден" });
   const owner = found.rows[0];
   const isOwner = req.user?.id === owner.id;
@@ -2768,8 +2784,9 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
     ...list,
     wishCount: wishes.filter((wish) => wish.status === "active" && wish.listIds.includes(list.id)).length,
   }));
+  const { addresses } = await profileDirectory(query);
   res.json({
-    profile: { ...shareUser(owner), bio: owner.bio, birthday: owner.birthday, wishlistLinks: externalWishlistLinks(owner.wishlist_links) }, lists: visibleLists, wishes,
+    profile: { ...shareUser(owner, addresses), bio: owner.bio, birthday: owner.birthday, wishlistLinks: externalWishlistLinks(owner.wishlist_links) }, lists: visibleLists, wishes,
     ...(isOwner ? { sharedWishes: await getSharedWishes(owner.id) } : {}),
     groups: await getVisibleWishGroups(owner.id, visibleLists, wishes),
     isOwner, isFollowing: follower, hasWishlistAccess,
@@ -2780,7 +2797,7 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
 app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, res) => {
   const intent = req.body?.following;
   if (intent !== undefined && typeof intent !== "boolean") return res.status(400).json({ error: "Укажите состояние подписки" });
-  const found = await findProfileByUsername({ query }, req.params.username);
+  const found = await findProfileForAddress(query, req.params.username);
   if (!found.rowCount) return res.status(404).json({ error: "Профиль не найден" });
   const target = found.rows[0];
   if (target.id === req.user.id) return res.status(400).json({ error: "На себя уже можно положиться" });
@@ -3361,11 +3378,13 @@ app.get("/api/people", asyncRoute(async (req, res) => {
     for (const row of wishCountRows.rows) wishCounts.set(row.user_id, Number(row.count));
   }
 
+  const { addresses } = await profileDirectory(query);
   const people = result.rows.map((row) => {
     const relationship = relationships.get(row.id);
     return {
       id: row.id,
       username: row.username,
+      profileSlug: addresses.get(row.id),
       name: row.name,
       bio: row.bio,
       avatarUrl: row.avatar_url,
@@ -3446,7 +3465,13 @@ if (servesSphere("wishlist")) {
 
 app.use("/api", (_req, res) => res.status(404).json({ error: "Маршрут API не найден" }));
 
-const redirectLegacyProfile = (req, res) => res.redirect(301, legacyProfileTarget(req.params, req.originalUrl));
+const redirectLegacyProfile = asyncRoute(async (req, res) => {
+  const { rows: [owner] } = await findProfileForAddress(query, req.params.username);
+  const address = owner && await profileAddress(query, owner.id);
+  return res.set("Cache-Control", "no-store").redirect(301, legacyProfileTarget({
+    ...req.params, username: address || req.params.username,
+  }, req.originalUrl));
+});
 for (const prefix of sphereApplication ? [] : ["u", "users"]) {
   app.get(`/${prefix}/:username`, redirectLegacyProfile);
   app.get(`/${prefix}/:username/lists/:listId`, redirectLegacyProfile);
@@ -3458,11 +3483,22 @@ if (isProduction) {
   const entry = sphereApplication ? `${applicationId}.html` : "index.html";
   app.get(/^\/[^/]+\.html$/i, (_req, res) => res.status(404).end());
   app.use(express.static(distPath, { maxAge: "1y", immutable: true, index: false, redirect: false }));
-  app.get("/{*splat}", (req, res) => {
+  app.get("/{*splat}", asyncRoute(async (req, res) => {
+    const url = new URL(req.originalUrl, "https://rollapp.invalid");
+    const pathname = internalPageUrl(url.pathname);
+    const profile = !sphereApplication && publicProfileRoute(pathname);
+    if (profile && !isReservedProfileUsername(profile.username)) {
+      const { rows: [owner] } = await findProfileForAddress(query, profile.username);
+      const address = owner && await profileAddress(query, owner.id);
+      if (address && address !== profile.username) {
+        const target = renamedProfileLocation({ pathname, search: url.search }, profile.username, address);
+        return res.set("Cache-Control", "no-store").redirect(302, localizedPageUrl(target));
+      }
+    }
     const localized = localizedPageUrl(req.originalUrl);
     if (localized !== req.originalUrl) return res.set("Cache-Control", "no-store").redirect(308, localized);
     return res.sendFile(path.join(distPath, entry), { maxAge: 0 });
-  });
+  }));
 }
 
 app.use((error, req, res, _next) => {

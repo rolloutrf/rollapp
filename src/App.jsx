@@ -95,7 +95,7 @@ function ProtectedWishlistBusiness({ listings = false }) {
   }
   const requestedSpace = wishlistSpace(location.search);
   const space = user.sellerSpace || requestedSpace;
-  return <Navigate to={canManageWishlistSpace(user, space) ? publicSpacePath(user.username, space) : APP_HOME} replace />;
+  return <Navigate to={canManageWishlistSpace(user, space) ? publicSpacePath(user, space) : APP_HOME} replace />;
 }
 
 function WishlistSectionLayout() {
@@ -117,8 +117,8 @@ function WishlistHomeRoute() {
     const space = SPACE_IDS.includes(requestedSpace) ? requestedSpace : user.sellerSpace || "products";
     const publication = profilePublicationSection(query.get("publication"));
     const destination = publication
-      ? `${publicPublicationPath(user.username, publication)}?${new URLSearchParams({ tab: space })}`
-      : publicSpacePath(user.username, space);
+      ? `${publicPublicationPath(user, publication)}?${new URLSearchParams({ tab: space })}`
+      : publicSpacePath(user, space);
     return <Navigate to={destination} replace />;
   }
   return <>

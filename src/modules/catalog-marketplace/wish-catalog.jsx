@@ -56,7 +56,7 @@ function CatalogOwnerStack({ owners = [], ownerCount = owners.length }) {
         {visibleOwners.map((owner, index) => (
           <Link
             key={owner.id}
-            to={publicProfilePath(owner.username)}
+            to={publicProfilePath(owner)}
             className="catalog-owner-stack__avatar"
             style={{ "--catalog-avatar-index": index }}
             aria-label={owner.name}

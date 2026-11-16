@@ -123,7 +123,7 @@ export function SphereSwitcher({ docked = false }) {
           </div>
           <nav className="sphere-switcher__list" aria-label="Разделы, доступные для чтения">
             {incomingShares.map((share) => {
-              const path = sphereSectionPath({ ownerUsername: share.owner.username, sphere: share.sphere, section: share.section });
+              const path = sphereSectionPath({ owner: share.owner, sphere: share.sphere, section: share.section });
               const active = `${location.pathname}${location.search}` === path;
               return (
                 <Link

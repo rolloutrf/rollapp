@@ -35,6 +35,7 @@ import { WishListNavigation } from "@/modules/categories/wish-list-navigation.js
 import { useIsMobile } from "@/hooks/use-mobile";
 import { filterWishesWithoutList } from "./wish-lists.js";
 import {
+  publicProfileAddress,
   publicProfilePath,
   publicSpacePath,
   publicListPath,
@@ -119,7 +120,7 @@ export function PublicProfile({ shared = false }) {
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
   const { setCollection } = useContext(CollectionNavigationContext);
-  const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
+  const endpoint = shared ? "/shared/" + params.token : "/profile/" + encodeURIComponent(params.username);
   const viewerId = user?.id;
   const { data, loading, error, reload, updateData } = useAsync(async () => ({
     ...await api.get(endpoint), requestEndpoint: endpoint, viewerId,
@@ -160,10 +161,11 @@ export function PublicProfile({ shared = false }) {
     return () => setCollection(null);
   }, [data, params.listId, params.wishId, publicationListId, shared, selectedSpace, location.pathname, setCollection]);
 
+  const canonicalProfileAddress = publicProfileAddress(data?.profile);
   useEffect(() => {
-    if (shared || loading || data?.requestEndpoint !== endpoint || !data?.profile?.username || !params.username || params.username === data.profile.username) return;
-    navigate(renamedProfileLocation(location, params.username, data.profile.username), { replace: true, state: location.state });
-  }, [data?.profile?.username, data?.requestEndpoint, endpoint, loading, shared, params.username, location, navigate]);
+    if (shared || loading || data?.requestEndpoint !== endpoint || !canonicalProfileAddress || !params.username || params.username === canonicalProfileAddress) return;
+    navigate(renamedProfileLocation(location, params.username, canonicalProfileAddress), { replace: true, state: location.state });
+  }, [canonicalProfileAddress, data?.requestEndpoint, endpoint, loading, shared, params.username, location, navigate]);
 
   const renderCollectionState = ({ title, text, returnPath = APP_HOME, returnLabel = "В приложение", friendsContext = !shared }) => {
     const page = <div className="app-page wishes-page public-collection-page" data-public-collection-state>
@@ -212,7 +214,7 @@ export function PublicProfile({ shared = false }) {
   const invalidSelection = (params.space && !publication && !SPACE_IDS.includes(params.space)) || (!shared && params.listId && !routeList) || (params.wishId && !selectedWish);
   if (invalidSelection) {
     const notFoundTitle = params.wishId ? "Желание не найдено" : "Список не найден";
-    const returnPath = shared ? `/s/${params.token}` : publicProfilePath(data.profile.username);
+    const returnPath = shared ? `/s/${params.token}` : publicProfilePath(data.profile);
     return renderCollectionState({
       title: notFoundTitle,
       text: "Ссылка устарела или доступ к этой странице ограничен.",
@@ -222,19 +224,19 @@ export function PublicProfile({ shared = false }) {
     });
   }
   const wishCountForList = (listId) => visibleWishes.filter((wish) => wish.listIds.includes(listId)).length;
-  const profileBasePath = shared ? `/s/${params.token}` : publicProfilePath(data.profile.username);
+  const profileBasePath = shared ? `/s/${params.token}` : publicProfilePath(data.profile);
   const currentCollectionPath = shared
     ? profileBasePath
     : params.wishId && location.state?.collectionPath?.startsWith(`${profileBasePath}/`)
       ? location.state.collectionPath
       : selectedList && (params.listId || params.wishId || publicationListId)
-        ? publicListPath(data.profile.username, selectedList.id)
-        : publicSpacePath(data.profile.username, activeSpace);
+        ? publicListPath(data.profile, selectedList.id)
+        : publicSpacePath(data.profile, activeSpace);
 
   const selectCollection = (value) => {
     setSelectedWishId(null);
     if (shared) return;
-    navigate(value === "all" ? publicSpacePath(data.profile.username, activeSpace) : publicListPath(data.profile.username, value));
+    navigate(value === "all" ? publicSpacePath(data.profile, activeSpace) : publicListPath(data.profile, value));
   };
 
   const openWish = (id, opener = null, groupId = null) => {
@@ -270,7 +272,7 @@ export function PublicProfile({ shared = false }) {
 
   const share = async () => {
     if (publication) {
-      await navigator.clipboard.writeText(sharePageUrl(publication === "calendar" ? publicBookingPath(data.profile.username) : publicPublicationPath(data.profile.username, publication)));
+      await navigator.clipboard.writeText(sharePageUrl(publication === "calendar" ? publicBookingPath(data.profile) : publicPublicationPath(data.profile, publication)));
       toast("Ссылка скопирована");
       return;
     }
@@ -379,7 +381,7 @@ export function PublicProfile({ shared = false }) {
         {businessStorefront && data.isOwner ? <>
           <PageActionButton variant="outline" to="/app/business/access">Клиенты</PageActionButton>
         </> : ownerCollection ? null : data.isOwner && shared
-          ? <PageActionButton onClick={() => navigate(publicListPath(data.profile.username, data.list.id))}>Открыть мой список</PageActionButton>
+          ? <PageActionButton onClick={() => navigate(publicListPath(data.profile, data.list.id))}>Открыть мой список</PageActionButton>
           : <PageActionButton
             variant={data.isFollowing ? "secondary" : "default"}
             className="min-w-[180px]"
@@ -389,7 +391,7 @@ export function PublicProfile({ shared = false }) {
           >{data.isFollowing ? "Отписаться" : "Подписаться"}</PageActionButton>}
         <ContactCardButton key={data.profile.username} profile={data.profile} canSign={data.isOwner} />
         {!shared && <ProfilePublicationLinks activeSection={publication}
-          toSection={section => `${publicPublicationPath(data.profile.username, section)}?${new URLSearchParams({ tab: activeSpace })}`}
+          toSection={section => `${publicPublicationPath(data.profile, section)}?${new URLSearchParams({ tab: activeSpace })}`}
           state={{ publicationListId: routeSelectedList?.id }} />}
       </ControlBar>
     </section>

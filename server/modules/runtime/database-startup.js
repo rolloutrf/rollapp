@@ -24,6 +24,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     // Check the columns required by authentication and the edited documents.
     // LIMIT 0 validates the real schema without reading profile/document data.
     await client.query("SELECT account_type,business_category,seller_space FROM users LIMIT 0");
+    await client.query("SELECT username,user_id FROM profile_username_aliases LIMIT 0");
     await client.query("SELECT user_id,contact_ids,description,expected_result,actual_result,due_on,start_time FROM planning_tasks LIMIT 0");
     await client.query("SELECT token_hash,user_id,expires_at FROM sessions LIMIT 0");
     await client.query("SELECT member_number,can_invite FROM users LIMIT 0");
