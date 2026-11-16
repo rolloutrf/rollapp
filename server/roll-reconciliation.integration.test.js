@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
+import { readRollTopupAudit } from "./modules/payments/roll-topup-audit.js";
 import { reconcileRollAccounting, rollAccountingMatches } from "./modules/payments/roll-reconciliation.js";
 import { ensureRollWallet, transferRolls } from "./modules/payments/rolls.js";
 import { enrollWishRewards, grantRolls, grantWishReward, previewRollGrant } from "./modules/loyalty/roll-rewards.js";
@@ -80,7 +81,7 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
         await client.query(`INSERT INTO roll_star_orders(id,user_id,telegram_user_id,package_id,rolls,stars,idempotency_key,terms_version,paid_at,telegram_payment_charge_id)
           VALUES ($1,$2,'123456','fixture',30,10,$1,'fixture',CASE WHEN $3 THEN transaction_timestamp() END,CASE WHEN $3 THEN $1 END)`, [id, owner, paid]);
         await client.query(`INSERT INTO roll_ton_orders(id,user_id,sender,recipient,chain,rolls,nanotons,rate,idempotency_key,paid_at,transaction_hash)
-          VALUES ($1::text,$2,'fixture-sender','fixture-recipient','-239',40,1000,10,$1::text::uuid,CASE WHEN $3 THEN transaction_timestamp() END,CASE WHEN $3 THEN $1 END)`, [id, owner, paid]);
+          VALUES ($1::text,$2,'fixture-sender','fixture-recipient','-239',40,1000,10,$1::text::uuid,CASE WHEN $3 THEN transaction_timestamp() END,CASE WHEN $3 THEN repeat(replace($1,'-',''),2) END)`, [id, owner, paid]);
       }
       await client.query("UPDATE roll_wallets SET balance=balance+70 WHERE user_id=$1", [owner]);
 
@@ -119,6 +120,97 @@ test("reconciliation on configured PostgreSQL, using rollback-only fixtures", { 
       const detailed = await inspect(100);
       assert(detailed.attention.reward_disputed.sample.some(({ id }) => id === disputed.id));
       assert(detailed.attention.reward_expiry_due.sample.some(({ id }) => id === expired.id));
+    });
+
+    await t.test("reports delayed top-ups, exact order lookup and independent payment evidence", async () => {
+      await client.query("SAVEPOINT topup_audit");
+      try {
+        const baseline = await inspect();
+        const createStars = async ({ age, expires = 900, linked = false, checkout = false }) => {
+          const id = randomUUID();
+          await client.query(`INSERT INTO roll_star_orders(id,user_id,telegram_user_id,package_id,rolls,stars,idempotency_key,terms_version,
+            created_at,expires_at,invoice_url,checkout_query_id)
+            VALUES ($1,$2,'987654','fixture',50,5,$1,'fixture',transaction_timestamp()-$3::int*INTERVAL '1 second',
+             transaction_timestamp()+$4::int*INTERVAL '1 second',CASE WHEN $5 THEN 'https://t.me/$private' END,CASE WHEN $6 THEN $1 END)`,
+          [id, owner, age, expires, linked, checkout]);
+          return id;
+        };
+        const preparing = await createStars({ age: 59 });
+        const due = await createStars({ age: 60 });
+        const oldestDue = await createStars({ age: 600 });
+        const payable = await createStars({ age: 45, linked: true });
+        const reviewing = await createStars({ age: 45, linked: true, checkout: true });
+        const expiredCheckout = await createStars({ age: 4000, expires: 0, linked: true, checkout: true });
+        const expiredInvoice = await createStars({ age: 4000, expires: 0 });
+        const expiredPayable = await createStars({ age: 4000, expires: 0, linked: true });
+        const ton = randomUUID();
+        const amount = "123456789012345678901";
+        await client.query(`INSERT INTO roll_ton_orders(id,user_id,sender,recipient,chain,rolls,nanotons,rate,idempotency_key,created_at,expires_at)
+          VALUES ($1,$2,'fixture-sender','fixture-recipient','-239',75,$3,10,$1::text::uuid,
+            transaction_timestamp()-INTERVAL '15 minutes',transaction_timestamp())`, [ton, owner, amount]);
+
+        const after = await inspect(1);
+        assert.equal(after.topups.stars.unit, "XTR");
+        assert.equal(after.topups.ton.unit, "nanoton");
+        assert.equal(after.topupMismatches, baseline.topupMismatches);
+        assert.equal(after.issuedRolls, baseline.issuedRolls);
+        assert.equal(rollAccountingMatches(after), rollAccountingMatches(baseline));
+        const states = [
+          ["invoice_preparing", preparing], ["invoice_delivery_due", due], ["awaiting_payment", payable],
+          ["checkout_pending", reviewing], ["checkout_expired", expiredCheckout],
+          ["invoice_expired", expiredInvoice], ["expired_unconfirmed", expiredPayable],
+        ];
+        for (const [state, id] of states) {
+          const record = await readRollTopupAudit(client, { provider: "stars", id });
+          assert.equal(record.state, state);
+          assert.equal(record.providerReference, null);
+          assert.equal(record.externalAmount, "5");
+          assert.equal(record.evidenceIssue, null);
+          assert.deepEqual(Object.keys(record).sort(), ["createdAt", "creditedAt", "evidenceIssue", "expiresAt", "externalAmount", "id", "provider", "providerReference", "rolls", "state", "unit"].sort());
+          const priorCount = baseline.topups.stars.states[state]?.count ?? 0;
+          assert.equal(after.topups.stars.states[state].count - priorCount, state === "invoice_delivery_due" ? 2 : 1);
+        }
+        assert.equal(after.attention.stars_invoice_delivery_due.count - (baseline.attention.stars_invoice_delivery_due?.count ?? 0), 2);
+        assert.equal(after.attention.stars_checkout_expired.count - (baseline.attention.stars_checkout_expired?.count ?? 0), 1);
+        const full = await inspect(100);
+        const newDue = full.attention.stars_invoice_delivery_due.sample.filter(({ id }) => [due, oldestDue].includes(id));
+        assert.deepEqual(newDue.map(({ id }) => id), [oldestDue, due]);
+        assert.equal(after.attention.stars_invoice_delivery_due.sample.length, 1);
+        const aggregate = await inspect();
+        assert.equal(aggregate.attention.stars_invoice_delivery_due.sample, null);
+        assert.equal(JSON.stringify(aggregate).includes(due), false);
+        assert.equal(JSON.stringify(aggregate).includes(ton), false);
+        const tonStatus = await readRollTopupAudit(client, { provider: "ton", id: ton });
+        assert.equal(tonStatus.state, "expired_unconfirmed");
+        assert.equal(tonStatus.externalAmount, amount);
+        assert.equal(tonStatus.creditedAt, null);
+        assert.equal(await readRollTopupAudit(client, { provider: "stars", id: ton }), null);
+
+        await client.query("UPDATE roll_ton_orders SET transaction_hash=$2 WHERE id=$1", [ton, "a9".repeat(32)]);
+        const damaged = await inspect(100);
+        assert.equal(damaged.issuedRolls, baseline.issuedRolls);
+        assert.equal(damaged.unaccountedRolls, baseline.unaccountedRolls);
+        assert.equal(damaged.topupMismatches, baseline.topupMismatches + 1);
+        assert.equal(rollAccountingMatches(damaged), false);
+        assert.deepEqual(damaged.details.topups.find(({ id }) => id === ton), {
+          id: ton, provider: "ton", state: "expired_unconfirmed", evidenceIssue: "reference_timestamp_mismatch",
+        });
+        const exact = await readRollTopupAudit(client, { provider: "ton", id: ton });
+        assert.equal(exact.providerReference, "a9".repeat(32));
+        assert.equal(exact.evidenceIssue, "reference_timestamp_mismatch");
+        assert.equal(JSON.stringify(damaged).includes("a9".repeat(32)), false);
+
+        await client.query("UPDATE roll_ton_orders SET transaction_hash='fixture-invalid',paid_at=transaction_timestamp() WHERE id=$1", [ton]);
+        await client.query("UPDATE roll_wallets SET balance=balance+75 WHERE user_id=$1", [owner]);
+        const invalid = await inspect(100);
+        assert.equal(invalid.unaccountedRolls, baseline.unaccountedRolls);
+        assert.equal(invalid.details.topups.find(({ id }) => id === ton).evidenceIssue, "invalid_reference");
+        await client.query("UPDATE roll_ton_orders SET transaction_hash=$2 WHERE id=$1", [ton, "a9".repeat(32)]);
+        const reconciled = await inspect();
+        assert.equal(reconciled.topupMismatches, baseline.topupMismatches);
+        assert.equal(rollAccountingMatches(reconciled), rollAccountingMatches(baseline));
+        assert.equal((await readRollTopupAudit(client, { provider: "ton", id: ton })).state, "credited");
+      } finally { await client.query("ROLLBACK TO SAVEPOINT topup_audit"); }
     });
 
     await t.test("detects offsetting balance damage and an incorrect payout recipient even when totals agree", async () => {

@@ -1,3 +1,4 @@
+import { rollTopupSnapshot } from "./roll-topup-audit.js";
 import { hasAutomaticRewardConfirmation } from "../loyalty/need-reward-settlement-terms.js";
 import { openMarketplaceReserves, openRewardReserves, readRollAccountingSources, rollWalletEntries } from "./roll-accounting.js";
 
@@ -105,6 +106,19 @@ function reconciliationSql({ gifts, rewards, marketplace }) {
       FROM roll_wallets w FULL JOIN by_account a ON a.account_id=w.user_id
     ),
     card_balances AS (${cardBalances}),
+    topups AS MATERIALIZED (${rollTopupSnapshot}),
+    topup_totals AS (
+      SELECT provider,state,COUNT(*)::int AS count,SUM(rolls)::text AS rolls,
+        SUM(external_amount)::text AS external_amount,MIN(since) AS oldest
+      FROM topups GROUP BY provider,state
+    ),
+    topup_by_provider AS (
+      SELECT providers.provider,providers.unit,COALESCE(jsonb_object_agg(t.state,jsonb_build_object(
+        'count',t.count,'rolls',t.rolls,'externalAmount',t.external_amount,'oldest',t.oldest
+      )) FILTER (WHERE t.state IS NOT NULL),'{}'::jsonb) AS states
+      FROM (VALUES ('stars','XTR'),('ton','nanoton')) AS providers(provider,unit)
+      LEFT JOIN topup_totals t USING (provider) GROUP BY providers.provider,providers.unit
+    ),
     issues AS MATERIALIZED (
       SELECT 'wallets' AS scope,id,jsonb_build_object(
         'stored',balance::text,'recorded',recorded::text,'difference',(COALESCE(balance,0)-recorded)::text) AS detail
@@ -116,9 +130,15 @@ function reconciliationSql({ gifts, rewards, marketplace }) {
       SELECT 'rewards',i.* FROM (${rewards ? rewardIssues : noIssues}) i
       UNION ALL
       SELECT 'marketplace',i.* FROM (${marketplace ? marketplaceIssues : noIssues}) i
+      UNION ALL
+      SELECT 'topups',id,jsonb_build_object('provider',provider,'state',state,'evidenceIssue',evidence_issue)
+      FROM topups WHERE evidence_issue IS NOT NULL
     ),
     attention AS MATERIALIZED (
       ${rewards ? rewardAttention : noAttention} UNION ALL ${marketplace ? marketplaceAttention : noAttention}
+      UNION ALL
+      SELECT id,'stars_' || state,rolls,since FROM topups
+      WHERE provider='stars' AND state IN ('invoice_delivery_due','checkout_expired')
     ),
     attention_totals AS (
       SELECT reason,COUNT(*)::int AS count,SUM(amount)::text AS amount,MIN(since) AS oldest
@@ -151,6 +171,7 @@ function reconciliationSql({ gifts, rewards, marketplace }) {
           FROM (SELECT id,amount,since FROM attention WHERE reason=a.reason ORDER BY since,id LIMIT $1) limited
         ) END
       )) FROM attention_totals a),'{}'::jsonb) AS attention,
+      (SELECT jsonb_object_agg(provider,jsonb_build_object('unit',unit,'states',states)) FROM topup_by_provider) AS topups,
       transaction_timestamp() AS "asOf",wallets,wallet_rolls::text AS "walletRolls",
       cards AS "giftCards",card_rolls::text AS "giftCardRolls",
       reward_reserve::text AS "reservedRewardRolls",order_reserve::text AS "reservedMarketplaceRolls",
@@ -160,12 +181,13 @@ function reconciliationSql({ gifts, rewards, marketplace }) {
       (SELECT COUNT(*)::int FROM issues WHERE scope='giftCards') AS "cardMismatches",
       (SELECT COUNT(*)::int FROM issues WHERE scope='rewards') AS "rewardMismatches",
       (SELECT COUNT(*)::int FROM issues WHERE scope='marketplace') AS "marketplaceMismatches",
+      (SELECT COUNT(*)::int FROM issues WHERE scope='topups') AS "topupMismatches",
       CASE WHEN $1::int > 0 THEN (
         SELECT jsonb_object_agg(scopes.scope,COALESCE(sample.items,'[]'::jsonb))
-        FROM (VALUES ('wallets'),('giftCards'),('rewards'),('marketplace')) AS scopes(scope)
+        FROM (VALUES ('wallets'),('giftCards'),('rewards'),('marketplace'),('topups')) AS scopes(scope)
         CROSS JOIN LATERAL (
-          SELECT jsonb_agg(jsonb_build_object('id',id) || detail ORDER BY id) AS items
-          FROM (SELECT id,detail FROM issues WHERE scope=scopes.scope ORDER BY id LIMIT $1) limited
+          SELECT jsonb_agg(jsonb_build_object('id',id) || detail ORDER BY id,detail) AS items
+          FROM (SELECT id,detail FROM issues WHERE scope=scopes.scope ORDER BY id,detail LIMIT $1) limited
         ) sample
       ) END AS details
     FROM system,supply
@@ -183,5 +205,5 @@ export async function reconcileRollAccounting(client, { sampleLimit = 0 } = {}) 
 
 export function rollAccountingMatches(report) {
   return report.unaccountedRolls === "0" && report.walletMismatches === 0 && report.cardMismatches === 0
-    && report.rewardMismatches === 0 && report.marketplaceMismatches === 0;
+    && report.rewardMismatches === 0 && report.marketplaceMismatches === 0 && report.topupMismatches === 0;
 }
