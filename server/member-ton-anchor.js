@@ -1,10 +1,42 @@
 import { beginCell, Cell, external, internal, loadTransaction, SendMode, storeMessage } from "@ton/core";
 import { mnemonicToPrivateKey } from "@ton/crypto";
 import { TonClient, WalletContractV4 } from "@ton/ton";
+import axios from "axios";
 import { TON_MAINNET } from "../shared/modules/payments/ton.js";
 import { tonFetch } from "./modules/payments/ton-network.js";
 
 export const memberTonComment = receiptHash => `rollapp-member-v1:${receiptHash}`;
+
+const memberTonResponseLimit = 1024 * 1024;
+const memberTonCurrencyLimit = 1024;
+
+function isMemberTonSeqno(item) {
+  if (!Array.isArray(item) || item.length !== 2) return false;
+  const [type, value] = item;
+  return type === "num" && typeof value === "string" &&
+    /^(?:0x[\da-f]{1,8}|\d{1,10})$/i.test(value) && Number(value) <= 0xffffffff;
+}
+
+export function createMemberTonClient(config) {
+  const request = axios.getAdapter("http");
+  return new TonClient({
+    ...config,
+    httpAdapter: async (options) => {
+      const response = await request({ ...options, maxContentLength: memberTonResponseLimit, maxRedirects: 0 });
+      // The SDK validates and converts these collections after the adapter.
+      // The membership worker only reads wallet state and the V4 seqno.
+      const data = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+      const { extra_currencies: currencies, stack } = data?.result ?? {};
+      if (Array.isArray(currencies) && currencies.length > memberTonCurrencyLimit) {
+        throw new Error("TON membership wallet response contains too many extra currencies");
+      }
+      if (Array.isArray(stack) && (stack.length > 1 || stack.some(item => !isMemberTonSeqno(item)))) {
+        throw new Error("Invalid TON membership seqno response");
+      }
+      return { ...response, data };
+    },
+  });
+}
 
 export function memberTonConfig(env = process.env) {
   if (env.TON_MEMBERSHIP_ENABLED !== "true") return null;
@@ -41,7 +73,7 @@ export async function fetchMemberTransactions(address, apiKey, fetchImpl = tonFe
   });
 }
 
-export async function startMemberTonAnchor({ pool, env = process.env, clientFactory = config => new TonClient(config) }) {
+export async function startMemberTonAnchor({ pool, env = process.env, clientFactory = createMemberTonClient }) {
   const config = memberTonConfig(env);
   if (!config) return { kick() {}, stop() {} };
   const keyPair = await mnemonicToPrivateKey(config.words);
