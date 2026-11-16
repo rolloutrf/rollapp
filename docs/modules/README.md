@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | 01 | [Авторизация](01-auth.md) | Вход, регистрация, восстановление, проверка сессии | [Клиент](../../src/modules/auth/) · [Сервер](../../server/modules/auth/) |
 | 02 | [Идентификация](02-identification.md) | Подтверждение способа входа и привязка к аккаунту | [Клиент](../../src/modules/identification/) · [Сервер](../../server/modules/identification/) |
-| 03 | [Профиль](03-profile.md) | Публичная шапка, настройки, аватар и настроение | [Клиент](../../src/modules/profile/) · [Сервер](../../server/modules/profile/) · [Общий код](../../shared/modules/profile/) |
+| 03 | [Профиль](03-profile.md) | Публичная шапка, настройки, аватар, настроение и номер участника | [Клиент](../../src/modules/profile/) · [Сервер](../../server/modules/profile/) · [Общий код](../../shared/modules/profile/) |
 | 04 | [Категории](04-categories.md) | Пространства вишлиста и общий выбор категории | [Клиент](../../src/modules/categories/) · [Сервер](../../server/modules/categories/) |
 | 05 | [Карточка](05-card.md) | Сниппеты и детали желаний, товаров и предложений | [Клиент](../../src/modules/card/) |
 | 06 | [Доставка](06-delivery.md) | СДЭК, выбор ПВЗ, снимок доставки заказа | [Клиент](../../src/modules/delivery/) · [Сервер](../../server/modules/delivery/) |

@@ -23,7 +23,7 @@ await mkdir("/tmp/rollapp-member-invites", { recursive: true });
 try {
   for (const width of [320, 390, 768, 820, 1024, 1440, 1920]) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const variant of ["", "&assigned=1", "&invites=1", `&auth=1&invite=${"a".repeat(43)}`, "&profile=1"]) {
+      for (const variant of ["", "&assigned=1", "&invites=1", `&auth=1&invite=${"a".repeat(43)}`, "&profile=1", "&profile=1&assigned=1"]) {
         const page = await browser.newPage({ viewport: { width, height } });
         const errors = [];
         page.on("pageerror", error => errors.push(error.message));
@@ -63,9 +63,12 @@ try {
           await page.getByRole("alert").waitFor();
           assert(await submit.isEnabled());
         }
-        if (variant.includes("profile")) await page.getByRole("button", { name: "Инвайты", exact: true }).click();
+        const profile = variant.includes("profile");
+        const assignedProfile = profile && variant.includes("assigned");
+        if (profile) await page.getByRole("button", { name: assignedProfile ? "Персональная информация" : "Инвайты", exact: true }).click();
         await page.evaluate(() => document.fonts.ready);
-        if (variant.includes("profile")) await page.locator("#account-invite-email").scrollIntoViewIfNeeded();
+        if (profile && !assignedProfile) await page.locator("#account-invite-email").scrollIntoViewIfNeeded();
+        if (assignedProfile) await page.locator(".member-flip-board").scrollIntoViewIfNeeded();
         if (!variant || variant.includes("assigned")) {
           const board = page.locator(".member-flip-board");
           const digits = board.locator(".member-flip-digit");
@@ -73,7 +76,17 @@ try {
           assert.equal(await page.locator(".member-number-confetti").count(), 0);
           assert.equal(await digits.count(), 5);
           const faces = digits.locator(".member-flip-face--top");
-          assert.equal((await faces.allTextContents()).join(""), variant ? "30000" : "–––––");
+          const number = assignedProfile ? "01234" : variant ? "30000" : "–––––";
+          assert.equal((await faces.allTextContents()).join(""), number);
+          if (assignedProfile) {
+            const card = board.locator('xpath=ancestor::div[@data-slot="card"]');
+            assert.equal(await card.getByRole("heading", { name: "Номер участника", exact: true }).count(), 1);
+            assert.equal(await card.getByText("Ваш номер — #01234", { exact: true }).count(), 1);
+            assert.equal(await card.getByRole("button").count(), 0);
+            assert.equal(await board.locator(".member-flip-face--out,.member-flip-face--in").count(), 0);
+            const widths = await board.evaluate(element => [element.getBoundingClientRect().width, element.parentElement.clientWidth]);
+            assert(widths[0] <= 272 && widths[0] <= widths[1], "The compact board fits its profile card");
+          }
           const boxes = await digits.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON()));
           assert(boxes.every((box, index) => box.width >= 32 && box.top === boxes[0].top && (!index || box.left > boxes[index - 1].right)));
           const actions = page.locator(".member-number-page [data-page-action]");
@@ -94,7 +107,7 @@ try {
         });
         assert(measured.scrollWidth <= width + 1, `${width}x${height} ${variant}: horizontal overflow`);
         for (const control of measured.controls) assert(control.left >= -1 && control.right <= width + 1, `${width}x${height} ${variant}: clipped ${control.name}`);
-        if (variant.includes("profile")) {
+        if (profile && !assignedProfile) {
           const invite = await page.locator("#account-invite-email").boundingBox();
           assert(invite && invite.y < height && invite.y + invite.height > 0, `${width}x${height}: invite field is unreachable`);
         }

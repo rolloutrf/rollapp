@@ -4,6 +4,7 @@ import { platformLink } from "../../applications/location.js";
 import { localDateKey } from "../../../shared/modules/planning/planning.js";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { Avatar } from "@/modules/profile/profile-avatar.jsx";
+import { MemberNumberBoard } from "./member-number-board.jsx";
 import { ProfileMoodSettings } from "@/modules/profile/profile-mood-settings.jsx";
 import { ContactCardContent } from "@/modules/contacts/contact-card-dialog.jsx";
 import { PageActionButton } from "@/components/page-action-button";
@@ -430,7 +431,10 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
       </FieldGroup>
       <Card className="grid gap-2 p-4">
         <h3>Номер участника</h3>
-        <p>{user.memberNumber ? `Ваш номер — #${user.memberNumber}` : "Ваш номер ещё не выбран."}</p>
+        {user.memberNumber ? <>
+          <MemberNumberBoard number={user.memberNumber} compact />
+          <p className="sr-only">Ваш номер — #{user.memberNumber}</p>
+        </> : <p>Ваш номер ещё не выбран.</p>}
         {!user.memberNumber && (yandexLinkBlocked
           ? <p>Сохраните или отмените изменения профиля перед выбором номера.</p>
           : <ShadcnButton type="button" variant="outline" className="min-h-(--layout-control-size) rounded-full" onClick={() => exitSettings(() => { onClose(); navigate("/app/member-number"); })}>Получить номер</ShadcnButton>)}

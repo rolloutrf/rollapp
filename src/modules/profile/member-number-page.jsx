@@ -1,11 +1,9 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/modules/runtime/api.js";
 import { PageActionButton } from "@/components/page-action-button";
 import { ScreenPortal } from "@/components/ui/screen-portal";
-import "../../components/member-number-page.css";
+import { MEMBER_NUMBER_DIGITS, MemberNumberBoard } from "./member-number-board.jsx";
 
-const DIGIT_COUNT = 5;
-const BLANK_DIGIT = "–";
 const FLIP_INTERVAL = 150;
 const MIN_ROLL_FRAMES = 7;
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
@@ -44,35 +42,6 @@ function MemberNumberConfetti() {
   </ScreenPortal>;
 }
 
-function rollingDigit(frame, index) {
-  return frame === 0 ? BLANK_DIGIT : String((frame + index * 3) % 10);
-}
-
-function FlipDigit({ previous, digit, frame, index }) {
-  const flipping = previous !== digit;
-  return <span className="member-flip-digit" style={{ "--flip-delay": `${index * 5}ms` }}>
-    <span className="member-flip-face member-flip-face--top"><span>{digit}</span></span>
-    <span className="member-flip-face member-flip-face--bottom"><span>{previous}</span></span>
-    {flipping && <Fragment key={frame}>
-      <span className="member-flip-face member-flip-face--top member-flip-face--out"><span>{previous}</span></span>
-      <span className="member-flip-face member-flip-face--bottom member-flip-face--in"><span>{digit}</span></span>
-    </Fragment>}
-  </span>;
-}
-
-function MemberNumberDisplay({ number, draw }) {
-  const frame = draw?.frame ?? 0;
-  return <div className="member-flip-board" aria-hidden="true">
-    {Array.from({ length: DIGIT_COUNT }, (_, index) => {
-      const settled = draw && index < draw.settled;
-      const digit = number?.[index] ?? (settled ? draw.result.number[index] : rollingDigit(frame, index));
-      const flipping = !number && frame > 0 && (!settled || index === draw.settled - 1);
-      const previous = flipping ? rollingDigit(frame - 1, index) : digit;
-      return <FlipDigit key={index} previous={previous} digit={digit} frame={frame} index={index} />;
-    })}
-  </div>;
-}
-
 export function MemberNumberPage({ user, onDrawn }) {
   const [receipt, setReceipt] = useState(null);
   const [draw, setDraw] = useState(null);
@@ -86,7 +55,7 @@ export function MemberNumberPage({ user, onDrawn }) {
     const motion = window.matchMedia(REDUCED_MOTION);
     const advance = () => setDraw(current => {
       if (!current || current.finished) return current;
-      if (current.settled === DIGIT_COUNT || (current.result && motion.matches)) {
+      if (current.settled === MEMBER_NUMBER_DIGITS || (current.result && motion.matches)) {
         return { ...current, finished: true, celebrate: !motion.matches };
       }
       if (motion.matches) return current;
@@ -134,7 +103,7 @@ export function MemberNumberPage({ user, onDrawn }) {
 
   return <main className="app-page page-stack member-number-page" aria-label="Получение номера участника">
     <div className="rollapp-body grid min-w-0 justify-items-center gap-6 text-center">
-      <MemberNumberDisplay number={number} draw={draw} />
+      <MemberNumberBoard number={number} draw={draw} />
       {draw?.celebrate && <MemberNumberConfetti />}
       <p role="status" className="sr-only">
         {number ? <>Ваш номер — <strong>#{number}</strong></> : drawing ? "Подбираем номер…" : ""}

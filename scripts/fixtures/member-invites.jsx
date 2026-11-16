@@ -12,7 +12,7 @@ const search = new URLSearchParams(location.search);
 const user = { id: "fixture-user", memberNumber: search.has("assigned") ? "30000" : null };
 createRoot(document.getElementById("root")).render(<BrowserRouter>
   <SessionContext.Provider value={{ user: null, refresh: async () => {} }}><ToastContext.Provider value={() => {}}><MobileFormPages>
-    {search.has("profile") ? <ProfileSettingsModal user={{ id: "fixture-user", name: "Владелец", username: "koloskof", bio: "", birthday: null, avatarUrl: "", canInvite: true, memberNumber: null }} onClose={() => {}} onSaved={() => {}} />
+    {search.has("profile") ? <ProfileSettingsModal user={{ id: "fixture-user", name: "Владелец", username: "koloskof", bio: "", birthday: null, avatarUrl: "", canInvite: true, memberNumber: search.has("assigned") ? "01234" : null }} onClose={() => {}} onSaved={() => {}} />
       : search.has("auth") ? <RegistrationForm invite={"a".repeat(43)} email="invited@example.com" /> : <div className="app-layout app-layout--dark"><main className="app-main">
       {search.has("invites") ? <section className="app-page rollapp-body"><InvitesManager /></section> : <MemberNumberPage user={user} />}
     </main></div>}
