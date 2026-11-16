@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { requirePersonalOfferPrice } from "./personal-offer-status.js";
 import { reverseRollTransfer, RollsError } from "../payments/rolls.js";
 
-export async function refundPersonalOffer(client, businessId, offerId) {
+export async function refundPersonalOffer(client, businessId, offerId, { expectedPriceRolls } = {}) {
   const notFound = () => new RollsError("Счёт не найден", "OFFER_NOT_FOUND", 404);
   if (!z.string().uuid().safeParse(offerId).success) throw notFound();
   const id = offerId.toLowerCase();
@@ -12,6 +13,7 @@ export async function refundPersonalOffer(client, businessId, offerId) {
     [id, businessId],
   );
   if (!offer) throw notFound();
+  requirePersonalOfferPrice(offer.price_rolls, expectedPriceRolls);
   if (!offer.purchase_id) throw new RollsError("Возврат доступен после оплаты счёта", "OFFER_NOT_PAID", 409);
   // Take a fresh READ COMMITTED snapshot after waiting for the offer lock.
   const { rows: [order] } = await client.query(

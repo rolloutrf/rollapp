@@ -4,6 +4,7 @@ import test from "node:test";
 import { createPersonalOffer, payPersonalOffer, createPersonalOfferItem, registerPersonalOfferRoutes } from "./personal-offers.js";
 import { registerWishlistBusinessRoutes } from "./modules/wishlist/wishlist-business.js";
 import { ensureRollWallet } from "./modules/payments/rolls.js";
+import { readPersonalOfferOperation } from "./modules/checkout/personal-offer-status.js";
 import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
 import { readRollOrders } from "./modules/history/order-history.js";
@@ -16,6 +17,13 @@ test("personal offers on existing production schema: every test write is rolled 
   const db = await productionRollsDatabase();
   const client = await db.pool.connect();
   try {
+    await t.test("exact lookup runs on the configured PostgreSQL in READ ONLY mode", async () => {
+      await client.query("BEGIN READ ONLY");
+      try {
+        assert.equal((await client.query("SHOW transaction_read_only")).rows[0].transaction_read_only, "on");
+        await assert.rejects(readPersonalOfferOperation(client, randomUUID(), { id: randomUUID(), action: "pay" }), { code: "OFFER_NOT_FOUND" });
+      } finally { await client.query("ROLLBACK"); }
+    });
     await client.query("BEGIN");
     await client.query("SET LOCAL lock_timeout='5s'");
     // Never initialize, migrate or backfill the production database for a test.
@@ -48,12 +56,21 @@ test("personal offers on existing production schema: every test write is rolled 
       const app = express();
       app.use(express.json());
       let mutationRequests = 0;
+      let readOnlyRequests = 0;
       const dependencies = {
         requireAuth(req, _res, next) { req.user = { id: req.headers["x-test-user"], account_type: req.headers["x-test-user"] === seller ? "business" : "personal", business_category: req.headers["x-test-user"] === seller ? "seller" : null, seller_space: "products" }; next(); },
         query: client.query.bind(client), transaction: async callback => {
           mutationRequests += 1;
           await client.query("SAVEPOINT http_offer_request");
-          try { const result = await callback(client); await client.query("RELEASE SAVEPOINT http_offer_request"); return result; }
+          try {
+            const result = await callback({ query: (sql, args) => {
+              // Test rows are uncommitted. The separate probe above uses true READ ONLY.
+              if (sql === "SET TRANSACTION READ ONLY") { readOnlyRequests += 1; return; }
+              return client.query(sql, args);
+            } });
+            await client.query("RELEASE SAVEPOINT http_offer_request");
+            return result;
+          }
           catch (error) { await client.query("ROLLBACK TO SAVEPOINT http_offer_request"); await client.query("RELEASE SAVEPOINT http_offer_request"); throw error; }
         },
       };
@@ -116,11 +133,38 @@ test("personal offers on existing production schema: every test write is rolled 
           const repeated = await post("", seller, terms);
           assert.equal(repeated.status, 200); assert.equal(repeated.body.offer.id, created.body.offer.id);
           const path = `/${created.body.offer.id}/pay`;
+          const status = async (path, userId) => {
+            const response = await fetch(`http://127.0.0.1:${server.address().port}/api/personal-offers${path}/status`, { headers: { "x-test-user": userId } });
+            assert.equal(response.headers.get("cache-control"), "private, no-store");
+            return { code: response.status, result: await response.json() };
+          };
+          const refundPath = `/${created.body.offer.id}/refund`;
+          const beforeStatus = await balances();
+          assert.deepEqual(await status(path, buyer), { code: 200, result: { purchase: null } });
+          assert.equal((await status(path, seller)).code, 404);
+          assert.equal((await status(refundPath, buyer)).code, 404);
+          assert.equal((await status(path, other)).code, 404);
+          assert.deepEqual(await balances(), beforeStatus);
           assert.equal((await post(path, other)).status, 404);
-          const paid = await post(path, buyer);
+          assert.equal((await post(path, buyer, { expectedPriceRolls: 2 })).body.code, "OFFER_PRICE_CHANGED");
+          assert.deepEqual(await balances(), beforeStatus);
+          const paid = await post(path, buyer, { expectedPriceRolls: 1 });
           assert.equal(paid.status, 201);
           const replay = await post(path, buyer);
           assert.equal(replay.status, 200); assert.equal(replay.body.purchase.id, paid.body.purchase.id);
+          const recorded = await status(path, buyer);
+          assert.equal(recorded.result.purchase.id, paid.body.purchase.id);
+          assert.equal(recorded.result.purchase.offerId, created.body.offer.id);
+          assert.equal(recorded.result.purchase.recipientId, buyer);
+          assert.equal(recorded.result.purchase.businessId, seller);
+          assert.equal(recorded.result.purchase.priceRolls, 1);
+          assert.equal(recorded.result.purchase.refundedAt, null);
+          assert.deepEqual(await status(refundPath, seller), { code: 200, result: { purchase: null } });
+          await client.query("SAVEPOINT corrupt_lookup");
+          try {
+            await client.query("UPDATE roll_store_purchases SET amount=2 WHERE id=$1", [paid.body.purchase.id]);
+            assert.equal((await status(path, buyer)).result.code, "OFFER_ORDER_MISMATCH");
+          } finally { await client.query("ROLLBACK TO SAVEPOINT corrupt_lookup"); }
           const buyerBalance = async () => (await client.query("SELECT balance::text FROM roll_wallets WHERE user_id=$1", [buyer])).rows[0].balance;
           assert.equal(await buyerBalance(), "99");
           assert.equal((await client.query("SELECT balance::text FROM roll_wallets WHERE user_id=$1", [seller])).rows[0].balance, "101");
@@ -133,7 +177,7 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal(expiredPayment.status, 409); assert.equal(expiredPayment.body.code, "OFFER_EXPIRED");
           assert.equal(await buyerBalance(), "99");
           assert.equal((await client.query("SELECT count(*)::int AS count FROM roll_store_purchases WHERE user_id=$1", [buyer])).rows[0].count, 1);
-          const refundPath = `/${created.body.offer.id}/refund`;
+          assert.equal((await post(refundPath, seller, { expectedPriceRolls: 2 })).body.code, "OFFER_PRICE_CHANGED");
           for (const id of [buyer, other]) {
             const denied = await post(refundPath, id);
             assert.equal(denied.status, 404);
@@ -150,9 +194,14 @@ test("personal offers on existing production schema: every test write is rolled 
             assert.equal((await readRollOrders(client, buyer)).orders[0].status, "placed");
           } finally { await client.query("ROLLBACK TO SAVEPOINT refund_recipient_capacity"); }
 
-          const refunded = await post(refundPath, seller);
+          const refunded = await post(refundPath, seller, { expectedPriceRolls: 1 });
           assert.equal(refunded.status, 200);
           assert.equal(refunded.body.purchase.replayed, false);
+          const refundStatus = await status(refundPath, seller);
+          assert.equal(refundStatus.result.purchase.refundedAt, refunded.body.purchase.refundedAt);
+          assert.equal(refundStatus.result.purchase.id, paid.body.purchase.id);
+          assert.equal((await status(path, buyer)).result.purchase.refundedAt, refunded.body.purchase.refundedAt);
+          assert.equal(readOnlyRequests, 9);
           assert.equal((await post(refundPath, seller)).body.purchase.replayed, true);
           assert.equal((await post(`/${created.body.offer.id.toUpperCase()}/refund`, seller)).body.purchase.replayed, true);
           const paidReplay = await post(path, buyer);

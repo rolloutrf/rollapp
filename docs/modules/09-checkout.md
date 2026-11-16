@@ -28,6 +28,12 @@
 подтверждения. Записанные заказы восстанавливаются независимо от текущего
 каталога и владельца исходной карты.
 
+Персональный счёт использует [общий экран операции](../../src/modules/checkout/personal-offer-operation.jsx)
+в кошельке, каталоге сферы и Вишлисте. Покупатель проверяет оплату, продавец
+проверяет возврат через приватный READ ONLY маршрут с точным номером счёта.
+Новые команды оплаты и возврата сверяют подтверждённую сумму.
+[Восстановление персонального счёта](../personal-offers.md#проверка-оплаты-и-возврата)
+
 **Приёмка.** Отмена и Back, недоступный товар и изменившаяся цена, отсутствие ПВЗ, нехватка роллов, потерянный ответ, повтор, восстановление заказа и повторный возврат. Проверьте телефоны и десктоп, `npm test`, `npm run test:orders`, `npm run test:cdek:visual` и `npm run test:checkout-recovery:production` по [регламенту](../verification.md).
 
 [Форма магазина](../../src/modules/checkout/cat-checkout.jsx) · [Бизнес-покупка](../../src/modules/catalog-marketplace/business-marketplace-page.jsx) · [Операции покупки и возврата](../../server/modules/checkout/roll-purchases.js) · [HTTP API](../../server/modules/payments/rolls-routes.js) · [Бизнес-покупки на сервере](../../server/modules/catalog-marketplace/business-marketplace.js)

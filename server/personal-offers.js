@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { readPersonalOfferOperation, readPersonalOfferTerms, requirePersonalOfferPrice } from "./modules/checkout/personal-offer-status.js";
 import { refundPersonalOffer } from "./modules/checkout/personal-offer-refunds.js";
+import { createRateLimit } from "./modules/runtime/rate-limit.js";
 import { RollsError, transferRolls } from "./modules/payments/rolls.js";
 import { canManageWishlistSpace } from "../shared/modules/wishlist/wishlist-business.js";
 import { BUSINESS_OFFER_SPHERES, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
@@ -125,11 +127,12 @@ export async function createPersonalOffer(client, businessId, input) {
   return { id, replayed: false };
 }
 
-export async function payPersonalOffer(client, recipientId, offerId) {
+export async function payPersonalOffer(client, recipientId, offerId, { expectedPriceRolls } = {}) {
   if (!z.string().uuid().safeParse(offerId).success) throw new RollsError("Счёт не найден", "OFFER_NOT_FOUND", 404);
   const result = await client.query("SELECT * FROM business_personal_offers WHERE id=$1 AND recipient_id=$2 FOR UPDATE", [offerId, recipientId]);
   if (!result.rowCount) throw new RollsError("Счёт не найден", "OFFER_NOT_FOUND", 404);
   const offer = result.rows[0];
+  requirePersonalOfferPrice(offer.price_rolls, expectedPriceRolls);
   if (offer.purchase_id) {
     const { rows: [order] } = await client.query("SELECT refunded_at FROM roll_store_purchases WHERE id=$1", [offer.purchase_id]);
     return { id: offer.purchase_id, replayed: true, ...(order?.refunded_at && { refundedAt: order.refunded_at }) };
@@ -161,6 +164,7 @@ export async function payPersonalOffer(client, recipientId, offerId) {
 }
 
 export function registerPersonalOfferRoutes(app, { requireAuth, query, transaction }) {
+  const statusLimit = createRateLimit({ windowMs: 60_000, max: 60, key: (req) => req.user.id });
   const handle = (fn) => (req, res, next) => {
     res.set("Cache-Control", "private, no-store");
     return Promise.resolve(fn(req, res)).catch(error => {
@@ -205,12 +209,19 @@ export function registerPersonalOfferRoutes(app, { requireAuth, query, transacti
     const offer = await transaction((client) => createPersonalOffer(client, req.user.id, req.body));
     res.status(offer.replayed ? 200 : 201).json({ offer });
   }));
+  app.get("/api/personal-offers/:id/:action/status", requireAuth, statusLimit, handle(async (req, res) => {
+    const purchase = await transaction(async (client) => {
+      await client.query("SET TRANSACTION READ ONLY");
+      return readPersonalOfferOperation(client, req.user.id, req.params);
+    });
+    res.json({ purchase });
+  }));
   app.post("/api/personal-offers/:id/pay", requireAuth, handle(async (req, res) => {
-    const purchase = await transaction((client) => payPersonalOffer(client, req.user.id, req.params.id));
+    const purchase = await transaction((client) => payPersonalOffer(client, req.user.id, req.params.id, readPersonalOfferTerms(req.body)));
     res.status(purchase.replayed ? 200 : 201).json({ purchase });
   }));
   app.post("/api/personal-offers/:id/refund", requireAuth, handle(async (req, res) => {
-    const purchase = await transaction((client) => refundPersonalOffer(client, req.user.id, req.params.id));
+    const purchase = await transaction((client) => refundPersonalOffer(client, req.user.id, req.params.id, readPersonalOfferTerms(req.body)));
     res.json({ purchase });
   }));
 }

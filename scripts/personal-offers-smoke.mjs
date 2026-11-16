@@ -60,8 +60,66 @@ async function checkSphereCatalog(page, sphere, section) {
   await page.getByRole("link", { name: /^К сфере/ }).click();
   await page.waitForURL(url => url.pathname.endsWith(`/${sphere}`) && url.searchParams.get("tab") === section);
 }
+const viewports = [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,900],[1920,1080],[390,400]];
+async function checkRecordedOperations() {
+  for (const [width, height] of viewports) {
+    const page = await browser.newPage({ viewport: { width, height } });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", (route) => { errors.push("Unexpected API request"); return route.abort(); });
+    const orderType = width === 768 || width === 1440 ? "seller-recorded" : width === 1024 || height === 400 ? "wishlist-recorded" : width === 1920 ? "payment-archived" : "payment-recorded";
+    const refunding = orderType === "seller-recorded";
+    const wishlist = orderType === "wishlist-recorded";
+    const operationUrl = `${smokeOrigin(server)}/__offers-smoke?case=${orderType}`;
+    const action = refunding ? "refund" : "pay";
+    const offerId = refunding ? "paid" : wishlist ? "wishlist-invoice" : "active";
+    const posted = [{ path: `/personal-offers/${offerId}/${action}`, body: { expectedPriceRolls: wishlist ? 75 : 50 } }];
+    const popup = page.getByRole("alertdialog");
+    const openWishlist = () => page.getByRole("button", { name: 'Открыть «Wishlist товар»' }).click();
+    await page.goto(operationUrl);
+    if (wishlist) await openWishlist();
+    await page.getByRole("button", { name: refunding ? "Вернуть роллы" : "Оплатить", exact: true }).click();
+    await popup.getByRole("button", { name: refunding ? "Подтвердить возврат" : "Подтвердить оплату" }).click();
+    await popup.getByText(/Ответ потерян/).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.offerCalls), posted);
+    if (height < 500 || width === 1440) await page.screenshot({ path: `${output}/operation-recovery-${width}-${height}.png`, animations: "disabled" });
+    await popup.getByRole("button", { name: "Позже", exact: true }).click();
+    await popup.waitFor({ state: "hidden" });
+    await page.goto(operationUrl);
+    if (wishlist) await openWishlist();
+    const resume = page.getByRole("button", { name: "Открыть проверку", exact: true });
+    await resume.click();
+    const check = popup.getByRole("button", { name: "Проверить результат", exact: true });
+    await page.waitForFunction(() => [...document.querySelectorAll('[role="alertdialog"] button')].some(button =>
+      button.textContent === "Проверить результат" && button.getBoundingClientRect().height === 48));
+    assert.equal((await check.boundingBox()).height, 48);
+    assert.deepEqual(await page.evaluate(() => window.offerCalls), posted);
+    assert.deepEqual(await page.evaluate(() => window.offerChecks), []);
+    await check.click();
+    await popup.waitFor({ state: "hidden" });
+    if (wishlist) {
+      await page.waitForURL(url => !url.searchParams.has("formScreen"));
+      await openWishlist();
+    }
+    const result = wishlist ? page : page.getByRole("article").filter({ has: page.getByRole("heading", {
+      name: refunding ? "Оплаченный оффер" : "Активный оффер", exact: true,
+    }) });
+    if (orderType === "payment-archived") {
+      await page.getByRole("status").filter({ hasText: "Счёт «Активный оффер» оплачен." }).waitFor();
+      assert.equal(await result.count(), 0);
+    } else await result.getByRole("status").filter({ hasText: refunding ? "Роллы возвращены" : /^Оплачен$/ }).first().waitFor();
+    assert.equal(await resume.count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.offerCalls), posted);
+    assert.deepEqual(await page.evaluate(() => window.offerChecks), [`/personal-offers/${offerId}/${action}/status`]);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.deepEqual(errors, []);
+    await page.close();
+    console.log(`PASS invoice recovery ${width}×${height} ${orderType}: exact GET after reload without another POST`);
+  }
+}
 try {
-  for (const [width, height] of [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,900],[1920,1080],[390,400]]) {
+  await checkRecordedOperations();
+  for (const [width, height] of (process.argv.includes("--recovery-only") ? [] : viewports)) {
     const page = await browser.newPage({ viewport: { width, height } });
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
@@ -119,15 +177,19 @@ try {
         const confirmation = page.getByRole("alertdialog");
         const confirm = confirmation.getByRole("button", { name: "Подтвердить возврат" });
         await confirm.click();
-        await confirmation.getByText("Повторите возврат").waitFor();
+        await confirmation.getByText(/Ответ потерян/).waitFor();
+        const check = confirmation.getByRole("button", { name: "Проверить результат" });
+        await check.click();
+        await confirmation.getByText("Операция пока не записана.", { exact: true }).waitFor();
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), [{ path: "/personal-offers/paid/refund", body: { expectedPriceRolls: 50 } }]);
         const popup = await confirmation.boundingBox();
         assert(popup.x >= 0 && popup.y >= 0 && popup.x + popup.width <= width + 1 && popup.y + popup.height <= height + 1);
         if ([390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${output}/refund-${width}.png` });
-        await confirm.click();
+        await confirmation.getByRole("button", { name: "Повторить возврат", exact: true }).click();
         await confirmation.waitFor({ state: "hidden" });
         await page.getByRole("status").filter({ hasText: "Роллы возвращены" }).waitFor();
         assert.equal(await refund.count(), 0);
-        assert.deepEqual(await page.evaluate(() => window.offerCalls), Array.from({length: 2}, () => ({ path: "/personal-offers/paid/refund", body: {} })));
+        assert.deepEqual(await page.evaluate(() => window.offerCalls), Array.from({length: 2}, () => ({ path: "/personal-offers/paid/refund", body: { expectedPriceRolls: 50 } })));
       }
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${scenario} overflow`);
     }

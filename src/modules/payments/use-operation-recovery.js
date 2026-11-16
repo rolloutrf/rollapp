@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/modules/runtime/api.js";
 
-export function useOperationRecovery({ storageKey, loadSaved, requestFor, field, messages, readMatches,
+export function useOperationRecovery({ client = api, storageKey, loadSaved, requestFor, field, messages, readMatches,
   acceptResponse, onRecorded, onComplete, onReject, onCloseConflict }) {
   const [pending, setPending] = useState(loadSaved);
   const [requestMode, setRequestMode] = useState(null);
@@ -19,10 +19,15 @@ export function useOperationRecovery({ storageKey, loadSaved, requestFor, field,
     setError("");
   }
 
+  function keyFor(intent) {
+    const { requestKey, payload } = requestFor(intent);
+    return requestKey ?? payload.idempotencyKey;
+  }
+
   function clear(intent) {
     try {
       const saved = loadSaved();
-      if (saved && requestFor(saved).payload.idempotencyKey === requestFor(intent).payload.idempotencyKey) {
+      if (saved && keyFor(saved) === keyFor(intent)) {
         sessionStorage.removeItem(storageKey);
       }
     } catch {
@@ -32,13 +37,13 @@ export function useOperationRecovery({ storageKey, loadSaved, requestFor, field,
   }
 
   async function run(mode, intent) {
-    const { path, payload, timeoutMs, statusPath = `${path}/${encodeURIComponent(payload.idempotencyKey)}` } = requestFor(intent);
+    const { path, payload, timeoutMs, statusPath = `${path}/${encodeURIComponent(keyFor(intent))}` } = requestFor(intent);
     const options = timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : undefined;
     inFlight.current = true;
     setRequestMode(mode);
     resetNotice();
     try {
-      const payloadResult = mode === "check" ? await api.get(statusPath, options) : await api.post(path, payload, options);
+      const payloadResult = mode === "check" ? await client.get(statusPath, options) : await client.post(path, payload, options);
       const operation = payloadResult?.[field];
       if (mode === "check" && operation === null) {
         if (mounted.current) setResult("missing");
@@ -91,12 +96,13 @@ export function useOperationRecovery({ storageKey, loadSaved, requestFor, field,
     if (pending && !inFlight.current) void run("check", pending);
   }
 
-  function closeConflict() {
-    if (!pending || result !== "conflict" || inFlight.current) return;
+  function closeResult(expected) {
+    if (!pending || result !== expected || inFlight.current) return;
     clear(pending);
     resetNotice();
     onCloseConflict();
   }
 
-  return { pending, requestMode, busy: requestMode !== null, error, result, send, check, closeConflict, resetNotice, inFlight };
+  return { pending, requestMode, busy: requestMode !== null, error, result, send, check, closeConflict: () => closeResult("conflict"),
+    closeUnrecorded: () => closeResult("missing"), resetNotice, inFlight };
 }

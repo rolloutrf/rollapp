@@ -18,7 +18,7 @@
 | 06 | [Доставка](06-delivery.md) | СДЭК, выбор ПВЗ, снимок доставки заказа | [Клиент](../../src/modules/delivery/) · [Сервер](../../server/modules/delivery/) |
 | 07 | [2FA](07-2fa.md) | Будущий второй фактор | Запланирован |
 | 08 | [Платежи](08-payments.md) | Роллы, переводы, восстановление счетов Stars и TON, сверка остатков и пополнений | [Клиент](../../src/modules/payments/) · [Сервер](../../server/modules/payments/) · [Сверка](../rolls-operations.md) · [Общий код](../../shared/modules/payments/) |
-| 09 | [Чекаут](09-checkout.md) | Подтверждение и проверка покупок, резерв, расчёт и возврат | [Клиент](../../src/modules/checkout/) · [Сервер](../../server/modules/checkout/) · [Общий код](../../shared/modules/checkout/) |
+| 09 | [Чекаут](09-checkout.md) | Подтверждение и проверка покупок и персональных счетов, резерв и возврат | [Клиент](../../src/modules/checkout/) · [Сервер](../../server/modules/checkout/) · [Общий код](../../shared/modules/checkout/) |
 | 10 | [История операций](10-history.md) | История роллов, заказы и квитанции | [Клиент](../../src/modules/history/) · [Сервер](../../server/modules/history/) · [Общий код](../../shared/modules/history/) |
 | 11 | [PFM](11-pfm.md) | Сводка по роллам, календарный период и выписка | [Клиент](../../src/modules/pfm/) · [Сервер](../../server/modules/pfm/) · [Общий код](../../shared/modules/pfm/) |
 | 12 | [Лояльность](12-loyalty.md) | Приветствие, подарочные карты и их восстановление, награды и расчёт по потребностям | [Клиент](../../src/modules/loyalty/) · [Сервер](../../server/modules/loyalty/) |
