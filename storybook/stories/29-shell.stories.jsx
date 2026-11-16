@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Page, Scenario, noop } from "../support.jsx";
 
-export default { id: "rollapp-shell", title: "РОЛЛАПП/Модули РОЛЛАПП/29 Оболочка приложения" };
+export default { id: "rollapp-shell", title: "РОЛЛАПП/Модули/29 Оболочка приложения" };
 
 function Chrome({ mode, disabled }) {
   const [open, setOpen] = useState(false);

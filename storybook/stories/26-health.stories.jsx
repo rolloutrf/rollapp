@@ -5,7 +5,7 @@ import { Medications } from "@/modules/health/medications.jsx";
 import { localDateKey } from "../../shared/modules/planning/planning.js";
 import { Page, Scenario, hold, fixtureError } from "../support.jsx";
 
-export default { id: "rollapp-health", title: "РОЛЛАПП/Модули РОЛЛАПП/26 Здоровье" };
+export default { id: "rollapp-health", title: "РОЛЛАПП/Модули/26 Здоровье" };
 
 const groups = [{ id: "blood", title: "Общий анализ крови", items: [
   { name: "Гематокрит", code: "HCT", value: "42.5", unit: "%", reference: "39–49", status: "normal" },

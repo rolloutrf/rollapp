@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PhoneOtpFields } from "@/modules/identification/phone-otp.jsx";
 import { Page } from "../support.jsx";
 
-export default { id: "rollapp-identification", title: "РОЛЛАПП/Модули РОЛЛАУТ/02 Идентификация" };
+export default { id: "rollapp-identification", title: "РОЛЛАПП/Модули/02 Идентификация" };
 
 function Phone({ initialStep, initialError, retrySeconds, loading }) {
   const [step, setStep] = useState(initialStep);

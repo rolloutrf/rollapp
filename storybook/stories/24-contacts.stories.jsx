@@ -3,7 +3,7 @@ import { ContactsSpherePage, ContactCreateDrawer, ContactDetailDrawer } from "@/
 import { Button } from "@/components/ui/button";
 import { Page, Scenario, person, hold, fixtureError, noop } from "../support.jsx";
 
-export default { id: "rollapp-contacts", title: "РОЛЛАПП/Модули РОЛЛАПП/24 Контакты" };
+export default { id: "rollapp-contacts", title: "РОЛЛАПП/Модули/24 Контакты" };
 
 const contact = { ...person, id: "contact-1", company: "Северная студия", role: "Дизайнер", favorite: true,
   links: [{ label: "Сайт", url: "https://example.test" }], notes: "Познакомились на проектной встрече." };

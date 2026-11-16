@@ -2,7 +2,7 @@ import { RollsActivity } from "@/modules/pfm/rolls-activity.jsx";
 import { Page, Scenario, fixtureError, hold } from "../support.jsx";
 import { ledger, ledgerReceipts } from "../samples.js";
 
-export default { id: "rollapp-pfm", title: "РОЛЛАПП/Модули РОЛЛАУТ/11 PFM" };
+export default { id: "rollapp-pfm", title: "РОЛЛАПП/Модули/11 PFM" };
 
 function Report({ state }) {
   const routes = {

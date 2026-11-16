@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { FriendsPage } from "@/modules/social/friends-page.jsx";
 import { Page, Scenario, person, hold, fixtureError } from "../support.jsx";
 
-export default { id: "rollapp-social", title: "РОЛЛАПП/Модули РОЛЛАПП/17 Друзья и подписки" };
+export default { id: "rollapp-social", title: "РОЛЛАПП/Модули/17 Друзья и подписки" };
 
 function Friends({ section, state }) {
   const following = useRef(section === "subscriptions");

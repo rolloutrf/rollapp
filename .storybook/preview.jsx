@@ -48,6 +48,6 @@ export default {
     backgrounds: { disable: true },
     controls: { expanded: true },
     docs: { story: { inline: false, iframeHeight: 640 } },
-    options: { storySort: { method: "alphabetical", order: ["РОЛЛАПП", ["Обзор", "Модули РОЛЛАУТ", "Модули РОЛЛАПП", "UI-компоненты"]] } },
+    options: { storySort: { method: "alphabetical", order: ["РОЛЛАПП", ["Обзор", "Модули", "UI-компоненты"]] } },
   },
 };

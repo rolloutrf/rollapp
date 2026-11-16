@@ -5,7 +5,7 @@ import { Avatar } from "@/modules/profile/profile-avatar.jsx";
 import { Button } from "@/components/ui/button";
 import { Example, Examples, Page, Scenario, owner, noop } from "../support.jsx";
 
-export default { id: "rollapp-profile", title: "РОЛЛАПП/Модули РОЛЛАУТ/03 Профиль" };
+export default { id: "rollapp-profile", title: "РОЛЛАПП/Модули/03 Профиль" };
 
 const routes = {
   "GET /auth/yandex/config": { enabled: true },

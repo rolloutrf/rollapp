@@ -4,7 +4,7 @@ import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
 import { WishDetailsModal } from "@/modules/card/wish-details.jsx";
 import { Example, Examples, Page, Scenario, owner, noop } from "../support.jsx";
 
-export default { id: "rollapp-card", title: "РОЛЛАПП/Модули РОЛЛАУТ/05 Карточка" };
+export default { id: "rollapp-card", title: "РОЛЛАПП/Модули/05 Карточка" };
 
 const photo = "/store/cats/blue-tired.webp";
 const wish = { id: "storybook-card", title: "Синий кот — Уставший", description: "Коллекционная фигурка. Эмалированная поверхность и матовая подставка.", space: "products", status: "active", price: 2400, currency: "RUB", imageUrl: photo, listIds: [] };

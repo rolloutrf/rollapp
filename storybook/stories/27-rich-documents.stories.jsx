@@ -3,7 +3,7 @@ import { InlineDocument } from "@/modules/rich-documents/inline-document.jsx";
 import { MarkdownDocument } from "@/modules/identity/life-strategy.jsx";
 import { Page, Scenario, fixtureError, hold } from "../support.jsx";
 
-export default { id: "rollapp-rich-documents", title: "РОЛЛАПП/Модули РОЛЛАПП/27 Документы и встроенный редактор" };
+export default { id: "rollapp-rich-documents", title: "РОЛЛАПП/Модули/27 Документы и встроенный редактор" };
 
 const samples = {
   basic: "# План недели\n\nОбсудить **приоритеты** и проверить *гипотезы*.\n\n> Одно решение нужно записать до встречи.\n\n- [x] Собрать вопросы\n- [ ] Подготовить материалы\n",

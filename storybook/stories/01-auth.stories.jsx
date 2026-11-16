@@ -1,7 +1,7 @@
 import { AuthPage, RegistrationForm } from "@/modules/auth/auth-pages.jsx";
 import { Page, Scenario, hold, fixtureError } from "../support.jsx";
 
-export default { id: "rollapp-auth", title: "РОЛЛАПП/Модули РОЛЛАУТ/01 Авторизация" };
+export default { id: "rollapp-auth", title: "РОЛЛАПП/Модули/01 Авторизация" };
 
 const invalidCredentials = () => { throw fixtureError("Проверьте почту и пароль.", 401); };
 const config = (enabled, legacySignInEnabled) => ({ enabled, legacySignInEnabled });

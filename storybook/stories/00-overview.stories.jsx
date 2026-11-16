@@ -15,16 +15,16 @@ export const Catalog = {
       <p>Откройте модуль в меню слева. Соседние истории показывают его состояния, а Controls позволяют изменить параметры. В верхней панели можно выбрать тему и размер окна.</p>
       <p>Действия в историях работают с примерами. Ссылки «В приложении» открывают реальный РОЛЛАПП в отдельной вкладке.</p>
     </header>
-    {[["Модули РОЛЛАУТ", modules.slice(0, 13)], ["Модули РОЛЛАПП", modules.slice(13)]].map(([title, entries]) => <section key={title}>
-      <h2>{title}</h2>
+    <section>
+      <h2>Модули</h2>
       <div className="not-typeset rollapp-story__examples">
-        {entries.map(([number, label, id, path]) => <Card key={number} className="grid gap-2 rounded-2xl p-4">
+        {modules.map(([number, label, id, path]) => <Card key={number} className="grid gap-2 rounded-2xl p-4">
           <a className="rollapp-body font-medium underline-offset-4 hover:underline" href={`./?path=/story/rollapp-${id}`} target="_top">{number} <span>{label}</span></a>
           {path && <a className="flex w-fit items-center gap-1 text-muted-foreground hover:underline" href={`https://${PLATFORM_HOST}${localizedPageUrl(path)}`} target="_blank" rel="noreferrer">
             <span>В приложении</span><ExternalLink size={14} aria-hidden="true" />
           </a>}
         </Card>)}
       </div>
-    </section>)}
+    </section>
   </Page>,
 };

@@ -3,7 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LoadingScreen, EmptyState, NotFound } from "@/modules/shell/page-feedback.jsx";
 import { Page, Scenario } from "../support.jsx";
 
-export default { id: "rollapp-runtime", title: "РОЛЛАПП/Модули РОЛЛАПП/30 Запуск и эксплуатация" };
+export default { id: "rollapp-runtime", title: "РОЛЛАПП/Модули/30 Запуск и эксплуатация" };
 
 export const Loading = { name: "Загрузка приложения", render: () => <Page><LoadingScreen /></Page> };
 export const CompactLoading = { name: "Загрузка внутри раздела", render: () => <Page><LoadingScreen compact /></Page> };

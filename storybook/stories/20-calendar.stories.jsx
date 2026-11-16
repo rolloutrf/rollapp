@@ -1,6 +1,6 @@
 import { PlanningPreview } from "../planning-preview.jsx";
 
-export default { id: "rollapp-calendar", title: "РОЛЛАПП/Модули РОЛЛАПП/20 Календарь" };
+export default { id: "rollapp-calendar", title: "РОЛЛАПП/Модули/20 Календарь" };
 
 const render = (args) => <PlanningPreview key={JSON.stringify(args)} kind="calendar" {...args} />;
 export const Day = { name: "День · пересечения и задачи без времени", render, args: { view: "day", state: "ready" } };

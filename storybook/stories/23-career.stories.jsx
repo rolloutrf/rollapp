@@ -5,7 +5,7 @@ import { DevelopmentPlan } from "@/modules/career/development-plan.jsx";
 import { PerformanceReview } from "@/modules/career/performance-review.jsx";
 import { Page, Scenario, hold, fixtureError } from "../support.jsx";
 
-export default { id: "rollapp-career", title: "РОЛЛАПП/Модули РОЛЛАПП/23 Карьера" };
+export default { id: "rollapp-career", title: "РОЛЛАПП/Модули/23 Карьера" };
 
 const sample = "# Профессиональный профиль\n\nРазвиваю дизайн продуктов и помогаю командам проверять гипотезы.\n\n## Опыт\n\n- Исследования и прототипирование\n- Дизайн цифровых сервисов\n";
 const views = { about: AboutMe, domain: Domain, cv: CvResume, plan: DevelopmentPlan, performance: PerformanceReview };

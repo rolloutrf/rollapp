@@ -3,7 +3,7 @@ import { Conferences } from "@/modules/education/conferences.jsx";
 import { CoachingSessions } from "@/modules/education/coaching-sessions.jsx";
 import { Page, Scenario, hold, fixtureError } from "../support.jsx";
 
-export default { id: "rollapp-education", title: "РОЛЛАПП/Модули РОЛЛАПП/25 Образование" };
+export default { id: "rollapp-education", title: "РОЛЛАПП/Модули/25 Образование" };
 
 const displays = {
   courses: { View: Courses, key: "courses", titles: ["Дизайн цифровых продуктов", "История типографики", "Основы иллюстрации"], statuses: ["planned", "in_progress", "completed"] },

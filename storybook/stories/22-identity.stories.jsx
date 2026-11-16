@@ -3,7 +3,7 @@ import { IdentityReportsPage } from "@/modules/identity/identity-reports-page.js
 import { FourQuestions } from "@/modules/identity/four-questions.jsx";
 import { Page, Scenario, hold, fixtureError } from "../support.jsx";
 
-export default { id: "rollapp-identity", title: "РОЛЛАПП/Модули РОЛЛАПП/22 Идентичность" };
+export default { id: "rollapp-identity", title: "РОЛЛАПП/Модули/22 Идентичность" };
 
 const generated = { documents: [{
   id: "example-report", filename: "Пример отчёта.pdf",
