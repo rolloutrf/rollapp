@@ -70,6 +70,14 @@
 }
 
 @layer utilities {
+  @media (min-width: 768px) {
+    .app-navigation-popup:is(.sphere-switcher__panel, .space-select__content) {
+      width: var(--layout-menu-wide-width);
+      min-width: 0;
+      max-width: min(var(--available-width, 100vw), calc(100vw - 2 * var(--layout-page-inset)));
+    }
+  }
+
   [data-slot="drawer-popup"][data-swipe-axis="x"] {
     --drawer-content-width: min(var(--layout-panel-width, var(--layout-form-width)), calc(100vw - 2 * var(--layout-panel-inset)));
   }
