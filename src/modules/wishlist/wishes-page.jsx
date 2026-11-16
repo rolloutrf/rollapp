@@ -87,7 +87,8 @@ export function WishesPage({ onAdd, version }) {
   const { data, loading, error, reload, updateData } = useAsync(async () => ({
     ...await api.get("/dashboard"), viewerId,
   }), [version, wishlistVersion, viewerId]);
-  const hasPriceWatches = Boolean(viewerId && data?.viewerId === viewerId && !publication && data.purchasePlans?.some(({ priceWatch }) => priceWatch));
+  const purchasesAvailable = Boolean(viewerId && data?.viewerId === viewerId && Array.isArray(data.purchasePlans));
+  const hasPriceWatches = Boolean(purchasesAvailable && !publication && data.purchasePlans.some(({ priceWatch }) => priceWatch));
   useEffect(() => {
     if (!hasPriceWatches) return undefined;
     const refresh = () => { if (!document.hidden) void reload({ background: true }).catch(() => {}); };
@@ -1189,7 +1190,7 @@ export function WishesPage({ onAdd, version }) {
     return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} groupOptions={group ? [] : groups} onCreateGroup={!group && groupingListId ? () => createGroup(wish.id) : undefined} onAddToGroup={!group && groupingListId ? (groupId) => addToGroup(wish.id, groupId) : undefined} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startNativeDrag(event, wish.id, group)} onDragEnd={() => finishDrag({ persist: false, restore: true })} onDragOver={(event) => allowNativeWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
     if (suppressOpenRef.current) { suppressOpenRef.current = false; return; }
     setSelectedWishId(wish.id);
-  }} onEdit={() => editWish(wish.id)} onPlanPurchase={() => setPlannedWishId(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
+  }} onEdit={() => editWish(wish.id)} onPlanPurchase={purchasesAvailable ? () => setPlannedWishId(wish.id) : undefined} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
   const renderGroupTile = (group, groupWishes) => <WishGroupTile
     key={group.id}
@@ -1223,12 +1224,14 @@ export function WishesPage({ onAdd, version }) {
       ? renderGroupTile(item.group, item.wishes)
       : renderWish(item.wish)
   );
-  return <div className={publication ? "app-page wishes-page" : "app-page wishes-page page-stack [&>.wishes-page__profile-controls]:pb-0! [&>.list-tabs]:mb-0!"}>
+  return <div className={purchasesAvailable && !publication ? "app-page wishes-page page-stack [&>.wishes-page__profile-controls]:pb-0! [&>.list-tabs]:mb-0!" : "app-page wishes-page"}>
     {profileControls}{loadError}
     {!publication && data && <AddFab actions={[
       { label: "Добавить желание", onSelect: () => onAdd(selectedSpace, selectedList?.id) },
-      { label: "Новая потребность", icon: CalendarPlus, onSelect: () => setPurchaseNeedForm({}) },
-      { label: "Новая подписка", icon: Repeat2, onSelect: () => setSubscriptionForm({}) },
+      ...(purchasesAvailable ? [
+        { label: "Новая потребность", icon: CalendarPlus, onSelect: () => setPurchaseNeedForm({}) },
+        { label: "Новая подписка", icon: Repeat2, onSelect: () => setSubscriptionForm({}) },
+      ] : []),
       { label: "Новый список", icon: ListPlus, onSelect: () => setListModal({}) },
     ]} />}
     {!publication && shouldShowListNavigation({ listCount: categoryLists.length, unlistedCount: unlistedWishes.length }) && <WishListNavigation
@@ -1243,10 +1246,10 @@ export function WishesPage({ onAdd, version }) {
       onOrderError={() => toast("Не удалось сохранить порядок списков", "error")}
     />}
 {publicationContent || <>
-    <WishPurchaseSummary plans={data?.purchasePlans || emptyPurchasePlans} subscriptions={data?.subscriptions} collaborations={data?.purchaseCollaborations}
+    {purchasesAvailable && <WishPurchaseSummary plans={data.purchasePlans} subscriptions={data?.subscriptions} collaborations={data?.purchaseCollaborations}
       onOpen={setReviewPurchase} onCollaborate={setPurchaseCollaboration}
       onEditNeed={(plan) => setPurchaseNeedForm({ plan })} onOpenSubscription={(id) => setSubscriptionForm({ id })}
-      onOpenPurchase={setPurchaseCareId} historyRevision={purchaseHistoryRevision} />
+      onOpenPurchase={setPurchaseCareId} historyRevision={purchaseHistoryRevision} />}
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
 {openedGroup && <WishGroupDialog
   group={openedGroup}
