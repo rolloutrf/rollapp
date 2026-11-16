@@ -55,13 +55,19 @@ test("disabled rewards are explicit and do not touch the database", async () => 
 });
 test("enabled production startup checks rewards read-only and never migrates missing tables", async () => {
   const calls = [];
+  let missingOffers = false;
   const options = { environment: { ROLLAPP_DATABASE_INITIALIZATION: "verify", ROLLAPP_NEED_REWARDS_ENABLED: "true" }, isMemoryDatabase: false,
-    migrate() { assert.fail("Startup must not migrate"); }, transaction: fn => fn({ query: async sql => { calls.push(sql); return { rows: [] }; } }) };
+    migrate() { assert.fail("Startup must not migrate"); }, transaction: fn => fn({ query: async sql => {
+      calls.push(sql);
+      if (missingOffers && sql.includes("reward_need_offers")) throw new Error("missing offers");
+      if (sql.includes("to_regclass('roll_marketplace_orders')")) return { rows: [{ orders: false, events: false }] };
+      return { rows: [] };
+    } }) };
   await initializeRuntimeDatabase(options);
   assert.equal(calls[0], "SET TRANSACTION READ ONLY");
   for (const table of ["reward_needs", "reward_need_offers", "reward_need_entries", "reward_need_events"]) assert(calls.some(sql => sql.includes(`FROM ${table} LIMIT 0`)));
-  assert(calls.slice(1).every(sql => sql.startsWith("SELECT ")));
-  options.transaction = fn => fn({ query: async sql => { if (sql.includes("reward_need_offers")) throw new Error("missing offers"); return { rows: [] }; } });
+  assert(calls.slice(1).every(sql => sql.trimStart().startsWith("SELECT ")));
+  missingOffers = true;
   await assert.rejects(initializeRuntimeDatabase(options), /missing offers/);
 });
 

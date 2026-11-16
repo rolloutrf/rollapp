@@ -1737,6 +1737,7 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
     version: process.env.APP_VERSION || "development",
     capabilities: {
       marketplaceDirect: true,
+      marketplaceSettlements: process.env.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true",
       marketplaceAi: sharedAiConfigured(),
       defaultAiProvider: yandexAiConfig().enabled ? "yandex" : process.env.OPENROUTER_API_KEY ? "openrouter" : null,
       personalAiCredentials: userCredentialsConfigured(),

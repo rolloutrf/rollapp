@@ -1,3 +1,7 @@
+const terminalActions = ["accept", "claim", "cancel", "refund", "resolve_release", "resolve_refund"];
+const terminalActionList = terminalActions.map((action) => `'${action}'`).join(",");
+const relations = ["roll_marketplace_orders", "roll_marketplace_order_events"];
+
 // This schema is installed only by the separately authorized migration.
 export const marketplaceSettlementsSchema = `
   CREATE TABLE IF NOT EXISTS roll_marketplace_orders (
@@ -46,7 +50,7 @@ export const marketplaceSettlementsSchema = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_roll_marketplace_single_settlement
     ON roll_marketplace_order_events(order_id)
-    WHERE action IN ('accept','claim','cancel','refund','resolve_release','resolve_refund');
+    WHERE action IN (${terminalActionList});
 `;
 
 export async function hasMarketplaceSettlementSchema(client) {
@@ -58,11 +62,82 @@ export async function hasMarketplaceSettlementSchema(client) {
   return schema.orders;
 }
 
-export async function verifyMarketplaceSettlementSchema(client) {
-  if (!await hasMarketplaceSettlementSchema(client)) throw new Error("Marketplace settlement schema is not installed");
+export async function readMarketplaceSettlementPrerequisites(client) {
+  const { rows: [access] } = await client.query(`
+    SELECT current_schema() AS schema,
+      COALESCE(has_schema_privilege(current_user,current_schema(),'CREATE'),FALSE) AS "canCreate",
+      COALESCE(has_schema_privilege(current_user,current_schema(),'USAGE'),FALSE) AS "canUse"
+  `);
+  const { rows: references } = await client.query(`
+    SELECT required.relation,required.column_name AS "column",
+      COALESCE(has_column_privilege(current_user,a.attrelid,a.attnum,'REFERENCES'),FALSE) AS "canReference",
+      EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=a.attrelid AND i.indisunique AND i.indimmediate
+        AND i.indisvalid AND i.indisready AND i.indislive AND i.indexprs IS NULL AND i.indpred IS NULL
+        AND i.indnkeyatts=1 AND i.indkey[0]=a.attnum) AS "hasReferenceKey"
+    FROM (VALUES ('users','id'),('roll_wallets','user_id'),
+      ('business_gift_cards','id'),('business_gift_card_events','id')) AS required(relation,column_name)
+    LEFT JOIN pg_attribute a ON a.attrelid=to_regclass(required.relation)
+      AND a.attname=required.column_name AND a.attnum>0 AND NOT a.attisdropped
+    ORDER BY required.relation
+  `);
+  return { ...access, references };
+}
+
+const ledgerIndexesSql = `
+  SELECT CASE WHEN i.indrelid=to_regclass($1) THEN 'orders' ELSE 'events' END AS relation,
+    i.indisprimary AS "primary", i.indnullsnotdistinct AS "nullsNotDistinct",
+    pg_get_expr(i.indpred,i.indrelid) AS predicate,
+    ARRAY(SELECT a.attname::text
+      FROM unnest(i.indkey) WITH ORDINALITY AS key(attnum,position)
+      JOIN pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=key.attnum
+      WHERE key.position<=i.indnkeyatts ORDER BY key.position
+    ) AS columns
+  FROM pg_index i
+  WHERE i.indrelid IN (to_regclass($1),to_regclass($2)) AND i.indisunique
+    AND i.indimmediate AND i.indisvalid AND i.indisready AND i.indislive AND i.indexprs IS NULL
+`;
+
+function isTerminalPredicate(predicate) {
+  // PostgreSQL deparses IN over a text column to equality against a text array.
+  const match = predicate?.match(/^\(action = ANY \(ARRAY\[(.+)\]\)\)$/);
+  if (!match) return false;
+  const expected = terminalActions.map((action) => `'${action}'::text`).sort();
+  const actual = match[1].split(/,\s*/).sort();
+  return actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
+}
+
+const requiredLedgerIndexes = [
+  { relation: "orders", columns: ["id"], primary: true, label: "order identity" },
+  { relation: "orders", columns: ["buyer_id", "request_key"], label: "buyer request uniqueness" },
+  { relation: "orders", columns: ["gift_payment_id"], nullable: true, label: "gift debit uniqueness" },
+  { relation: "events", columns: ["order_id", "action"], primary: true, label: "event identity" },
+  { relation: "events", columns: ["order_id"], terminal: true, label: "single terminal event" },
+];
+
+export async function readMarketplaceSettlementIndexes(client) {
+  const { rows } = await client.query(ledgerIndexesSql, relations);
+  return rows;
+}
+
+async function verifyLedgerIndexes(client) {
+  const indexes = await readMarketplaceSettlementIndexes(client);
+  const missing = requiredLedgerIndexes.filter((expected) => !indexes.some((index) =>
+    index.relation === expected.relation &&
+    index.columns.length === expected.columns.length && expected.columns.every((column) => index.columns.includes(column)) &&
+    (!expected.primary || index.primary) && (!expected.nullable || !index.nullsNotDistinct) &&
+    (expected.terminal ? isTerminalPredicate(index.predicate) : index.predicate === null)));
+  if (missing.length) throw new Error(`Unsafe marketplace settlement schema. Missing index guarantees: ${missing.map(({ label }) => label).join(", ")}`);
+}
+
+export async function verifyMarketplaceSettlementSchema(client, { required = true } = {}) {
+  if (!await hasMarketplaceSettlementSchema(client)) {
+    if (required) throw new Error("Marketplace settlement schema is not installed");
+    return;
+  }
   await client.query(`SELECT o.id,o.buyer_id,o.seller_id,o.buyer_name,o.seller_name,o.item_id,o.item_title,
     o.sphere,o.amount,o.request_key,o.gift_card_id,o.gift_payment_id,o.status,o.created_at,o.review_until,o.closed_at,
     e.action,e.actor_id,e.operator_label,e.note,e.created_at,g.purchase_id
     FROM roll_marketplace_orders o JOIN roll_marketplace_order_events e ON e.order_id=o.id
     LEFT JOIN business_gift_card_events g ON g.id=o.gift_payment_id LIMIT 0`);
+  await verifyLedgerIndexes(client);
 }

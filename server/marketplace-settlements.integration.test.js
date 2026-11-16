@@ -4,7 +4,9 @@ import { test } from "node:test";
 import { purchaseBusinessMarketplaceItem, readBusinessPurchaseStatus } from "./modules/catalog-marketplace/business-marketplace.js";
 import { refundRollPurchase } from "./modules/checkout/roll-purchases.js";
 import { readMarketplaceOrderAction, settleMarketplaceOrder, resolveMarketplaceDispute } from "./modules/checkout/marketplace-settlements.js";
-import { hasMarketplaceSettlementSchema, verifyMarketplaceSettlementSchema } from "./modules/checkout/marketplace-settlements-schema.js";
+import {
+  hasMarketplaceSettlementSchema, readMarketplaceSettlementIndexes, readMarketplaceSettlementPrerequisites, verifyMarketplaceSettlementSchema,
+} from "./modules/checkout/marketplace-settlements-schema.js";
 import { readMarketplaceOrderAttention } from "./modules/history/marketplace-order-attention.js";
 import { readRollOrders } from "./modules/history/order-history.js";
 import { readRollReceipt } from "./modules/history/roll-receipts.js";
@@ -45,6 +47,20 @@ test("protected marketplace orders on the existing production schema", { skip: p
           fulfill: { count: 1, amount: "40", reviewUntil: null },
         });
         assert.deepEqual(await summary("outsider"), {});
+      });
+    });
+    await t.test("read-only preflight checks existing references and queries the settlement index catalog", async () => {
+      await db.transaction(async (client) => {
+        await client.query("SET TRANSACTION READ ONLY");
+        const access = await readMarketplaceSettlementPrerequisites(client);
+        assert.equal(typeof access.schema, "string");
+        assert.equal(typeof access.canCreate, "boolean");
+        assert.equal(typeof access.canUse, "boolean");
+        assert.deepEqual(access.references.map(({ relation }) => relation), [
+          "business_gift_card_events", "business_gift_cards", "roll_wallets", "users",
+        ]);
+        assert(access.references.every(({ hasReferenceKey }) => hasReferenceKey));
+        assert(Array.isArray(await readMarketplaceSettlementIndexes(client)));
       });
     });
     const installed = await db.transaction(async (client) => {
