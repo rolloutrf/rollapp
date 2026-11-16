@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { changeGiftCard, issueGiftCard, listGiftCards } from "./modules/loyalty/gift-cards.js";
+import { changeGiftCard, issueGiftCard, listGiftCards, readGiftCardOperation } from "./modules/loyalty/gift-cards.js";
 import { purchaseBusinessMarketplaceItem } from "./modules/catalog-marketplace/business-marketplace.js";
 import { readRollOrders } from "./modules/history/order-history.js";
 import { readRollWallet } from "./modules/history/wallet-history.js";
@@ -22,6 +22,9 @@ test("production gift-card lifecycle is atomic, scoped, replayable and rollback-
       await client.query("INSERT INTO users(id,email,username,name,password_hash,account_type) VALUES($1,$2,$3,'Rollback-only gift test','unused',$4)", [id, `${id}@invalid.test`, `gift_${id.replaceAll("-", "")}`, [business, otherBusiness].includes(id) ? "business" : "personal"]);
     }
     const issue = { businessId: business, idempotencyKey: randomUUID() };
+    const recover = (actor, kind, { idempotencyKey }) => readGiftCardOperation(client, actor, { kind, requestKey: idempotencyKey });
+    assert.equal(await recover(sender, "issue", issue), null);
+    assert.equal((await client.query("SELECT 1 FROM roll_wallets WHERE user_id=$1", [sender])).rowCount, 0);
     const card = await issueGiftCard(client, sender, issue);
     const assertConserved = async () => {
       const { rows: [totals] } = await client.query(`SELECT
@@ -36,8 +39,12 @@ test("production gift-card lifecycle is atomic, scoped, replayable and rollback-
       assert.equal(BigInt(totals.card), BigInt(totals.card_ledger));
     };
     assert.equal((await issueGiftCard(client, sender, issue)).id, card.id);
+    assert.deepEqual(await recover(sender, "issue", issue), { id: card.id, kind: "issue", businessId: business });
     const topup = { amount: 50, idempotencyKey: randomUUID() };
+    assert.equal(await recover(sender, "topup", topup), null);
     await changeGiftCard(client, sender, card.id, "topup", topup);
+    assert.deepEqual(await recover(sender, "topup", topup), { id: card.id, kind: "topup", businessId: business, amount: 50 });
+    await assert.rejects(recover(sender, "send", topup), { code: "IDEMPOTENCY_CONFLICT" });
     assert.equal((await changeGiftCard(client, sender, card.id, "topup", topup)).replayed, true);
     assert.equal(Number((await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [sender])).rows[0].balance), 50);
     const sourceWallet = await readRollWallet(client, sender);
@@ -48,8 +55,15 @@ test("production gift-card lifecycle is atomic, scoped, replayable and rollback-
     assert.equal(topups[0].direction, "outgoing");
     assert.equal(topups[0].amount, 50);
     assert.equal(topups[0].note, "Rollback-only gift test");
-    const send = { recipientId: recipient, idempotencyKey: randomUUID() };
+    const send = { recipientId: recipient, expectedBalance: 50, idempotencyKey: randomUUID() };
+    await assert.rejects(changeGiftCard(client, sender, card.id, "send", { ...send, expectedBalance: 49 }), { code: "GIFT_BALANCE_CHANGED" });
+    assert.equal(await recover(sender, "send", send), null);
+    assert.equal((await listGiftCards(client.query.bind(client), sender))[0].balance, 50);
     await changeGiftCard(client, sender, card.id, "send", send);
+    assert.deepEqual(await recover(sender, "send", send), { id: card.id, kind: "send", businessId: business, recipientId: recipient });
+    assert.equal(await recover(recipient, "send", send), null);
+    assert.equal(await recover(recipient, "issue", issue), null);
+    assert.equal(await recover(recipient, "topup", topup), null);
     assert.equal((await changeGiftCard(client, sender, card.id, "send", send)).replayed, true);
     assert.equal((await listGiftCards(client.query.bind(client), sender)).length, 0);
     assert.equal((await listGiftCards(client.query.bind(client), recipient))[0].balance, 50);
@@ -84,6 +98,8 @@ test("production gift-card lifecycle is atomic, scoped, replayable and rollback-
     const refund = await refundRollPurchase(client, recipient, purchase.id);
     assert.equal(refund.balance, 100);
     assert.equal((await listGiftCards(client.query.bind(client), onward))[0].balance, 50);
+    assert.deepEqual(await recover(sender, "send", send), { id: card.id, kind: "send", businessId: business, recipientId: recipient });
+    assert.deepEqual(await recover(sender, "issue", issue), { id: card.id, kind: "issue", businessId: business });
     assert.equal((await refundRollPurchase(client, recipient, purchase.id)).replayed, true);
     await assertConserved();
     assert.equal((await readRollOrders(client, recipient)).orders.find((order) => order.id === purchase.id).status, "refunded");

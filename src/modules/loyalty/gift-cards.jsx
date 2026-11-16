@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Gift, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
+import { useOperationRecovery } from "../payments/use-operation-recovery.js";
 import { ControlBar } from "@/components/control-bar";
 import { PageActionButton } from "@/components/page-action-button";
 import { Card } from "@/components/ui/card";
@@ -14,17 +15,46 @@ import { Spinner } from "@/components/ui/spinner";
 import { publicProfilePath } from "../../../shared/modules/profile/profile-links.js";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
 
+const giftCardPath = "/rolls/gift-cards";
+const giftRejections = new Set(["INVALID_GIFT_CARD", "BUSINESS_NOT_FOUND", "GIFT_CARD_NOT_FOUND", "GIFT_CARD_LIMIT",
+  "INSUFFICIENT_ROLLS", "SELF_TRANSFER", "EMPTY_GIFT_CARD", "RECIPIENT_NOT_FOUND", "GIFT_BALANCE_CHANGED"]);
+const recoveryMessages = {
+  unreadable: "Не удалось проверить операцию с картой.",
+  unknown: "Ответ пока не получен. Проверьте, появилась ли операция в журнале.",
+  storage: "Разрешите хранение данных, чтобы безопасно восстановить операцию с картой.",
+};
+
+function giftOperation(path) {
+  if (path === giftCardPath) return { kind: "issue", cardId: null };
+  const match = /^\/rolls\/gift-cards\/([a-zA-Z0-9-]+)\/(topup|send)$/.exec(path);
+  return match ? { kind: match[2], cardId: match[1] } : null;
+}
+
 function readPending(key) {
   try {
-    const value = JSON.parse(sessionStorage.getItem(key));
-    return value && /^\/rolls\/gift-cards(?:\/[a-zA-Z0-9-]+\/(?:topup|send))?$/.test(value.path)
-      && typeof value.payload?.idempotencyKey === "string" ? value : null;
+    const intent = JSON.parse(sessionStorage.getItem(key));
+    const operation = giftOperation(intent?.path);
+    const payload = intent?.payload;
+    if (!operation || typeof payload?.idempotencyKey !== "string" ||
+        !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(payload.idempotencyKey) ||
+        typeof intent.label !== "string") return null;
+    if (operation.kind === "issue" && typeof payload.businessId !== "string") return null;
+    if (operation.kind === "topup" && (!Number.isSafeInteger(payload.amount) || payload.amount <= 0 || payload.amount > ROLLS_MAX_TRANSFER)) return null;
+    if (operation.kind === "send" && typeof payload.recipientId !== "string") return null;
+    return intent;
   } catch { return null; }
+}
+
+function describePendingGift(intent) {
+  const { kind } = giftOperation(intent.path);
+  if (kind === "issue") return "Выпуск карты";
+  if (kind === "topup") return `Пополнение карты · ${formatRolls(intent.payload.amount)}`;
+  return ["Отправка карты", intent.recipientName,
+    Number.isSafeInteger(intent.payload.expectedBalance) ? formatRolls(intent.payload.expectedBalance) : null].filter(Boolean).join(" · ");
 }
 
 export function GiftCardManager({ business, user, initialCardId = "", returnFocusRef, onClose, onChanged }) {
   const storageKey = `rollapp:gift-intent:${user.id}:${business.id}`;
-  const [pending, setPending] = useState(() => readPending(storageKey));
   const [cards, setCards] = useState([]);
   const [selectedId, setSelectedId] = useState(initialCardId || null);
   const [wallet, setWallet] = useState(null);
@@ -38,15 +68,10 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
   const [walletError, setWalletError] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
   const cardReads = useRef(0);
   const walletReads = useRef(0);
-  const alive = useRef(false);
   const selected = cards.find((card) => card.id === selectedId);
-  const locked = busy || Boolean(pending);
 
   async function loadCards() {
     const read = ++cardReads.current;
@@ -83,11 +108,9 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
   }
 
   useEffect(() => {
-    alive.current = true;
     loadCards();
     loadWallet();
     return () => {
-      alive.current = false;
       cardReads.current += 1;
       walletReads.current += 1;
     };
@@ -107,34 +130,44 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     return () => { active = false; clearTimeout(timer); };
   }, [search, recipient]);
 
-  async function run(path, payload, label) {
-    if (busyRef.current) return;
-    const intent = pending || { path, payload: { ...payload, idempotencyKey: crypto.randomUUID() }, label };
-    try { sessionStorage.setItem(storageKey, JSON.stringify(intent)); } catch {
-      setError("Разрешите хранение данных, чтобы безопасно повторять операции с картой."); return;
-    }
-    setPending(intent);
-    setError("");
-    setMessage("");
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      const result = await api.post(intent.path, intent.payload);
-      sessionStorage.removeItem(storageKey);
-      if (!alive.current) return;
-      setPending(null);
-      setSelectedId(intent.path.endsWith("/send") ? "" : result.card.id);
+  const recovery = useOperationRecovery({
+    field: "card", messages: recoveryMessages, storageKey, loadSaved: () => readPending(storageKey),
+    requestFor: ({ path, payload }) => ({
+      path, payload, statusPath: `${giftCardPath}/operations/${giftOperation(path).kind}/${encodeURIComponent(payload.idempotencyKey)}`,
+    }),
+    acceptResponse: (card, mode) => typeof card?.id === "string" && (mode === "send" ||
+      (typeof card.businessId === "string" && (card.kind === "issue" ||
+        (card.kind === "topup" && Number.isSafeInteger(card.amount)) ||
+        (card.kind === "send" && typeof card.recipientId === "string")))),
+    readMatches(card, intent) {
+      const { kind, cardId } = giftOperation(intent.path);
+      if (card.kind !== kind || card.businessId !== business.id) return false;
+      if (kind === "issue") return card.businessId === intent.payload.businessId;
+      return card.id === cardId && (kind === "topup" ? card.amount === intent.payload.amount : card.recipientId === intent.payload.recipientId);
+    },
+    onComplete(card, intent) {
+      setSelectedId(giftOperation(intent.path).kind === "send" ? "" : card.id);
       setAmount(""); setRecipient(null); setSearch("");
       setMessage(intent.label);
-      loadCards();
-      loadWallet();
+      void loadCards();
+      void loadWallet();
       onChanged?.();
-    } catch (cause) {
-      if (!alive.current) return;
-      const rejected = cause.status >= 400 && cause.status < 500 && ![408, 429].includes(cause.status);
-      if (rejected) { sessionStorage.removeItem(storageKey); setPending(null); }
-      setError(rejected ? cause.message : "Ответ пока не получен. Проверьте результат тем же запросом: повторного списания или отправки не будет.");
-    } finally { busyRef.current = false; if (alive.current) setBusy(false); }
+    },
+    onReject(cause) {
+      if (cause.code === "GIFT_BALANCE_CHANGED" || cause.code === "GIFT_CARD_NOT_FOUND") void loadCards();
+      return giftRejections.has(cause.code);
+    },
+    onCloseConflict() {
+      void loadCards();
+      void loadWallet();
+    },
+  });
+  const { pending, busy, error, result, requestMode } = recovery;
+  const locked = busy || Boolean(pending);
+
+  function run(path, payload, label, recipientName) {
+    setMessage("");
+    recovery.send({ path, payload: { ...payload, idempotencyKey: crypto.randomUUID() }, label, recipientName });
   }
   const value = /^\d+$/.test(amount) ? Number(amount) : NaN;
   const validInteger = Number.isSafeInteger(value) && value > 0 && value <= ROLLS_MAX_TRANSFER;
@@ -152,7 +185,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     const opener = returnFocusRef.current;
     if (opener?.isConnected && !opener.closest("[hidden]")) opener.focus({ preventScroll: true });
   } : undefined} onOpenChange={(open, event) => {
-    if (!open && busyRef.current) event?.cancel?.();
+    if (!open && recovery.inFlight.current) event?.cancel?.();
     else if (!open) onClose();
   }}>
     <DrawerContent className="rollapp-body app-drawer--form" finalFocus={returnFocusRef}>
@@ -165,14 +198,22 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {cardsError && <Alert variant="destructive"><AlertDescription>{cardsError}</AlertDescription></Alert>}
         {message && <p role="status">{message}</p>}
-        {cardsReady && selectedId && !selected && <p role="status">Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую.</p>}
-        {pending && <Alert><AlertDescription>Сохранён запрос: {pending.label} Проверьте его результат перед следующим действием.</AlertDescription></Alert>}
+        {cardsReady && !pending && selectedId && !selected && <p role="status">Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую.</p>}
+        {pending && <Alert><AlertDescription className="grid gap-2">
+          <p className="wrap-anywhere">Ожидает проверки · {describePendingGift(pending)}</p>
+          {result === "missing" && <><p role="status">Операция пока не записана.</p>
+            <div><PageActionButton variant="outline" disabled={busy} onClick={() => recovery.send()}>Повторить операцию</PageActionButton></div>
+          </>}
+          {result === "conflict" && <><p role="status">По этому номеру записано другое действие. Сверьте список карт и историю.</p>
+            <div><PageActionButton variant="outline" disabled={busy} onClick={recovery.closeConflict}>Закрыть запрос</PageActionButton></div>
+          </>}
+        </AlertDescription></Alert>}
         {cards.length > 0 && <div className="flex flex-col gap-2" role="group" aria-label="Мои карты этого бизнеса">
           {cards.map((card) => <Button type="button" key={card.id} variant={card.id === selectedId ? "secondary" : "outline"} aria-pressed={card.id === selectedId} disabled={locked || !cardsReady} className="h-auto min-h-12 justify-between gap-3 whitespace-normal text-left" onClick={() => {
             if (card.id === selectedId) return;
             setSelectedId(card.id);
             setAmount(""); setRecipient(null); setSearch("");
-            setError(""); setMessage("");
+            recovery.resetNotice(); setMessage("");
           }}><Gift className="size-5 shrink-0" /><span className="min-w-0 break-words">{business.name} · {formatRolls(card.balance)}</span></Button>)}
         </div>}
         {cardsReady && !cards.length && !selectedId && !message && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
@@ -208,8 +249,10 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
         {cardsError && !pending && <Button variant="outline" disabled={busy} onClick={loadCards}>Повторить загрузку</Button>}
       </div>
       <DrawerFooter>
-        {pending ? <Button disabled={busy} onClick={() => run()}>{busy && <Spinner />}Проверить результат</Button>
-          : selected ? <Button disabled={busy || !cardsReady || !recipient || selected.balance <= 0} onClick={() => run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id }, `Карта отправлена: ${recipient.name}`)}>{busy && <Spinner />}Подарить карту</Button>
+        {pending ? <Button disabled={busy} onClick={recovery.check}>{busy && <Spinner />}
+          {busy ? (requestMode === "send" ? "Выполняем…" : "Проверяем…") : "Проверить результат"}
+        </Button>
+          : selected ? <Button disabled={busy || !cardsReady || !recipient || selected.balance <= 0} onClick={() => run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id, expectedBalance: selected.balance }, `Карта отправлена: ${recipient.name}`, recipient.name)}>{busy && <Spinner />}Подарить карту</Button>
             : (!selectedId || cardsReady) && <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}
       </DrawerFooter>
     </DrawerContent>
@@ -250,8 +293,8 @@ export function BusinessGiftCertificates({ business, user }) {
 export function ProfileGiftCards({ user, onNavigate }) {
   const [cards, setCards] = useState([]);
   const [selectedCard, setSelectedCard] = useState(null);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const revision = useRef(0);
   const cardOpener = useRef(null);
   async function refresh() {

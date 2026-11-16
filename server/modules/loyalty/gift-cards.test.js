@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
-import { changeGiftCard, giftIssueSchema, giftSendSchema, giftTopupSchema, issueGiftCard } from "./gift-cards.js";
+import { changeGiftCard, giftIssueSchema, giftSendSchema, giftTopupSchema, issueGiftCard, registerGiftCardRoutes } from "./gift-cards.js";
 import { purchaseBusinessMarketplaceItem } from "../catalog-marketplace/business-marketplace.js";
 import { refundRollPurchase } from "../checkout/roll-purchases.js";
 
@@ -153,4 +153,36 @@ test("refunds restore gift balance rather than converting it to unrestricted rol
   });
   assert.equal((await refundRollPurchase(client, "owner", "order")).balance, 100);
   assert(!client.statements.some(({ sql }) => sql.startsWith("UPDATE roll_wallets")));
+});
+
+
+test("card recovery route is authenticated and executes only in a private read-only transaction", async () => {
+  const routes = new Map();
+  const auth = Symbol("auth");
+  const requestKey = randomUUID();
+  const calls = [];
+  registerGiftCardRoutes({
+    get(path, ...handlers) { routes.set(path, handlers); },
+    post() {},
+  }, {
+    requireAuth: auth, query() { assert.fail("read outside the transaction"); },
+    transaction: (run) => run({ query(sql, params) {
+      calls.push([sql, params]);
+      if (sql.startsWith("SET TRANSACTION")) return result();
+      assert(sql.includes("WHERE actor_id=$1 AND request_key=$2"));
+      return result();
+    } }),
+  });
+  const [requireAuth, , handler] = routes.get("/api/rolls/gift-cards/operations/:kind/:requestKey");
+  assert.equal(requireAuth, auth);
+  let body;
+  const headers = new Map();
+  const res = { set: (name, value) => headers.set(name, value), json: (value) => { body = value; } };
+  await handler({ user: { id: "actor" }, params: { kind: "send", requestKey } }, res, assert.fail);
+  assert.equal(headers.get("Cache-Control"), "private, no-store");
+  assert.deepEqual(body, { card: null });
+  assert.deepEqual(calls, [
+    ["SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY", undefined],
+    ["SELECT * FROM business_gift_card_events WHERE actor_id=$1 AND request_key=$2", ["actor", requestKey]],
+  ]);
 });

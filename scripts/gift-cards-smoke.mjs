@@ -28,15 +28,46 @@ try {
     await page.evaluate(() => document.fonts.ready);
     const box = await trigger.boundingBox(); assert.equal(box.width, 48); assert.equal(box.height, 48);
     await trigger.click();
+    const check = page.getByRole("button", { name: "Проверить результат", exact: true });
+    const posted = () => page.evaluate(() => window.giftHarness.calls);
+    const issueLost = width === 320 || height < 500;
+    if (issueLost) await page.evaluate(() => { window.giftHarness.nextGiftLoss = "posted"; });
     await page.getByRole("button", { name: "Выпустить карту", exact: true }).click();
+    if (issueLost) {
+      await page.getByText("Ожидает проверки · Выпуск карты").waitFor();
+      const issueCalls = await posted();
+      await check.click();
+      await page.getByLabel("Сколько роллов добавить").waitFor();
+      assert.deepEqual(await posted(), issueCalls);
+      assert.deepEqual(await page.evaluate(() => window.giftHarness.giftChecks), [{ kind: "issue", key: issueCalls[0].payload.idempotencyKey }]);
+    }
     await page.getByLabel("Сколько роллов добавить").fill("25");
+    const retryTopup = height < 500 || width === 1440;
+    await page.evaluate(mode => { window.giftHarness.nextGiftLoss = mode; }, retryTopup ? "missing" : "posted");
     await page.getByRole("button", { name: "Пополнить на 25 роллов", exact: true }).click();
-    await page.getByRole("button", { name: "Проверить результат", exact: true }).click();
-    await page.getByLabel("Сколько роллов добавить").waitFor();
-    await page.waitForFunction(() => giftHarness.calls.length === 3);
+    await page.getByText("Ожидает проверки · Пополнение карты · 25 роллов").waitFor();
+    const beforeCheck = await posted();
+    await check.click();
+    if (retryTopup) {
+      await page.getByText("Операция пока не записана.", { exact: true }).waitFor();
+      assert.deepEqual(await posted(), beforeCheck, "Read-only check must not start an unrecorded top-up");
+      assert.equal(await page.evaluate(() => giftHarness.balance), 100);
+      const retry = page.getByRole("button", { name: "Повторить операцию" });
+      await retry.scrollIntoViewIfNeeded();
+      assert.equal((await retry.boundingBox()).height, 48);
+      const footer = await check.boundingBox();
+      assert.equal(footer.height, 48);
+      assert(footer.y + footer.height <= height + 1);
+      await page.screenshot({ path: `/tmp/rollapp-gift-operation-recovery-${width}x${height}.png` });
+      await retry.click();
+    }
+    await page.getByText("Карта пополнена на 25 роллов", { exact: true }).waitFor();
+    assert.deepEqual(await posted(), retryTopup ? [...beforeCheck, beforeCheck.at(-1)] : beforeCheck);
+    assert.deepEqual(await page.evaluate(() => giftHarness.giftChecks.at(-1)), {
+      kind: "topup", key: beforeCheck.at(-1).payload.idempotencyKey,
+    });
     assert.equal(await page.evaluate(() => giftHarness.balance), 75);
     assert.equal(await page.evaluate(() => giftHarness.cards[0].balance), 25);
-    assert.deepEqual(await page.evaluate(() => giftHarness.calls[1]), await page.evaluate(() => giftHarness.calls[2]));
     await page.getByLabel("Кому подарить", { exact: true }).fill("friend");
     await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
     const send = page.getByRole("button", { name: "Подарить карту", exact: true });
@@ -50,16 +81,48 @@ try {
     assert(geometry.bottom <= height + 1);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: `/tmp/rollapp-gift-card-${width}-${height}.png`, fullPage: true });
+    if (width === 1440) {
+      await page.evaluate(() => { window.giftHarness.cards[0].balance = 30; });
+      await send.click();
+      await page.getByText(/Остаток карты изменился/).waitFor();
+      await page.getByText(/Подарок: 30 роллов/).waitFor();
+      assert.equal(await page.evaluate(() => giftHarness.cards.length), 1);
+    }
+    await page.evaluate(() => { window.giftHarness.nextGiftLoss = "posted"; });
     await send.click();
-    await page.getByText("Карта отправлена: Получатель подарочной карты", { exact: true }).waitFor();
+    await page.getByText(/Ожидает проверки · Отправка карты/).waitFor();
+    const sent = await posted();
+    assert.equal(sent.at(-1).payload.expectedBalance, width === 1440 ? 30 : 25);
     assert.equal(await page.evaluate(() => giftHarness.cards.length), 0);
+    if (height < 500) {
+      await check.waitFor();
+      if (width < 768) await page.goBack();
+      else await page.getByRole("button", { name: "Закрыть подарочную карту" }).click();
+      await trigger.waitFor();
+      if (width < 768) {
+        await page.evaluate(() => {
+          const { calls, giftChecks, requests, balance, cards } = window.giftHarness;
+          sessionStorage.setItem("gift-fixture-reload", JSON.stringify({ calls, giftChecks, requests: [...requests], balance, cards }));
+        });
+        await page.reload();
+        assert.deepEqual(await posted(), sent);
+      }
+      await trigger.click();
+      await page.getByText(/Ожидает проверки · Отправка карты/).waitFor();
+    }
+    await check.click();
+    await page.getByText("Карта отправлена: Получатель подарочной карты", { exact: true }).waitFor();
+    assert.deepEqual(await posted(), sent);
+    assert.deepEqual(await page.evaluate(() => giftHarness.giftChecks.at(-1)), {
+      kind: "send", key: sent.at(-1).payload.idempotencyKey,
+    });
     if (width < 768) {
       await page.goBack();
       await trigger.waitFor();
       assert.equal(await page.evaluate(() => document.querySelectorAll("[data-form-page-host]").length), 0);
     } else await page.getByRole("button", { name: "Закрыть подарочную карту" }).click();
     assert.deepEqual(errors, []);
-    console.log(`PASS gift cards ${width}x${height}: issue, topup, lost-response retry, send, 48px footer, cancel, overflow`);
+    console.log(`PASS gift cards ${width}x${height}: issue, topup, read-only recovery, confirmed send, 48px footer, cancel, overflow`);
     await page.close();
   }
   for (const width of [320,390,768,820,1024,1440,1920]) {
