@@ -452,6 +452,28 @@ try {
       await giftList.getByText("Подарочные карты временно недоступны").waitFor();
       await giftList.getByRole("button", { name: "Повторить", exact: true }).click();
       await business.waitFor();
+      await page.goto(`${origin}/__profile-settings?state=gifts-recovery`);
+      await gifts.click();
+      const operation = giftList.getByRole("button", { name: "Проверить операцию · Выпуск карты", exact: true });
+      await operation.click();
+      const recoveryPage = page.getByRole("heading", { name: "Операция с подарочной картой", exact: true });
+      await recoveryPage.waitFor();
+      assert.deepEqual(await page.evaluate(() => [window.giftRecoveryChecks.length, window.giftRecoveryPosts.length]), [0, 0]);
+      const checkGift = button("Проверить результат");
+      await checkGift.click();
+      await page.getByText("Операция пока не записана.", { exact: true }).waitFor();
+      assert.deepEqual(await page.evaluate(() => [window.giftRecoveryChecks.length, window.giftRecoveryPosts.length]), [1, 0]);
+      const retryGift = button("Повторить операцию");
+      assert.equal((await retryGift.boundingBox()).height, 48);
+      await retryGift.click();
+      await page.getByText("Карта выпущена. Теперь её можно пополнить.", { exact: true }).waitFor();
+      assert.deepEqual(await page.evaluate(() => window.giftRecoveryPosts), [{ businessId: "fixture-shop", idempotencyKey: "01234567-89ab-4cde-8fab-0123456789aa" }]);
+      if (mobile) await page.goBack();
+      else await back.click();
+      await recoveryPage.waitFor({ state: "hidden" });
+      await business.waitFor();
+      assert.equal(await operation.count(), 0);
+      await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Подарочные карты");
     }
     await page.goto(`${origin}/__profile-settings?state=error`);
     await button("OpenRouter").click();

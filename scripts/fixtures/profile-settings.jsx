@@ -14,6 +14,14 @@ sessionStorage.setItem(`rollapp:virtual-card-sandbox:${fixtureUser.id}:legacy-fu
   version: 1, id: "DEMO-12345678", ownerId: fixtureUser.id, fundraiserId: "legacy-fund",
   initialBalance: 200, balance: 150, purchases: [{ id: "fixture-purchase", merchant: "Магазин", amount: 50 }],
 }));
+const recoverableIssue = { businessId: "fixture-shop", idempotencyKey: "01234567-89ab-4cde-8fab-0123456789aa" };
+if (mode === "gifts-recovery") {
+  sessionStorage.setItem(`rollapp:gift-intent:${fixtureUser.id}:${recoverableIssue.businessId}`, JSON.stringify({
+    path: "/rolls/gift-cards", payload: recoverableIssue, label: "Карта выпущена. Теперь её можно пополнить.",
+  }));
+  window.giftRecoveryChecks = [];
+  window.giftRecoveryPosts = [];
+}
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
 let invites = Array.from({ length: 20 }, (_, index) => ({
   id: `old-${index}`, email: `previous-${index}@example.com`, status: "sent", expiresAt: "2026-11-17T00:00:00.000Z",
@@ -61,9 +69,13 @@ api.get = async (path) => {
     };
   }
   if (path === "/personal-offers") return { offers: [] };
+  if (mode === "gifts-recovery" && path === `/rolls/gift-cards/operations/issue/${recoverableIssue.idempotencyKey}`) {
+    window.giftRecoveryChecks.push(path);
+    return { card: null };
+  }
   if (path === "/rolls/gift-cards") {
     window.giftCardReads = (window.giftCardReads || 0) + 1;
-    if (mode === "gifts-empty") return { cards: [] };
+    if (mode === "gifts-empty" || (mode === "gifts-recovery" && !window.giftRecoveryPosts.length)) return { cards: [] };
     if (mode === "gifts-error" && window.giftCardReads === 1) {
       await new Promise((resolve) => { window.finishGiftLoad = resolve; });
       throw new Error("Подарочные карты временно недоступны");
@@ -76,6 +88,13 @@ api.get = async (path) => {
 const avatarId = "01234567-89ab-4cde-8fab-0123456789ab";
 const avatarUrl = `/api/media/${avatarId}`;
 api.post = async (path, data) => {
+  if (mode === "gifts-recovery" && path === "/rolls/gift-cards") {
+    window.giftRecoveryPosts.push(data);
+    if (data.businessId !== recoverableIssue.businessId || data.idempotencyKey !== recoverableIssue.idempotencyKey) {
+      throw new Error("Fixture expected the original gift request");
+    }
+    return { card: { id: "empty-gift-card" } };
+  }
   if (mode === "disk-sync" && path === "/me/disk-sync" && data.ownerId === fixtureUser.id) {
     window.diskSyncActions = [...(window.diskSyncActions ?? []), data.action];
     diskSync = { ...diskSync, enabled: data.action !== "disable", pending: data.action !== "disable", running: data.action !== "disable" };

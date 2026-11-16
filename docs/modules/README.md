@@ -21,7 +21,7 @@
 | 09 | [Чекаут](09-checkout.md) | Подтверждение и проверка покупок, резерв, расчёт и возврат | [Клиент](../../src/modules/checkout/) · [Сервер](../../server/modules/checkout/) · [Общий код](../../shared/modules/checkout/) |
 | 10 | [История операций](10-history.md) | История роллов, заказы и квитанции | [Клиент](../../src/modules/history/) · [Сервер](../../server/modules/history/) · [Общий код](../../shared/modules/history/) |
 | 11 | [PFM](11-pfm.md) | Сводка по роллам, календарный период и выписка | [Клиент](../../src/modules/pfm/) · [Сервер](../../server/modules/pfm/) · [Общий код](../../shared/modules/pfm/) |
-| 12 | [Лояльность](12-loyalty.md) | Приветствие, подарочные карты, награды и расчёт по потребностям | [Клиент](../../src/modules/loyalty/) · [Сервер](../../server/modules/loyalty/) |
+| 12 | [Лояльность](12-loyalty.md) | Приветствие, подарочные карты и их восстановление, награды и расчёт по потребностям | [Клиент](../../src/modules/loyalty/) · [Сервер](../../server/modules/loyalty/) |
 | 13 | [Ассистент](13-assistant.md) | Рекомендации подарков, поиск предложений, OpenRouter | [Клиент](../../src/modules/assistant/) · [Сервер](../../server/modules/assistant/) |
 
 ## Модули РОЛЛАПП
