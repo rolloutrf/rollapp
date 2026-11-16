@@ -1,0 +1,597 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { once } from "node:events";
+import { test } from "node:test";
+import express from "express";
+import { listOpenPurchasePlans, registerPlanningRoutes } from "./modules/planning/planning.js";
+import { recordPurchase } from "./modules/planning/purchase-history.js";
+import { registerWishPurchasePlanRoutes } from "./modules/wishlist/wish-purchase-plan-routes.js";
+import { listSubscriptions } from "./modules/wishlist/purchase-subscriptions.js";
+import { registerPurchaseCareRoutes } from "./modules/wishlist/purchase-care.js";
+import { listPurchaseCollaborations } from "./modules/wishlist/purchase-collaboration.js";
+import { checkPurchasePrice, runPurchasePriceChecks } from "./modules/wishlist/purchase-price-watch.js";
+import { expandRecurringTasks } from "../shared/modules/planning/planning-recurrence.js";
+
+test("wishlist purchase plans use the owner's dated To Do task on production PostgreSQL", { skip: process.env.ROLLAPP_TEST_PLANNING !== "1" }, async () => {
+  const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");
+  const db = await productionRollsDatabase();
+  const client = await db.pool.connect();
+  const owner = randomUUID();
+  const other = randomUUID();
+  const seller = randomUUID();
+  const outsider = randomUUID();
+  const wish = randomUUID();
+  const query = (...args) => client.query(...args);
+  try {
+    await query("BEGIN");
+    await query("SET LOCAL lock_timeout='5s'");
+    await query("SET LOCAL statement_timeout='10s'");
+    await query("SET LOCAL idle_in_transaction_session_timeout='60s'");
+    for (const id of [owner, other, seller, outsider]) {
+      await query("INSERT INTO users (id,email,username,name,password_hash) VALUES ($1,$2,$3,'Purchase plan test','unusable')", [id, `${id}@planning-test.invalid`, `plan-${id}`]);
+    }
+    await query("UPDATE users SET account_type='business' WHERE id=$1", [seller]);
+    await query("INSERT INTO wishes (id,user_id,title,price,currency) VALUES ($1,$2,'Очки для плавания',3400,'RUB')", [wish, owner]);
+    const routes = new Map();
+    const app = Object.fromEntries(["get", "post", "patch", "delete"].map((method) => [method, (path, ...handlers) => routes.set(`${method} ${path}`, handlers.at(-1))]));
+    let failReviewSave = false;
+    const dependencies = {
+      requireAuth: () => {}, asyncRoute: (handler) => handler, query,
+      readQuote: async (url, { currency }) => ({ url, currency, store: "example.test", itemMinor: 1000,
+        deliveryMinor: 200, totalMinor: 1200, deliveryDays: { min: 1, max: 2 } }),
+      transaction: async (callback) => {
+        await query("SAVEPOINT purchase_plan_request");
+        try {
+          return await callback({ query: (sql, values) => {
+            if (failReviewSave && sql.startsWith("UPDATE planning_tasks SET due_on=$3, related_items=$4")) throw new Error("Test rollback after wish update");
+            return query(sql, values);
+          } });
+        }
+        catch (error) { await query("ROLLBACK TO SAVEPOINT purchase_plan_request"); throw error; }
+        finally { await query("RELEASE SAVEPOINT purchase_plan_request"); }
+      },
+    };
+    registerPlanningRoutes(app, dependencies);
+    registerWishPurchasePlanRoutes(app, dependencies);
+    const request = async (method, path, { id = wish, body, userId = owner, search = {}, requestHeaders = {}, accountType = "personal" } = {}) => {
+      let status = 200, data;
+      const headers = new Map();
+      const res = { status(value) { status = value; return this; }, set(name, value) { headers.set(name, value); return this; }, json(value) { data = value; },
+        type(value) { headers.set("Content-Type", value); return this; }, send(value) { data = value; } };
+      const req = { method: method.toUpperCase(), user: { id: userId, account_type: accountType }, params: { id }, query: search, body, get: (key) => requestHeaders[key] };
+      await routes.get(`${method} /api/${path}`)(req, res);
+      return { status, data, headers };
+    };
+    const planPath = "wishes/:id/purchase-plan";
+    const historyPath = "dashboard/purchase-history";
+    const carePath = `${historyPath}/:id/care`;
+    const receiptPath = `${historyPath}/:id/receipt`;
+    const history = async (options) => (await request("get", historyPath, options)).data;
+    const monthPath = "dashboard/purchase-month";
+    const monthly = async (month, userId = owner) => (await request("get", monthPath, { search: { month }, userId })).data.totals;
+    const monthlyTotal = (plannedMinor, spentMinor, purchaseCount = 0, fields = {}) => ({
+      currency: "RUB", plannedMinor, spentMinor, purchaseCount, missingAmountCount: 0, missingBudgetCount: 0, ...fields,
+    });
+    assert.deepEqual(await history(), { items: [], nextCursor: null });
+    assert.deepEqual(await monthly("2026-12"), []);
+    assert.equal((await request("get", monthPath, { search: { month: "2026-13" } })).status, 400);
+    assert.equal((await request("get", monthPath, { search: { month: "2026-12" } })).headers.get("Cache-Control"), "private, no-store");
+    assert.equal((await request("get", historyPath)).headers.get("Cache-Control"), "private, no-store");
+    assert.equal((await request("get", historyPath, { search: { cursor: ["invalid"] } })).status, 400);
+    const first = { dueOn: "2026-12-03", budgetMinor: 350050, currency: "RUB" };
+    const empty = await request("get", planPath);
+    assert.deepEqual(empty.data.plan, { budgetMinor: null, currency: "RUB", dueOn: "" });
+    assert.equal(empty.headers.get("Cache-Control"), "private, no-store");
+    assert.equal((await request("post", planPath, { body: { ...first, dueOn: "2026-02-30" } })).status, 400);
+    assert.equal((await request("post", planPath, { body: { ...first, budgetMinor: 1.001 } })).status, 400);
+    assert.equal((await request("get", planPath, { userId: other })).status, 404);
+    assert.equal((await request("post", planPath, { userId: other, body: first })).status, 404);
+
+    assert.equal((await request("post", planPath, { body: { ...first, currency: "USD" } })).status, 409);
+    assert.deepEqual((await request("post", planPath, { body: first })).data.plan, first);
+    await request("post", planPath, { body: first });
+    const readTasks = async (options) => (await request("get", "planning/tasks", options)).data.tasks;
+    const tasks = await readTasks();
+    assert.equal(tasks.length, 1, "Retry must update the original task");
+    const [task] = tasks;
+    assert.equal(task.title, "Пересмотреть покупку: Очки для плавания");
+    assert.equal(task.startTime, null);
+    assert.equal(task.completed, false);
+    assert.deepEqual(task.relatedItems, [{ kind: "wishlist", id: wish, title: "Очки для плавания", purchaseBudget: { minor: 350050, currency: "RUB" } }]);
+    assert.deepEqual(await listOpenPurchasePlans(query, owner), [{ id: wish, dueOn: first.dueOn, purchaseBudget: { minor: 350050, currency: "RUB" } }]);
+    assert.deepEqual(await monthly("2026-12"), [monthlyTotal(350050, 0)]);
+    assert.deepEqual(await monthly("2026-11"), []);
+    assert.deepEqual(await monthly("2026-12", other), []);
+    assert.deepEqual(await listOpenPurchasePlans(query, other), []);
+    assert.deepEqual(expandRecurringTasks(tasks, "2026-12-02", "2026-12-02"), []);
+    assert.deepEqual(expandRecurringTasks(tasks, first.dueOn, first.dueOn), tasks);
+    assert.deepEqual(await readTasks({ userId: other }), []);
+
+    const next = { dueOn: "2026-12-06", budgetMinor: 320000, currency: "RUB" };
+    await query("UPDATE wishes SET currency='USD' WHERE id=$1", [wish]);
+    await request("post", planPath, { body: next });
+    const edited = await request("patch", "planning/tasks/:id", { id: task.id, body: { description: "Уточнить размеры", relatedItems: [], dueOn: "2026-12-07" } });
+    assert.equal(edited.status, 200);
+    const [updated] = await readTasks();
+    assert.equal(updated.id, task.id);
+    assert.equal(updated.description, "Уточнить размеры");
+    assert.deepEqual(expandRecurringTasks([updated], first.dueOn, next.dueOn), []);
+    assert.deepEqual(expandRecurringTasks([updated], "2026-12-07", "2026-12-07"), [updated]);
+    assert.deepEqual((await request("get", planPath)).data.plan, { ...next, dueOn: "2026-12-07" });
+    assert.equal((await request("patch", "planning/tasks/:id", { id: task.id, body: { dueOn: "" } })).status, 400);
+
+    const reviewPath = `${planPath}/review`;
+    assert.equal((await request("patch", "planning/tasks/:id", { id: task.id, body: { archived: true } })).status, 200);
+    assert.deepEqual(await listOpenPurchasePlans(query, owner), []);
+    assert.equal((await request("patch", "planning/tasks/:id", { id: task.id, body: { archived: false } })).status, 200);
+    await query("UPDATE wishes SET privacy='private', url='https://example.test/goggles' WHERE id=$1", [wish]);
+    const review = async () => (await request("get", reviewPath)).data;
+    const original = await review();
+    assert.equal(original.wish.title, "Очки для плавания");
+    assert.equal(original.wish.url, "https://example.test/goggles");
+    assert.equal(original.wish.privacy, "private");
+    assert.equal(original.review, null);
+    assert.equal((await request("get", reviewPath, { userId: other })).status, 404);
+    assert.equal((await request("post", reviewPath, { userId: other, body: { action: "declined", revision: original.revision } })).status, 404);
+    const checkPath = `${planPath}/price-check`;
+    assert.equal((await request("post", checkPath)).status, 404);
+    const watchFields = { ...next, dueOn: original.plan.dueOn, priceWatchCountry: "RU", revision: original.revision };
+    assert.equal((await request("post", planPath, { body: watchFields })).status, 200);
+    assert.equal((await request("post", checkPath, { userId: other })).status, 404);
+    let time = new Date("2026-11-16T10:00:00Z");
+    let total = next.budgetMinor;
+    const now = () => time;
+    const readQuote = async (url, { country, currency }) => {
+      assert.equal(country, "RU");
+      assert.equal(currency, "RUB");
+      return { itemMinor: total - 1000, deliveryMinor: 1000, totalMinor: total, currency, store: "example.test", url };
+    };
+    const worker = () => runPurchasePriceChecks({ ...dependencies, now, readQuote,
+      query: (sql, [cutoff]) => query(sql.replace("WHERE t.space_id", "WHERE t.user_id=$2 AND t.space_id"), [cutoff, owner]) });
+    await worker();
+    const firstNotice = (await review()).plan.priceWatch.notice;
+    assert.equal(firstNotice.checkedAt, time.toISOString());
+    assert.equal(firstNotice.store, "example.test");
+    assert.equal(firstNotice.totalMinor, next.budgetMinor);
+    assert.equal((await checkPurchasePrice({ transaction: dependencies.transaction, userId: owner, wishId: wish, manual: true, now, readQuote })).status, 429);
+    time = new Date("2026-11-16T16:01:00Z");
+    await worker();
+    assert.deepEqual((await review()).plan.priceWatch.notice, firstNotice);
+    time = new Date("2026-11-16T22:02:00Z");
+    total += 1;
+    await worker();
+    assert.equal((await review()).plan.priceWatch.notice, null);
+    time = new Date("2026-11-17T04:03:00Z");
+    total -= 1;
+    await worker();
+    assert.equal((await review()).plan.priceWatch.notice.checkedAt, time.toISOString());
+    const enabled = await review();
+    time = new Date("2026-11-17T10:04:00Z");
+    let disabledStatus;
+    const stale = await checkPurchasePrice({ transaction: dependencies.transaction, userId: owner, wishId: wish, now,
+      readQuote: async (url, options) => {
+        disabledStatus = (await request("post", planPath, { body: { ...watchFields, revision: enabled.revision, priceWatchCountry: null } })).status;
+        return readQuote(url, options);
+      } });
+    assert.equal(disabledStatus, 200);
+    assert.equal(stale.status, 409);
+    assert.equal((await review()).plan.priceWatch, undefined);
+    const decide = (body) => request("post", reviewPath, { body });
+    const postpone = { action: "postpone", dueOn: "2026-12-10", revision: (await review()).revision };
+    assert.equal((await decide({ ...postpone, dueOn: "2026-12-32" })).status, 400);
+    assert.equal((await decide(postpone)).data.task.id, task.id);
+    assert.equal((await decide(postpone)).data.task.dueOn, "2026-12-10");
+    assert.equal((await readTasks()).length, 1);
+    assert.equal((await decide({ action: "declined", revision: original.revision })).status, 409);
+    const moved = await review();
+    assert.equal(moved.plan.budgetMinor, 320000);
+    assert.equal((await listOpenPurchasePlans(query, owner))[0].dueOn, postpone.dueOn);
+    const decline = { action: "declined", revision: moved.revision };
+    assert.equal((await decide(decline)).data.task.completed, true);
+    assert.equal((await decide(decline)).status, 200);
+    const declined = await review();
+    assert.deepEqual(declined.review, { outcome: "declined" });
+    assert.equal(declined.wish.status, "active");
+    assert.deepEqual(await listOpenPurchasePlans(query, owner), []);
+    assert.equal((await request("post", planPath, { body: { ...next, revision: moved.revision } })).status, 409);
+    assert.equal((await request("post", planPath, { body: { ...next, revision: declined.revision } })).status, 200);
+    const reopened = await review();
+    assert.equal(reopened.review, null);
+    assert.equal((await readTasks())[0].completed, false);
+    const bought = { action: "bought", amountMinor: 310055, purchasedOn: "2026-12-02", revision: reopened.revision };
+    assert.equal((await decide({ ...bought, amountMinor: -1 })).status, 400);
+    failReviewSave = true;
+    await assert.rejects(decide(bought), /Test rollback after wish update/);
+    failReviewSave = false;
+    assert.equal((await review()).wish.status, "active");
+    assert.equal((await review()).review, null);
+    assert.deepEqual((await history()).items, []);
+    assert.equal((await decide(bought)).data.task.completed, true);
+    assert.equal((await decide(bought)).status, 200);
+    const completed = await review();
+    assert.deepEqual(completed.review, { outcome: "bought", amountMinor: 310055 });
+    assert.equal(completed.wish.status, "fulfilled");
+    assert.equal(completed.wish.price, 3400);
+    const [oneTime] = (await history()).items;
+    assert.deepEqual(oneTime, { id: oneTime.id, title: "Очки для плавания", purchasedOn: "2026-12-02", amountMinor: 310055, currency: "RUB", changeMinor: null });
+    assert.equal((await history()).items.length, 1);
+    assert.deepEqual(await monthly("2026-12"), [monthlyTotal(320000, 310055, 1)]);
+    assert.deepEqual((await history({ userId: other })).items, []);
+    assert.deepEqual(await listOpenPurchasePlans(query, owner), []);
+    assert.equal((await request("delete", "planning/tasks/:id", { id: task.id })).status, 200);
+    const replacement = randomUUID();
+    const foreign = randomUUID();
+    const differentCurrency = randomUUID();
+    await query("INSERT INTO wishes (id,user_id,title,currency,url) VALUES ($1,$2,'Фильтр','RUB','https://example.test/filter'),($3,$4,'Чужое желание','RUB',''),($5,$2,'Другая валюта','EUR','')",
+      [replacement, owner, foreign, other, differentCurrency]);
+    await query("UPDATE wishes SET status='active', currency='RUB' WHERE id=$1", [wish]);
+    await request("post", planPath, { body: { ...first, priceWatchCountry: "RU" } });
+    const setup = { action: "bought", amountMinor: 310000, intervalDays: 14, purchasedOn: "2026-12-03", revision: (await review()).revision };
+    assert.equal((await decide({ ...setup, intervalDays: 0 })).status, 400);
+    assert.equal((await decide({ ...setup, intervalDays: 366 })).status, 400);
+    assert.equal((await decide({ ...setup, purchasedOn: "9999-12-31" })).status, 400);
+    assert.equal((await decide({ action: "skip", skippedOn: setup.purchasedOn, revision: setup.revision })).status, 409);
+    failReviewSave = true;
+    await assert.rejects(decide(setup), /Test rollback after wish update/);
+    failReviewSave = false;
+    assert.equal((await review()).wish.status, "active");
+    const scheduled = await decide(setup);
+    assert.equal(scheduled.status, 200);
+    assert.equal(scheduled.data.task.id, task.id);
+    assert.equal(scheduled.data.task.completed, false);
+    assert.equal(scheduled.data.task.dueOn, "2026-12-17");
+    assert.equal(scheduled.data.task.relatedItems[0].replenishment.lastAmountMinor, 310000);
+    assert.equal((await decide(setup)).data.task.dueOn, "2026-12-17");
+    assert.deepEqual(await monthly("2026-12"), [monthlyTotal(1020100, 620055, 2)]);
+    const regular = await review();
+    assert.equal(regular.wish.status, "fulfilled");
+    assert.deepEqual(regular.plan.replenishment, { intervalDays: 14 });
+    assert.equal(regular.review, null);
+    assert.deepEqual(expandRecurringTasks(await readTasks(), "2026-12-03", "2026-12-16"), []);
+    assert.equal(expandRecurringTasks(await readTasks(), "2026-12-17", "2026-12-17").length, 1);
+    time = new Date("2026-12-04T09:00:00Z");
+    await worker();
+    assert.equal((await review()).plan.priceWatch.notice.url, "https://example.test/goggles");
+    const secondPurchase = { ...setup, purchasedOn: "2026-12-17", amountMinor: 315000, revision: regular.revision };
+    assert.equal((await decide(secondPurchase)).data.task.dueOn, "2026-12-31");
+    const [second, firstCycle] = (await history()).items;
+    assert.deepEqual([second.purchasedOn, second.amountMinor, second.changeMinor, firstCycle.changeMinor], ["2026-12-17", 315000, 5000, null]);
+    assert.deepEqual(await monthly("2026-12"), [monthlyTotal(1370150, 935055, 3)]);
+    const skip = { action: "skip", skippedOn: "2027-01-16", revision: (await review()).revision };
+    assert.equal((await decide(skip)).data.task.dueOn, "2027-01-28");
+    assert.equal((await decide(skip)).data.task.dueOn, "2027-01-28");
+    assert.equal((await readTasks())[0].relatedItems[0].replenishment.lastPurchaseOn, secondPurchase.purchasedOn);
+    assert.equal((await history()).items.length, 3);
+    assert.deepEqual(await monthly("2026-12"), [monthlyTotal(1020100, 935055, 3)]);
+    assert.deepEqual(await monthly("2027-01"), [monthlyTotal(350050, 0)]);
+    const swap = { action: "replace", wishId: replacement, revision: (await review()).revision };
+    assert.equal((await decide({ ...swap, wishId: foreign })).status, 404);
+    assert.equal((await decide({ ...swap, wishId: differentCurrency })).status, 400);
+    const swapped = await decide(swap);
+    assert.equal(swapped.data.task.id, task.id);
+    assert.equal(swapped.data.task.title, "Пополнить запас: Фильтр");
+    assert.equal(swapped.data.task.dueOn, "2027-01-28");
+    assert.equal((await decide(swap)).status, 200);
+    const swappedReview = await review();
+    assert.equal(swappedReview.wish.id, replacement);
+    assert.equal(swappedReview.wish.status, "active");
+    assert.equal(swappedReview.plan.budgetMinor, first.budgetMinor);
+    assert.equal(swappedReview.plan.priceWatch.notice, null);
+    assert.deepEqual((await listOpenPurchasePlans(query, owner))[0].replenishment, { wishId: replacement, intervalDays: 14 });
+    await worker();
+    assert.equal((await review()).plan.priceWatch.notice.url, "https://example.test/filter");
+    const repeat = { ...setup, purchasedOn: "2027-01-30", amountMinor: 230000, revision: swappedReview.revision };
+    assert.equal((await decide(repeat)).data.task.dueOn, "2027-02-13");
+    assert.equal((await review()).wish.status, "fulfilled");
+    const replacementRecord = (await history()).items[0];
+    assert.deepEqual([replacementRecord.title, replacementRecord.changeMinor], ["Фильтр", null]);
+    const stop = { action: "bought", intervalDays: null, amountMinor: null, purchasedOn: "2027-02-13", revision: (await review()).revision };
+    assert.equal((await decide(stop)).data.task.completed, true);
+    assert.equal((await review()).wish.id, replacement);
+    assert.deepEqual(await listOpenPurchasePlans(query, owner), []);
+    assert.equal((await readTasks()).length, 1);
+    assert.equal((await request("delete", "planning/tasks/:id", { id: task.id })).status, 200);
+    await query("DELETE FROM wishes WHERE id=$1 AND user_id=$2", [replacement, owner]);
+    const [last, beforeLast] = (await history()).items;
+    assert.deepEqual([last.title, last.purchasedOn, last.amountMinor, last.changeMinor], ["Фильтр", "2027-02-13", null, null]);
+    assert.deepEqual(beforeLast, replacementRecord);
+    assert.deepEqual(await monthly("2027-01"), [monthlyTotal(350050, 230000, 1)]);
+    assert.deepEqual(await monthly("2027-02"), [monthlyTotal(350050, 0, 1, { missingAmountCount: 1 })]);
+    assert.equal((await request("get", "planning/tasks", { search: { space: "purchase-history" } })).status, 404);
+    await query("UPDATE wishes SET currency='USD' WHERE id=$1", [wish]);
+    await query("UPDATE wishes SET status='active' WHERE id=$1", [wish]);
+    assert.deepEqual((await request("get", planPath)).data.plan, { budgetMinor: null, currency: "USD", dueOn: "" });
+    assert.equal((await request("post", planPath, { body: { ...next, currency: "USD", revision: null } })).status, 200);
+    await query("DELETE FROM wishes WHERE id=$1 AND user_id=$2", [wish, owner]);
+    const orphan = await review();
+    assert.equal(orphan.wish, null);
+    assert.equal(orphan.plan.budgetMinor, next.budgetMinor);
+    assert.equal((await decide({ action: "bought", amountMinor: null, revision: orphan.revision })).status, 404);
+    assert.equal((await decide({ action: "declined", revision: orphan.revision })).status, 200);
+
+    const legacyWish = randomUUID();
+    await query("INSERT INTO wishes (id,user_id,title,currency) VALUES ($1,$2,'Старая покупка','RUB')", [legacyWish, owner]);
+    const legacyPlan = await request("post", planPath, { id: legacyWish, body: first });
+    assert.equal(legacyPlan.status, 200);
+    const legacyTaskId = "purchase-plan:" + legacyWish;
+    await query(`UPDATE planning_tasks SET related_items=jsonb_set(related_items,'{0,purchaseReview}','{"outcome":"bought","amountMinor":0}')
+      WHERE id=$1 AND user_id=$2`, [legacyTaskId, owner]);
+    const legacyRecord = (await history()).items.at(-1);
+    assert.deepEqual([legacyRecord.title, legacyRecord.purchasedOn, legacyRecord.amountMinor, legacyRecord.changeMinor], ["Старая покупка", null, 0, null]);
+    assert.equal((await request("delete", "planning/tasks/:id", { id: legacyTaskId })).status, 200);
+    assert.deepEqual((await history()).items.at(-1), legacyRecord);
+    assert.equal((await request("post", planPath, { id: legacyWish, body: first })).status, 200);
+    const lastPurchase = { intervalDays: 7, wishId: legacyWish, lastPurchaseOn: "2026-11-26", lastAmountMinor: 2500,
+      lastDecision: { action: "bought", purchasedOn: "2026-11-26" } };
+    await query("UPDATE planning_tasks SET related_items=jsonb_set(related_items,'{0,replenishment}',$3::jsonb) WHERE id=$1 AND user_id=$2",
+      [legacyTaskId, owner, JSON.stringify(lastPurchase)]);
+    const legacyCycle = (await history()).items.find(({ purchasedOn }) => purchasedOn === lastPurchase.lastPurchaseOn);
+    assert.deepEqual([legacyCycle.title, legacyCycle.amountMinor, legacyCycle.changeMinor], ["Старая покупка", 2500, null]);
+    assert.deepEqual(await monthly("2026-11"), [monthlyTotal(0, 2500, 1, { missingBudgetCount: 1 })]);
+    const legacyCare = await request("get", carePath, { id: legacyCycle.id });
+    assert.equal(legacyCare.data.purchase.revision, null);
+    assert.equal((await request("post", carePath, { id: legacyCycle.id, body: { ...legacyCare.data.purchase.care, maintenanceNote: "Сменить фильтр", revision: null } })).status, 200);
+    assert.deepEqual((await history()).items.filter(({ id }) => id === legacyCycle.id), [legacyCycle]);
+    assert.deepEqual(await monthly("2026-11"), [monthlyTotal(0, 2500, 1, { missingBudgetCount: 1 })]);
+    const legacyRevision = (await request("get", reviewPath, { id: legacyWish })).data.revision;
+    assert.equal((await request("post", reviewPath, { id: legacyWish, body: { action: "skip", skippedOn: first.dueOn, revision: legacyRevision } })).status, 200);
+    assert.equal((await request("delete", "planning/tasks/:id", { id: legacyTaskId })).status, 200);
+    assert.deepEqual((await history()).items.filter(({ id }) => id === legacyCycle.id), [legacyCycle]);
+    assert.deepEqual(await monthly("2026-11"), [monthlyTotal(0, 2500, 1, { missingBudgetCount: 1 })]);
+    for (let day = 1; day <= 20; day += 1) {
+      await recordPurchase(query, owner, { id: task.id }, { purchaseBudget: { currency: "RUB", minor: 10000 } }, { id: wish, title: "Тестовая покупка" },
+        { amountMinor: day * 100, intervalDays: 1, purchasedOn: `2027-03-${String(day).padStart(2, "0")}` });
+    }
+    const pageOne = await history();
+    const pageTwo = await history({ search: { cursor: pageOne.nextCursor } });
+    assert.equal(pageOne.items.length, 20);
+    assert.equal(pageTwo.items.length, 7);
+    assert.equal(pageTwo.nextCursor, null);
+    assert.equal(new Set([...pageOne.items, ...pageTwo.items].map(({ id }) => id)).size, 27);
+    assert.deepEqual(await history({ userId: other, search: { cursor: pageOne.nextCursor } }), { items: [], nextCursor: null });
+    assert.equal((await request("post", planPath, { id: differentCurrency, body: { dueOn: "2027-01-01", budgetMinor: 10000, currency: "EUR" } })).status, 200);
+    const euro = (await request("get", reviewPath, { id: differentCurrency })).data;
+    assert.equal((await request("post", reviewPath, { id: differentCurrency,
+      body: { action: "bought", amountMinor: 15000, purchasedOn: "2026-12-31", revision: euro.revision } })).status, 200);
+    assert.deepEqual(await monthly("2026-12"), [monthlyTotal(10000, 15000, 1, { currency: "EUR" }), monthlyTotal(1020100, 935055, 3)]);
+    assert.deepEqual(await monthly("2027-01"), [monthlyTotal(350050, 230000, 1)]);
+    assert.deepEqual(await monthly("2027-03"), [monthlyTotal(200000, 21000, 20)]);
+
+    const needId = `need-${randomUUID()}`;
+    const variant = randomUUID();
+    const secondVariant = randomUUID();
+    await query("INSERT INTO wishes (id,user_id,title,currency,url) VALUES ($1,$3,'Первый фильтр','RUB','https://example.test/filter'),($2,$3,'Второй фильтр','RUB','')",
+      [variant, secondVariant, owner]);
+    const needPath = "dashboard/purchase-needs/:id";
+    const need = { title: "Фильтр для кувшина", criteria: "Подходит к модели А", dueOn: "2027-04-10", neededBy: "2027-04-16",
+      budgetMinor: 5000, savedMinor: 1200, currency: "RUB", country: "RU", variantIds: [], revision: null };
+    const created = await request("post", needPath, { id: needId, body: need });
+    assert.equal(created.status, 200);
+    assert.equal((await request("post", needPath, { id: needId, body: need })).data.task.id, created.data.task.id);
+    assert.deepEqual(await monthly("2027-04"), [monthlyTotal(5000, 0)]);
+    assert.equal(expandRecurringTasks(await readTasks(), need.dueOn, need.dueOn).filter(({ id }) => id === created.data.task.id).length, 1);
+    const readNeed = async () => (await request("get", reviewPath, { id: needId })).data;
+    const initial = await readNeed();
+    assert.equal(initial.wish, null);
+    assert.deepEqual(initial.need.variants, []);
+    assert.equal((await request("get", reviewPath, { id: needId, userId: other })).status, 404);
+    const edit = { ...need, variantIds: [variant, secondVariant], revision: initial.revision };
+    assert.equal((await request("post", needPath, { id: needId, body: { ...edit, savedMinor: 5001 } })).status, 400);
+    assert.equal((await listOpenPurchasePlans(query, owner)).find(({ id }) => id === needId).need.savedMinor, 1200);
+    assert.equal((await request("post", needPath, { id: needId, body: { ...edit, variantIds: [foreign] } })).status, 400);
+    assert.equal((await request("post", needPath, { id: needId, body: { ...edit, variantIds: [differentCurrency] } })).status, 400);
+    assert.equal((await request("post", needPath, { id: needId, body: edit })).status, 200);
+    assert.equal((await request("post", needPath, { id: needId, body: { ...edit, criteria: "Другие условия" } })).status, 409);
+    const shortlist = await readNeed();
+    assert.deepEqual(shortlist.need.variants.map(({ id }) => id), [variant, secondVariant]);
+    const compared = await request("post", `${needPath}/compare`, { id: needId, body: {} });
+    assert.equal(compared.status, 200);
+    assert.deepEqual(compared.data.offers.map(({ status, quote }) => [status, quote?.totalMinor, quote?.deliveryDays.max]),
+      [["available", 1200, 2], ["no-link", undefined, undefined]]);
+    const collaborationPath = "dashboard/purchase-collaborations/:id";
+    const collaborate = (body, userId = owner, accountType = "personal") => request("post", collaborationPath, { id: needId, body, userId, accountType });
+    const invitedUser = { action: "invite", role: "household", username: `plan-${other}` };
+    const anotherUser = { ...invitedUser, username: `plan-${outsider}` };
+    const invitedSeller = { action: "invite", role: "seller", username: `plan-${seller}`, city: "Москва" };
+    assert.equal((await request("get", collaborationPath, { id: needId, userId: outsider })).status, 404);
+    assert.equal((await collaborate({ ...invitedSeller, username: `plan-${other}` })).status, 400);
+    assert.equal((await collaborate(invitedUser)).status, 200);
+    assert.equal((await collaborate(invitedUser)).data.collaboration.recipients.length, 1);
+    assert.equal((await collaborate(anotherUser)).status, 200);
+    assert.equal((await collaborate(invitedSeller)).status, 200);
+    const [sellerView] = await listPurchaseCollaborations(query, seller);
+    assert.deepEqual(Object.keys(sellerView).sort(), ["id", "role", "ownerUsername", "title", "criteria", "neededBy", "currency", "ownOffer", "city"].sort());
+    assert.equal(sellerView.city, "Москва");
+    assert.equal((await collaborate({ action: "claim" }, other)).status, 200);
+    assert.equal((await collaborate({ action: "claim" }, outsider)).status, 409);
+    assert.equal((await collaborate({ action: "pledge", minor: 2000 }, other)).status, 200);
+    assert.equal((await collaborate({ action: "bought" }, other)).data.collaboration.bought, true);
+    const sellerOffer = { action: "offer", product: "Совместимый фильтр", totalMinor: 3300, deliveryOn: "2027-04-12", url: "https://example.test/filter" };
+    assert.equal((await collaborate(sellerOffer, other)).status, 403);
+    assert.equal((await collaborate(sellerOffer, seller, "business")).status, 200);
+    const [ownerView] = await listPurchaseCollaborations(query, owner);
+    assert.equal(ownerView.recipients.find(({ id }) => id === seller).offer.totalMinor, 3300);
+    assert.equal(ownerView.recipients.find(({ id }) => id === other).pledgeMinor, 2000);
+    assert.deepEqual((await listPurchaseCollaborations(query, other))[0].recipients.map(({ id }) => id), [other, outsider]);
+    assert.equal((await collaborate({ action: "revoke", recipientId: seller })).status, 200);
+    assert.deepEqual(await listPurchaseCollaborations(query, seller), []);
+    assert.equal((await collaborate(sellerOffer, seller, "business")).status, 404);
+    assert.deepEqual(await monthly("2027-04"), [monthlyTotal(5000, 0)]);
+
+    const confirmNeed = { action: "bought", revision: shortlist.revision, amountMinor: 1200, purchasedOn: "2027-04-10", intervalDays: 14, wishId: variant, suited: true };
+    assert.equal((await request("post", reviewPath, { id: needId, body: { ...confirmNeed, wishId: foreign } })).status, 400);
+    assert.equal((await request("post", reviewPath, { id: needId, body: confirmNeed })).data.task.dueOn, "2027-04-24");
+    assert.equal((await request("post", reviewPath, { id: needId, body: confirmNeed })).status, 200);
+    assert.equal((await readNeed()).need.preferredWishId, variant);
+    assert.deepEqual(await listPurchaseCollaborations(query, other), []);
+    assert.equal((await listOpenPurchasePlans(query, owner)).find(({ id }) => id === needId).need.savedMinor, 0);
+    assert.deepEqual(await monthly("2027-04"), [monthlyTotal(10000, 1200, 1)]);
+    const archivedNeed = (await history()).items[0];
+    assert.deepEqual([archivedNeed.title, archivedNeed.needTitle, archivedNeed.suited], ["Первый фильтр", need.title, true]);
+    await query("DELETE FROM wishes WHERE user_id=$1 AND id=$2", [owner, variant]);
+    assert.deepEqual((await readNeed()).need.variants.map(({ id }) => id), [secondVariant]);
+    assert.equal((await listOpenPurchasePlans(query, owner)).find(({ id }) => id === needId).title, need.title);
+
+    const limitPath = "dashboard/purchase-month/limit";
+    const limit = { month: "2027-04", currency: "RUB", minor: 6100 };
+    assert.equal((await request("post", limitPath, { body: { ...limit, minor: -1 } })).status, 400);
+    assert.equal((await request("post", limitPath, { body: limit })).status, 200);
+    const report = async (month, userId = owner) => (await request("get", monthPath, { search: { month }, userId })).data;
+    assert.deepEqual((await report("2027-04")).limits, [{ currency: "RUB", minor: 6100, openMinor: 5000, spentMinor: 1200, missingAmountCount: 0 }]);
+    assert.deepEqual((await report("2027-05")).limits, []);
+    assert.deepEqual((await report("2027-04", other)).limits, []);
+    assert.equal((await request("post", limitPath, { body: { ...limit, minor: 0 } })).status, 200);
+    assert.equal((await report("2027-04")).limits[0].minor, 0);
+    assert.equal((await request("post", limitPath, { body: { ...limit, minor: null } })).status, 200);
+    assert.deepEqual((await report("2027-04")).limits, []);
+
+    const subscriptionPath = "dashboard/subscriptions/:id";
+    const subscriptionId = randomUUID();
+    const subscription = { title: "Видеосервис", budgetMinor: 1500, currency: "EUR", chargeOn: "2028-01-31",
+      intervalMonths: 1, leadDays: 7, trial: true, url: "https://example.test/manage", revision: null };
+    const subscriptionRequest = (method, body, suffix = "", userId = owner) => request(method, subscriptionPath + suffix, { id: subscriptionId, body, userId });
+    assert.equal((await subscriptionRequest("post", { ...subscription, url: "javascript:alert(1)" })).status, 400);
+    assert.equal((await subscriptionRequest("get", undefined, "", other)).status, 404);
+    const booked = await subscriptionRequest("post", subscription);
+    assert.equal(booked.data.task.dueOn, "2028-01-24");
+    assert.equal((await subscriptionRequest("post", subscription)).data.task.id, booked.data.task.id);
+    assert.equal((await request("patch", "planning/tasks/:id", { id: booked.data.task.id, body: { completed: true } })).status, 409);
+    assert.equal((await request("delete", "planning/tasks/:id", { id: booked.data.task.id })).status, 409);
+    assert.equal(expandRecurringTasks(await readTasks(), "2028-01-24", "2028-01-24").filter(({ id }) => id === booked.data.task.id).length, 1);
+    assert.equal((await listSubscriptions(query, owner)).length, 1);
+    assert.equal((await listSubscriptions(query, other)).length, 0);
+    // The other owner's charge is in January even though the reminder is in December.
+    const otherBooked = await subscriptionRequest("post", { ...subscription, chargeOn: "2028-01-03" }, "", other);
+    assert.notEqual(otherBooked.data.task.id, booked.data.task.id);
+    assert.equal(otherBooked.data.task.dueOn, "2027-12-27");
+    assert.deepEqual(await monthly("2027-12", other), []);
+    assert.deepEqual(await monthly("2028-01", other), [monthlyTotal(1500, 0, 0, { currency: "EUR" })]);
+    assert.deepEqual(await monthly("2028-01"), [monthlyTotal(1500, 0, 0, { currency: "EUR" })]);
+    const readSubscription = async () => (await subscriptionRequest("get")).data.subscription;
+    const firstCharge = { action: "paid", revision: (await readSubscription()).revision, amountMinor: 2000, purchasedOn: "2028-01-31" };
+    failReviewSave = true;
+    try { await assert.rejects(() => subscriptionRequest("post", firstCharge, "/review"), /Test rollback/); }
+    finally { failReviewSave = false; }
+    assert.deepEqual(await monthly("2028-01"), [monthlyTotal(1500, 0, 0, { currency: "EUR" })]);
+    assert.equal((await subscriptionRequest("post", firstCharge, "/review")).data.task.dueOn, "2028-02-22");
+    assert.equal((await subscriptionRequest("post", firstCharge, "/review")).status, 200);
+    assert.equal((await subscriptionRequest("post", { ...firstCharge, amountMinor: 2100 }, "/review")).status, 409);
+    assert.deepEqual(await monthly("2028-01"), [monthlyTotal(1500, 2000, 1, { currency: "EUR" })]);
+    assert.deepEqual(await monthly("2028-02"), [monthlyTotal(1500, 0, 0, { currency: "EUR" })]);
+    const archivedSubscription = (await history()).items[0];
+    assert.deepEqual([archivedSubscription.title, archivedSubscription.purchaseType, archivedSubscription.purchasedOn], [subscription.title, "subscription", firstCharge.purchasedOn]);
+    const february = await readSubscription();
+    assert.equal(february.chargeOn, "2028-02-29");
+    assert.equal(february.trial, false);
+    const update = { ...subscription, trial: false, title: "Видеосервис с обновлённой ценой", budgetMinor: 1900, revision: february.revision, chargeOn: february.chargeOn };
+    assert.equal((await subscriptionRequest("post", update)).status, 200);
+    assert.equal((await subscriptionRequest("post", { ...update, budgetMinor: 2100 })).status, 409);
+    assert.equal((await subscriptionRequest("post", { action: "skip", revision: (await readSubscription()).revision }, "/review")).data.task.dueOn, "2028-03-24");
+    assert.equal((await readSubscription()).chargeOn, "2028-03-31");
+    assert.deepEqual(await monthly("2028-02"), []);
+    const stopReminder = { action: "stop", revision: (await readSubscription()).revision };
+    assert.equal((await subscriptionRequest("post", stopReminder, "/review")).data.task.completed, true);
+    assert.equal((await subscriptionRequest("post", stopReminder, "/review")).status, 200);
+    assert.deepEqual(await listSubscriptions(query, owner), []);
+    assert.deepEqual(await monthly("2028-03"), []);
+    assert.deepEqual(await monthly("2028-01"), [monthlyTotal(1500, 2000, 1, { currency: "EUR" })]);
+
+    const carePurchaseId = archivedNeed.id;
+    const readCare = async (id = carePurchaseId) => (await request("get", carePath, { id })).data;
+    assert.equal((await request("get", carePath, { id: carePurchaseId, userId: other })).status, 404);
+    assert.equal((await request("get", carePath, { id: carePurchaseId })).headers.get("Cache-Control"), "private, no-store");
+    assert.equal((await readCare()).purchase.title, "Первый фильтр");
+    assert.equal((await readCare(legacyCycle.id)).purchase.care.maintenanceNote, "Сменить фильтр");
+    const care = { warrantyOn: "2028-04-10", warrantyReminderOn: "2028-03-27", maintenanceOn: "2027-05-02", maintenanceNote: "Промыть и заменить картридж", revision: null };
+    const saveCare = (body, id = carePurchaseId) => request("post", carePath, { id, body });
+    assert.equal((await saveCare({ ...care, maintenanceOn: "2027-04-09" })).status, 400);
+    assert.equal((await saveCare({ ...care, warrantyReminderOn: "2028-04-11" })).status, 400);
+    assert.equal((await saveCare(care, archivedSubscription.id)).status, 400);
+    const savedCare = (await saveCare(care)).data;
+    const reminderFor = (data, type) => data.reminders.find((task) => task.relatedItems[0].type === type);
+    const maintenanceTask = reminderFor(savedCare, "maintenance");
+    assert.equal(maintenanceTask.dueOn, care.maintenanceOn);
+    assert.equal(reminderFor(savedCare, "warranty").dueOn, care.warrantyReminderOn);
+    assert.deepEqual((await saveCare(care)).data.reminders.map(({ id }) => id), savedCare.reminders.map(({ id }) => id));
+    assert.equal((await saveCare({ ...care, maintenanceNote: "Просроченная правка" })).status, 409);
+    assert.equal(expandRecurringTasks(await readTasks(), care.maintenanceOn, care.maintenanceOn).filter(({ id }) => id === maintenanceTask.id).length, 1);
+    assert.equal((await request("patch", "planning/tasks/:id", { id: maintenanceTask.id, body: { completed: true } })).status, 409);
+    const reminder = { type: "maintenance", completed: true, dueOn: care.maintenanceOn, revision: maintenanceTask.revision };
+    const setCareReminder = (body) => request("post", `${carePath}/reminder`, { id: carePurchaseId, body });
+    const completedCareTask = reminderFor((await setCareReminder(reminder)).data, "maintenance");
+    assert.equal(completedCareTask.completed, true);
+    assert.equal(reminderFor((await setCareReminder(reminder)).data, "maintenance").completed, true);
+    assert.equal(reminderFor((await setCareReminder({ ...reminder, completed: false, revision: completedCareTask.revision })).data, "maintenance").completed, false);
+    assert.equal((await setCareReminder(reminder)).status, 409);
+    const reschedule = { ...care, revision: savedCare.purchase.revision, maintenanceOn: "2027-05-04" };
+    failReviewSave = true;
+    try { await assert.rejects(() => saveCare(reschedule), /Test rollback/); }
+    finally { failReviewSave = false; }
+    assert.equal((await readCare()).purchase.care.maintenanceOn, care.maintenanceOn);
+    const rescheduled = (await saveCare(reschedule)).data;
+    assert.equal(reminderFor(rescheduled, "maintenance").id, maintenanceTask.id);
+    assert.equal(reminderFor(rescheduled, "maintenance").dueOn, reschedule.maintenanceOn);
+    assert.equal((await setCareReminder(reminder)).status, 409);
+    const cleared = (await saveCare({ ...reschedule, revision: rescheduled.purchase.revision, warrantyReminderOn: "" })).data;
+    assert.equal(cleared.purchase.care.warrantyOn, care.warrantyOn);
+    assert.equal(cleared.reminders.length, 1);
+
+    const pdf = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+    const fileHeaders = { "Content-Type": "application/pdf", "X-File-Name": encodeURIComponent("../Кассовый чек.pdf"), "X-Receipt-Version": "none" };
+    const addReceipt = ({ id = carePurchaseId, body = pdf, headers = fileHeaders, userId = owner } = {}) => request("post", receiptPath, { id, body, requestHeaders: headers, userId });
+    assert.equal((await addReceipt({ body: Buffer.from("<html>не чек</html>") })).status, 400);
+    assert.equal((await addReceipt({ headers: { ...fileHeaders, "Content-Type": "image/png" } })).status, 400);
+    assert.equal((await addReceipt({ userId: other })).status, 404);
+    const receipt = (await addReceipt()).data.receipt;
+    assert.equal(receipt.filename, "Кассовый чек.pdf");
+    assert.equal((await addReceipt()).data.receipt.version, receipt.version);
+    assert.equal((await addReceipt({ headers: { ...fileHeaders, "X-File-Name": "another.pdf" } })).status, 409);
+    assert.deepEqual((await readCare()).receipt, receipt);
+    const download = await request("get", receiptPath, { id: carePurchaseId });
+    assert.deepEqual(download.data, pdf);
+    assert.equal(download.headers.get("Content-Type"), "application/pdf");
+    assert.match(download.headers.get("Content-Disposition"), /^attachment; filename\*=UTF-8''/);
+    assert.equal(download.headers.get("Cache-Control"), "private, no-store");
+    assert.equal((await request("get", receiptPath, { id: carePurchaseId, userId: other })).status, 404);
+    assert.equal((await request("get", "planning/tasks", { search: { space: "purchase-receipts" } })).status, 404);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBAEAAAAASUVORK5CYII=", "base64");
+    const receiptApp = express();
+    receiptApp.use(express.json({ limit: "256kb" }));
+    registerPurchaseCareRoutes(receiptApp, { ...dependencies, requireAuth: (req, res, next) => { req.user = { id: owner }; next(); } });
+    receiptApp.use((error, _req, res, _next) => res.status(error.status || 500).json({ error: error.message }));
+    const receiptServer = receiptApp.listen(0, "127.0.0.1");
+    await once(receiptServer, "listening");
+    let newReceipt;
+    try {
+      const endpoint = `http://127.0.0.1:${receiptServer.address().port}/api/${historyPath}/${encodeURIComponent(carePurchaseId)}/receipt`;
+      const repeatedPdf = await fetch(endpoint, { method: "POST", headers: fileHeaders, body: pdf });
+      assert.equal(repeatedPdf.status, 200);
+      assert.equal((await repeatedPdf.json()).receipt.version, receipt.version);
+      const receiptHeaders = { "Content-Type": "image/png", "X-File-Name": "photo.png", "X-Receipt-Version": receipt.version };
+      const oversized = await fetch(endpoint, { method: "POST", headers: receiptHeaders, body: Buffer.alloc(5 * 1024 * 1024 + 1) });
+      assert.equal(oversized.status, 413);
+      await oversized.arrayBuffer();
+      const upload = await fetch(endpoint, { method: "POST", headers: receiptHeaders, body: png });
+      assert.equal(upload.status, 200);
+      ({ receipt: newReceipt } = await upload.json());
+      assert.equal(newReceipt.mimeType, "image/png");
+      const fetched = await fetch(endpoint);
+      assert.equal(fetched.status, 200);
+      assert.equal(fetched.headers.get("content-type"), "image/png");
+      assert.deepEqual(Buffer.from(await fetched.arrayBuffer()), png);
+    } finally {
+      await new Promise((resolve) => { receiptServer.close(resolve); receiptServer.closeAllConnections(); });
+    }
+    assert.equal((await request("delete", receiptPath, { id: carePurchaseId, requestHeaders: fileHeaders })).status, 409);
+    const removeReceipt = () => request("delete", receiptPath, { id: carePurchaseId, requestHeaders: { "X-Receipt-Version": newReceipt.version } });
+    assert.equal((await removeReceipt()).status, 200);
+    assert.equal((await removeReceipt()).status, 200);
+    assert.equal((await readCare()).receipt, null);
+    assert.deepEqual(await monthly("2027-04"), [monthlyTotal(10000, 1200, 1)]);
+  } finally {
+    await client.query("ROLLBACK");
+    client.release();
+    try { assert.equal((await db.query("SELECT id FROM users WHERE id = ANY($1)", [[owner, other, seller, outsider]])).rowCount, 0); }
+    finally { await db.pool.end(); }
+  }
+});

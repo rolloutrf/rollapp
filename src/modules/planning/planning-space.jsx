@@ -28,6 +28,12 @@ import { PlanningNotes } from "@/modules/planning/planning-notes.jsx";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePlanningSpaceSelection } from "@/modules/planning/planning-space-switcher.jsx";
 import { AddFab } from "@/components/add-fab";
+import { WishPurchaseReview } from "@/modules/wishlist/wish-purchase-review";
+import { WishSubscription } from "@/modules/wishlist/wish-subscription";
+import { WishPurchaseCare } from "@/modules/wishlist/wish-purchase-care";
+import { subscriptionItem } from "../../../shared/modules/planning/subscription-renewal.js";
+import { purchaseCareItem } from "../../../shared/modules/planning/purchase-care.js";
+import { plannedPurchaseItem } from "../../../shared/modules/planning/purchase-plan.js";
 import "./planning-space.css";
 
 export const PLANNING_TABS = [
@@ -213,6 +219,9 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const [editor, setEditor] = useState(null);
+  const [reviewTask, setReviewTask] = useState(null);
+  const reviewedCare = purchaseCareItem(reviewTask);
+  const reviewedSubscription = subscriptionItem(reviewTask);
   const [assistantDraft, clearAssistantDraft] = usePlanningAssistantDraft(activeTab === "todo" ? "draft_task" : activeTab === "calendar" ? "draft_event" : null);
   useEffect(() => {
     let current = true;
@@ -229,7 +238,17 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
     if (!quiet) toast.success(id ? "Задача сохранена" : "Задача добавлена");
     return task;
   };
-  const edit = (task) => setEditor(task.sourceId ? tasks.find((item) => item.id === task.sourceId) : task);
+  const edit = (task) => {
+    if (subscriptionItem(task) || purchaseCareItem(task) || plannedPurchaseItem(task)) setReviewTask(task);
+    else setEditor(task.sourceId ? tasks.find((item) => item.id === task.sourceId) : task);
+  };
+  const finishReview = (task, decision) => {
+    setTasks((current) => current.map((item) => item.id === task.id ? { ...item, ...task } : item));
+    if (decision.action !== "replace") setReviewTask(null);
+  };
+  const syncCareReminders = (reminders) => {
+    setTasks((current) => [...current.filter((task) => purchaseCareItem(task)?.id !== reviewedCare.id), ...reminders]);
+  };
   const remove = async (id) => {
     await api.delete(`tasks/${id}`);
     setTasks((current) => current.filter((task) => task.id !== id));
@@ -244,13 +263,18 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
     <h1 className="sr-only">{activeTab === "calendar" ? "Календарь планирования" : activeTab === "todo" ? "To Do на каждый день" : "Kanban-доска"}</h1>
     <div className="not-typeset planning-tools rollapp-body">
       {loading ? <div className="planning-space__status" role="status"><Spinner />Загружаем задачи…</div> : error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить</Button></AlertDescription></Alert> : activeTab === "kanban" ? (
-        <PlanningKanban createSpace={createSpace} onCreate={(column) => setEditor({ ...EMPTY_TASK, unscheduled: true, columnId: column?.id, completed: column?.complete || false })} api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} />
+        <PlanningKanban createSpace={createSpace} onCreate={(column) => setEditor({ ...EMPTY_TASK, unscheduled: true, columnId: column?.id, completed: column?.complete || false })} api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={edit} />
       ) : activeTab === "calendar" ? (
         <PlanningCalendar createSpace={createSpace} deviceSync spaceId={spaceId} onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
       ) : (
-        <PlanningDailyTodo createSpace={createSpace} tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn, startTime, draft = {}) => setEditor({ ...EMPTY_TASK, ...draft, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
+        <PlanningDailyTodo createSpace={createSpace} tasks={tasks} columns={columns} onSave={save} onEdit={edit} onReview={setReviewTask} onCreate={(dueOn, startTime, draft = {}) => setEditor({ ...EMPTY_TASK, ...draft, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
       )}
     </div>
-    {task && <TaskEditor task={task} columns={columns} onClose={() => { setEditor(null); clearAssistantDraft(); }} onSave={save} onDelete={remove} />}
+    {task && !reviewTask && <TaskEditor task={task} columns={columns} onClose={() => { setEditor(null); clearAssistantDraft(); }} onSave={save} onDelete={remove} />}
+    {reviewTask && (reviewedCare ? <WishPurchaseCare key={reviewTask.id} purchaseId={reviewedCare.id}
+      onClose={() => setReviewTask(null)} onChanged={syncCareReminders} />
+      : reviewedSubscription ? <WishSubscription key={reviewTask.id} id={reviewedSubscription.id}
+      onClose={() => setReviewTask(null)} onSaved={(task, action) => finishReview(task, { action })} />
+      : <WishPurchaseReview key={reviewTask.id} purchase={plannedPurchaseItem(reviewTask)} onClose={() => setReviewTask(null)} onSaved={finishReview} />)}
   </section>;
 }

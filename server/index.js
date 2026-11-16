@@ -53,6 +53,8 @@ import { registerBusinessMarketplaceRoutes } from "./modules/catalog-marketplace
 import { registerNeedRewardsRoutes, startNeedRewardSettlementWorker } from "./modules/loyalty/need-rewards.js";
 import { checkRewardProofRuntime, startRewardProofWorker } from "./modules/loyalty/reward-proof-queue.js";
 
+import { formatEventDate, mapWish } from "./modules/wishlist/wish-projection.js";
+import { startPurchasePriceChecks } from "./modules/wishlist/purchase-price-watch.js";
 import { registerPlanningRoutes } from "./modules/planning/planning.js";
 import { createRollappMcpHttp } from "./modules/runtime/mcp-http.js";
 import { registerNotesRoutes } from "./modules/planning/notes.js";
@@ -472,21 +474,6 @@ function mapList(row) {
   };
 }
 
-function formatEventDate(value) {
-  if (value === null || value === undefined) return null;
-  if (value instanceof Date) {
-    // node-pg парсит DATE как полночь в локальной таймзоне, pg-mem — как полночь в UTC.
-    // Выбираем компоненты даты без сдвига: UTC-полночь → UTC-компоненты, иначе локальные.
-    const isUtcMidnight = value.getUTCHours() === 0 && value.getUTCMinutes() === 0
-      && value.getUTCSeconds() === 0 && value.getUTCMilliseconds() === 0;
-    const year = isUtcMidnight ? value.getUTCFullYear() : value.getFullYear();
-    const month = (isUtcMidnight ? value.getUTCMonth() : value.getMonth()) + 1;
-    const day = isUtcMidnight ? value.getUTCDate() : value.getDate();
-    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
-  return String(value).slice(0, 10);
-}
-
 function mapEducationList(row) {
   return {
     id: row.id,
@@ -533,34 +520,6 @@ function mapEducationItemGroups(rows = []) {
     if (row.item_id) groups.get(row.id).itemIds.push(row.item_id);
   }
   return [...groups.values()];
-}
-
-function mapWish(row) {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    title: row.title,
-    description: row.description,
-    url: row.url,
-    imageUrl: row.image_url,
-    fundraisingUrl: row.fundraising_url ?? "",
-    vehicleMake: row.vehicle_make ?? "",
-    vehicleModel: row.vehicle_model ?? "",
-    price: row.price === null ? null : Number(row.price),
-    currency: row.currency,
-    priority: Number(row.priority),
-    privacy: row.privacy,
-    allowMultiple: row.allow_multiple,
-    status: row.status,
-    sortOrder: Number(row.sort_order || 0),
-    eventDate: formatEventDate(row.event_date),
-    space: row.space ?? null,
-    createdAt: row.created_at,
-    reservationCount: Number(row.reservation_count || 0),
-    reservedByMe: Boolean(row.reserved_by_me),
-    likedByMe: Boolean(row.liked_by_me),
-    listIds: row.list_ids || [],
-  };
 }
 
 function asyncRoute(handler) {
@@ -3552,6 +3511,10 @@ if (!sphereApplication) {
   if (isProduction && diskSyncAvailable) diskSyncWorker = startYandexDiskSync({ query, transaction, track: trackBackgroundTask });
 }
 
+const purchasePricePoller = isProduction && !isMemoryDatabase && !splitPlatform && servesSphere("wishlist") ? startPurchasePriceChecks({
+  query, transaction, onError: () => console.warn("[purchase-prices] Scheduled check failed"),
+}) : null;
+
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`Rollapp ${applicationId} listening on ${port}`);
 });
@@ -3563,10 +3526,11 @@ async function shutdown() {
   rewardProofWorker?.stop();
   needRewardSettlementWorker?.stop();
   diskSyncWorker?.stop();
+  const purchasePriceCheck = purchasePricePoller?.stop();
   server.close(async () => {
-    if (backgroundTasks.size) {
+    if (backgroundTasks.size || purchasePriceCheck) {
       await Promise.race([
-        Promise.allSettled([...backgroundTasks]),
+        Promise.allSettled([...backgroundTasks, purchasePriceCheck]),
         new Promise((resolve) => setTimeout(resolve, 20_000)),
       ]);
     }

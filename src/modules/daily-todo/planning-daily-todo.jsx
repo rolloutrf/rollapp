@@ -1,8 +1,8 @@
 import { PlanningDayRibbon } from "@/components/planning-day-ribbon";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Plus, Repeat2, ShoppingBag, Wrench } from "lucide-react";
 import { AddFab } from "@/components/add-fab";
 import { ComposerField } from "@/components/composer-field";
 import { ControlBar } from "@/components/control-bar";
@@ -15,6 +15,9 @@ import { RelatedChoiceCard } from "@/modules/planning/planning-related-card.jsx"
 import { addCalendarDays, calendarTaskSchedules, dateFromKey, nextCalendarTaskStart, sortCalendarTasks } from "../../../shared/modules/calendar/planning-calendar.js";
 import { isPlanningDate, localDateKey } from "../../../shared/modules/planning/planning.js";
 import { expandRecurringTasks } from "../../../shared/modules/planning/planning-recurrence.js";
+import { formatPurchaseBudget, plannedPurchaseItem, PURCHASE_REVIEW_LABELS } from "../../../shared/modules/planning/purchase-plan.js";
+import { subscriptionItem } from "../../../shared/modules/planning/subscription-renewal.js";
+import { purchaseCareItem } from "../../../shared/modules/planning/purchase-care.js";
 import "./planning-daily-todo.css";
 
 const weekdayLabel = new Intl.DateTimeFormat("ru-RU", { weekday: "short" });
@@ -24,8 +27,25 @@ const compactDateLabel = (key) => {
   return `${new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" }).format(date)}, ${weekday.charAt(0).toUpperCase() + weekday.slice(1)}`;
 };
 
-function TodoRow({ task, displayTime, onSave, onEdit }) {
+const subscriptionDateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+
+function TodoRow({ task, displayTime, onSave, onEdit, onReview }) {
   const [busy, setBusy] = useState(false);
+  const contextId = useId();
+  const purchase = plannedPurchaseItem(task);
+  const subscription = subscriptionItem(task);
+  const care = purchaseCareItem(task);
+  const canReview = Boolean((purchase || subscription || care) && onReview);
+  const outcome = PURCHASE_REVIEW_LABELS[purchase?.purchaseReview?.outcome];
+  const relatedTitles = (task.relatedItems || []).filter((item) => item !== purchase && item !== subscription && item !== care).map((item) => item.title).join(", ");
+  const replenishment = !outcome && purchase?.replenishment;
+  const subscriptionContext = subscription?.stopped ? "Напоминания остановлены" : subscription &&
+    `${subscription.trial ? "Первое списание" : "Списание"} ${subscriptionDateFormatter.format(dateFromKey(subscription.chargeOn))} · ${formatPurchaseBudget({ minor: subscription.budgetMinor, currency: subscription.currency })}`;
+  const context = [outcome, subscriptionContext, purchase && `Бюджет ${formatPurchaseBudget(purchase.purchaseBudget)}`,
+    replenishment && `Интервал ${replenishment.intervalDays} дн.`, relatedTitles].filter(Boolean).join(" · ");
+  const actionName = canReview ? (purchase ? `${replenishment ? "Пополнить запас" : "Пересмотреть покупку"}: ${purchase.title}` : task.title)
+    : `Редактировать задачу: ${task.title}`;
+  const ReviewIcon = care ? Wrench : subscription ? Repeat2 : ShoppingBag;
   const toggle = async (checked) => {
     if (busy) return;
     setBusy(true);
@@ -33,16 +53,19 @@ function TodoRow({ task, displayTime, onSave, onEdit }) {
     catch (cause) { toast.error(cause.message || "Не удалось обновить задачу"); }
     finally { setBusy(false); }
   };
-  return <li className="daily-todo__item" data-completed={task.completed || undefined}>
-    <Checkbox aria-label={`Выполнено: ${task.title}`} checked={task.completed} disabled={busy} onCheckedChange={toggle} />
-    <Button variant="ghost" className="daily-todo__task font-normal" aria-label={`Редактировать задачу: ${task.title}`} onClick={() => onEdit(task)} disabled={busy}>
-      <span className="daily-todo__task-content"><span className="daily-todo__task-title">{task.title}</span>{task.relatedItems?.length > 0 && <span className="daily-todo__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</span>
+  return <li className="daily-todo__item" data-completed={task.completed || Boolean(outcome) || undefined}>
+    {!canReview && <Checkbox aria-label={`Выполнено: ${task.title}`} checked={task.completed} disabled={busy} onCheckedChange={toggle} />}
+    <Button variant="ghost" className="daily-todo__task font-normal"
+      aria-label={actionName}
+      aria-describedby={context ? contextId : undefined} onClick={() => (canReview ? onReview : onEdit)(task)} disabled={busy}>
+      {canReview && <ReviewIcon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />}
+      <span className="daily-todo__task-content flex-1"><span className="daily-todo__task-title">{task.title}</span>{context && <span id={contextId} className="daily-todo__related">{context}</span>}</span>
       {displayTime && <span className="daily-todo__time">{displayTime}</span>}
     </Button>
   </li>;
 }
 
-export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate, createSpace }) {
+export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onReview, onCreate, createSpace }) {
   const mobile = useIsMobile();
   const [search, setSearch] = useSearchParams();
   const today = localDateKey(new Date());
@@ -123,16 +146,16 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate, cr
       {!mobile && <PlanningDayRibbon selected={selected} today={today} onChange={setDate} />}
       {dayTasks.length > 0 && <div className="daily-todo__content">
       {active.length > 0 && <section className="daily-todo__group" aria-label="Нужно сделать">
-        <ul className="daily-todo__list">{active.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
+        <ul className="daily-todo__list">{active.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} onReview={onReview} />)}</ul>
       </section>}
 
       {done.length > 0 && <section className="daily-todo__group" aria-label="Выполнено">
-        <ul className="daily-todo__list">{done.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
+        <ul className="daily-todo__list">{done.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} onReview={onReview} />)}</ul>
       </section>}
       </div>}
       {undated.length > 0 && <div className="daily-todo__content"><section className="daily-todo__group" aria-label="Задачи из заметок без даты">
         <h2 className="text-rollapp-body font-semibold">Задачи из заметок без даты</h2>
-        <ul className="daily-todo__list">{undated.map(task => <TodoRow key={task.id} task={task} onSave={onSave} onEdit={onEdit} />)}</ul>
+        <ul className="daily-todo__list">{undated.map(task => <TodoRow key={task.id} task={task} onSave={onSave} onEdit={onEdit} onReview={onReview} />)}</ul>
       </section></div>}
       {!dayTasks.length && !undated.length && <div className="daily-todo__content"><div className="daily-todo__empty"><CalendarDays aria-hidden="true" /><p>Свободный день. Добавьте задачу, и она появится здесь и в календаре.</p></div></div>}
       {!mobile && controls}

@@ -1,3 +1,4 @@
+import { PurchasePlanMenuItem } from "../wishlist/wish-purchase-plan.jsx";
 import {
   LayoutGrid,
   PackagePlus,
@@ -103,7 +104,7 @@ export function WishSaleMenuItem({ wish, space, disabled }) {
   ><Tag aria-hidden="true" /> Выставить на продажу</DropdownMenuItem>;
 }
 
-export function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, groupOptions = [], onCreateGroup, onAddToGroup, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, isDropTarget = false, isDragging = false }) {
+export function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onPlanPurchase, onCreateList, groupOptions = [], onCreateGroup, onAddToGroup, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, isDropTarget = false, isDragging = false }) {
   const [menu, setMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [grouping, setGrouping] = useState(false);
@@ -234,6 +235,7 @@ export function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCre
                 <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={repeat}><Plus /> Загадать ещё раз</DropdownMenuItem>
                 {onEdit && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
               </> : owner && <>
+                {wish.status === "active" && onPlanPurchase && <PurchasePlanMenuItem disabled={busy} onSelect={onPlanPurchase} />}
                 <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={fulfilled}><Check /> Исполнено</DropdownMenuItem>
                 {onEdit && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
                 {secretListMembership

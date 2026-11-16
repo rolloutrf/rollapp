@@ -1,3 +1,11 @@
+import { listOpenPurchasePlans } from "../planning/planning.js";
+import { purchasePriceWatchView } from "./purchase-price-watch.js";
+import { purchaseProductId } from "../../../shared/modules/planning/purchase-plan.js";
+import { listSubscriptions } from "./purchase-subscriptions.js";
+import { listPurchaseCollaborations } from "./purchase-collaboration.js";
+
+import { registerWishPurchasePlanRoutes } from "./wish-purchase-plan-routes.js";
+import { updateOwnedWishStatus } from "./wish-status.js";
 import { registerProductSuggestionRoutes } from "../../product-suggestions.js";
 import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
 import { publicMood } from "../profile/profile-mood.js";
@@ -485,11 +493,16 @@ export function registerWishlistRoutes(app, {
     return res.json({ items: buildFulfilledWishSuggestions(fulfilled.rows, candidates.rows) });
   }));
 
+  registerWishPurchasePlanRoutes(app, { query, transaction, requireAuth, asyncRoute });
+
   app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
-    const [lists, wishes, sharedWishes, follows, birthdays, reservations, groupRows] = await Promise.all([
+    const [lists, wishes, sharedWishes, openPlans, subscriptions, purchaseCollaborations, follows, birthdays, reservations, groupRows] = await Promise.all([
       getLists(req.user.id),
       getWishes(req.user.id, req.user.id, true),
       getSharedWishes(req.user.id),
+      listOpenPurchasePlans(query, req.user.id),
+      listSubscriptions(query, req.user.id),
+      listPurchaseCollaborations(query, req.user.id),
       query("SELECT COUNT(*) AS count FROM follows WHERE follower_id=$1", [req.user.id]),
       query(
         `SELECT u.id,u.username,u.name,u.avatar_url,u.birthday
@@ -545,11 +558,21 @@ export function registerWishlistRoutes(app, {
       if (!groupsById.has(row.id)) groupsById.set(row.id, { id: row.id, listId: row.wishlist_id, space: row.space, title: row.title, wishIds: [] });
       if (row.wish_id) groupsById.get(row.id).wishIds.push(row.wish_id);
     }
+    const ownedWishes = new Map(wishes.map((wish) => [wish.id, wish]));
+    const purchasePlans = openPlans.flatMap(({ priceWatch, ...plan }) => {
+      if (plan.need) return [plan];
+      const wish = ownedWishes.get(purchaseProductId(plan));
+      if (!wish || (!plan.replenishment && wish.status !== "active")) return [];
+      return [{ ...plan, title: wish.title, ...(priceWatch && { priceWatch: purchasePriceWatchView(priceWatch, wish.url) }) }];
+    });
     res.set("Cache-Control", "private, no-store");
     res.json({
       lists,
       wishes,
       sharedWishes,
+      purchasePlans,
+      subscriptions,
+      purchaseCollaborations,
       groups: [...groupsById.values()],
       followingCount: Number(follows.rows[0].count),
       birthdays: birthdays.rows.map((row) => ({ ...cleanUser(row), email: undefined })),
@@ -1325,15 +1348,7 @@ export function registerWishlistRoutes(app, {
     const requestedStatus = parsed.data.fulfilled === undefined
       ? null
       : parsed.data.fulfilled ? "fulfilled" : "active";
-    const result = requestedStatus
-      ? await query(
-        "UPDATE wishes SET status=$3 WHERE id=$1 AND user_id=$2 RETURNING status",
-        [req.params.id, req.user.id, requestedStatus],
-      )
-      : await query(
-        "UPDATE wishes SET status=CASE WHEN status='fulfilled' THEN 'active' ELSE 'fulfilled' END WHERE id=$1 AND user_id=$2 RETURNING status",
-        [req.params.id, req.user.id],
-      );
+    const result = await updateOwnedWishStatus(query, req.user.id, req.params.id, requestedStatus);
     if (!result.rowCount) return res.status(404).json({ error: "Желание не найдено" });
     res.json({ status: result.rows[0].status });
   }));

@@ -29,11 +29,11 @@
 | № | Инструкция | Где используется | Код |
 | --- | --- | --- | --- |
 | 14 | [Доступ и выдача прав](14-access.md) | Приватность списков, ссылки, права на сферы и бизнес-запросы | [Клиент](../../src/modules/access/) · [Сервер](../../server/modules/access/) · [Общий код](../../shared/modules/access/) |
-| 15 | [Вишлист](15-wishlist.md) | Желания, списки, группы, резерв, архив, заметки и копирование | [Клиент](../../src/modules/wishlist/) · [Сервер](../../server/modules/wishlist/) |
+| 15 | [Вишлист](15-wishlist.md) | Желания, списки, группы, резерв, покупки и бюджеты, архив, заметки и копирование | [Клиент](../../src/modules/wishlist/) · [Сервер](../../server/modules/wishlist/) |
 | 16 | [Каталог и витрины](16-catalog-marketplace.md) | Бренды, транспорт, ассортимент, магазины | [Клиент](../../src/modules/catalog-marketplace/) · [Сервер](../../server/modules/catalog-marketplace/) · [Общий код](../../shared/modules/catalog-marketplace/) |
 | 17 | [Друзья и подписки](17-social.md) | Подписки, подписчики, поиск людей и дни рождения | [Клиент](../../src/modules/social/) · [Сервер](../../server/modules/social/) |
 | 18 | [Задачи и пространства](18-planning.md) | Единая модель задач, связей и редактор | [Клиент](../../src/modules/planning/) · [Сервер](../../server/modules/planning/) · [Общий код](../../shared/modules/planning/) |
-| 19 | [Ежедневный To Do](19-daily-todo.md) | Список задач выбранного дня | [Клиент](../../src/modules/daily-todo/) |
+| 19 | [Ежедневный To Do](19-daily-todo.md) | Список задач выбранного дня и пересмотр покупок | [Клиент](../../src/modules/daily-todo/) |
 | 20 | [Календарь](20-calendar.md) | События, расписание, отображение повторов | [Клиент](../../src/modules/calendar/) · [Общий код](../../shared/modules/calendar/) |
 | 21 | [Kanban](21-kanban.md) | Карточки, колонки и порядок на доске | [Клиент](../../src/modules/kanban/) |
 | 22 | [Идентичность](22-identity.md) | Личные документы, стратегия, Gallup, Hogan и другие тесты | [Клиент](../../src/modules/identity/) · [Сервер](../../server/modules/identity/) · [Общий код](../../shared/modules/identity/) |

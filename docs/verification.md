@@ -34,6 +34,10 @@ download API. Реальный перенос выполняется отдел�
 и запустите `npm run test:profile-mood:production` с полным откатом. Обычный выпуск
 использует `verify`.
 
+Планы покупок: `npm run test:purchase-plan` проверяет формы, бюджет,
+To Do, историю, подписки и связанные сценарии на восьми размерах без API/БД.
+Производственный сценарий с откатом входит в `npm run test:planning:production`.
+
 ## Источники UI-контрактов
 
 Фото препаратов: [medication-photos.md](medication-photos.md).

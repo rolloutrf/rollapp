@@ -1,3 +1,4 @@
+import { PurchasePlanMenuItem, WishPurchasePlan } from "../wishlist/wish-purchase-plan.jsx";
 import { merchantProductUrl } from "../../../shared/modules/catalog-marketplace/product-links.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -74,6 +75,9 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
   const [listsOpen, setListsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [plannedWishId, setPlannedWishId] = useState(null);
+  const canPlanPurchase = owner && !shareToken && wish.status === "active";
+  const planOpen = canPlanPurchase && plannedWishId === wish.id;
   const [selectedListIds, setSelectedListIds] = useState(() => normalizeListIds(wish.listIds));
   const listMutationRef = useRef(false);
   const { busy, reserve, remove, leave, fulfilled, share, save, update, repeat } = useWishActions({
@@ -209,6 +213,7 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
                     <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={repeat}><Plus /> Загадать ещё раз</DropdownMenuItem>
                     {onEdit && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
                   </> : owner && <>
+                    {canPlanPurchase && <PurchasePlanMenuItem disabled={busy} onSelect={() => setPlannedWishId(wish.id)} />}
                     <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={fulfilled}><Check /> Исполнено</DropdownMenuItem>
                     {onEdit && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
                     {secretListMembership
@@ -316,7 +321,7 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
           </div>
   );
   return <>
-    {screen ? <ContentPage title="Желание" onBack={onClose} className="wish-item-page">{detailsContent}</ContentPage> : <Drawer open showSwipeHandle swipeDirection="right" onOpenChange={(open) => { if (!open) onClose(); }}>
+    {screen ? <ContentPage title="Желание" onBack={onClose} className="wish-item-page">{detailsContent}</ContentPage> : <Drawer open modal={!planOpen} disablePointerDismissal={planOpen} showSwipeHandle swipeDirection="right" onOpenChange={(open) => { if (!open && !planOpen) onClose(); }}>
       <DrawerContent className="wish-details-dialog app-drawer--compact">
         <DrawerClose render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}><X /><span className="sr-only">Закрыть</span></DrawerClose>
         {detailsContent}
@@ -324,5 +329,7 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
       </DrawerContent>
     </Drawer>}
       {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
+      {planOpen && <WishPurchasePlan key={wish.id} wish={wish} onClose={() => setPlannedWishId(null)}
+        onSaved={() => { Promise.resolve(onChanged?.()).catch(() => {}); }} />}
     </>;
 }

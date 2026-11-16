@@ -7,6 +7,11 @@ import { scheduleError, timeMinutes } from "../../../shared/modules/calendar/pla
 import { planningContacts, withPlanningContacts } from "./planning-contacts.js";
 import { occursOn, recurrenceError } from "../../../shared/modules/planning/planning-recurrence.js";
 
+import { nextReplenishmentDate, openPurchaseItem, plannedPurchaseItem, purchaseTaskId } from "../../../shared/modules/planning/purchase-plan.js";
+import { preserveLegacyPurchaseHistory, recordPurchase } from "./purchase-history.js";
+import { subscriptionItem, subscriptionReminderOn, subscriptionTaskId } from "../../../shared/modules/planning/subscription-renewal.js";
+import { PURCHASE_CARE_LABELS, PURCHASE_CARE_TYPES, purchaseCareItem, purchaseCareTaskId } from "../../../shared/modules/planning/purchase-care.js";
+
 export const planningSchema = `
   CREATE TABLE IF NOT EXISTS planning_tasks (
     id TEXT PRIMARY KEY,
@@ -96,20 +101,201 @@ const taskColumns = `id, title, description, expected_result AS "expectedResult"
   COALESCE(column_id,status) AS "columnId", COALESCE(completed,status='done') AS completed, archived,
   to_char(start_time, 'HH24:MI') AS "startTime", duration_minutes AS "durationMinutes",
   recurrence, recurrence_completed_dates AS "recurrenceCompletedDates", related_items AS "relatedItems", contact_ids AS "contactIds"`;
+const revisionColumn = `to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS revision`;
 const fail = (status, message) => Object.assign(new Error(message), { planningStatus: status });
 export const planningSpaceSchema = z.object({ kind: z.enum(["kanban", "calendar", "todo"]), title: z.string().trim().min(1).max(100) });
 
-export function registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute }) {
-  const readBoard = async (q, userId, spaceId = "main") => {
-    if (typeof spaceId !== "string" || !spaceId || spaceId.length > 100) throw fail(400, "Некорректный вариант планирования");
-    if (spaceId !== "main") {
-      const result = await q("SELECT columns_json,task_order FROM planning_spaces WHERE id=$1 AND user_id=$2", [spaceId, userId]);
-      if (!result.rowCount) throw fail(404, "Доска или календарь не найдены");
-      return { spaceId, columns: result.rows[0].columns_json, order: result.rows[0].task_order };
+async function readBoard(q, userId, spaceId = "main") {
+  if (typeof spaceId !== "string" || !spaceId || spaceId.length > 100) throw fail(400, "Некорректный вариант планирования");
+  if (spaceId !== "main") {
+    const result = await q("SELECT columns_json,task_order FROM planning_spaces WHERE id=$1 AND user_id=$2", [spaceId, userId]);
+    if (!result.rowCount) throw fail(404, "Доска или календарь не найдены");
+    return { spaceId, columns: result.rows[0].columns_json, order: result.rows[0].task_order };
+  }
+  const result = await q("SELECT columns_json,task_order FROM planning_boards WHERE user_id=$1", [userId]);
+  return result.rowCount ? { spaceId, columns: result.rows[0].columns_json, order: result.rows[0].task_order } : { spaceId, columns: defaultPlanningColumns(), order: [] };
+}
+
+export function lockPlanningOwner(q, userId) {
+  // Serialize changes to this user's board, including its initially implicit lists.
+  return q("SELECT id FROM users WHERE id=$1 FOR UPDATE", [userId]);
+}
+
+const columnStatus = (column) => column.complete ? "done" : column.id === "doing" ? "doing" : "todo";
+
+async function insertTask(q, userId, board, column, task, id = randomUUID()) {
+  const result = await q(`INSERT INTO planning_tasks (id,user_id,title,description,status,due_on,column_id,completed,start_time,duration_minutes,space_id,recurrence,related_items,contact_ids,expected_result,actual_result)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING ${taskColumns}`,
+  [id, userId, task.title, task.description, columnStatus(column), task.dueOn || null, column.id, task.completed ?? column.complete, task.startTime || null, task.durationMinutes ?? 60, board.spaceId, task.recurrence ? JSON.stringify(task.recurrence) : null, JSON.stringify(task.relatedItems), JSON.stringify(task.contactIds), task.expectedResult ?? "", task.actualResult ?? ""]);
+  return result.rows[0];
+}
+
+export async function listOpenPurchasePlans(q, userId) {
+  const { rows } = await q(`SELECT id, to_char(due_on, 'YYYY-MM-DD') AS "dueOn", related_items AS "relatedItems",
+      to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS revision
+    FROM planning_tasks
+    WHERE user_id=$1 AND space_id='main' AND id LIKE 'purchase-plan:%' AND due_on IS NOT NULL
+      AND NOT archived AND NOT COALESCE(completed, status='done')`, [userId]);
+  return rows.flatMap((task) => {
+    const purchase = openPurchaseItem(task);
+    if (!purchase) return [];
+    return [{ id: purchase.id, dueOn: task.dueOn, purchaseBudget: purchase.purchaseBudget,
+      ...(purchase.need && { title: purchase.title, need: purchase.need, revision: task.revision }),
+      ...(purchase.replenishment && { replenishment: { wishId: purchase.replenishment.wishId, intervalDays: purchase.replenishment.intervalDays } }),
+      ...(purchase.priceWatch && { priceWatch: purchase.priceWatch }) }];
+  });
+}
+
+async function readDatedTask(q, userId, id) {
+  const result = await q(`SELECT ${taskColumns}, ${revisionColumn}
+    FROM planning_tasks WHERE id=$1 AND user_id=$2 AND space_id='main'`, [id, userId]);
+  return result.rows[0];
+}
+
+export const readPurchaseTask = (q, userId, id) => readDatedTask(q, userId, purchaseTaskId(id));
+export const readSubscriptionTask = (q, userId, id) => readDatedTask(q, userId, subscriptionTaskId(userId, id));
+export const readPurchaseCareTask = (q, userId, id, type) => readDatedTask(q, userId, purchaseCareTaskId(id, type));
+
+export async function readPurchaseCareTasks(q, userId, id) {
+  const taskIds = PURCHASE_CARE_TYPES.map((type) => purchaseCareTaskId(id, type));
+  const { rows } = await q(`SELECT ${taskColumns}, ${revisionColumn} FROM planning_tasks
+    WHERE user_id=$1 AND space_id='main' AND id=ANY($2::text[]) ORDER BY due_on,id`, [userId, taskIds]);
+  return rows;
+}
+
+async function updateDatedTask(q, userId, task, { dueOn, item, completed, title = task.title }) {
+  const relatedItems = [item, ...task.relatedItems.filter(({ kind, id }) => kind !== item.kind || id !== item.id)];
+  const board = await readBoard(q, userId);
+  const currentColumn = board.columns.find(({ id }) => id === task.columnId);
+  const column = currentColumn?.complete === completed
+    ? currentColumn
+    : board.columns.find(({ complete }) => complete === completed) || currentColumn || board.columns[0];
+  const result = await q(`UPDATE planning_tasks SET due_on=$3, related_items=$4, completed=$5,
+    column_id=$6, status=$7, archived=false, title=$8, updated_at=clock_timestamp()
+    WHERE id=$1 AND user_id=$2 RETURNING ${taskColumns}`,
+  [task.id, userId, dueOn, JSON.stringify(relatedItems), completed, column.id, completed ? "done" : columnStatus(column), title]);
+  return result.rows[0];
+}
+
+export async function applyPurchaseReview(q, userId, task, decision, wish) {
+  const { action, dueOn, amountMinor, intervalDays, purchasedOn, skippedOn } = decision;
+  const purchase = { ...plannedPurchaseItem(task) };
+  if (!purchase.historyRecorded && await preserveLegacyPurchaseHistory(q, userId, task)) purchase.historyRecorded = true;
+  if (action === "bought") {
+    await recordPurchase(q, userId, task, purchase, wish, decision);
+    purchase.historyRecorded = true;
+    if (purchase.need) {
+      const savedVariant = purchase.need.variantIds.includes(wish.id) ? wish.id : null;
+      purchase.need = { ...purchase.need, savedMinor: 0, lastWishId: savedVariant, lastDecision: decision };
+      if (decision.suited && savedVariant) purchase.need.preferredWishId = savedVariant;
+      else if (savedVariant === purchase.need.preferredWishId && decision.suited === false) delete purchase.need.preferredWishId;
     }
-    const result = await q("SELECT columns_json,task_order FROM planning_boards WHERE user_id=$1", [userId]);
-    return result.rowCount ? { spaceId, columns: result.rows[0].columns_json, order: result.rows[0].task_order } : { spaceId, columns: defaultPlanningColumns(), order: [] };
-  };
+  }
+  if (action === "postpone") return updateDatedTask(q, userId, task, { dueOn, item: purchase, completed: false });
+  const previous = purchase.replenishment;
+  if (intervalDays || action === "skip" || action === "replace") {
+    const replenishment = { ...previous, lastDecision: decision };
+    let title = purchase.title;
+    let nextDue = task.dueOn;
+    if (action === "bought") {
+      Object.assign(replenishment, { intervalDays, wishId: wish.id, lastPurchaseOn: purchasedOn, lastAmountMinor: amountMinor });
+      nextDue = nextReplenishmentDate(purchasedOn, intervalDays);
+      if (!purchase.need) title = wish.title;
+    } else if (action === "skip") {
+      nextDue = nextReplenishmentDate(task.dueOn, previous.intervalDays, skippedOn);
+    } else {
+      replenishment.wishId = wish.id;
+      title = wish.title;
+    }
+    const item = { ...purchase, title, replenishment };
+    if (action === "replace" && item.priceWatch) item.priceWatch = { id: randomUUID(), country: item.priceWatch.country };
+    return updateDatedTask(q, userId, task, { dueOn: nextDue, item, completed: false, title: `Пополнить запас: ${title}`.slice(0, 200) });
+  }
+  const purchaseReview = action === "bought" ? { outcome: action, amountMinor } : { outcome: action };
+  const item = { ...purchase, purchaseReview };
+  return updateDatedTask(q, userId, task, { dueOn: task.dueOn, item, completed: true });
+}
+
+// Call inside the same transaction as the owner lock and the wish check.
+export async function savePurchaseTask(q, userId, wish, { dueOn, budgetMinor, currency, priceWatchCountry }, existing) {
+  const purchase = plannedPurchaseItem(existing);
+  if (currency !== (purchase?.purchaseBudget.currency || wish.currency)) return null;
+  const item = { kind: "wishlist", id: wish.id, title: wish.title, purchaseBudget: { minor: budgetMinor, currency } };
+  if (purchase?.replenishment && !purchase.purchaseReview) {
+    item.replenishment = purchase.replenishment;
+    item.title = purchase.title;
+    if (purchase.historyRecorded) item.historyRecorded = true;
+  }
+  if (purchase?.purchaseReview) await preserveLegacyPurchaseHistory(q, userId, existing);
+  const previous = purchase?.priceWatch;
+  const country = priceWatchCountry === undefined ? previous?.country : priceWatchCountry;
+  if (country) {
+    const sameWatch = country === previous?.country && budgetMinor === purchase.purchaseBudget.minor
+      && !existing.completed && !existing.archived && !purchase.purchaseReview;
+    item.priceWatch = sameWatch ? previous : { id: randomUUID(), country };
+  }
+  if (existing) return updateDatedTask(q, userId, existing, { dueOn, item, completed: false });
+  return insertPurchaseTask(q, userId, dueOn, item);
+}
+
+async function insertPurchaseTask(q, userId, dueOn, item) {
+  return insertDatedTask(q, userId, { dueOn, item, id: purchaseTaskId(item.id), title: `Пересмотреть покупку: ${item.title}` });
+}
+
+async function insertDatedTask(q, userId, { dueOn, item, id, title }) {
+  const board = await readBoard(q, userId);
+  const column = board.columns.find(({ complete }) => !complete) || board.columns[0];
+  return insertTask(q, userId, board, column, {
+    title: title.slice(0, 200),
+    description: "",
+    dueOn,
+    completed: false,
+    durationMinutes: 30,
+    relatedItems: [item],
+    contactIds: [],
+  }, id);
+}
+
+export function writeSubscriptionTask(q, userId, item, existing) {
+  const title = `Пересмотреть подписку: ${item.title}`;
+  const dueOn = subscriptionReminderOn(item);
+  if (existing) return updateDatedTask(q, userId, existing, { dueOn, item, completed: Boolean(item.stopped), title });
+  return insertDatedTask(q, userId, { dueOn, item, id: subscriptionTaskId(userId, item.id), title });
+}
+
+export async function writePurchaseCareTask(q, userId, purchase, type, dueOn, existing, completed = false) {
+  const id = purchaseCareTaskId(purchase.id, type);
+  if (!dueOn) {
+    if (existing) await q("DELETE FROM planning_tasks WHERE id=$1 AND user_id=$2 AND space_id='main'", [id, userId]);
+    return null;
+  }
+  const item = { kind: "purchase-care", id: purchase.id, title: purchase.title, type };
+  const title = `${PURCHASE_CARE_LABELS[type]}: ${purchase.title}`.slice(0, 200);
+  if (existing) return updateDatedTask(q, userId, existing, { dueOn, item, completed, title });
+  return insertDatedTask(q, userId, { dueOn, item, title, id });
+}
+
+export function savePurchaseNeed(q, userId, id, { title, budgetMinor, currency, dueOn, ...need }, existing) {
+  const purchase = plannedPurchaseItem(existing);
+  const item = { ...purchase, kind: "wishlist", id, title, purchaseBudget: { minor: budgetMinor, currency },
+    need: { ...purchase?.need, ...need } };
+  for (const key of ["preferredWishId", "lastWishId"]) {
+    if (!need.variantIds.includes(item.need[key])) delete item.need[key];
+  }
+  if (existing) {
+    const prefix = purchase.replenishment ? "Пополнить запас" : "Пересмотреть покупку";
+    return updateDatedTask(q, userId, existing, { dueOn, item, completed: false, title: `${prefix}: ${title}`.slice(0, 200) });
+  }
+  return insertPurchaseTask(q, userId, dueOn, item);
+}
+
+export async function writePurchasePriceWatch(q, userId, task, priceWatch) {
+  const purchase = plannedPurchaseItem(task);
+  const relatedItems = task.relatedItems.map((item) => item === purchase ? { ...item, priceWatch } : item);
+  await q("UPDATE planning_tasks SET related_items=$3 WHERE id=$1 AND user_id=$2", [task.id, userId, JSON.stringify(relatedItems)]);
+}
+
+export function registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute }) {
   const writeBoard = (q, userId, board) => board.spaceId !== "main"
     ? q("UPDATE planning_spaces SET columns_json=$3,task_order=$4 WHERE id=$1 AND user_id=$2", [board.spaceId, userId, JSON.stringify(board.columns), JSON.stringify(board.order)])
     : q(`INSERT INTO planning_boards (user_id,columns_json,task_order) VALUES ($1,$2,$3)
@@ -124,14 +310,12 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
     if (!column) throw fail(404, "Список не найден. Обновите доску.");
     return column;
   };
-  const columnStatus = (column) => column.complete ? "done" : column.id === "doing" ? "doing" : "todo";
   const mutate = (handler) => asyncRoute(async (req, res) => {
     if (req.params?.id?.startsWith("apple-device:")) return res.status(409).json({ error: "Это событие из календаря устройства. Измените его в Apple Calendar." });
     try {
       const result = await transaction(async (client) => {
         const q = (sql, params) => client.query(sql, params);
-        // Serialize changes to this user's board, including its initially implicit lists.
-        await q("SELECT id FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+        await lockPlanningOwner(q, req.user.id);
         return handler(req, q, await readBoard(q, req.user.id, req.query.space));
       });
       res.status(req.method === "POST" ? 201 : 200).json(result);
@@ -160,11 +344,6 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
       throw error;
     }
   }));
-  const insertTask = (q, userId, board, column, task, id = randomUUID()) => {
-    return q(`INSERT INTO planning_tasks (id,user_id,title,description,status,due_on,column_id,completed,start_time,duration_minutes,space_id,recurrence,related_items,contact_ids,expected_result,actual_result)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING ${taskColumns}`,
-    [id, userId, task.title, task.description, columnStatus(column), task.dueOn || null, column.id, task.completed ?? column.complete, task.startTime || null, task.durationMinutes ?? 60, board.spaceId, task.recurrence ? JSON.stringify(task.recurrence) : null, JSON.stringify(task.relatedItems), JSON.stringify(task.contactIds), task.expectedResult, task.actualResult]);
-  };
   app.post("/api/planning/tasks/from-note", requireAuth, mutate(async (req, q, board) => {
     const parsed = noteTasksApply.safeParse(req.body);
     if (!parsed.success) throw fail(400, "Проверьте выбранные задачи.");
@@ -196,8 +375,8 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
     if (error) throw fail(400, error);
     await planningContacts(q, req.user.id, task.contactIds, { validate: true });
     const column = ownedColumn(board, task.columnId || task.status);
-    const result = await insertTask(q, req.user.id, board, column, task);
-    return { task: (await withPlanningContacts(q, req.user.id, result.rows))[0] };
+    const created = await insertTask(q, req.user.id, board, column, task);
+    return { task: (await withPlanningContacts(q, req.user.id, [created]))[0] };
   }));
   app.patch("/api/planning/tasks/:id/move", requireAuth, mutate(async (req, q, board) => {
     const { columnId, beforeId } = moveSchema.extend({ columnId: taskFields.shape.columnId }).parse(req.body);
@@ -205,6 +384,8 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
     const tasks = await readTasks(q, req.user.id, board);
     const task = tasks.find((item) => item.id === req.params.id && !item.archived);
     if (!task) throw fail(404, "Задача не найдена");
+    if (subscriptionItem(task)) throw fail(409, "Измените напоминание через карточку подписки");
+    if (purchaseCareItem(task)) throw fail(409, "Измените напоминание через карточку покупки");
     if (beforeId === task.id) return responseBoard(q, req.user.id, board);
     if (beforeId && !tasks.some((item) => item.id === beforeId && item.columnId === columnId && !item.archived)) throw fail(409, "Положение карточки изменилось. Обновите доску.");
     if (task.columnId !== columnId) await q("UPDATE planning_tasks SET column_id=$3,status=$4,completed=$5,updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND user_id=$2", [task.id, req.user.id, columnId, columnStatus(column), column.complete]);
@@ -216,6 +397,17 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
     const patch = planningPatchSchema.parse(req.body);
     const existing = await q(`SELECT ${taskColumns} FROM planning_tasks WHERE id=$1 AND user_id=$2 AND space_id=$3`, [req.params.id, req.user.id, board.spaceId]);
     if (!existing.rowCount) throw fail(404, "Задача не найдена");
+    if (subscriptionItem(existing.rows[0])) throw fail(409, "Измените напоминание через карточку подписки");
+    if (purchaseCareItem(existing.rows[0])) throw fail(409, "Измените напоминание через карточку покупки");
+    const purchase = plannedPurchaseItem(existing.rows[0]);
+    if (purchase) {
+      if (patch.dueOn === "" || patch.recurrence) throw fail(400, "Для покупки нужна одна дата пересмотра");
+      if (patch.relatedItems) {
+        const otherItems = patch.relatedItems.filter(({ kind, id }) => kind !== purchase.kind || id !== purchase.id);
+        if (otherItems.length >= 30) throw fail(400, "К задаче можно прикрепить до 30 объектов");
+        patch.relatedItems = [purchase, ...otherItems];
+      }
+    }
     if (patch.occurrenceDate) {
       const task = existing.rows[0];
       if (!task.recurrence || !occursOn(task, patch.occurrenceDate)) throw fail(400, "На эту дату нет повторяющегося события");
@@ -247,8 +439,16 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
     return { task: (await withPlanningContacts(q, req.user.id, result.rows))[0] };
   }));
   app.delete("/api/planning/tasks/:id", requireAuth, mutate(async (req, q, board) => {
-    const result = await q("DELETE FROM planning_tasks WHERE id=$1 AND user_id=$2 AND space_id=$3 RETURNING id", [req.params.id, req.user.id, board.spaceId]);
+    if (board.spaceId === "main" && /^(subscription-renewal|purchase-care):/.test(req.params.id)) {
+      const task = await readDatedTask(q, req.user.id, req.params.id);
+      if (subscriptionItem(task)) throw fail(409, "Остановите напоминания через карточку подписки");
+      if (purchaseCareItem(task)) throw fail(409, "Удалите напоминание через карточку покупки");
+    }
+    const result = await q(`DELETE FROM planning_tasks WHERE id=$1 AND user_id=$2 AND space_id=$3
+      RETURNING id, related_items AS "relatedItems",
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS revision`, [req.params.id, req.user.id, board.spaceId]);
     if (!result.rowCount) throw fail(404, "Задача не найдена");
+    if (board.spaceId === "main") await preserveLegacyPurchaseHistory(q, req.user.id, result.rows[0]);
     board.order = board.order.filter((id) => id !== req.params.id);
     await writeBoard(q, req.user.id, board);
     return { ok: true };

@@ -15,3 +15,5 @@
 [Пространство и TaskEditor](../../src/modules/planning/planning-space.jsx) · [Селектор](../../src/modules/planning/planning-space-switcher.jsx) · [Связанные объекты](../../src/modules/planning/planning-related-items.js) · [Маршруты](../../server/modules/planning/planning.js)
 
 [Заметки](../../src/modules/planning/planning-notes.jsx) · [Группы](../../server/modules/planning/note-groups.js) · [Календари устройств](../../server/modules/calendar/calendar-device.js)
+
+Планы покупки, продление подписки и действия после покупки используют задачи основного To Do. Изменения этих напоминаний проходят через операции Вишлиста; факт покупки хранится отдельно от открытого напоминания. Историю и выполнение планов проверяет `npm run test:planning:production` с откатом.
