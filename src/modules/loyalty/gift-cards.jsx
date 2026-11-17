@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Check, Gift, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, Gift, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { api } from "@/modules/runtime/api.js";
 import { useOperationRecovery } from "../payments/use-operation-recovery.js";
@@ -100,13 +100,13 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
   const profileCard = Boolean(initialCardId);
   const mobile = useIsMobile();
   const [open, setOpen] = useState(true);
-  const [activeAction, setActiveAction] = useState(null);
+  const [step, setStep] = useState(null);
   const topupFormId = useId();
-  const certificate = useRef(null);
   const actionPanel = useRef(null);
   const topupAction = useRef(null);
   const giftAction = useRef(null);
-  const previousAction = useRef(null);
+  const previousStep = useRef(null);
+  const sendFromTopup = useRef(false);
   const destination = useRef(null);
   const [cards, setCards] = useState([]);
   const [selectedId, setSelectedId] = useState(initialCardId || null);
@@ -130,23 +130,23 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
   const selected = cards.find((card) => card.id === selectedId);
 
   useLayoutEffect(() => {
-    if (sentGift) {
-      previousAction.current = null;
+    if (sentGift || step || previousStep.current) {
       if (mobile) window.scrollTo({ top: 0, behavior: "instant" });
       else bodyRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    }
+    if (sentGift) {
+      previousStep.current = null;
       resultTitle.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
       resultTitle.current?.focus({ preventScroll: true });
-    } else if (activeAction) {
-      previousAction.current = activeAction;
+    } else if (step) {
+      previousStep.current = step;
       actionPanel.current?.focus({ preventScroll: true });
-      actionPanel.current?.scrollIntoView({ block: "start", behavior: "instant" });
-    } else if (previousAction.current) {
-      const opener = previousAction.current === "topup" ? topupAction : giftAction;
-      previousAction.current = null;
-      certificate.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    } else if (previousStep.current) {
+      const opener = previousStep.current === "send" ? giftAction : topupAction;
+      previousStep.current = null;
       opener.current?.focus({ preventScroll: true });
     }
-  }, [activeAction, mobile, sentGift]);
+  }, [step, mobile, sentGift]);
 
   async function loadCards() {
     const read = ++cardReads.current;
@@ -226,7 +226,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       if (!profileCard) setSelectedId(operation.kind === "send" ? "" : card.id);
       else if (operation.kind === "send" && operation.cardId === initialCardId) {
         setSelectedId("");
-        setActiveAction(null);
+        setStep(null);
       }
       setAmount(""); setRecipient(null); setSearch("");
       if (operation.kind === "send") {
@@ -236,6 +236,9 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
           business: business.name,
           amount: Number.isSafeInteger(amount) && amount > 0 && amount <= ROLLS_MAX_TRANSFER ? amount : null,
         });
+      } else if (profileCard && operation.kind === "topup" && operation.cardId === initialCardId) {
+        setStep("topped-up");
+        setMessage("");
       } else setMessage(intent.label);
       if (!recoveryOnly) {
         void loadCards();
@@ -278,13 +281,28 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     : insufficient ? "На вашем балансе недостаточно роллов."
       : exceedsLimit ? "На карте можно хранить не больше 1 000 000 000 роллов."
         : "Роллы спишутся с вашего баланса.";
-  const title = recoveryOnly ? "Операция с подарочной картой" : "Подарочная карта";
+  const title = recoveryOnly ? "Операция с подарочной картой"
+    : step === "topup" ? "Пополнение карты"
+    : step === "topped-up" ? "Карта пополнена"
+    : step === "send" ? "Подарить карту"
+    : "Подарочная карта";
   const showGiftAction = selected && !profileCard;
   const showIssueAction = !profileCard && !selected && (!selectedId || cardsReady);
   const showCertificateActions = profileCard && selected;
   const hasFooterAction = pending || (!recoveryOnly && (showCertificateActions || showGiftAction || showIssueAction));
   const canSendGift = !locked && cardsReady && recipient && selected?.balance > 0;
   const topupLabel = valid ? `Пополнить на ${formatRolls(value)}` : "Пополнить карту";
+
+  function beginGift() {
+    sendFromTopup.current = step === "topped-up";
+    setStep("send");
+  }
+
+  function backToPreviousStep() {
+    setStep(step === "send" && sendFromTopup.current ? "topped-up" : null);
+  }
+
+  const stepBack = step && !pending && !sentGift ? backToPreviousStep : undefined;
 
   function sendGift() {
     if (!canSendGift) return;
@@ -320,7 +338,9 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     else onClose();
   }}>
     <DrawerContent className="rollapp-body app-drawer--form" finalFocus={recoveryOnly ? false : returnFocusRef && returnFocusTarget}>
-      {returnFocusRef ? <DrawerSectionHeader title={title} description={description} startAction={<DrawerBack disabled={busy} />} /> : <>
+      {returnFocusRef ? <DrawerSectionHeader title={title} description={description} startAction={stepBack && !mobile ? (
+        <Button type="button" variant="outline" size="icon" data-control-icon aria-label="Назад" onClick={stepBack}><ArrowLeft aria-hidden="true" /></Button>
+      ) : <DrawerBack disabled={busy} />} /> : <>
         <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 size-12" disabled={busy} />} aria-label="Закрыть подарочную карту"><X aria-hidden="true" /></DrawerClose>
         <DrawerHeader className="pr-16"><DrawerTitle>{title}</DrawerTitle><DrawerDescription className="text-xs break-words">{description}</DrawerDescription></DrawerHeader>
       </>}
@@ -352,8 +372,8 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
             }}><Gift className="size-5 shrink-0" /><span className="min-w-0 break-words">{business.name} · {formatRolls(card.balance)}</span></Button>)}
           </div>}
           {!profileCard && cardsReady && !cards.length && !selectedId && !message && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
-          {selected && <div ref={certificate} className={profileCard ? "gift-certificate-rail" : "flex min-w-0 flex-col gap-6"}>
-            {profileCard && <>
+          {selected && <div className={profileCard ? "gift-certificate-rail" : "flex min-w-0 flex-col gap-6"}>
+            {profileCard && !step && cardsReady && <>
               <GiftCertificate card={selected} />
               <div className="grid gap-2">
                 <PageActionButton className="w-fit" variant="outline" to={publicProfilePath(business)} onClick={(event) => {
@@ -368,8 +388,12 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
                 <p>Действует только в этом магазине. При оплате роллами выберите подарочную карту.</p>
               </div>
             </>}
-            <section hidden={profileCard && activeAction !== "topup"} ref={activeAction === "topup" ? actionPanel : null}
-              tabIndex={activeAction === "topup" ? -1 : undefined} className="flex flex-col gap-3 outline-none"
+            {step === "topped-up" && <section ref={actionPanel} tabIndex={-1} aria-label="Баланс после пополнения" className="grid gap-2 outline-none">
+              {cardsReady && <><p className="text-muted-foreground">Теперь на карте</p>
+                <p className="wrap-anywhere text-3xl font-semibold tabular-nums">{formatRolls(selected.balance)}</p></>}
+            </section>}
+            <section hidden={profileCard && step !== "topup"} ref={step === "topup" ? actionPanel : null}
+              tabIndex={step === "topup" ? -1 : undefined} className="flex flex-col gap-3 outline-none"
               id="gift-topup-panel" aria-label="Пополнение карты">
               {!profileCard && <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>}
               {walletError ? <>
@@ -384,9 +408,10 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
                 </Button>}
               </form>
             </section>
-            <section hidden={profileCard && activeAction !== "send"} ref={activeAction === "send" ? actionPanel : null}
-              tabIndex={activeAction === "send" ? -1 : undefined} className="flex flex-col gap-3 outline-none"
+            <section hidden={profileCard && step !== "send"} ref={step === "send" ? actionPanel : null}
+              tabIndex={step === "send" ? -1 : undefined} className="flex flex-col gap-3 outline-none"
               id="gift-send-panel" aria-label="Получатель подарочной карты">
+              {profileCard && cardsReady && <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>}
               <Field>
                 <FieldLabel htmlFor="gift-recipient">Кому подарить</FieldLabel>
                 <Input id="gift-recipient" placeholder="Имя или @username" autoComplete="off" maxLength={80} value={search} disabled={locked} aria-describedby="gift-recipient-hint" onChange={(event) => { setSearch(event.target.value); setRecipient(null); }} />
@@ -408,23 +433,23 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       </div>
       {sentGift ? <DrawerFooter aria-label="Действия с подарочной картой">
         <Button type="button" onClick={() => setOpen(false)}>Готово</Button>
-      </DrawerFooter> : hasFooterAction && <DrawerFooter aria-label="Действия с подарочной картой"
-        className={showCertificateActions && !pending ? "gift-certificate-actions" : undefined}>
+      </DrawerFooter> : hasFooterAction && <DrawerFooter aria-label="Действия с подарочной картой" onBack={stepBack}
+        className={showCertificateActions && !pending && (!step || step === "topped-up") ? "gift-certificate-actions" : undefined}>
         {pending ? <Button disabled={busy} onClick={recovery.check}>{busy && <Spinner />}
           {busy ? (requestMode === "send" ? "Выполняем…" : "Проверяем…") : "Проверить результат"}
         </Button>
-          : showCertificateActions ? activeAction ? <>
-            <Button type="button" variant="outline" onClick={() => setActiveAction(null)}>Отмена</Button>
-            {activeAction === "topup" ? (
-              <Button type="submit" form={topupFormId} disabled={!valid || locked} aria-label={topupLabel}>Пополнить</Button>
-            ) : (
-              <Button type="button" disabled={!canSendGift} aria-label="Отправить подарочную карту" onClick={sendGift}>Отправить</Button>
-            )}
-          </> : <>
-            <Button ref={topupAction} type="button" disabled={locked} aria-controls="gift-topup-panel"
-              aria-expanded={false} onClick={() => setActiveAction("topup")}>Пополнить</Button>
-            <Button ref={giftAction} type="button" variant="outline" disabled={locked || selected.balance <= 0}
-              aria-controls="gift-send-panel" aria-expanded={false} onClick={() => setActiveAction("send")}>Подарить</Button>
+          : showCertificateActions ? step === "topup" ? (
+            <Button key="topup-submit" type="submit" form={topupFormId} disabled={!valid || locked} aria-label={topupLabel}>Пополнить</Button>
+          ) : step === "topped-up" ? <>
+            <Button type="button" variant="outline" onClick={() => setStep(null)}>К карте</Button>
+            <Button type="button" disabled={!cardsReady || selected.balance <= 0} onClick={beginGift}>Подарить</Button>
+          </> : step === "send" ? (
+            <Button type="button" disabled={!canSendGift} aria-label="Отправить подарочную карту" onClick={sendGift}>Отправить</Button>
+          ) : <>
+            <Button key="topup-open" ref={topupAction} type="button" disabled={locked || !cardsReady} aria-controls="gift-topup-panel"
+              onClick={(event) => { event.preventDefault(); setStep("topup"); }}>Пополнить</Button>
+            <Button ref={giftAction} type="button" variant="outline" disabled={locked || !cardsReady || selected.balance <= 0}
+              aria-controls="gift-send-panel" onClick={beginGift}>Подарить</Button>
           </>
             : showGiftAction ? <Button type="button" disabled={!canSendGift} onClick={sendGift}>Подарить карту</Button>
             : <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}

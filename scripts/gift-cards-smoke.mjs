@@ -289,7 +289,8 @@ try {
     const gift = page.getByRole("button", { name: "Подарить", exact: true });
     const submitGift = page.getByRole("button", { name: "Отправить подарочную карту", exact: true });
     const actions = page.locator('[data-control-bar][aria-label="Действия с подарочной картой"]:visible');
-    const cancelAction = actions.getByRole("button", { name: "Отмена", exact: true });
+    const back = page.getByRole("button", { name: "Назад", exact: true });
+    const topupResult = page.getByRole("region", { name: "Баланс после пополнения", exact: true });
     const amount = page.getByLabel("Сколько роллов добавить");
     const recipient = page.getByLabel("Кому подарить", { exact: true });
     const zero = open(0);
@@ -304,7 +305,7 @@ try {
     assert(await gift.isDisabled());
     assert.equal(await amount.isVisible(), false);
     await actions.getByRole("button", { name: "Пополнить", exact: true }).waitFor();
-    const footerGeometry = async () => {
+    const footerGeometry = async (actionCount = 2) => {
       const boxes = await actions.getByRole("button").evaluateAll(buttons => buttons.map(button => {
         const { x, y, width, height, right } = button.getBoundingClientRect();
         const text = document.createRange();
@@ -313,7 +314,7 @@ try {
         return { label: button.getAttribute("aria-label") || button.textContent, x, y, width, height, right, radius: getComputedStyle(button).borderRadius,
           labelFits: label.left >= x - 1 && label.right <= right + 1 };
       }));
-      assert.equal(boxes.length, width < 768 ? 3 : 2);
+      assert.equal(boxes.length, actionCount + (width < 768 ? 1 : 0));
       const row = boxes[0].y;
       for (const box of boxes) {
         assert(box.height === 48 && box.radius === "24px" && box.labelFits, JSON.stringify({ viewport: [width, height], boxes }));
@@ -332,7 +333,9 @@ try {
     if (height <= 450) assert(bodyScroll > 0);
     assert.deepEqual(await footerGeometry(), beforeScroll);
     await topup.click();
-    await footerGeometry();
+    await page.getByRole("heading", { name: "Пополнение карты", exact: true }).waitFor();
+    assert.equal(await active(0).count(), 0);
+    await footerGeometry(1);
     await page.getByText("Кошелёк временно недоступен", { exact: true }).waitFor();
     assert.equal(await page.getByText(/Этот сертификат больше недоступен/).count(), 0);
     assert(await amount.isDisabled());
@@ -342,46 +345,78 @@ try {
     await page.getByRole("button", { name: "Повторить загрузку кошелька", exact: true }).click();
     await amount.fill("12");
     assert.deepEqual(await page.evaluate((from) => giftHarness.reads.slice(from), readsBefore), ["/rolls"]);
-    if (width < 768) await page.goBack();
-    else await page.getByRole("button", { name: "Назад", exact: true }).click();
+    await back.click();
+    await active(0).waitFor();
+    assert.equal(await amount.isVisible(), false);
+    if (width < 768) {
+      await page.waitForURL(url => url.searchParams.has("formScreen"));
+      await topup.click();
+      assert.equal(await amount.inputValue(), "12");
+      assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+      await page.goBack();
+    } else await back.click();
     await zero.waitFor();
     await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.includes(", 0 роллов,"));
     await open(25).click();
     await active(25).waitFor();
     await topup.click();
     assert.equal(await amount.inputValue(), "");
-    await cancelAction.click();
+    await back.click();
     assert(await topup.evaluate(button => button === document.activeElement));
     await gift.click();
     assert.equal(await amount.isVisible(), false);
     await recipient.fill("friend");
     await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
     assert(await submitGift.isEnabled());
-    await cancelAction.click();
+    await back.click();
     assert(await gift.evaluate(button => button === document.activeElement));
     await topup.click();
     assert.equal(await recipient.isVisible(), false);
     assert.equal(await submitGift.count(), 0);
-    await cancelAction.click();
+    await back.click();
     await gift.click();
     assert.equal(await recipient.inputValue(), "@friend");
     assert(await submitGift.isEnabled());
-    await footerGeometry();
+    assert.equal(await active(25).count(), 0);
+    await footerGeometry(1);
     if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-gift-actions-${width}x${height}.png` });
     assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
     if (width === 1440 || (width === 390 && height === 400)) {
-      await page.getByRole("button", { name: "Назад", exact: true }).click();
+      await back.click();
+      await active(25).waitFor();
+      await back.click();
       await zero.click();
       await active(0).waitFor();
       await topup.click();
       await amount.fill("10");
-      await page.evaluate(() => { giftHarness.lost = true; });
+      await page.evaluate((loseResponse) => {
+        giftHarness.lost = true;
+        if (loseResponse) giftHarness.nextGiftLoss = "posted";
+      }, width === 390);
       await page.getByRole("button", { name: "Пополнить на 10 роллов", exact: true }).click();
-      await active(10).waitFor();
-      await page.getByText("Карта пополнена на 10 роллов", { exact: true }).waitFor();
-      assert(await amount.isVisible());
-      await cancelAction.click();
+      if (width === 390) {
+        await page.getByText("Ожидает проверки · Пополнение карты · 10 роллов", { exact: true }).waitFor();
+        assert.equal(await topupResult.count(), 0);
+        await actions.getByRole("button", { name: "Проверить результат", exact: true }).click();
+      }
+      await page.getByRole("heading", { name: "Карта пополнена", exact: true }).waitFor();
+      await topupResult.getByText("10 роллов", { exact: true }).waitFor();
+      assert.equal(await amount.isVisible(), false);
+      assert.equal(await recipient.isVisible(), false);
+      await footerGeometry();
+      await page.screenshot({ path: `/tmp/rollapp-gift-topup-result-${width}x${height}.png` });
+      if (width === 1440) {
+        await gift.click();
+        await recipient.waitFor();
+        await back.click();
+        await topupResult.getByText("10 роллов", { exact: true }).waitFor();
+        await actions.getByRole("button", { name: "К карте", exact: true }).click();
+        await active(10).waitFor();
+      }
       await gift.click();
+      await page.getByRole("heading", { name: "Подарить карту", exact: true }).waitFor();
+      await page.getByText("На карте: 10 роллов", { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => giftHarness.calls.length), 1);
       await recipient.fill("friend");
       await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
       await submitGift.click();
@@ -410,7 +445,7 @@ try {
       assert.equal(await zero.count(), 0);
     }
     assert.deepEqual(errors, []);
-    console.log(`PASS gift card actions ${width}x${height}: fixed footer, exact card, wallet retry, drafts and Back focus`);
+    console.log(`PASS gift card steps ${width}x${height}: fixed footer, drafts, Back and confirmed balances`);
     await page.close();
   }
   for (const width of [390, 1440]) {
