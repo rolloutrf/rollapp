@@ -100,6 +100,27 @@ async function checkFormActions(page, surface, name) {
     }
   }
 }
+async function checkEducationLogoPicker(page, surface, name, viewport) {
+  const label = { course: "Выбрать логотип курса", conference: "Выбрать логотип конференции" }[name];
+  if (!label) return;
+
+  const picker = surface.getByRole("button", { name: label, exact: true });
+  await picker.waitFor();
+  const { width, height } = await picker.boundingBox();
+  assert.equal(width, height, `${name}: the logo hit area matches the square preview`);
+  assert.equal(await surface.getByRole("button", { name: /^(Загрузить|Заменить)$/ }).count(), 0);
+  if (name === "conference" && (viewport.width === 1440 || viewport.height === 400)) {
+    await page.screenshot({ path: `/tmp/rollapp-conference-logo-${viewport.width}x${viewport.height}.png` });
+  }
+  const opening = page.waitForEvent("filechooser");
+  if (viewport.width < 768) await picker.click();
+  else await picker.press("Enter");
+  const chooser = await opening;
+  await chooser.setFiles({ name: "not-an-image.txt", mimeType: "text/plain", buffer: Buffer.from("invalid image") });
+  await surface.getByRole("alert").getByText("Подойдёт изображение JPG, PNG или WEBP.").waitFor();
+  assert.equal(await chooser.element().evaluate((input) => input.value), "");
+}
+
 try {
   for (const viewport of [{width:390,height:844}, {width:390,height:400}, {width:320,height:568}, {width:414,height:896}, {width:768,height:900}, {width:820,height:900}, {width:896,height:414}, {width:1024,height:768}, {width:1440,height:900}, {width:1920,height:1080}].filter(v => !process.env.DRAWER_WIDTHS || process.env.DRAWER_WIDTHS.split(',').includes(String(v.width)))) {
     const context = await browser.newContext({ viewport, hasTouch: viewport.width < 1000, isMobile: viewport.width < 1000, reducedMotion: 'reduce' });
@@ -226,6 +247,7 @@ try {
           await page.waitForURL(url => url.searchParams.has('formScreen'));
           await page.evaluate(() => document.fonts.ready);
           await checkFormActions(page, screen, name);
+          await checkEducationLogoPicker(page, screen, name, viewport);
           if (['todo-list','planning-event','planning-event-edit','thesis','medication-group'].includes(name)) await page.screenshot({path:`/tmp/rollapp-form-consistency-${name}-${viewport.width}-${viewport.height}.png`});
           assert.equal(await page.locator('[data-slot="drawer-popup"]').count(), 0, `${name}: mobile form must not mount a Drawer`);
           const fields = screen.locator('input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),textarea').filter({visible:true});
@@ -244,6 +266,7 @@ try {
         if (viewport.width < 1000) assert(!await page.evaluate(() => document.activeElement?.matches('input,textarea')), `${name}: touch form autofocus opens the keyboard`);
         await page.evaluate(() => document.fonts.ready);
         await checkFormActions(page, popup, name);
+        await checkEducationLogoPicker(page, popup, name, viewport);
         if (['todo-list','planning-event','planning-event-edit','thesis','medication-group'].includes(name)) await page.screenshot({path:`/tmp/rollapp-form-consistency-${name}-${viewport.width}-${viewport.height}.png`});
         const original = await popup.boundingBox();
         if (name === 'wish-list' && viewport.width <= 820) {

@@ -4,7 +4,7 @@ import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3,
-  ImagePlus, RotateCcw, TicketCheck, Trash2, Users, X,
+  RotateCcw, TicketCheck, Users, X,
 } from "lucide-react";
 import { api, sessionFetch } from "@/modules/runtime/api.js";
 import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useCardReorder } from "@/hooks/use-card-reorder";
+import { EducationLogoPicker } from "@/modules/education/education-logo-picker.jsx";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { savedOrder } from "@/lib/card-order";
@@ -112,13 +113,13 @@ function ConferenceLogo({ conference, size = "card" }) {
     ? "size-20 shrink-0 rounded-xl"
     : "size-10 shrink-0 rounded-lg";
   return (
-    <div className={`flex items-center justify-center overflow-hidden border bg-muted text-muted-foreground ${className}`}>
+    <span className={`flex items-center justify-center overflow-hidden border bg-muted text-muted-foreground ${className}`}>
       {conference.logoUrl ? (
         <img className="size-full object-contain" src={conference.logoUrl} alt="" />
       ) : (
         <TicketCheck className={size === "form" ? "size-8" : "size-5"} aria-hidden="true" />
       )}
-    </div>
+    </span>
   );
 }
 
@@ -186,7 +187,6 @@ function ConferenceCard({
 function ConferenceDrawer({ conference, initialListId = "", lists = [], open, onOpenChange, onSaved }) {
   const isMobile = useIsMobile();
   const formId = useId();
-  const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const [form, setForm] = useState(EMPTY_CONFERENCE);
   const [saving, setSaving] = useState(false);
@@ -262,7 +262,6 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
       setLogoError(uploadError.message || "Не удалось загрузить логотип.");
     } finally {
       setLogoUploading(false);
-      if (imageFileRef.current) imageFileRef.current.value = "";
     }
   };
 
@@ -331,71 +330,10 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
             )}
 
             <FieldGroup className="gap-4">
-              <Field data-invalid={Boolean(logoError)}>
-                <FieldLabel htmlFor={`${formId}-logo`}>Логотип</FieldLabel>
-                <div className="flex flex-wrap items-center gap-4">
-                  <Button
-                    className="group relative size-20 shrink-0 cursor-pointer overflow-hidden rounded-xl p-0"
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    disabled={saving || logoUploading}
-                    aria-label={form.logoUrl ? "Заменить логотип конференции" : "Загрузить логотип конференции"}
-                    title={form.logoUrl ? "Заменить логотип" : "Загрузить логотип"}
-                    onClick={() => imageFileRef.current?.click()}
-                  >
-                    <ConferenceLogo conference={form} size="form" />
-                    <span
-                      className={`pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/60 text-white transition-opacity ${logoUploading ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}
-                      aria-hidden="true"
-                    >
-                      {logoUploading ? <Spinner /> : <ImagePlus className="size-6" />}
-                    </span>
-                  </Button>
-                  <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-                    <Input
-                      className="sr-only"
-                      id={`${formId}-logo`}
-                      ref={imageFileRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      tabIndex={-1}
-                      onChange={(event) => uploadLogo(event.target.files?.[0])}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        className="min-h-12 px-4 text-base"
-                        variant="outline"
-                        type="button"
-                        disabled={saving || logoUploading}
-                        onClick={() => imageFileRef.current?.click()}
-                      >
-                        {logoUploading ? <Spinner aria-hidden="true" /> : <ImagePlus data-icon="inline-start" aria-hidden="true" />}
-                        {logoUploading ? "Загружаем" : form.logoUrl ? "Заменить" : "Загрузить"}
-                      </Button>
-                      {form.logoUrl && (
-                        <Button
-                          className="min-h-12 px-4 text-base"
-                          variant="destructive"
-                          type="button"
-                          disabled={saving || logoUploading}
-                          onClick={() => {
-                            update("logoUrl", "");
-                            setLogoError("");
-                          }}
-                        >
-                          <Trash2 data-icon="inline-start" aria-hidden="true" />
-                          Удалить
-                        </Button>
-                      )}
-                    </div>
-                    <p className="m-0 text-sm text-muted-foreground text-pretty">
-                      Подтянется по ссылке на ресурс. Можно заменить своим JPG, PNG или WEBP до 8 МБ.
-                    </p>
-                  </div>
-                </div>
-                {logoError && <FieldError>{logoError}</FieldError>}
-              </Field>
+              <EducationLogoPicker label="Выбрать логотип конференции" uploading={logoUploading} disabled={saving}
+                error={logoError} onFileSelect={uploadLogo}>
+                <ConferenceLogo conference={form} size="form" />
+              </EducationLogoPicker>
 
               <Field>
                 <FieldLabel htmlFor={`${formId}-title`}>Название</FieldLabel>
