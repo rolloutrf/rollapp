@@ -119,7 +119,7 @@ export function FriendsPage() {
                       <small>@{person.username} · {person.wishCount} {person.wishCount === 1 ? "желание" : "желаний"}</small>
                     </span>
                   </Link>
-                  {person.isFollowing && person.isFollower && <span className="friend-row__mutual" title="Взаимная подписка" aria-label="Взаимная подписка"><Star fill="currentColor" /></span>}
+                  {person.isFollowing && person.isFollower && <span className="friend-row__mutual" role="img" title="Взаимная подписка" aria-label="Взаимная подписка"><Star fill="currentColor" /></span>}
                   <div className="friend-row__actions">
                     <DropdownMenu>
                       <DropdownMenuTrigger

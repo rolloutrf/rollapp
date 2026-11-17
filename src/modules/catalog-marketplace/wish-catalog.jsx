@@ -51,7 +51,7 @@ function CatalogOwnerStack({ owners = [], ownerCount = owners.length }) {
   if (!ownerCount) return <div className="catalog-owner-stack">Пока ни у кого в вишлисте</div>;
   const visibleOwners = owners.slice(0, 5);
   return (
-    <div className="catalog-owner-stack" aria-label={`Добавили: ${participantCountLabel(ownerCount)}`}>
+    <div className="catalog-owner-stack" role="group" aria-label={`Добавили: ${participantCountLabel(ownerCount)}`}>
       <div className="catalog-owner-stack__avatars">
         {visibleOwners.map((owner, index) => (
           <Link
@@ -78,6 +78,7 @@ function CatalogBrandAttribution({ brand, compact = false }) {
   return (
     <div
       className={cn("catalog-brand-attribution", compact && "catalog-brand-attribution--compact")}
+      role="group"
       aria-label={`Бренд товара: ${label}`}
     >
       <ShadcnAvatar size="sm" className={cn("catalog-brand-attribution__logo bg-white", compact ? "!size-7" : "!size-9")}>

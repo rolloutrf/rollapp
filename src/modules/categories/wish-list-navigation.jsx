@@ -134,7 +134,6 @@ export function WishListNavigation({ value, className, items, leadingItem, order
       ref={viewportRef}
       className={cn("list-tabs horizontal-tile-scroller", className)}
       data-wishlist-list-navigation
-      aria-label={label}
       onClickCapture={suppressDragClick}
       onFocusCapture={(event) => {
         const button = event.target.closest("button");

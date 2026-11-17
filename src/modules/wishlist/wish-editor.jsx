@@ -531,7 +531,7 @@ export function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = nu
           <h2 id={fieldId("dialog-title")} className="sr-only">{editing ? `Редактирование желания «${wish.title}»` : "Создание желания"}</h2>
           <p id={fieldId("dialog-description")} className="sr-only">{editing ? "Обновите информацию, изображение и списки желания." : "Добавьте изображение и заполните основную информацию о желании."}</p>
 
-          <div className="wish-editor-screen__content px-4" aria-label="Поля желания">
+          <div className="wish-editor-screen__content px-4" role="group" aria-label="Поля желания">
             {requestedListName && listsError && <Alert variant="destructive" role="alert">
               <AlertDescription>Не удалось загрузить списки.</AlertDescription>
               <ShadcnButton type="button" variant="outline" onClick={() => void reloadDashboard().catch(() => {})}>Повторить</ShadcnButton>

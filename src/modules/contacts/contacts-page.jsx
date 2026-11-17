@@ -663,7 +663,7 @@ export function ContactsSpherePage() {
             <InputGroupInput type="search" aria-label="Поиск по контактам" placeholder="Имя, роль, компания или заметка" value={search} onChange={(event) => setSearch(event.target.value)} />
             {search && <InputGroupAddon align="inline-end"><InputGroupButton type="button" size="icon-sm" className="contacts-sphere__search-clear rounded-full" aria-label="Очистить поиск" onClick={() => setSearch("")}><X /></InputGroupButton></InputGroupAddon>}
           </InputGroup>
-          <div className="contacts-sphere__filters" aria-label="Фильтры контактов">
+          <div className="contacts-sphere__filters" role="group" aria-label="Фильтры контактов">
             <Select value={company || ALL_CONTACT_COMPANIES} onValueChange={(value) => { setCompany(value === ALL_CONTACT_COMPANIES ? "" : value); }}>
               <SelectTrigger className="contacts-sphere__select" aria-label="Компания">
                 <SelectValue>{(value) => value === ALL_CONTACT_COMPANIES ? "Все компании" : value}</SelectValue>
@@ -759,7 +759,7 @@ export function ContactsSpherePage() {
                         {(contact.hasNotes || socialLinks.length > 0) && <div className="contact-card__secondary-actions">
                           {contact.hasNotes && <ShadcnButton type="button" variant="ghost" className="contact-card__details h-9 rounded-full px-1" onClick={() => setSelectedContactId(contact.id)}><NotebookText aria-hidden="true" />Заметки</ShadcnButton>}
                           {socialLinks.length > 0 && (
-                            <span className="contact-card__social-links" aria-label={`Ссылки ${contact.name}`}>
+                            <span className="contact-card__social-links" role="group" aria-label={`Ссылки ${contact.name}`}>
                               {socialLinks.map((link, index) => <ContactSocialLink key={`${link.url}-${index}`} link={link} contactName={contact.name} />)}
                             </span>
                           )}

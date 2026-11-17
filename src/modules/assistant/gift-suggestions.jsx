@@ -8,14 +8,14 @@ import { participantCountLabel } from "../catalog-marketplace/wish-catalog.jsx";
 
 export function GiftSuggestionPeople({ suggestion }) {
   if (!suggestion?.participants?.length) return null;
-  return <div className="flex flex-wrap gap-2" aria-label={`Участники: ${suggestion.participants.map((person) => person.name || person.username).join(", ")}`}>
+  return <div className="flex flex-wrap gap-2" role="group" aria-label="Участники">
     {suggestion.participants.map((person) => <Link
       key={person.id}
       to={publicProfilePath(person)}
       className="inline-flex min-h-10 max-w-full items-center gap-2 rounded-full border border-border bg-muted/50 py-1 pr-3 pl-1 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       title={`Открыть профиль ${person.name || person.username}`}
     >
-      <Avatar user={person} size="sm" className="!size-8" />
+      <Avatar user={person} size="sm" className="!size-8" aria-hidden="true" />
       <span className="truncate text-sm font-medium">{person.name || person.username}</span>
     </Link>)}
     {suggestion.participantCount > suggestion.participants.length && <span className="inline-flex min-h-10 items-center rounded-full bg-muted px-3 text-sm text-muted-foreground">+{suggestion.participantCount - suggestion.participants.length}</span>}

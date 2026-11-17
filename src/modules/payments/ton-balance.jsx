@@ -37,7 +37,7 @@ export function TonBalance({ address, chain }) {
     document.addEventListener("visibilitychange", update);
     return () => { active = false; controller?.abort(); clearInterval(timer); document.removeEventListener("visibilitychange", update); };
   }, [address, chain, refresh]);
-  return <div className="flex flex-col gap-2" aria-label="Баланс TON">
+  return <div className="flex flex-col gap-2" role="group" aria-label="Баланс TON">
     <div className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 flex-col gap-1" aria-live="polite">
         <span className="text-xs text-muted-foreground">{chain === TON_TESTNET ? "Баланс в тестовой сети" : "Баланс кошелька"}</span>

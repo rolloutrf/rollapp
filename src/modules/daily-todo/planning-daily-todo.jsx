@@ -105,7 +105,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate, cr
                 event.currentTarget.form.requestSubmit();
               }
             }} maxLength={200} placeholder="Новая задача на этот день" aria-label="Новая задача на этот день" disabled={busy} />
-            {relatedItems.length > 0 && <div className="daily-todo__composer-related planning-related__selected" aria-label="Связанные объекты новой задачи">
+            {relatedItems.length > 0 && <div className="daily-todo__composer-related planning-related__selected" role="group" aria-label="Связанные объекты новой задачи">
               {relatedItems.map((item) => <RelatedChoiceCard key={`${item.kind}:${item.id}`} item={item} selected removable preview disabled={busy} onToggle={() => setRelatedDraft({ owner: composerOwner, items: relatedItems.filter((current) => current.kind !== item.kind || current.id !== item.id) })} />)}
             </div>}
           </ComposerField>

@@ -169,7 +169,7 @@ function Messenger({ user, transport = api, initialConversationId = null }) {
             {loading && <p className="messenger-note" role="status">Загружаем диалоги…</p>}
             {conversations.map(item => <MessageListRow key={item.id} avatar={<MessengerAvatar user={item.peer} />} title={item.peer.name}
               disabled={opening} onClick={() => { setOpenError(''); setSelectedId(item.id); }}
-              badge={item.unread > 0 && <span className="messenger-unread" aria-label={`${item.unread} непрочитанных`}>{item.unread > 99 ? '99+' : item.unread}</span>}>
+              badge={item.unread > 0 && <span className="messenger-unread" role="img" aria-label={`${item.unread} непрочитанных`}>{item.unread > 99 ? '99+' : item.unread}</span>}>
               <span>{item.lastMessage?.body || 'Пока нет сообщений'}</span>
             </MessageListRow>)}
             {subscriptionsError && <ErrorNotice error={subscriptionsError} retry={() => setSubscriptionsReload(value => value + 1)} />}

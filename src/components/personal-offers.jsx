@@ -56,7 +56,7 @@ export function PersonalOfferComposer({ item, client = api }) {
     <Field><FieldLabel htmlFor={`offer-person-${item.id}`}>Получатель</FieldLabel>
       {recipient ? <div className="flex min-w-0 flex-wrap items-center gap-2"><span className="min-w-0 wrap-anywhere">{recipient.name} · @{recipient.username}</span><Button type="button" variant="outline" disabled={busy} onClick={() => setRecipient(null)}>Изменить</Button></div> : <>
         <Input id={`offer-person-${item.id}`} placeholder="Имя или username" value={search} onChange={e => { setSearch(e.target.value); setPeople([]); }} />
-        <div className="flex max-h-60 min-w-0 flex-col gap-2 overflow-y-auto" aria-label="Пользователи">{people.map(person => <Button type="button" className="h-auto min-w-0 whitespace-normal wrap-anywhere" variant="outline" key={person.id} onClick={() => setRecipient(person)}>{person.name} · @{person.username}</Button>)}</div>
+        <div className="flex max-h-60 min-w-0 flex-col gap-2 overflow-y-auto" role="group" aria-label="Пользователи">{people.map(person => <Button type="button" className="h-auto min-w-0 whitespace-normal wrap-anywhere" variant="outline" key={person.id} onClick={() => setRecipient(person)}>{person.name} · @{person.username}</Button>)}</div>
         {!people.length && !error && <p className="text-muted-foreground">Предложения можно отправить подписчикам вашего бизнеса.</p>}
       </>}
     </Field>

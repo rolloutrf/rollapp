@@ -15,7 +15,7 @@ const MAX_PDF_BYTES = 12 * 1024 * 1024;
 
 export function IdentityReportOverview({ titleId, eyebrow, title, description, date, dateLabel, person, stats = [] }) {
   return (
-    <Card className="identity-report-overview not-typeset rollapp-body" aria-labelledby={titleId}>
+    <Card className="identity-report-overview not-typeset rollapp-body" role="group" aria-labelledby={titleId}>
       <CardHeader className="gap-4">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="font-semibold tracking-widest uppercase">{eyebrow}</span>
@@ -27,7 +27,7 @@ export function IdentityReportOverview({ titleId, eyebrow, title, description, d
           {person && <span className="text-xs text-muted-foreground">{person}</span>}
         </div>
       </CardHeader>
-      {stats.length > 0 && <CardFooter className="grid gap-4 sm:grid-cols-2" aria-label="Состав профиля">
+      {stats.length > 0 && <CardFooter className="grid gap-4 sm:grid-cols-2" role="group" aria-label="Состав профиля">
         {stats.map((stat) => <div key={stat.label} className="flex min-w-0 items-center gap-3">
           <strong className="font-heading text-3xl leading-9 font-semibold tabular-nums">{stat.value}</strong>
           <div className="flex min-w-0 flex-col gap-1">

@@ -63,7 +63,7 @@ export function FundraiserVirtualCard({ fundraiser, ownerId, groupTitle, busy, c
         <Field><FieldLabel htmlFor={`${id}-amount`}>Сумма тестовой покупки, роллы</FieldLabel><Input id={`${id}-amount`} inputMode="numeric" value={amount} disabled={Boolean(intent)} onChange={event => setAmount(event.target.value)} /></Field>
       </form>
       {intent && <p className="break-words">Подтвердить тестовую покупку в «{intent.merchant}» на {formatRolls(intent.amount)}?</p>}
-      {card.purchases.length > 0 && <div className="flex min-w-0 flex-col gap-2" aria-label="Тестовые покупки"><h4 className="font-semibold">Тестовые покупки</h4>{card.purchases.map(purchase => <p key={purchase.id} className="break-words">{purchase.merchant} · {formatRolls(purchase.amount)}</p>)}</div>}
+      {card.purchases.length > 0 && <div className="flex min-w-0 flex-col gap-2"><h4 className="font-semibold">Тестовые покупки</h4>{card.purchases.map(purchase => <p key={purchase.id} className="break-words">{purchase.merchant} · {formatRolls(purchase.amount)}</p>)}</div>}
     </>}
     {error && <p role="alert">{error}</p>}{success && <p role="status">{success}</p>}
   </section>;

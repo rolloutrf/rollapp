@@ -280,7 +280,7 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     })} />}
     <span role="status" className="sr-only">{announcement}</span>
     {drag?.kind === "column" && drag.preview && <div ref={dragPreviewRef} className="kanban-column-drag-preview" aria-hidden="true" style={{ width: drag.preview.width, transform: previewTransform(drag.preview.x, drag.preview.y, drag.preview.width) }}><GripVertical /><span>{columns.find((column) => column.id === drag.id)?.title}</span></div>}
-    <div ref={boardRef} className="planning-board" aria-label="Kanban-доска" onDragOver={(event) => {
+    <div ref={boardRef} className="planning-board" role="group" aria-label="Kanban-доска" onDragOver={(event) => {
       if (!dragSession.current || !event.dataTransfer.types.includes("application/x-rollapp-kanban")) return;
       event.preventDefault(); event.dataTransfer.dropEffect = "move";
       updateDrag(event.clientX, event.clientY);

@@ -35,7 +35,7 @@ export function TaskContactPicker({ value, contacts = [], onChange, disabled = f
   return <Field>
     <FieldLabel htmlFor={id}>Участники встречи</FieldLabel>
     <FieldDescription>Описание и заметки встречи появятся в карточках выбранных контактов.</FieldDescription>
-    {value.length > 0 && <div className="flex min-w-0 flex-col gap-2" aria-label="Выбранные участники">
+    {value.length > 0 && <div className="flex min-w-0 flex-col gap-2" role="group" aria-label="Выбранные участники">
       {value.map((contactId) => <div key={contactId} className="flex min-w-0 items-center gap-2">
         <span className="min-w-0 flex-1 break-words">{known.get(contactId)?.name || "Недоступный контакт"}</span>
         <Button type="button" variant="destructive" disabled={disabled} onClick={() => onChange(value.filter((item) => item !== contactId))} aria-label={`Убрать участника ${known.get(contactId)?.name || "Недоступный контакт"}`}>Убрать</Button>
@@ -44,7 +44,7 @@ export function TaskContactPicker({ value, contacts = [], onChange, disabled = f
     <Input id={id} value={search} disabled={disabled || value.length >= 50} placeholder="Найти контакт по имени или компании" onChange={(event) => { setSearch(event.target.value); setResults([]); }} />
     {status && <p role="status" className="text-muted-foreground">{status}</p>}
     {search.trim() && status && status !== "Загружаем контакты…" && status !== "Контакты не найдены." && <Button type="button" variant="outline" disabled={disabled} onClick={() => setRetry((current) => current + 1)}>Повторить поиск</Button>}
-    {results.some((contact) => !value.includes(contact.id)) && <div className="flex min-w-0 flex-col gap-2" aria-label="Результаты поиска контактов">
+    {results.some((contact) => !value.includes(contact.id)) && <div className="flex min-w-0 flex-col gap-2" role="group" aria-label="Результаты поиска контактов">
       {results.filter((contact) => !value.includes(contact.id)).map((contact) => <Button key={contact.id} type="button" variant="outline" className="h-auto justify-start whitespace-normal text-left" disabled={disabled || value.length >= 50} onClick={() => { onChange([...value, contact.id]); setSearch(""); }}>
         <span className="min-w-0 break-words">{contact.name}{contact.company ? ` · ${contact.company}` : ""}</span>
       </Button>)}

@@ -226,7 +226,7 @@ function SellerStorefront({ space }) {
         published={published}
         onClose={() => setEditor(null)} onSaved={saveItem}
         renderPreview={(draft) => (
-          <div className="mx-auto w-full max-w-xs" aria-label="Предпросмотр карточки">
+          <div className="mx-auto w-full max-w-xs" role="group" aria-label="Предпросмотр карточки">
             <BusinessItem storefront item={{ ...draft, title: draft.title.trim() }} />
           </div>
         )}
@@ -281,7 +281,7 @@ function WishSalesManager({ user, space, wishId }) {
      onClose={() => setEditorOpen(false)} onAfterClose={closeEditor}
      onSaved={(item) => { savedItem.current = item; }}
      renderPreview={(draft) => (
-       <div className="mx-auto w-full max-w-xs" aria-label="Предпросмотр объявления">
+       <div className="mx-auto w-full max-w-xs" role="group" aria-label="Предпросмотр объявления">
          <BusinessItem item={{ ...draft, business: { name: user.name } }} />
        </div>
      )}

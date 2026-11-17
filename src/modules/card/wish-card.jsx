@@ -216,7 +216,7 @@ export function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCre
             <DropdownMenuTrigger
               render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger size-9 active:translate-y-0" disabled={interactionBusy} />}
               aria-label={`Опции желания «${wish.title}»`}
-              aria-controls={`wish-menu-${wish.id}`}
+              aria-controls={menu ? `wish-menu-${wish.id}` : undefined}
             >
               <MoreHorizontal />
             </DropdownMenuTrigger>

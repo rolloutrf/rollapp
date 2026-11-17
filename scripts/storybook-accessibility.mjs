@@ -53,8 +53,12 @@ try {
         assert(await page.locator("#storybook-root > *").count(), "Story content disappeared during the scan");
         const geometry = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
         if (geometry.scrollWidth > geometry.width + 1) errors.push(`Root overflow: ${JSON.stringify(geometry)}`);
+        // A named generic wrapper is invalid in HTML ARIA even when axe requests manual review.
+        const invalidNames = incomplete.filter(item => item.id === "aria-prohibited-attr");
+        const manualReview = incomplete.filter(item => item.id !== "aria-prohibited-attr");
+        violations.push(...invalidNames);
         const compact = items => items.map(({ id, impact, nodes }) => ({ id, impact, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }));
-        results.push({ ...check, errors, violations: compact(violations), manualReview: compact(incomplete) });
+        results.push({ ...check, errors, violations: compact(violations), manualReview: compact(manualReview) });
         console.log(`${errors.length || violations.length ? "FAIL" : "PASS"} ${check.id} ${check.theme}${violations.length ? ": " + violations.map(v => v.id).join(", ") : ""}`);
       } catch (error) {
         results.push({ ...check, errors: [...errors, error.message], violations: [] });

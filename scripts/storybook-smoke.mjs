@@ -39,6 +39,18 @@ const interactions = {
     await page.getByText("Только чтение", { exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: /^Редактировать профиль/ }).count(), 0);
   },
+  async "rollapp-wishlist--wishes"(page) {
+    const trigger = page.getByRole("button", { name: /^Опции желания/ }).first();
+    assert.equal(await trigger.getAttribute("aria-controls"), null);
+    await trigger.press("Enter");
+    const menu = page.getByRole("menu");
+    await menu.waitFor();
+    assert.equal(await trigger.getAttribute("aria-controls"), await menu.getAttribute("id"));
+    await page.keyboard.press("Escape");
+    await menu.waitFor({ state: "hidden" });
+    assert.equal(await trigger.getAttribute("aria-controls"), null);
+    assert(await trigger.evaluate(node => node === document.activeElement));
+  },
   async "rollapp-wishlist--new"(page) {
     const upload = page.getByRole("button", { name: "Добавить изображение", exact: true });
     for (const key of ["Enter", "Space"]) {

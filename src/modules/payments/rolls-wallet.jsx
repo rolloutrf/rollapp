@@ -383,7 +383,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             {[wallet?.balances?.reservedOrders, wallet?.balances?.pendingSales].some((amount) => amount && amount !== "0") &&
               <PageActionButton variant="outline" nativeButton={false} role="link"
                 render={<Link to={APP_ORDERS_PATH} state={{ ordersFromStore: true }} />}>Заказы и продажи</PageActionButton>}
-            <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" aria-label="Действия с роллами">
+            <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" role="group" aria-label="Действия с роллами">
               {wallet?.features?.starsPurchases && !pendingTopup && <Button ref={topupOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>}
               <Button ref={transferOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => {
                 walletScrollArea.current?.focus({ preventScroll: true });

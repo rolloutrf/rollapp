@@ -656,7 +656,7 @@ export function Workouts() {
       )}
 
       {!requestState.loading && visibleWorkouts.length > 0 && (
-        <div ref={cardOrder.listRef} className="flex min-w-0 flex-col gap-6" aria-label="Порядок тренировок" aria-busy={cardOrder.orderBusy}>
+        <div ref={cardOrder.listRef} className="flex min-w-0 flex-col gap-6" role="group" aria-label="Порядок тренировок" aria-busy={cardOrder.orderBusy}>
           <WorkoutSection cardOrder={cardOrder} deleteBusy={deleteState.busy} id="planned-workouts-title" lists={requestState.lists} moveState={moveState} title="Предстоящие" workouts={planned} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onDelete={requestDeleteWorkout} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
           <WorkoutSection cardOrder={cardOrder} deleteBusy={deleteState.busy} hideTitle id="workout-history-title" lists={requestState.lists} moveState={moveState} title="История" workouts={history} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onDelete={requestDeleteWorkout} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
         </div>
