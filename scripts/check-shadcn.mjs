@@ -44,7 +44,6 @@ const appSources = [
   "src/modules/card/price.jsx",
   "src/modules/card/wish-card.jsx",
   "src/modules/card/wish-details.jsx",
-  "src/modules/catalog-marketplace/catalog-page-header.jsx",
   "src/modules/catalog-marketplace/catalog-scope.jsx",
   "src/modules/catalog-marketplace/store-cats.jsx",
   "src/modules/catalog-marketplace/wish-catalog.jsx",
@@ -820,8 +819,6 @@ assert(/\.is-added\s*,[\s\S]*?color:\s*var\(--destructive\);[\s\S]*?opacity:\s*1
 assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog Heart must remain interactive");
 assert(/\.catalog-brand-attribution\s*\{/.test(legacyStyles) && /\.catalog-brand-attribution__logo\s*\{/.test(legacyStyles), "Catalog cards must style brand attribution with its own logo treatment");
 assert(!/\.catalog-source-attribution/.test(legacyStyles), "Retired provider attribution styles must not return");
-const catalogPageHeaderSource = appComponentSource("src/modules/catalog-marketplace/catalog-page-header.jsx", "CatalogPageHeader");
-assert(/source === "brands" \? "Бренды" : "Лента"/.test(catalogPageHeaderSource), "External storefronts must use a neutral Brands identity");
 const brandSelectSource = read("src/modules/catalog-marketplace/catalog-brands.jsx");
 assert(!/(?:aria-label|title)="[^"]*OhMyWishes/.test(`${app}\n${brandSelectSource}`), "User-facing catalog controls must not name the upstream provider");
 const wishDetailsSource = appComponentSource("src/modules/card/wish-details.jsx", "WishDetailsModal");

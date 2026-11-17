@@ -80,7 +80,6 @@ async function checkRolloutStore(width, height) {
   };
   try {
     await page.goto(fixture, { waitUntil: "domcontentloaded", timeout: 90_000 });
-    await page.getByRole("heading", { name: "Магазин · Товары" }).waitFor();
     await cats.first().waitFor();
     assert.equal(await cats.count(), 6);
     const buy = page.getByRole("button", { name: /Купить «Красный кот»/ });

@@ -192,7 +192,7 @@ try {
         await page.getByRole("navigation", { name: "Разделы профиля" })
           .getByRole("button", { name: "Заказы", exact: true }).click();
       };
-      await page.getByRole("heading", { name: "Магазин · Товары" }).waitFor();
+      await page.getByRole("button", { name: /Купить «Красный кот»/ }).waitFor();
       await profile.scrollIntoViewIfNeeded();
       assert.equal(await page.getByRole("button", { name: "Заказы", exact: true }).count(), 0);
       assert.equal(await page.evaluate(() => window.ordersDrawerFixture.reads), 0);

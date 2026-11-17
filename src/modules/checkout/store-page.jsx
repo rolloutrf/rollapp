@@ -10,9 +10,7 @@ import { Button as ShadcnButton } from "@/components/ui/button";
 import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
 import { Drawer } from "@/components/form-surface";
 import { APP_STORE_PATH } from "../shell/app-routing.js";
-import { SPACES } from "../categories/wish-spaces.jsx";
 import { useToast } from "../shell/toast.jsx";
-import { CatalogPageHeader } from "../catalog-marketplace/catalog-page-header.jsx";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 import { STORE_CATS, STORE_CAT_PRICE } from "../catalog-marketplace/store-cats.jsx";
 
@@ -34,7 +32,6 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
   };
   return <>
     <div className="app-page wish-catalog-page cat-store-page page-stack">
-      {isProducts && <CatalogPageHeader title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} />}
       <Drawer mobileDrawer open={ordersOpen} onOpenChange={changeOrdersOpen}>
         <OrdersDrawerContent products={STORE_CATS} userId={user.id} />
       </Drawer>
