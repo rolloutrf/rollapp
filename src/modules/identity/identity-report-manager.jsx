@@ -1,6 +1,6 @@
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FileText, FileUp, RotateCcw } from "lucide-react";
+import { FileUp, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
 import { PageActionButton } from "@/components/page-action-button";
@@ -121,21 +121,19 @@ export function IdentityGeneratedDocuments({ report }) {
   const chartReveal = useRef(0);
   useEffect(() => () => cancelAnimationFrame(chartReveal.current), []);
   const chartNames = { "score-chart": "Шкалы", "subscale-charts": "Субшкалы" };
-  const chartLinks = (report.documents || []).flatMap((document, documentIndex) => {
+  const chartGroups = (report.documents || []).map((document, documentIndex) => {
     const seen = new Set();
     return (document.layout?.pages || []).flatMap((page, pageIndex) => page.blocks.flatMap((block, blockIndex) => {
       if (!chartNames[block.type] || seen.has(block.type)) return [];
       seen.add(block.type);
-      return [{ id: `${prefix}-${documentIndex}-${pageIndex}-${blockIndex}`, label: chartNames[block.type], filename: document.filename, documentIndex }];
+      return [{ id: `${prefix}-${documentIndex}-${pageIndex}-${blockIndex}`, label: chartNames[block.type] }];
     }));
-  });
+  }).filter(links => links.length > 0);
   return (
     <section className="identity-generated-documents identity-report" aria-label="Содержание загруженных PDF">
-      {chartLinks.length > 0 && <nav className="grid min-w-0 gap-4 not-typeset rollapp-body" aria-label="Графики отчёта">
-        {[...new Set(chartLinks.map(link => link.documentIndex))].map(documentIndex => <div key={documentIndex} className="grid min-w-0 gap-2">
-          {new Set(chartLinks.map(link => link.documentIndex)).size > 1 && <span className="text-xs text-muted-foreground wrap-anywhere">{report.documents[documentIndex].filename}</span>}
-          <div className="flex min-w-0 flex-wrap gap-2">
-            {chartLinks.filter(link => link.documentIndex === documentIndex).map((link) => <PageActionButton key={link.id} variant="secondary" nativeButton={false} role="link" render={<a href={`#${link.id}`} />} aria-label={`${link.label} — ${link.filename}`} onClick={event => {
+      {chartGroups.length > 0 && <nav className="grid min-w-0 gap-4 not-typeset rollapp-body" aria-label="Графики отчёта">
+        {chartGroups.map((links, index) => <div key={links[0].id} className="flex min-w-0 flex-wrap gap-2">
+            {links.map((link) => <PageActionButton key={link.id} variant="secondary" nativeButton={false} role="link" render={<a href={`#${link.id}`} />} onClick={event => {
               if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
               const target = event.currentTarget.ownerDocument.getElementById(link.id);
               // Cancel an in-flight focus scroll before the native fragment
@@ -152,18 +150,13 @@ export function IdentityGeneratedDocuments({ report }) {
                 });
               });
             }}>
-              {link.label}
+              {chartGroups.length > 1 ? `${link.label} · ${index + 1}` : link.label}
             </PageActionButton>)}
-          </div>
         </div>)}
       </nav>}
       <div className="identity-generated-documents__list">
         {(report.documents || []).map((document, documentIndex) => (
           <article key={document.id} className="identity-generated-document typeset-document">
-            <header className="flex min-w-0 items-center gap-3 not-typeset">
-                <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <h2 className="min-w-0 font-heading text-lg font-semibold wrap-anywhere">{document.filename}</h2>
-            </header>
             <div className="identity-pdf-content typeset typeset-rollapp" data-typeset-group>
                 {document.layout?.pages?.length ? document.layout.pages.map((page, pageIndex) => (
                   <section key={page.number} className="identity-pdf-page" data-pdf-page={page.number} data-pdf-wide={page.blocks.some((block) => block.type === "subscale-charts" || block.headers?.length === 3) || undefined}>

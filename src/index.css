@@ -131,7 +131,6 @@
 .identity-generated-document {
   display: grid;
   min-width: 0;
-  gap: var(--layout-page-gap);
 }
 
 .identity-pdf-content {
