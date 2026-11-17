@@ -29,17 +29,16 @@ export function reorderScopeWishIds(visibleWishes = [], groupWishIds = null) {
   return new Set(groupWishIds.filter((wishId) => visibleWishIds.has(wishId)));
 }
 
-export function resolveWishHoverMode({ groupingEnabled = false, rect, clientX, clientY }) {
-  if (!groupingEnabled || !rect || rect.width <= 0 || rect.height <= 0) return "reorder";
-
+export function wishGroupingDistance(rect, clientX, clientY) {
+  if (!rect || rect.width <= 0 || rect.height <= 0 || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return Infinity;
   const horizontalInset = rect.width * 0.2;
   const verticalInset = rect.height * 0.2;
-  const insideGroupingArea = clientX >= rect.left + horizontalInset
-    && clientX <= rect.right - horizontalInset
-    && clientY >= rect.top + verticalInset
-    && clientY <= rect.bottom - verticalInset;
+  return Math.max(0, rect.left + horizontalInset - clientX, clientX - rect.right + horizontalInset,
+    rect.top + verticalInset - clientY, clientY - rect.bottom + verticalInset);
+}
 
-  return insideGroupingArea ? "group" : "reorder";
+export function resolveWishHoverMode({ groupingEnabled = false, rect, clientX, clientY }) {
+  return groupingEnabled && wishGroupingDistance(rect, clientX, clientY) === 0 ? "group" : "reorder";
 }
 
 export function wishRectOverlapRatio(firstRect, secondRect) {

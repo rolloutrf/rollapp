@@ -33,6 +33,7 @@ import {
   moveWishWithinSubset,
   reorderScopeWishIds,
   resolveWishHoverMode,
+  wishGroupingDistance,
   wishRectOverlapRatio,
 } from "./wish-order.js";
 import {
@@ -97,6 +98,7 @@ export function WishesPage({ onAdd, version }) {
   const pointerTimerRef = useRef(null);
   const reorderTimerRef = useRef(null);
   const reorderTargetRef = useRef(null);
+  const reorderDistanceRef = useRef(null);
   const pointerListenerCleanupRef = useRef(null);
   const pointerAutoScrollFrameRef = useRef(null);
   const pointerAutoScrollTimeRef = useRef(null);
@@ -320,6 +322,7 @@ export function WishesPage({ onAdd, version }) {
     clearTimeout(reorderTimerRef.current);
     reorderTimerRef.current = null;
     reorderTargetRef.current = null;
+    reorderDistanceRef.current = null;
   };
   const captureGridPositions = () => {
     const positions = new Map();
@@ -401,11 +404,16 @@ export function WishesPage({ onAdd, version }) {
     captureGridPositions();
     setOrderedWishIds(next);
   };
-  const queueWishReorder = (sourceId, targetId, targetKind = "wish", pointerDrag = null) => {
+  const queueWishReorder = (sourceId, targetId, targetKind = "wish", pointerDrag = null, distance = null) => {
     const target = `${targetKind}:${targetId}`;
-    if (reorderTargetRef.current === target) return;
+    // Approaching the center is not an edge hold. Restart its grace period
+    // only on real inward progress; small jitter and tangential moves retain it.
+    const approaching = Number.isFinite(distance) && Number.isFinite(reorderDistanceRef.current)
+      && distance < reorderDistanceRef.current - 2;
+    if (reorderTargetRef.current === target && !approaching) return;
     clearReorderIntent();
     reorderTargetRef.current = target;
+    reorderDistanceRef.current = distance;
     reorderTimerRef.current = setTimeout(() => {
       if (!dragSessionRef.current || dragSourceWishIdRef.current !== sourceId
         || pointerDragRef.current !== pointerDrag || reorderTargetRef.current !== target
@@ -955,16 +963,14 @@ export function WishesPage({ onAdd, version }) {
       && !targetGroupId);
     const groupingEnabled = Boolean(groupingListId && validGroupTarget);
     let hoverMode = null;
+    let hoverDistance = null;
     if (overlapGroupTarget) hoverMode = "group";
     else if (validReorderTarget) {
-      hoverMode = resolveWishHoverMode({
-        groupingEnabled,
-        rect: validGroupReorderTarget
-          ? pointerGroupTile.querySelector(".wish-group-tile__preview")?.getBoundingClientRect() || pointerGroupTile.getBoundingClientRect()
-          : wishCard.querySelector(".wish-card__image")?.getBoundingClientRect() || wishCard.getBoundingClientRect(),
-        clientX,
-        clientY,
-      });
+      const targetRect = validGroupReorderTarget
+        ? pointerGroupTile.querySelector(".wish-group-tile__preview")?.getBoundingClientRect() || pointerGroupTile.getBoundingClientRect()
+        : wishCard.querySelector(".wish-card__image")?.getBoundingClientRect() || wishCard.getBoundingClientRect();
+      hoverMode = resolveWishHoverMode({ groupingEnabled, rect: targetRect, clientX, clientY });
+      hoverDistance = wishGroupingDistance(targetRect, clientX, clientY);
     } else if (groupingEnabled) hoverMode = "group";
     const target = dragGroupId
       ? validReorderTarget ? `wish:${wishId}` : null
@@ -989,7 +995,7 @@ export function WishesPage({ onAdd, version }) {
     if (hoverMode === "reorder" && validReorderTarget) {
       const targetId = validGroupReorderTarget ? groupId : wishId;
       const targetKind = validGroupReorderTarget ? "group" : "wish";
-      if (groupingEnabled) queueWishReorder(drag.wishId, targetId, targetKind, drag);
+      if (groupingEnabled) queueWishReorder(drag.wishId, targetId, targetKind, drag, hoverDistance);
       else {
         clearReorderIntent();
         reorderWish(drag.wishId, targetId, targetKind);

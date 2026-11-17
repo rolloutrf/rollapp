@@ -41,8 +41,9 @@ export function PlanningDayRibbon({ selected, today, onChange, dayStatus }) {
     <div ref={ribbon} className="daily-todo__ribbon horizontal-tile-scroller" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
       {dates.map((date) => {
         const status = dayStatus?.(date);
-        return <Button key={date} variant="ghost" data-list-tile="" className="daily-todo__day" aria-label={status ? `${dateLabel(date)} · ${status}` : dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
-          <ListTileContent title={`${weekdayLabel.format(dateFromKey(date)).replace(/^./u, (letter) => letter.toUpperCase())}, ${monthLabel.format(dateFromKey(date))}`} count={dateFromKey(date).getDate()} />
+        const title = `${weekdayLabel.format(dateFromKey(date)).replace(/^./u, letter => letter.toUpperCase())}, ${monthLabel.format(dateFromKey(date))}`;
+        return <Button key={date} variant="ghost" data-list-tile="" className="daily-todo__day" aria-label={`${title} ${dateFromKey(date).getDate()}`} aria-description={status ? `${dateLabel(date)} · ${status}` : dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
+          <ListTileContent title={title} count={dateFromKey(date).getDate()} />
           {status && <Check aria-hidden="true" className="absolute inset-e-3 bottom-6" />}
         </Button>;
       })}

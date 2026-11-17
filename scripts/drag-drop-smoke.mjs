@@ -655,7 +655,15 @@ try {
       const targetBox = await target.locator(destination === 'group' ? '.wish-group-tile__preview' : '.wish-card__image').boundingBox();
       await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
       await page.mouse.down();
-      await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 24 });
+      if ([320, 1440].includes(width) && space === 'products') {
+        // Deliberately spend longer than the edge grace period on the way in.
+        // Inward progress must reach grouping without an intermediate reorder.
+        for (let step = 1; step <= 24; step += 1) {
+          await page.mouse.move(sourceBox.x + sourceBox.width / 2 + (targetBox.x + targetBox.width / 2 - sourceBox.x - sourceBox.width / 2) * step / 24,
+            sourceBox.y + sourceBox.height / 2 + (targetBox.y + targetBox.height / 2 - sourceBox.y - sourceBox.height / 2) * step / 24);
+          await page.waitForTimeout(35);
+        }
+      } else await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 24 });
       await target.locator(`xpath=self::*[contains(@class,"${destination === 'group' ? 'is-drop-target' : 'is-group-target'}")]`).waitFor({ timeout: 3000 });
       await page.screenshot({ path: `/tmp/rollapp-drag-drop/${width}-${space}-${destination}-grouping.png` });
       assert.deepEqual(await calls(page), [], 'Highlight alone must not save or reorder');

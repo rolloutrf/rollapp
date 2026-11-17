@@ -644,7 +644,7 @@ async function checkNoteTasks(page, width, height) {
     assert.deepEqual(requests[0], requests[1]);
     assert.deepEqual(requests[0].tasks, [{ row: 2, title: 'Отправить протокол', description: '', dueOn: '2026-11-20' }]);
     await openTodo.click();
-    await notePage.getByRole('button', { name: 'Редактировать задачу: Отправить протокол', exact: true }).click();
+    await notePage.getByRole('button', { name: 'Редактировать задачу: Отправить протокол', exact: false }).click();
     await notePage.getByRole('link', { name: 'Заметка «Встреча с Анной»', exact: true }).click();
     await source.waitFor();
     assert.deepEqual(unexpected, []);

@@ -1,5 +1,6 @@
 import { IdentityGeneratedDocuments, IdentityReportOverview, IdentityReportEmpty } from "@/modules/identity/identity-report-manager.jsx";
 import { IdentityReportsPage } from "@/modules/identity/identity-reports-page.jsx";
+import { IDENTITY_QUESTION_TITLES } from "../../shared/modules/identity/identity-questions.js";
 import { FourQuestions } from "@/modules/identity/four-questions.jsx";
 import { Page, Scenario, hold, fixtureError } from "../support.jsx";
 
@@ -36,4 +37,4 @@ export const List = { name: "Личностные тесты", render: Reports, 
 export const Empty = { ...List, name: "Отчётов ещё нет", args: { state: "empty" } };
 export const Loading = { ...List, name: "Загрузка отчётов", args: { state: "loading" } };
 export const Error = { ...List, name: "Ошибка чтения отчётов", args: { state: "error" } };
-export const Questions = { name: "Четыре вопроса", render: () => <Scenario routes={{ "GET /identity/content/four-questions": { content: "" }, "PATCH /identity/content/four-questions": (_, body) => body }}><Page className="typeset typeset-rollapp"><FourQuestions /></Page></Scenario> };
+export const Questions = { name: "Четыре вопроса", render: () => <Scenario routes={{ "GET /identity/content/four-questions": { content: { questions: IDENTITY_QUESTION_TITLES.map(title => ({ title, paragraphs: [] })) } }, "PATCH /identity/content/four-questions": (_, body) => body }}><Page className="typeset typeset-rollapp"><FourQuestions /></Page></Scenario> };

@@ -31,7 +31,7 @@ function ActivityTotals({ totals }) {
       ["Списано", debited, "bg-muted-foreground"],
     ].map(([label, amount, colors], index) => <div key={label} className="grid min-w-0 content-start gap-1.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={`wrap-anywhere font-medium tabular-nums ${index === 0 ? "text-amber-300" : ""}`}>{formatRolls(amount)}</dd>
+      <dd className={`wrap-anywhere font-medium tabular-nums ${index === 0 ? "text-amber-800 dark:text-amber-300" : ""}`}>{formatRolls(amount)}</dd>
       <span className="h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
         <span className={`block h-full rounded-full ${colors}`} style={{ width: max === 0n ? "0%" : `${amount * 100n / max}%` }} />
       </span>

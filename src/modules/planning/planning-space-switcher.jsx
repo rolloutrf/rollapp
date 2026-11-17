@@ -76,7 +76,7 @@ export function PlanningSpaceMenu({ kind, selected, onSelect, spaces, loading, e
   const label = selectedSpace?.title || (loading ? "Загрузка…" : calendar ? "Выберите календарь" : todo ? "Выберите To Do-лист" : "Выберите доску");
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" className="space-select global-service-select" aria-label={calendar ? "Выбрать календарь" : todo ? "Выбрать To Do-лист" : "Выбрать доску задач"} />}>
+      <DropdownMenuTrigger render={<Button variant="outline" className="space-select global-service-select" aria-label={`${calendar ? "Выбрать календарь" : todo ? "Выбрать To Do-лист" : "Выбрать доску задач"}: ${label}`} />}>
         <Icon aria-hidden="true" /><span className="space-select__label">{label}</span><ChevronDown aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="rollapp-body global-service-select__content app-navigation-popup w-max min-w-(--anchor-width) max-w-(--available-width)" align="center" side={mobile ? "top" : "bottom"}>

@@ -1,3 +1,4 @@
+import { avatarInitials } from "./profile-avatar.jsx";
 import { StoryAvatar } from "@/modules/profile/story-avatar.jsx";
 import { Link, useLocation, useMatch } from "react-router-dom";
 import { Eye, ShoppingBag } from "lucide-react";
@@ -31,7 +32,7 @@ export function PersistentProfileHero({ user, wishlistChrome = false }) {
         <div className="sphere-share-avatars">
           {/^\/app\/friends(?:\/|$)/.test(location.pathname) ? <StoryAvatar user={profile} own={editable} onEditProfile={openProfileEditor}>
             <ProfilePortrait user={profile} moodLevel={moodLevel} />
-          </StoryAvatar> : editable ? <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
+          </StoryAvatar> : editable ? <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name} · ${avatarInitials(profile)}`} title="Редактировать профиль" onClick={openProfileEditor}>
             <ProfilePortrait user={profile} moodLevel={moodLevel} />
           </ShadcnButton> : <ProfilePortrait user={profile} moodLevel={moodLevel} />}
           {catalogPath && (

@@ -83,11 +83,11 @@ try{
    assert.deepEqual(footerSurface,{background:'rgba(0, 0, 0, 0)',image:'none'},'Quick-add area must not have a shared background');
    if(!empty){
     for(const [number,time] of [[1,'10:00'],[2,'10:30']]){
-     const row=page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true});
+     const row=page.getByRole('button',{name:new RegExp(`^Редактировать задачу: Задача ${number}(?:\\s|$)`)});
      assert.equal(await row.locator('.daily-todo__time').textContent(),time,'Date-only tasks must receive consecutive display slots from 10:00');
     }
     assert.equal(await page.locator('.daily-todo__item').count(),30,'A full day must not hide overflow tasks');
-    for(const number of [29,30])assert.equal(await page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true}).locator('.daily-todo__time').count(),0,'Tasks without a free slot must remain visible and unscheduled');
+    for(const number of [29,30])assert.equal(await page.getByRole('button',{name:new RegExp(`^Редактировать задачу: Задача ${number}(?:\\s|$)`)}).locator('.daily-todo__time').count(),0,'Tasks without a free slot must remain visible and unscheduled');
     assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()),null,'Rendering display slots must not save task data');
    }
    assert.equal(await page.locator('.daily-todo__footer').evaluate(el=>getComputedStyle(el).backdropFilter),'none','Footer must not blur scrolling content');
@@ -125,7 +125,7 @@ try{
    }
    if(width<768){
     assert.equal(await ribbon.count(),0,'Mobile circular date ribbon is still rendered');
-    const dateTrigger=page.getByRole('button',{name:'Выбрать дату: 17.10.2026',exact:true});
+    const dateTrigger=page.getByRole('button',{name:'Выбрать дату: 17.10, Сб',exact:true});
     await dateTrigger.click();const datePage=page.locator('[data-mobile-form-page]:visible');await datePage.getByRole('heading',{name:'Выбрать дату',exact:true}).waitFor();await datePage.getByRole('button',{name:'Назад',exact:true}).click();await datePage.waitFor({state:'hidden'});await page.waitForURL(url=>!url.searchParams.has('formScreen'));
     const owner=page.locator('.daily-todo');await owner.evaluate(e=>{e.scrollTop=e.scrollHeight});
     const navTop=await page.locator('.planning-fab-controls').evaluate(e=>e.getBoundingClientRect().top);
@@ -150,15 +150,15 @@ try{
     assert.equal(trigger.x,lower[2].x,'Add and planning launcher must share the right edge');
     assert.equal(trigger.y-(lower[2].y+lower[2].height),8,'Add overlaps the planning launcher');
     for(let i=1;i<buttons.length;i++)assert(buttons[i-1].x+buttons[i-1].width+7<=buttons[i].x,'Toolbar controls overlap');
-    assert.equal((await dateTrigger.textContent()).trim(),'17.10, Сб','Date label does not contain the weekday');
-    await previous.click();await page.getByRole('button',{name:'Выбрать дату: 16.10.2026',exact:true}).waitFor();
+    assert.equal((await dateTrigger.evaluate(button => document.getElementById(button.getAttribute('aria-labelledby').split(/\s+/).at(-1)).textContent)).trim(),'17.10, Сб','Date label does not contain the weekday');
+    await previous.click();await page.getByRole('button',{name:'Выбрать дату: 16.10, Пт',exact:true}).waitFor();
     await next.click();await dateTrigger.waitFor();
     if(!empty){const first=await page.locator('.daily-todo__item').first().boundingBox();assert(dateBox.y+dateBox.height<first.y,'Date row is below the task list');}
     if(width===390&&height===844&&!empty){
-     const listSelector=page.getByRole('button',{name:'Выбрать To Do-лист',exact:true});
+     const listSelector=page.getByRole('button',{name:/^Выбрать To Do-лист:/});
      await listSelector.click();await page.getByRole('menuitem',{name:'Рабочие дела',exact:true}).click();
      await page.waitForURL(url=>url.searchParams.get('space')==='work');
-     await previous.click();await page.getByRole('button',{name:'Выбрать дату: 16.10.2026',exact:true}).waitFor();await next.click();await dateTrigger.waitFor();
+     await previous.click();await page.getByRole('button',{name:'Выбрать дату: 16.10, Пт',exact:true}).waitFor();await next.click();await dateTrigger.waitFor();
      assert.equal(new URL(page.url()).searchParams.get('space'),'work','Day navigation lost selected list');
      assert.equal(new URL(page.url()).searchParams.get('date'),'2026-10-17','List change lost selected date');
      await add.click();await page.getByRole('menuitem',{name:'Создать To Do-лист',exact:true}).click();
@@ -388,9 +388,9 @@ try{
  await page.clock.setFixedTime(new Date('2026-10-17T12:00:00+03:00'));
  await page.goto(`${origin}/__todo-ribbon?date=2026-10-17`);
  await page.getByRole('button',{name:'Предыдущий день',exact:true}).click();
- await page.getByRole('button',{name:'Выбрать дату: 16.10.2026',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Выбрать дату: 16.10, Пт',exact:true}).waitFor();
  await page.getByRole('button',{name:'Следующий день',exact:true}).click();
- await page.getByRole('button',{name:'Выбрать дату: 17.10.2026',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Выбрать дату: 17.10, Сб',exact:true}).waitFor();
  await page.waitForURL(url=>!url.searchParams.has('date'));
  await openTask(page);
  const screen=page.locator('[data-mobile-form-page]:not([hidden])');await screen.waitFor();
@@ -407,10 +407,10 @@ try{
   await page.goto(`${origin}/__todo-ribbon?date=2026-10-17&slots`);
   await page.locator('.daily-todo__item').first().waitFor();
   for(const [title,time] of [['Без часа A','12:00'],['Без часа B','12:30'],['Утром','09:00']]){
-   const row=page.getByRole('button',{name:`Редактировать задачу: ${title}`,exact:true});
+   const row=page.getByRole('button',{name:`Редактировать задачу: ${title}`,exact:false});
    assert.equal(await row.locator('.daily-todo__time').textContent(),time,`To Do time disagrees with the calendar slot for ${title}`);
   }
-  await page.getByRole('button',{name:'Редактировать задачу: Без часа A',exact:true}).click();
+  await page.getByRole('button',{name:'Редактировать задачу: Без часа A',exact:false}).click();
   assert.equal(JSON.parse(await page.locator('[data-edited-task]').textContent()).startTime,'','Editing persisted a display-only time');
   const gap=await page.locator('.daily-todo__group').evaluateAll(groups=>groups[1].getBoundingClientRect().top-groups[0].getBoundingClientRect().bottom);
   assert.equal(gap,0,'Completed tasks retain an extra group gap');

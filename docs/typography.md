@@ -156,3 +156,8 @@ inline font sizes into consumers: `src/index.css` owns the tile roles, including
 labels with a two-line clamp and private-list metadata on the count row.
 
 Кнопка имени владельца профиля (`.profile-name-button`) внутри h1 наследует шрифт, размер, насыщенность и интерлиньяж заголовка, сохраняя доступ к настройкам после переноса записи сторис на аватарку. Это локальная семантическая роль заголовка, а не новая шкала контролов.
+
+
+## Contrast-safe semantic text colours
+
+The light neutral theme in `src/index.css` uses `--muted-foreground: oklch(0.5 0 0)` and `--destructive: oklch(0.51 0.21 27.325)`. These are product theme tokens within shadcn's CSS-variable contract, not changes to the Base Nova primitives. Secondary text must remain readable on white, muted and selected surfaces; prices and addresses use the muted foreground token instead of text opacity. Fulfilled cards may dim their image, not their readable text. The dark palette, Geist 18px/28px body and semantic type scale remain unchanged. Check both themes with the complete UI matrix and the Storybook accessibility scan.

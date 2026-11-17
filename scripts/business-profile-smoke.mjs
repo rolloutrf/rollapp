@@ -565,7 +565,7 @@ try {
             path: "/wishlist-business/products/page", payload: { published: true },
           });
           await page.getByRole("button", { name: "Открыть «Кофемашина Dedica EC685»", exact: true }).waitFor();
-          await page.getByRole("button", { name: "Редактировать профиль Мастерская подарков и хорошего настроения", exact: true }).click();
+          await page.getByRole("button", { name: "Редактировать профиль Мастерская подарков и хорошего настроения", exact: false }).click();
           await page.getByRole("button", { name: "Персональная информация", exact: true }).click();
           const name = page.getByLabel("Название бизнеса", { exact: true });
           const bio = page.getByLabel("Описание бизнеса", { exact: true });

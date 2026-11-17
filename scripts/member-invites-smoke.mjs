@@ -32,7 +32,7 @@ try {
         await page.goto(`${origin}/member-fixture?screen=1${variant}`, { waitUntil: "domcontentloaded" });
         await page.locator(variant.includes("profile") ? ".profile-settings-dialog" : variant.includes("invites") ? "#account-invite-email" : variant.includes("auth") ? ".auth-form" : ".member-flip-board").waitFor();
         if (variant.includes("auth")) {
-          const submit = page.getByRole("button", { name: "Зарегистрироваться с Яндекс ID" });
+          const submit = page.getByRole("button", { name: "Создать с Яндекс ID" });
           assert(await submit.isVisible());
           assert.equal(await page.locator("form button[type=submit]").count(), 1);
           assert.equal(await page.locator("form input[type=password], form input[type=email], .or, .member-flip-board").count(), 0);

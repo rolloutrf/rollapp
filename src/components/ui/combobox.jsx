@@ -44,6 +44,7 @@ function ComboboxClear({
   return (
     <ComboboxPrimitive.Clear
       data-slot="combobox-clear"
+      aria-label="Очистить выбор"
       render={<InputGroupButton variant="ghost" size="icon-xs" />}
       className={cn(className)}
       {...props}>

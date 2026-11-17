@@ -35,7 +35,7 @@ const browser = await chromium.launch(browserLaunchOptions());
 
 async function checkActivity(page, viewport, surface) {
   const open = page.getByRole("button", { name: "Сводка по роллам", exact: true });
-  const walletReceipt = page.getByRole("button", { name: "Квитанция · От Мария", exact: true });
+  const walletReceipt = page.getByRole("button", { name: "Квитанция · От Мария", exact: false });
   await walletReceipt.press("Enter");
   const receipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
   await receipt.getByText("Мария · @maria").waitFor();
@@ -57,7 +57,7 @@ async function checkActivity(page, viewport, surface) {
   await report.getByText("Возврат · Возврат заказа A").waitFor();
   await report.getByRole("button", { name: "Показать ещё", exact: true }).click();
   await report.getByText("Покупка · Книги для проекта").waitFor();
-  const refundReceipt = report.getByRole("button", { name: "Квитанция · Возврат · Возврат заказа A", exact: true });
+  const refundReceipt = report.getByRole("button", { name: "Квитанция · Возврат · Возврат заказа A", exact: false });
   await refundReceipt.click();
   await receipt.getByText("Квитанция временно недоступна").waitFor();
   await receipt.getByRole("button", { name: "Повторить", exact: true }).click();
@@ -192,7 +192,7 @@ async function checkTransfers(page, { width, height, surface, expectRetry = fals
   }
   await dialog.waitFor({ state: "hidden" });
   await page.locator("[data-rolls-balance]").getByText("15", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Квитанция · Иван", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Квитанция · Иван", exact: false }).waitFor();
   assert.equal(await stored(), null);
   const after = await readFixture();
   assert.deepEqual(after.attempts, expectRetry ? [initial, initial] : [initial]);

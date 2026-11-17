@@ -37,7 +37,7 @@ try {
     const back = button("Назад");
     const name = page.getByRole("textbox", { name: "Имя", exact: true });
     const photo = page.getByRole("group", { name: "Фото профиля", exact: true });
-    const upload = photo.getByRole("button", { name: "Изменить фото профиля", exact: true });
+    const upload = photo.getByRole("button", { name: "Изменить фото профиля", exact: false });
     const savePhoto = button("Сохранить фото");
     const mobile = width < 768;
     await menu.waitFor();
@@ -350,9 +350,17 @@ try {
     const backBox = await back.boundingBox();
     assert.equal(backBox.width, 48);
     assert.equal(backBox.height, 48);
-    assert.equal(await wallet.evaluate(element => [...element.querySelectorAll("*")].some(child => (
-      child.clientWidth > 0 && child.scrollWidth > child.clientWidth + 1
-    ))), false, `${width}×${height}: wallet content overflows horizontally`);
+    const walletOverflow = await wallet.evaluate(element => [...element.querySelectorAll("*")].filter(child => {
+      // Tailwind's screen-reader-only text is intentionally clipped to 1px.
+      // Exempt only that verified geometry, never ordinary clipped content.
+      const style = getComputedStyle(child);
+      const screenReaderOnly = child.classList.contains("sr-only") && style.position === "absolute"
+        && (style.clip === "rect(0px, 0px, 0px, 0px)" || style.clipPath === "inset(50%)")
+        && child.clientWidth <= 1 && child.clientHeight <= 1;
+      return !screenReaderOnly && child.clientWidth > 0 && child.scrollWidth > child.clientWidth + 1;
+    }).map(child => ({ tag: child.tagName, className: child.className, text: child.textContent?.slice(0, 160), width: child.clientWidth, height: child.clientHeight, scroll: child.scrollWidth, position: getComputedStyle(child).position, clip: getComputedStyle(child).clip, clipPath: getComputedStyle(child).clipPath })));
+    if (walletOverflow.length) await page.screenshot({ path: `/tmp/rollapp-profile-finances-overflow-${width}x${height}.png` });
+    assert.deepEqual(walletOverflow, [], `${width}×${height}: wallet content overflows horizontally`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.screenshot({ path: `/tmp/rollapp-profile-finances-${width}x${height}.png` });
     const lastTransaction = page.locator("[data-rolls-transaction]").last();

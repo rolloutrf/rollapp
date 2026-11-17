@@ -76,7 +76,7 @@ try {
     await page.route('**/api/**', route => { errors.push('Unexpected network API request'); return route.abort(); });
     await page.goto(origin + '/fixture');
     await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: true });
-    const open = page.getByRole('button', { name: 'Редактировать профиль Профиль', exact: true });
+    const open = page.getByRole('button', { name: 'Редактировать профиль Профиль', exact: false });
     const wishlistEntry = page.getByRole('button', { name: 'Внешние вишлисты', exact: true });
     const personalEntry = page.getByRole('button', { name: 'Персональная информация', exact: true });
     const openWishlists = async () => {

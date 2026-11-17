@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ const calendarClassNames = {
 };
 
 export function PlanningDatePicker({ id, value, onChange, label = "Перейти к дате", clearable = false, disabled = false, min, max, "aria-invalid": ariaInvalid, className = "", children }) {
+  const accessibleId = useId();
   const [open, setOpen] = useState(false);
   const pendingSelection = useRef(null);
   const mobile = useIsMobile();
@@ -60,10 +61,10 @@ export function PlanningDatePicker({ id, value, onChange, label = "Перейт�
       <Calendar mode="single" hideNavigation required selected={date} defaultMonth={date} disabled={disabled ? true : [...(minimum ? [{ before: dateFromKey(minimum) }] : []), ...(maximum ? [{ after: dateFromKey(maximum) }] : [])]} onSelect={(next) => { if (next) select(localDateKey(next)); }} locale={ru} weekStartsOn={1} captionLayout="dropdown" components={calendarComponents} labels={calendarLabels} classNames={mobile ? { ...calendarClassNames, root: "w-full" } : calendarClassNames} startMonth={new Date(1900, 0, 1)} endMonth={maximum ? dateFromKey(maximum) : new Date(2100, 11, 1)} className={mobile ? "planning-date-page__calendar" : "[--cell-size:2.5rem] max-[380px]:[--cell-size:2.25rem]"} />
       {clearable && value && <div className="p-2"><Button type="button" variant="ghost" className="w-full justify-center" onClick={() => select("")}>Очистить дату</Button></div>}
     </>;
-  const button = <Button id={id} type="button" variant="outline" disabled={disabled} aria-invalid={ariaInvalid} className={`rounded-full ${className}`} aria-label={accessibleLabel} />;
-  const buttonContent = children ?? <><span>{date ? formatDate(date) : "Выберите дату"}</span><CalendarDays aria-hidden="true" /></>;
+  const button = <Button id={id} type="button" variant="outline" disabled={disabled} aria-invalid={ariaInvalid} className={`rounded-full ${className}`} aria-labelledby={`${accessibleId}-label ${accessibleId}-value`} aria-description={accessibleLabel} />;
+  const buttonContent = <><span id={`${accessibleId}-label`} className="sr-only">{label}: </span><span id={`${accessibleId}-value`} className="contents">{children ?? <><span>{date ? formatDate(date) : "Выберите дату"}</span><CalendarDays aria-hidden="true" /></>}</span></>;
   if (mobile) return <>
-    <Button id={id} type="button" variant="outline" disabled={disabled} aria-invalid={ariaInvalid} className={`rounded-full ${className}`} aria-label={accessibleLabel} onClick={() => { pendingSelection.current = null; setOpen(true); }}>{buttonContent}</Button>
+    <Button id={id} type="button" variant="outline" disabled={disabled} aria-invalid={ariaInvalid} className={`rounded-full ${className}`} aria-labelledby={`${accessibleId}-label ${accessibleId}-value`} aria-description={accessibleLabel} onClick={() => { pendingSelection.current = null; setOpen(true); }}>{buttonContent}</Button>
     <MobileFormScreen open={open} onOpenChange={setOpen} onAfterClose={() => {
       const key = pendingSelection.current;
       pendingSelection.current = null;

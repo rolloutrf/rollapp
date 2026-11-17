@@ -13,3 +13,6 @@
 [Карточка желания](../../src/modules/card/wish-card.jsx) · [Детали желания](../../src/modules/card/wish-details.jsx) · [Товар каталога](../../src/modules/catalog-marketplace/wish-catalog.jsx) · [Обложка коллекций](../../src/modules/card/collection-snippet-media.jsx) · [Бизнес-витрина](../../src/modules/catalog-marketplace/business-marketplace-page.jsx) · [Действия деталей](../../src/components/content-page.jsx)
 
 [Общий WishlistSnippet](../../src/modules/card/wishlist-snippet.jsx)
+
+
+**Стабильность и читаемость.** `WishDetailsModal` принимает отсутствие `lists`: пустое значение по умолчанию имеет стабильную ссылку, чтобы эффект загрузки связанных данных не перезапускался при каждом рендере. Проверяйте открытие деталей без `lists`, повторное открытие и отсутствие ошибок React. Цена и адрес используют общий `--muted-foreground`; выполненное желание приглушает только изображение.

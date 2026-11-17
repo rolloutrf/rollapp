@@ -59,15 +59,15 @@ try {
     await url.fill('https://example.com/changed');
     release();
     await page.waitForTimeout(250);
-    assert.equal(await page.getByRole('button', { name: 'Сменить фото контакта', exact: true }).count(), 0, 'Stale result must not replace photo');
+    assert.equal(await page.getByRole('button', { name: /^Сменить фото контакта(?: ·|$)/ }).count(), 0, 'Stale result must not replace photo');
     hold = false;
     await url.fill('https://t.me/first_person');
-    await page.getByRole('button', { name: 'Сменить фото контакта', exact: true }).waitFor();
+    await page.getByRole('button', { name: /^Сменить фото контакта(?: ·|$)/ }).waitFor();
     assert.equal(requests.length, 2);
     assert.equal(requests[1].links[0].label, 'Telegram');
     assert.equal(requests[1].links[0].url, 'https://t.me/first_person', 'Restoring a cancelled URL must retry');
     assert.equal(await page.getByRole('button', { name: /^(Загрузить фото|Из соцсетей|Удалить фото)$/ }).count(), 0);
-    const picker = page.getByRole('button', { name: 'Сменить фото контакта', exact: true });
+    const picker = page.getByRole('button', { name: /^Сменить фото контакта(?: ·|$)/ });
     const chooser = page.waitForEvent('filechooser');
     await picker.click();
     await (await chooser).setFiles({ name: 'avatar.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=', 'base64') });

@@ -14,7 +14,7 @@ import { PageActionButton } from "@/components/page-action-button";
 import { Example, Examples, Page } from "../support.jsx";
 
 export default {
-  id: "rollapp-components", title: "РОЛЛАПП/UI-компоненты/Общие компоненты",
+  id: "rollapp-components", title: "РОЛЛАПП/Модули/29 Оболочка приложения/Общие компоненты",
   tags: ["autodocs"], component: Button,
 };
 

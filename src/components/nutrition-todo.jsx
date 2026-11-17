@@ -26,8 +26,8 @@ function MealRow({ entry, canEdit, onSave, onEdit, onDelete }) {
   return <li className="flex min-w-0 flex-col gap-2" data-meal-id={entry.id}>
     <div className="daily-todo__item" data-completed={completed(entry) || undefined}>
       <Checkbox checked={completed(entry)} disabled={busy || !canEdit} onCheckedChange={toggle} aria-label={`Съедено: ${entry.title}`} />
-      <Button variant="ghost" className="daily-todo__task font-normal" disabled={busy || !canEdit} onClick={() => onEdit(entry)} aria-label={`Редактировать приём пищи: ${entry.title}`}>
-        <span className="daily-todo__task-content"><span className="daily-todo__task-title">{entry.title}</span><span className="nutrition-todo__meta text-muted-foreground">{MEAL_TYPES[entry.mealType]} · {number(entry.calories)} ккал</span></span><span className="daily-todo__time">{entry.time}</span>
+      <Button variant="ghost" className="daily-todo__task font-normal" disabled={busy || !canEdit} onClick={() => onEdit(entry)} aria-description="Редактировать приём пищи">
+        <span className="sr-only">Редактировать приём пищи: </span><span className="daily-todo__task-content"><span className="daily-todo__task-title">{entry.title}</span><span className="nutrition-todo__meta text-muted-foreground">{MEAL_TYPES[entry.mealType]} · {number(entry.calories)} ккал</span></span><span className="daily-todo__time">{entry.time}</span>
       </Button>
       {canEdit && <Button variant="destructive" size="icon" disabled={busy} aria-label={`Удалить: ${entry.title}`} onClick={() => onDelete(entry)}><Trash2 aria-hidden="true" /></Button>}
     </div>

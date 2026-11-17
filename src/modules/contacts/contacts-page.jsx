@@ -1,4 +1,4 @@
-import { Avatar } from "@/modules/profile/profile-avatar.jsx";
+import { Avatar, avatarInitials } from "@/modules/profile/profile-avatar.jsx";
 import { ContactMeetingNotes } from "@/modules/contacts/contact-meeting-notes.jsx";
 import { ContactCompanyInput } from "@/modules/contacts/contact-company-input.jsx";
 import { useEffect, useId, useRef, useState } from "react";
@@ -342,7 +342,7 @@ export function ContactEditForm({ contact = null, companies = [], favoriteSaving
                 type="button"
                 variant="ghost"
                 className="contact-detail__avatar-picker rounded-full p-0"
-                aria-label={previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"}
+                aria-label={`${previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"} · ${avatarInitials({ name: form.name || contact?.name })}`}
                 title={previewAvatarUrl ? "Сменить фото" : "Добавить фото"}
                 aria-busy={imageUploading || avatarResolving || undefined}
                 disabled={saving || deleting || imageUploading}

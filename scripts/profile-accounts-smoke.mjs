@@ -99,7 +99,7 @@ async function fixture(viewport, accountCount = 2) {
   return { context, failNextList: () => { failList = true; }, staleWrites: () => staleWrites };
 }
 
-const home = (page, user = personal) => page.getByRole("button", { name: `Редактировать профиль ${user.name}`, exact: true });
+const home = (page, user = personal) => page.getByRole("button", { name: `Редактировать профиль ${user.name}`, exact: false });
 const section = (page) => page.getByRole("region", { name: "Аккаунты на этом устройстве" });
 const toggle = (page) => page.getByRole("button", { name: "Аккаунты", exact: true });
 const switchTo = (page, account) => page.getByRole("button", { name: `Переключиться на @${account.username}`, exact: true });
@@ -274,7 +274,7 @@ try {
     await section(page).getByRole("button", { name: "Повторить" }).click();
     await addAccount(page).click();
     await page.getByRole("heading", { name: "Добавить аккаунт" }).waitFor();
-    const yandex = page.getByRole("link", { name: "Войти с помощью Яндекс ID", exact: true });
+    const yandex = page.getByRole("link", { name: "Войти с Яндекс ID", exact: true });
     await yandex.waitFor();
     assert.equal(new URL(await yandex.getAttribute("href"), origin).searchParams.get("add_account"), "1");
     assert.equal(await page.locator(".auth-form input, .auth-method-switch, .auth-password-link, .auth-form .or").count(), 0);

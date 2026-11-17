@@ -1,6 +1,6 @@
 import { useLayoutEffect } from "react";
-import "../src/styles.css";
-import "../src/index.css";
+import "../../src/styles.css";
+import "../../src/index.css";
 import "./preview.css";
 
 const viewports = Object.fromEntries([
@@ -48,6 +48,6 @@ export default {
     backgrounds: { disable: true },
     controls: { expanded: true },
     docs: { story: { inline: false, iframeHeight: 640 } },
-    options: { storySort: { method: "alphabetical", order: ["РОЛЛАПП", ["Обзор", "Модули", "UI-компоненты"]] } },
+    options: { storySort: { method: "alphabetical", order: ["РОЛЛАПП", ["Обзор", "Модули"]] } },
   },
 };

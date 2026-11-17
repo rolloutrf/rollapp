@@ -243,3 +243,6 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 - Sleep and nutrition share `HealthDayNavigation`: `PlanningDayRibbon` from 768px and a 48px previous/date/next/add row below it. Sleep shows records for the selected wake date, marks recorded days in the ribbon, and keeps read-only date navigation. Run `npm run test:health` when changing these views.
 
 - «Заказы» открываются поверх магазина через `form-surface`: справа от 768px, снизу на телефоне. Сохраните прямую ссылку `/app/orders`, позицию магазина и независимое закрытие подтверждения возврата. Проверяйте `npm run test:orders`.
+
+
+- Keep the contrast-safe light text tokens in `src/index.css` documented in `docs/typography.md`. Use semantic foreground tokens for readable prices/addresses; do not fade text with opacity. Preserve the upstream Base Nova primitive geometry. Accessible names of text controls must include their visible label/current value; icon controls and avatar placeholders need meaningful names. File upload triggers and their file inputs are sibling controls, never nested interactive elements. Verify both themes and the complete affected viewport matrices.

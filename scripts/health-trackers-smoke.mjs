@@ -101,7 +101,7 @@ async function checkSleepCalendar(page, article, width, height) {
   if (width <= 820) {
    assert(Math.abs(ribbon.x) < 1 && Math.abs(ribbon.width - width) < 1, 'Ribbon reaches both screen edges');
   }
-  assert.match(await activeTile.getAttribute('aria-label'), /Есть запись сна/);
+  assert.match(await activeTile.getAttribute('aria-description'), /Есть запись сна/);
   const add = article.getByRole('button', { name: 'Записать сон', exact: true });
   const button = await add.evaluate(node => { const css = getComputedStyle(node); return [css.paddingLeft, css.paddingRight, node.offsetHeight]; });
   assert.deepEqual(button, ['24px', '24px', 48]);
@@ -140,7 +140,7 @@ async function checkSleepCalendar(page, article, width, height) {
   assert.equal(readUrlDate(), emptyDay, 'Back cancels the date picker');
   await article.getByRole('group', { name: 'День сна', exact: true }).getByRole('button', { name: 'Записать сон', exact: true }).click();
  } else {
-  assert.doesNotMatch(await activeTile.getAttribute('aria-label'), /Есть запись сна/);
+  assert.doesNotMatch(await activeTile.getAttribute('aria-description'), /Есть запись сна/);
   await article.getByRole('button', { name: `Записать сон: ${emptyDay}`, exact: true }).click();
  }
  await notes.fill('Не сохранено');
@@ -155,7 +155,7 @@ async function checkSleepCalendar(page, article, width, height) {
  await waitForTrackerReturn(page);
  await article.getByText('Запись за выбранный день', { exact: true }).waitFor();
  assert.equal(readUrlDate(), emptyDay);
- if (!mobile) assert.match(await activeTile.getAttribute('aria-label'), /Есть запись сна/);
+ if (!mobile) assert.match(await activeTile.getAttribute('aria-description'), /Есть запись сна/);
  await next();
  await article.getByText('Обновлённый сон', { exact: true }).waitFor();
  assert.equal(await article.getByText('Запись за выбранный день', { exact: true }).count(), 0);

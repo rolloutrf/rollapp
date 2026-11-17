@@ -138,7 +138,7 @@ export function CdekPickupPicker({ pickup, idPrefix = "cdek" }) {
         disabled={citiesLoading || Boolean(citiesError)}
       >
         <div ref={cityAnchor} className="min-w-0">
-          <ComboboxInput id={`${idPrefix}-city`} className="w-full min-w-0 [&>[data-slot=input-group-addon]]:!mr-0" placeholder={citiesLoading ? "Загружаем города…" : "Начните вводить город"} showClear={Boolean(selectedCity)} />
+          <ComboboxInput disabled={citiesLoading || Boolean(citiesError)} id={`${idPrefix}-city`} className="w-full min-w-0 [&>[data-slot=input-group-addon]]:!mr-0" placeholder={citiesLoading ? "Загружаем города…" : "Начните вводить город"} showClear={Boolean(selectedCity)} />
         </div>
         <ComboboxContent anchor={cityAnchor} className="rollapp-body min-w-0 w-(--anchor-width)">
           <ComboboxEmpty>Город не найден</ComboboxEmpty>

@@ -20,7 +20,7 @@ const routes = {
 function Profile({ mood, owned, bio, settings }) {
   const [open, setOpen] = useState(settings);
   const user = { ...owner, publicMood: mood || null, bio };
-  return <Scenario user={owned ? user : null} routes={routes} path="/app/wishes"><Page>
+  return <Scenario user={owned ? user : null} routes={{ ...routes, "GET /sphere-shares/context": { owner: user, isOwner: owned, people: [], requests: [] } }} access={owned ? undefined : { sphere: "wishlist", section: "products", readOnly: true }} path="/app/wishes"><Page>
     <PersistentProfileHero user={user} wishlistChrome />
     {owned && <Button className="self-center" onClick={() => setOpen(true)}>Настройки профиля</Button>}
     {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onSaved={noop} onMoodSaved={noop} onProfileUpdated={noop} />}

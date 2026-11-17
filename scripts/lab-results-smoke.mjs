@@ -67,7 +67,7 @@ try {
         const history = `${smokeOrigin(server)}/__lab-results?history`;
         await page.goto(history);
         await page.evaluate(theme => document.documentElement.classList.toggle('dark', theme === 'dark'), theme);
-        const tile = date => page.getByRole('button', { name: date, exact: true });
+        const tile = date => page.getByRole('button').and(page.getByTitle(date, { exact: true }));
         const menu = date => page.getByRole('button', { name: `Действия с анализом от ${date}`, exact: true });
         const latest = '15 августа 2025';
         const previous = '10 августа 2025';
@@ -85,7 +85,7 @@ try {
         await page.keyboard.press('Enter');
         await page.getByRole('menuitem', { name: 'Удалить анализ' }).click();
         await page.getByRole('alertdialog', { name: `Удалить анализ от ${previous}?` }).waitFor();
-        assert.equal(await page.locator('[data-list-tile][aria-pressed="true"]').getAttribute('aria-label'), latest);
+        assert.equal(await page.locator('[data-list-tile][aria-pressed="true"]').getAttribute('title'), latest);
         await page.getByRole('button', { name: 'Отмена', exact: true }).click();
         await page.waitForFunction(label => document.activeElement?.getAttribute('aria-label') === label, `Действия с анализом от ${previous}`);
         assert.deepEqual(await page.evaluate(() => window.labDeletes), []);

@@ -455,9 +455,7 @@ input.phone-otp__code {
 @keyframes group-screen-in { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 .wish-group-open > .wish-grid { width: 100%; max-width: var(--layout-collection-width); margin: 0 auto; }
 .wish-card.is-fulfilled .wish-card__image > img,
-.wish-card.is-fulfilled .wish-card__placeholder,
-.wish-card.is-fulfilled .wish-card__body > :not(.wish-card__top),
-.wish-card.is-fulfilled .wish-card__top > span { opacity: .68; }
+.wish-card.is-fulfilled .wish-card__placeholder { opacity: .68; }
 .card-menu { width: 190px; padding: 6px; position: absolute; z-index: 15; right: 0; top: 32px; border: 1px solid var(--line); border-radius: 11px; background: var(--white); box-shadow: var(--shadow); }
 .card-menu button, .card-menu a { width: 100%; min-height: 34px; padding: 0 9px; display: flex; align-items: center; gap: 8px; border: 0; border-radius: 7px; background: transparent; font-size: 13px; cursor: pointer; }
 .card-menu button:hover, .card-menu a:hover { background: var(--paper); }

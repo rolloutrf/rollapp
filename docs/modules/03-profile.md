@@ -34,3 +34,6 @@
 [Настройки](../../src/modules/profile/profile-settings.jsx) · [Публичный профиль](../../server/modules/wishlist/wishlist.js) · [Аватар](../../src/modules/profile/profile-avatar.jsx) · [Настроение](../../server/modules/profile/profile-mood.js) · [Канонические пути](../../server/modules/profile/profile-paths.js)
 
 [Публикации](../../src/modules/profile/profile-publications.jsx) · [Календарь записи](../../src/modules/profile/profile-booking-calendar.jsx) · [Профиль на Диске](../../server/modules/profile/yandex-disk-profile.js)
+
+
+**Доступные имена.** Общий `Avatar` представляет изображение с именем пользователя; инициалы рассчитывает `avatarInitials`. Кнопки редактирования профиля/фотографии включают видимые инициалы в своё доступное имя, чтобы голосовой ввод находил тот же элемент. Проверяйте фото и fallback, гостя/владельца и обе темы.
