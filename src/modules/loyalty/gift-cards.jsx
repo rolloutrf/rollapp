@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Gift, X } from "lucide-react";
+import { ArrowUpRight, Check, Gift, X } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { api } from "@/modules/runtime/api.js";
 import { useOperationRecovery } from "../payments/use-operation-recovery.js";
 import { ControlBar } from "@/components/control-bar";
@@ -75,11 +76,29 @@ function describePendingGift(intent) {
     Number.isSafeInteger(intent.payload.expectedBalance) ? formatRolls(intent.payload.expectedBalance) : null].filter(Boolean).join(" · ");
 }
 
+function GiftSendResult({ gift, titleRef }) {
+  const titleId = useId();
+  return <section aria-labelledby={titleId} className="mx-auto my-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-col items-center gap-4 px-2 py-4 text-center [@media(max-height:480px)]:gap-3 [@media(max-height:480px)]:py-0">
+    <span aria-hidden="true" className="flex size-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 [@media(max-height:480px)]:size-10">
+      <Check className="size-7" />
+    </span>
+    <div className="grid min-w-0 gap-2">
+      <h2 id={titleId} ref={titleRef} tabIndex={-1} className="wrap-anywhere text-2xl font-semibold outline-none">Карта отправлена</h2>
+      {gift.recipient && <p className="wrap-anywhere text-muted-foreground">Получатель: <strong className="font-medium text-foreground">{gift.recipient}</strong></p>}
+    </div>
+    {(gift.amount || gift.business) && <div className="grid min-w-0 gap-1">
+      {gift.amount && <p className="wrap-anywhere text-3xl font-semibold tabular-nums">{formatRolls(gift.amount)}</p>}
+      {gift.business && <p className="wrap-anywhere text-muted-foreground">{gift.business}</p>}
+    </div>}
+  </section>;
+}
+
 export function GiftCardManager({ business, user, initialCardId = "", returnFocusRef, fallbackFocusRef, recoveryOnly = false, onClose, onChanged, onNavigate }) {
   const storageKey = `${giftStoragePrefix(user.id)}${business.id}`;
   // From the wallet a certificate opens as one record. The issuer manager
   // can still select between its cards and issue another one.
   const profileCard = Boolean(initialCardId);
+  const mobile = useIsMobile();
   const [open, setOpen] = useState(true);
   const [activeAction, setActiveAction] = useState(null);
   const topupFormId = useId();
@@ -103,12 +122,21 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [message, setMessage] = useState("");
+  const [sentGift, setSentGift] = useState(null);
+  const bodyRef = useRef(null);
+  const resultTitle = useRef(null);
   const cardReads = useRef(0);
   const walletReads = useRef(0);
   const selected = cards.find((card) => card.id === selectedId);
 
   useLayoutEffect(() => {
-    if (activeAction) {
+    if (sentGift) {
+      previousAction.current = null;
+      if (mobile) window.scrollTo({ top: 0, behavior: "instant" });
+      else bodyRef.current?.scrollTo({ top: 0, behavior: "instant" });
+      resultTitle.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+      resultTitle.current?.focus({ preventScroll: true });
+    } else if (activeAction) {
       previousAction.current = activeAction;
       actionPanel.current?.focus({ preventScroll: true });
       actionPanel.current?.scrollIntoView({ block: "start", behavior: "instant" });
@@ -118,7 +146,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       certificate.current?.scrollIntoView({ block: "start", behavior: "instant" });
       opener.current?.focus({ preventScroll: true });
     }
-  }, [activeAction]);
+  }, [activeAction, mobile, sentGift]);
 
   async function loadCards() {
     const read = ++cardReads.current;
@@ -201,7 +229,14 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
         setActiveAction(null);
       }
       setAmount(""); setRecipient(null); setSearch("");
-      setMessage(intent.label);
+      if (operation.kind === "send") {
+        const amount = intent.payload.expectedBalance;
+        setSentGift({
+          recipient: typeof intent.recipientName === "string" ? intent.recipientName.trim() : "",
+          business: business.name,
+          amount: Number.isSafeInteger(amount) && amount > 0 && amount <= ROLLS_MAX_TRANSFER ? amount : null,
+        });
+      } else setMessage(intent.label);
       if (!recoveryOnly) {
         void loadCards();
         void loadWallet();
@@ -266,7 +301,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       onNavigate(destination.current);
       return;
     }
-    if (!recoveryOnly) {
+    if (!recoveryOnly && !sentGift) {
       returnFocusTarget()?.focus({ preventScroll: true });
       return;
     }
@@ -278,10 +313,10 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       if (!visibleTarget?.closest("[hidden], [inert]")) visibleTarget?.focus({ preventScroll: true });
     });
   }
-  return <Drawer open={open} onAfterClose={recoveryOnly || returnFocusRef ? finishClosing : undefined} onOpenChange={(nextOpen, event) => {
+  return <Drawer open={open} onAfterClose={recoveryOnly || sentGift || returnFocusRef ? finishClosing : undefined} onOpenChange={(nextOpen, event) => {
     if (nextOpen || destination.current) return;
     if (recovery.inFlight.current) event?.cancel?.();
-    else if (recoveryOnly) setOpen(false);
+    else if (recoveryOnly || sentGift) setOpen(false);
     else onClose();
   }}>
     <DrawerContent className="rollapp-body app-drawer--form" finalFocus={recoveryOnly ? false : returnFocusRef && returnFocusTarget}>
@@ -289,7 +324,8 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
         <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 size-12" disabled={busy} />} aria-label="Закрыть подарочную карту"><X aria-hidden="true" /></DrawerClose>
         <DrawerHeader className="pr-16"><DrawerTitle>{title}</DrawerTitle><DrawerDescription className="text-xs break-words">{description}</DrawerDescription></DrawerHeader>
       </>}
-      <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 break-words">
+      <div ref={bodyRef} className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 break-words">
+        {sentGift ? <GiftSendResult gift={sentGift} titleRef={resultTitle} /> : <>
         {!recoveryOnly && loading && <p role="status" className="flex items-center gap-2"><Spinner />Загружаем карты…</p>}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {cardsError && <Alert variant="destructive"><AlertDescription>{cardsError}</AlertDescription></Alert>}
@@ -368,8 +404,11 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
         {!profileCard && selected && !pending && <Button variant="outline" disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Новая карта выпущена")}>Выпустить ещё карту</Button>}
         {cardsError && !pending && <Button variant="outline" disabled={busy} onClick={loadCards}>Повторить загрузку</Button>}
         </>}
+        </>}
       </div>
-      {hasFooterAction && <DrawerFooter aria-label="Действия с подарочной картой"
+      {sentGift ? <DrawerFooter aria-label="Действия с подарочной картой">
+        <Button type="button" onClick={() => setOpen(false)}>Готово</Button>
+      </DrawerFooter> : hasFooterAction && <DrawerFooter aria-label="Действия с подарочной картой"
         className={showCertificateActions && !pending ? "gift-certificate-actions" : undefined}>
         {pending ? <Button disabled={busy} onClick={recovery.check}>{busy && <Spinner />}
           {busy ? (requestMode === "send" ? "Выполняем…" : "Проверяем…") : "Проверить результат"}
