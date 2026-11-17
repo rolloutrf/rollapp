@@ -1,4 +1,3 @@
-import { Coins } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { Spinner } from "@/components/ui/spinner";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,26 +31,21 @@ export function FinanceBalance({ wallet, loading, actions }) {
     ["Ожидается от продаж", balances.pendingSales],
   ].filter(([, value]) => value && value !== "0") : [];
 
-  return <section className="finance-balance grid min-w-0 gap-4 rounded-2xl border bg-card p-4 sm:p-6" aria-label="Баланс роллов">
-    <div className="flex min-w-0 items-start justify-between gap-3">
-      <div className="grid min-w-0 gap-2">
-        <p data-typography="label" className="text-muted-foreground">Доступно</p>
-        {wallet ? <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1" aria-live="polite" aria-atomic="true" data-rolls-balance>
-          <strong className="finance-balance__amount min-w-0 wrap-anywhere font-heading font-semibold tabular-nums">
-            {balanceNumber.format(wallet.balance)}
-          </strong>
-          <span className="text-muted-foreground">{rollsLabel(wallet.balance)}</span>
-        </div> : <div className="flex min-h-12 items-center gap-2 text-muted-foreground" role="status" data-rolls-balance>
-          {loading && <Spinner />}
-          <span>{loading ? "Загружаем баланс…" : "Баланс недоступен"}</span>
-        </div>}
-      </div>
-      <span className="finance-balance__mark flex size-10 shrink-0 items-center justify-center rounded-full border" aria-hidden="true">
-        <Coins className="size-5" />
-      </span>
+  return <section className="finance-balance grid min-w-0 gap-4" aria-label="Баланс роллов">
+    <div className="grid min-w-0 gap-2">
+      <p className="text-muted-foreground">Доступно</p>
+      {wallet ? <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1" aria-live="polite" aria-atomic="true" data-rolls-balance>
+        <strong className="finance-balance__amount min-w-0 wrap-anywhere font-heading font-semibold tabular-nums">
+          {balanceNumber.format(wallet.balance)}
+        </strong>
+        <span className="text-muted-foreground">{rollsLabel(wallet.balance)}</span>
+      </div> : <div className="flex min-h-12 items-center gap-2 text-muted-foreground" role="status" data-rolls-balance>
+        {loading && <Spinner />}
+        <span>{loading ? "Загружаем баланс…" : "Баланс недоступен"}</span>
+      </div>}
     </div>
     <div className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Действия с роллами">{actions}</div>
-    {breakdown.length > 0 && <dl className="finance-balance__details grid min-w-0 gap-x-4 gap-y-3 border-t pt-4" aria-label="Роллы вне доступного баланса">
+    {breakdown.length > 0 && <dl className="finance-balance__details grid min-w-0 gap-x-4 gap-y-3" aria-label="Роллы вне доступного баланса">
       {breakdown.map(([label, value]) => <div key={label} className="grid min-w-0 gap-1">
         <dt className="text-caption text-muted-foreground">{label}</dt>
         <dd className="wrap-anywhere font-medium tabular-nums">{formatRolls(BigInt(value))}</dd>
