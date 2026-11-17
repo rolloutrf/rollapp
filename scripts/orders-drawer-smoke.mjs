@@ -305,6 +305,7 @@ try {
       const ordersBody = drawer.getByRole("region", { name: "Список заказов" });
       const orderScroll = await ordersBody.evaluate(node => node.scrollTop);
       const originalOrdersUrl = page.url();
+      const ordersFrame = await drawer.boundingBox();
       await originReceipt.press("Enter");
       const returnReceipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
       await returnReceipt.getByText("Роллы возвращены").waitFor();
@@ -313,10 +314,28 @@ try {
       assert(!(await returnReceipt.innerText()).includes("Салавата Юлаева"));
       assert(!(await returnReceipt.innerText()).includes("private-card-fixture"));
       const receiptDialog = page.getByRole("dialog", { name: "Квитанция Rollapp", exact: true });
+      assert.equal(await receiptDialog.getAttribute("data-slot"), "drawer-popup");
+      assert.equal(await receiptDialog.getAttribute("data-swipe-direction"), width < 768 ? "down" : "right");
+      await page.waitForFunction(() => {
+        const popup = document.querySelector("[data-slot=drawer-popup]:not(.orders-drawer) [data-roll-receipt]")?.closest("[data-slot=drawer-popup]");
+        return popup && new DOMMatrixReadOnly(getComputedStyle(popup).transform).isIdentity;
+      });
       const receiptFrame = await receiptDialog.boundingBox();
-      assert.deepEqual(receiptFrame, { x: 0, y: 0, width, height });
+      assert(await receiptDialog.evaluate(node => node.contains(document.activeElement)));
+      assert.equal(await page.locator(".orders-drawer[data-nested-drawer-open]").count(), 1, "Orders stay mounted under the receipt");
+      assert(Math.abs(receiptFrame.y + receiptFrame.height - height) <= 1);
+      if (width < 768) {
+        assert.equal(receiptFrame.width, width);
+        assert(receiptFrame.y > 0);
+      } else {
+        assert.equal(receiptFrame.x, ordersFrame.x);
+        assert.equal(receiptFrame.width, ordersFrame.width);
+        assert.equal(receiptFrame.y, ordersFrame.y);
+      }
+      assert(await returnReceipt.evaluate(node => [node, ...node.querySelectorAll("button, dl, dd, [data-receipt-body]")]
+        .every(element => element.scrollWidth <= element.clientWidth + 1)));
       assert.equal(await returnedOrder.locator("[data-roll-receipt]").count(), 0);
-      assert.equal(await drawer.count(), 0, "Only the receipt screen is accessible");
+      assert.equal(await drawer.count(), 0, "Only the top drawer is accessible");
       assert.equal(page.url(), originalOrdersUrl, "Private receipt references do not enter the URL");
       if (height < 500) {
         const download = returnReceipt.getByRole("button", { name: "Скачать квитанцию", exact: true });
@@ -335,7 +354,7 @@ try {
       assert.equal(page.url(), originalOrdersUrl);
       assert.equal(await ordersBody.evaluate(node => node.scrollTop), orderScroll);
       await originReceipt.evaluate(async node => {
-        // Let the fullscreen dialog release focus before evaluating the source.
+        // Let the nested drawer release focus before evaluating the source.
         await new Promise(requestAnimationFrame);
         await new Promise(requestAnimationFrame);
         if (document.activeElement !== node) throw Error("Receipt did not restore its opener");
@@ -410,8 +429,9 @@ try {
       const sellerReceipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
       await sellerReceipt.getByText("Покупатель", { exact: true }).waitFor();
       assert(!(await sellerReceipt.innerText()).includes("Источник оплаты"));
-      await sellerReceipt.getByRole("button", { name: "Назад", exact: true }).click();
+      await page.keyboard.press("Escape");
       await sellerReceipt.waitFor({ state: "hidden" });
+      await sellerOrder.getByRole("button", { name: "Квитанция", exact: true }).waitFor();
       await buyerOrder.getByRole("button", { name: "Открыть спор" }).click();
       await confirmation.getByLabel("Причина спора").fill("Черновик");
       await page.keyboard.press("Escape");

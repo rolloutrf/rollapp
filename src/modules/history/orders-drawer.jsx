@@ -81,7 +81,7 @@ export function OrdersDrawerContent({ products, userId }) {
 }
 
 function OrderList({ products, userId }) {
-  const { openReceipt, receiptScreen } = useRollReceiptScreen();
+  const { openReceipt, receiptScreen } = useRollReceiptScreen({ inDrawer: true });
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
