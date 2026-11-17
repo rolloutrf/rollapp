@@ -285,12 +285,15 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     : step === "topup" ? "Пополнение карты"
     : step === "topped-up" ? "Карта пополнена"
     : step === "send" ? "Подарить карту"
+    : step === "confirm" ? "Подтвердите подарок"
     : "Подарочная карта";
   const showGiftAction = selected && !profileCard;
   const showIssueAction = !profileCard && !selected && (!selectedId || cardsReady);
   const showCertificateActions = profileCard && selected;
-  const hasFooterAction = pending || (!recoveryOnly && (showCertificateActions || showGiftAction || showIssueAction));
-  const canSendGift = !locked && cardsReady && recipient && selected?.balance > 0;
+  const showCertificateFooter = showCertificateActions && (step !== "send" || mobile);
+  const hasFooterAction = pending || (!recoveryOnly && (showCertificateFooter || showGiftAction || showIssueAction));
+  const canSendGift = !locked && cardsReady && recipient && selected?.balance > 0 && (!profileCard || step === "confirm");
+  const recipientChoices = profileCard && recipient ? [recipient] : people;
   const topupLabel = valid ? `Пополнить на ${formatRolls(value)}` : "Пополнить карту";
 
   function beginGift() {
@@ -298,8 +301,15 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     setStep("send");
   }
 
+  function chooseRecipient(person) {
+    setRecipient(person);
+    setSearch(`@${person.username}`);
+    if (profileCard) setStep("confirm");
+  }
+
   function backToPreviousStep() {
-    setStep(step === "send" && sendFromTopup.current ? "topped-up" : null);
+    if (step === "confirm") setStep("send");
+    else setStep(step === "send" && sendFromTopup.current ? "topped-up" : null);
   }
 
   const stepBack = step && !pending && !sentGift ? backToPreviousStep : undefined;
@@ -422,9 +432,22 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
               {searching && <p role="status">Ищем получателя…</p>}
               {searchError && <p role="alert">{searchError}</p>}
               {!searching && !searchError && !recipient && search.trim().replace(/^@/, "").length >= 2 && !people.length && <p>Никого не нашли. Проверьте имя или username.</p>}
-              {people.map((person) => <Button type="button" key={person.id} variant="outline" className="h-auto min-h-12 justify-start whitespace-normal text-left" disabled={locked} onClick={() => { setRecipient(person); setSearch(`@${person.username}`); }}><span className="min-w-0 break-words">{person.name} · @{person.username}</span></Button>)}
-              {recipient && <p>Получатель: <strong>{recipient.name}</strong> · @{recipient.username}<br />Подарок: {formatRolls(selected.balance)} у {business.name}.</p>}
+              {recipientChoices.map((person) => <Button type="button" key={person.id} variant="outline" className="h-auto min-h-12 justify-start whitespace-normal text-left" disabled={locked} onClick={() => chooseRecipient(person)}><span className="min-w-0 break-words">{person.name} · @{person.username}</span></Button>)}
+              {!profileCard && recipient && <p>Получатель: <strong>{recipient.name}</strong> · @{recipient.username}<br />Подарок: {formatRolls(selected.balance)} у {business.name}.</p>}
             </section>
+            {step === "confirm" && recipient && <section ref={actionPanel} tabIndex={-1} aria-label="Детали подарка" className="min-w-0 outline-none">
+              <dl className="grid min-w-0 gap-6">
+                <div className="grid min-w-0 gap-1">
+                  <dt className="text-muted-foreground">Получатель</dt>
+                  <dd className="wrap-anywhere text-xl font-semibold">{recipient.name}</dd>
+                  <dd className="wrap-anywhere text-muted-foreground">@{recipient.username}</dd>
+                </div>
+                <div className="grid min-w-0 gap-1">
+                  <dt className="text-muted-foreground">Сумма подарка</dt>
+                  <dd className="wrap-anywhere text-3xl font-semibold tabular-nums">{formatRolls(selected.balance)}</dd>
+                </div>
+              </dl>
+            </section>}
           </div>}
         {!profileCard && selected && !pending && <Button variant="outline" disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Новая карта выпущена")}>Выпустить ещё карту</Button>}
         {cardsError && !pending && <Button variant="outline" disabled={busy} onClick={loadCards}>Повторить загрузку</Button>}
@@ -443,9 +466,9 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
           ) : step === "topped-up" ? <>
             <Button type="button" variant="outline" onClick={() => setStep(null)}>К карте</Button>
             <Button type="button" disabled={!cardsReady || selected.balance <= 0} onClick={beginGift}>Подарить</Button>
-          </> : step === "send" ? (
+          </> : step === "confirm" ? (
             <Button type="button" disabled={!canSendGift} aria-label="Отправить подарочную карту" onClick={sendGift}>Отправить</Button>
-          ) : <>
+          ) : step === "send" ? null : <>
             <Button key="topup-open" ref={topupAction} type="button" disabled={locked || !cardsReady} aria-controls="gift-topup-panel"
               onClick={(event) => { event.preventDefault(); setStep("topup"); }}>Пополнить</Button>
             <Button ref={giftAction} type="button" variant="outline" disabled={locked || !cardsReady || selected.balance <= 0}
