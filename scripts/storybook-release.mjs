@@ -11,7 +11,6 @@ assert(["prepare", "publish"].includes(operation) && directory && /^[0-9a-f]{40}
 const root = path.resolve(directory);
 const site = "https://xn--90anhnkehm.xn--80avakiab.xn--p1ai/";
 const s3 = "s3://xn--90anhnkehm.xn--80avakiab.xn--p1ai/";
-const endpoint = "https://storage.yandexcloud.net";
 const manifestName = "storybook-release.json";
 const entrypoints = ["iframe.html", "project.json", "index.json", "index.html"];
 const privateFiles = /(?:^|\/)(?:\.[^/]*|.*\.(?:map|zip)|tonconnect-(?:wallets|manifest)\.json)$/i;
@@ -59,12 +58,13 @@ if (operation === "prepare") {
   assert.deepEqual(JSON.parse(await readFile(manifestPath, "utf8")), manifest, "Artifact hash or commit mismatch");
 
   // Publish dependencies first. Keep the previous build's objects for open tabs and rollback.
-  execFileSync("aws", ["--endpoint-url", endpoint, "s3", "cp", root, s3, "--recursive",
+  execFileSync("yc", ["storage", "s3", "cp", root, s3, "--recursive", "--no-follow-symlinks",
     "--only-show-errors", "--cache-control", "no-cache",
     ...[...entrypoints, manifestName].flatMap(name => ["--exclude", name])], { stdio: "inherit" });
   for (const key of [...entrypoints, manifestName]) {
-    execFileSync("aws", ["--endpoint-url", endpoint, "s3", "cp", path.join(root, key), s3 + key,
-      "--only-show-errors", "--cache-control", "no-cache"], { stdio: "inherit" });
+    const contentType = key.endsWith(".html") ? "text/html; charset=utf-8" : "application/json";
+    execFileSync("yc", ["storage", "s3", "cp", path.join(root, key), s3 + key,
+      "--only-show-errors", "--cache-control", "no-cache", "--content-type", contentType], { stdio: "inherit" });
   }
   const token = new URLSearchParams({ release: commit });
   const publicProof = [...files.filter(file => entrypoints.includes(file.key)), {
