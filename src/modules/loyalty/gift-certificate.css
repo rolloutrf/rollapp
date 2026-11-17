@@ -114,3 +114,9 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* Keep both actions the same width as the certificate changes modes. */
+.gift-certificate-actions > button,
+.gift-certificate-actions .mobile-form-page__actions > button {
+  flex: 1;
+}

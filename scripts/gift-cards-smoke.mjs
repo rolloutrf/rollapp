@@ -265,8 +265,8 @@ try {
     console.log(`PASS profile gift selection ${width} missing=${missing}: exact source card, no automatic substitution or writes`);
     await page.close();
   }
-  for (const width of [390, 1440]) {
-    const page = await browser.newPage({ viewport: { width, height: 400 } });
+  for (const [width, height] of [[320, 844], [390, 844], [390, 400], [768, 900], [820, 450], [1024, 900], [1440, 400], [1920, 900]]) {
+    const page = await browser.newPage({ viewport: { width, height }, reducedMotion: "reduce" });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
@@ -276,7 +276,9 @@ try {
     const active = (balance) => page.getByRole("article", { name: /^Сертификат:/ }).getByText(`${balance} роллов`, { exact: true });
     const topup = page.getByRole("button", { name: "Пополнить", exact: true });
     const gift = page.getByRole("button", { name: "Подарить", exact: true });
-    const submitGift = page.getByRole("button", { name: "Подарить карту", exact: true });
+    const submitGift = page.getByRole("button", { name: "Отправить подарочную карту", exact: true });
+    const actions = page.locator('[data-control-bar][aria-label="Действия с подарочной картой"]:visible');
+    const cancelAction = actions.getByRole("button", { name: "Отмена", exact: true });
     const amount = page.getByLabel("Сколько роллов добавить");
     const recipient = page.getByLabel("Кому подарить", { exact: true });
     const zero = open(0);
@@ -290,7 +292,36 @@ try {
     await active(0).waitFor({ timeout: 5000 });
     assert(await gift.isDisabled());
     assert.equal(await amount.isVisible(), false);
+    await actions.getByRole("button", { name: "Пополнить", exact: true }).waitFor();
+    const footerGeometry = async () => {
+      const boxes = await actions.getByRole("button").evaluateAll(buttons => buttons.map(button => {
+        const { x, y, width, height, right } = button.getBoundingClientRect();
+        const text = document.createRange();
+        text.selectNodeContents(button);
+        const label = text.getBoundingClientRect();
+        return { label: button.getAttribute("aria-label") || button.textContent, x, y, width, height, right, radius: getComputedStyle(button).borderRadius,
+          labelFits: label.left >= x - 1 && label.right <= right + 1 };
+      }));
+      assert.equal(boxes.length, width < 768 ? 3 : 2);
+      const row = boxes[0].y;
+      for (const box of boxes) {
+        assert(box.height === 48 && box.radius === "24px" && box.labelFits, JSON.stringify({ viewport: [width, height], boxes }));
+        assert(Math.abs(box.y - row) <= 1 && box.x >= 0 && box.right <= width + 1);
+      }
+      assert(row >= height - 82 && row + 48 <= height + 1);
+      for (let i = 1; i < boxes.length; i++) assert(Math.abs(boxes[i].x - boxes[i - 1].right - 8) <= 1);
+      return boxes;
+    };
+    const beforeScroll = await footerGeometry();
+    const bodyScroll = await actions.evaluate(footer => {
+      const body = footer.closest('[data-slot="drawer-popup"]')?.querySelector(".app-drawer-body") ?? document.scrollingElement;
+      body.scrollTo({ top: body.scrollHeight, behavior: "instant" });
+      return body.scrollTop;
+    });
+    if (height <= 450) assert(bodyScroll > 0);
+    assert.deepEqual(await footerGeometry(), beforeScroll);
     await topup.click();
+    await footerGeometry();
     await page.getByText("Кошелёк временно недоступен", { exact: true }).waitFor();
     assert.equal(await page.getByText(/Этот сертификат больше недоступен/).count(), 0);
     assert(await amount.isDisabled());
@@ -308,25 +339,24 @@ try {
     await active(25).waitFor();
     await topup.click();
     assert.equal(await amount.inputValue(), "");
+    await cancelAction.click();
+    assert(await topup.evaluate(button => button === document.activeElement));
     await gift.click();
     assert.equal(await amount.isVisible(), false);
     await recipient.fill("friend");
     await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
     assert(await submitGift.isEnabled());
+    await cancelAction.click();
+    assert(await gift.evaluate(button => button === document.activeElement));
     await topup.click();
     assert.equal(await recipient.isVisible(), false);
     assert.equal(await submitGift.count(), 0);
+    await cancelAction.click();
     await gift.click();
     assert.equal(await recipient.inputValue(), "@friend");
     assert(await submitGift.isEnabled());
-    const submitBox = await submitGift.boundingBox();
-    assert.equal(submitBox.height, 48);
-    if (width < 768) {
-      const backBox = await page.getByRole("button", { name: "Назад", exact: true }).boundingBox();
-      assert.deepEqual([backBox.width, backBox.height, backBox.y], [48, 48, submitBox.y]);
-      assert.equal(submitBox.x - backBox.x - backBox.width, 8);
-      assert(submitBox.y + submitBox.height <= 400);
-    }
+    await footerGeometry();
+    if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-gift-actions-${width}x${height}.png` });
     assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
     if (width === 1440) {
       await page.getByRole("button", { name: "Назад", exact: true }).click();
@@ -339,6 +369,7 @@ try {
       await active(10).waitFor();
       await page.getByText("Карта пополнена на 10 роллов", { exact: true }).waitFor();
       assert(await amount.isVisible());
+      await cancelAction.click();
       await gift.click();
       await recipient.fill("friend");
       await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
@@ -354,7 +385,7 @@ try {
       assert.equal(await zero.count(), 0);
     }
     assert.deepEqual(errors, []);
-    console.log(`PASS gift card reopening ${width}x400: exact zero/positive card, independent wallet retry, draft ownership, Back focus`);
+    console.log(`PASS gift card actions ${width}x${height}: fixed footer, exact card, wallet retry, drafts and Back focus`);
     await page.close();
   }
   for (const width of [390, 1440]) {
