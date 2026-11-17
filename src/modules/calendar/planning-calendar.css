@@ -50,7 +50,7 @@
 .schedule-month__event[data-completed] .schedule-month__event-title { text-decoration: line-through; }
 .schedule-month__event-time { flex-shrink: 0; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .schedule-month__event-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-event-wrap { position: relative; min-width: 0; }
+.schedule-event-wrap { position: relative; min-width: 0; container: schedule-event / size; }
 .schedule-event { display: flex; width: 100%; min-width: 0; height: auto; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; overflow: hidden; white-space: normal; text-align: left; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--accent); color: var(--accent-foreground); cursor: grab; }
 /* Keep the pointer and the drag preview on the same calendar grid coordinates. */
 .schedule-event:active { cursor: grabbing; translate: none; }
@@ -64,7 +64,10 @@
 .schedule-timegrid { user-select: none; }
 .schedule-event-wrap[style] > .schedule-event { height: 100%; padding-block-end: 20px; }
 .schedule-event__title { flex-shrink: 0; max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
-.schedule-event__related { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-event__time, .schedule-event__related { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+@container schedule-event (height < 7.5rem) {
+  .schedule-event__title { -webkit-line-clamp: 1; }
+}
 .schedule-event--compact .schedule-event__related { display: none; }
 /* Dense calendar summaries use the shared caption role, with compact targets in date grids. */
 .schedule-event--compact { flex-direction: row; align-items: center; gap: 6px; min-block-size: 32px; min-inline-size: 0; padding: 4px 6px; }

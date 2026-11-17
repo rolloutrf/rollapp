@@ -95,7 +95,7 @@ export function useCalendarGesture({ scroll, sourceTasks, scopeKey, busy, onCrea
       if (active.previewKey !== key) {
         active.previewKey = key;
         const start = active.ghost?.querySelector(".schedule-event__start");
-        const time = active.ghost?.querySelector(".schedule-event__content > .schedule-caption");
+        const time = active.ghost?.querySelector(".schedule-event__time");
         if (start) start.textContent = active.patch.startTime;
         else if (time) time.textContent = taskTimeLabel({ ...task, ...active.patch });
         setPreview(active.valid ? { kind, task, date: active.patch.dueOn || date || task?.dueOn, ...active.patch } : null);

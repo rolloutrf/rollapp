@@ -130,7 +130,17 @@ try {
           assert(widthCheck.document <= widthCheck.viewport + 1, `Root overflow: ${JSON.stringify(widthCheck)}`);
           const theme = await page.locator("html").evaluate(node => node.classList.contains("dark") ? "dark" : "light");
           assert.equal(theme, light ? "light" : "dark");
-          if (screenshotDir && matrixStories.includes(id)) await page.screenshot({ path: `${screenshotDir}/${id}-${width}x${height}.png` });
+          if (id === "rollapp-calendar--week") {
+            const meeting = page.locator('[data-calendar-event="meeting"]');
+            const { time, resize } = await meeting.evaluate(tile => ({
+              time: tile.querySelector(".schedule-event__time").getBoundingClientRect().toJSON(),
+              resize: tile.querySelector(".schedule-resize").getBoundingClientRect().toJSON(),
+            }));
+            assert(time.height <= 16 && time.height > 0, "The visible time interval must fit on one line");
+            assert(time.bottom <= resize.top, "The resize target must start below the time interval");
+            assert.match(await meeting.locator(".schedule-event").getAttribute("aria-description"), /09:00.*10:00/);
+          }
+          if (screenshotDir && matrixStories.includes(id)) await page.screenshot({ path: `${screenshotDir}/${id}-${width}x${height}-${theme}.png` });
           if (width === 390 && height === 844 && interactions[id]) {
             await interactions[id](page);
             assert.deepEqual(diagnostics, []);
