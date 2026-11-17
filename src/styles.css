@@ -3962,49 +3962,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .app-layout--dark .wishes-page__identity--readonly { cursor: default; }
 
-.sphere-share-picker__search [data-slot="input-group-addon"][data-align="inline-start"] {
-  padding-left: 14px;
-  padding-right: 10px;
-}
-.sphere-share-picker__search [data-slot="input-group-addon"] > svg {
-  width: 19px;
-  height: 19px;
-  color: var(--muted-foreground);
-  pointer-events: none;
-}
-.sphere-share-picker__search input { min-height: 48px; padding-left: 0; font-size: 1rem; }
-.sphere-share-picker__list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.sphere-share-picker__person {
-  width: 100%;
-  min-height: 64px;
-  height: auto;
-  justify-content: flex-start;
-  gap: 12px;
-  padding: 8px;
-  border-radius: 16px;
-  text-align: left;
-}
-.sphere-share-picker__person > span:not([data-slot]) {
-  min-width: 0;
-  flex: 1;
-  display: grid;
-  gap: 2px;
-}
-.sphere-share-picker__person strong,
-.sphere-share-picker__person small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sphere-share-picker__person small { color: var(--muted-foreground); font-size: .8125rem; line-height: 1rem; }
-.sphere-share-picker__status {
-  min-height: 180px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: var(--muted-foreground);
-  text-align: center;
-}
-.sphere-share-picker__status > svg { width: 24px; height: 24px; }
-
 .sphere-access-requests {
   width: min(calc(100% - 32px), 980px);
   margin: 0 auto 24px;

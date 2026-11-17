@@ -31,12 +31,12 @@ import {
   PUBLIC_WISH_ROUTE_PATH,
 } from "./modules/shell/app-routing.js";
 import { SPHERE_SERVICES, messagesHostPath } from "./modules/shell/service-menu.jsx";
-import { PageActionButton } from "@/components/page-action-button";
 import { PersonalOffers } from "@/components/personal-offers";
 import { BusinessCatalogList, BusinessCatalogProvider } from "@/modules/catalog-marketplace/catalog-brands.jsx";
 import { sphereBusinessCatalogPath } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { useSphereSharing } from "./modules/access/sphere-sharing.jsx";
-import { SphereSharePicker, BusinessAccessPage } from "./modules/access/sphere-access.jsx";
+import { BusinessAccessPage } from "./modules/access/sphere-access.jsx";
+import { SphereShareAction } from "./modules/access/sphere-share-action.jsx";
 import { SPHERE_APPLICATIONS } from "../shared/modules/shell/applications.js";
 import { RollsWallet } from "@/modules/payments/rolls-wallet.jsx";
 import { MemberNumberPage } from "@/modules/profile/member-number-page.jsx";
@@ -162,7 +162,6 @@ function SphereBusinessCatalogRoute() {
   const { sphereId } = useParams();
   const { search } = useLocation();
   const access = useSphereSharing();
-  const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const sphere = sphereId === "contacts" ? "career" : sphereId;
   const query = new URLSearchParams(search);
   const identityReports = sphere === "identity" && query.get("tab") === "identity-reports";
@@ -182,12 +181,8 @@ function SphereBusinessCatalogRoute() {
               <h2>Бренды · {title}</h2>
               <p>Подпишитесь на бизнес, чтобы получать от него предложения.</p>
             </header>}
-            renderFooter={hasAccounts => access.active && (hasAccounts || access.people.length > 0 || access.requests.length > 0) && <div><PageActionButton type="button" variant="outline" onClick={event => {
-              event.currentTarget.focus({ preventScroll: true });
-              setSharePickerOpen(true);
-            }}>Доступ к личному разделу</PageActionButton></div>}
           />
-          {access.active && <SphereSharePicker open={sharePickerOpen} onOpenChange={setSharePickerOpen} />}
+          <SphereShareAction />
         </BusinessCatalogProvider>
       )}
     </section>

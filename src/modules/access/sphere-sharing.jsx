@@ -32,7 +32,7 @@ export function SphereSharingProvider({ children, currentUser, scope, search }) 
   const navigate = useNavigate();
   const requestedOwner = scope?.sphere === "wishlist" ? "" : new URLSearchParams(search).get("owner")?.trim().toLowerCase() || "";
   const scopeKey = scope ? JSON.stringify([currentUser?.id, scope.sphere, scope.section, requestedOwner]) : "";
-  const [version, setVersion] = useState(0);
+  const [{ version, background }, setRevision] = useState({ version: 0, background: false });
   const [result, setResult] = useState(null);
   const state = result?.key === scopeKey ? result : null;
 
@@ -66,7 +66,7 @@ export function SphereSharingProvider({ children, currentUser, scope, search }) 
     const isOwner = context?.isOwner ?? !requestedOwner;
     return {
       active: Boolean(scope),
-      loading: Boolean(scope && state?.version !== version),
+      loading: Boolean(scope && (!state || (!background && state.version !== version))),
       error: state?.error || null,
       owner,
       people: context?.people || [],
@@ -75,9 +75,9 @@ export function SphereSharingProvider({ children, currentUser, scope, search }) 
       readOnly: Boolean(scope && context && !isOwner),
       sphere: scope?.sphere || "",
       section: scope?.section || "",
-      reload: async () => setVersion((value) => value + 1),
+      reload: async ({ background = false } = {}) => setRevision((value) => ({ version: value.version + 1, background })),
     };
-  }, [currentUser, requestedOwner, scope, state, version]);
+  }, [background, currentUser, requestedOwner, scope, state, version]);
 
   return <SphereSharingContext.Provider value={value}>{children}</SphereSharingContext.Provider>;
 }

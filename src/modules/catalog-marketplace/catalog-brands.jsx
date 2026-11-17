@@ -74,7 +74,7 @@ export function BusinessCatalogSelect({ side = "bottom", fullWidth = false }) {
   </Select>;
 }
 
-export function BusinessCatalogList({ intro, renderFooter }) {
+export function BusinessCatalogList({ intro }) {
   const { accounts, space, sphere, endpoint, loading, error, updateFollowing, retry } = useContext(BusinessCatalogContext);
   if (loading) return <p role="status" className="rollapp-body flex items-center justify-center gap-2"><Spinner />Загружаем бизнес-аккаунты…</p>;
   if (error) return <Alert variant="destructive" className="wish-catalog-page__error">
@@ -82,15 +82,12 @@ export function BusinessCatalogList({ intro, renderFooter }) {
     <AlertDescription>{error.message}</AlertDescription>
     <PageActionButton type="button" variant="outline" onClick={retry}>Повторить</PageActionButton>
   </Alert>;
-  if (!accounts.length) return <>
-    <EmptyState icon={Building2} title="В этом разделе пока нет бизнес-аккаунтов"
-      text={sphere ? "Здесь появятся бизнес-аккаунты этой сферы." : "Здесь появятся аккаунты продавцов этого раздела."} />
-    {renderFooter?.(false)}
-  </>;
+  if (!accounts.length) return <EmptyState icon={Building2} title="В этом разделе пока нет бизнес-аккаунтов"
+    text={sphere ? "Здесь появятся бизнес-аккаунты этой сферы." : "Здесь появятся аккаунты продавцов этого раздела."} />;
   return <>{intro}<ul className="business-catalog-grid rollapp-body mx-auto grid w-full max-w-(--layout-collection-width) gap-3 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="Бизнес-аккаунты">
     {accounts.map(account => <BusinessCatalogAccount key={`${endpoint}:${account.username}`} account={account}
       path={space ? publicSpacePath(account, space) : publicProfilePath(account)} onChange={updateFollowing} />)}
-  </ul>{renderFooter?.(true)}</>;
+  </ul></>;
 }
 
 function BusinessCatalogAccount({ account, path, onChange }) {

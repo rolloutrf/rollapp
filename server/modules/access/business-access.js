@@ -15,3 +15,25 @@ export function readBusinessAccessSnapshot(query, viewerId) {
     [viewerId],
   );
 }
+
+export function readSphereShareCandidates(query, { ownerId, sphere, section, category, search }) {
+  return query(
+    `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space,
+            s.section AS grant_section
+     FROM users u
+     LEFT JOIN LATERAL (
+       SELECT s0.section
+       FROM sphere_section_shares s0
+       WHERE s0.viewer_user_id=u.id AND s0.owner_user_id=$1 AND s0.sphere=$2
+         AND (s0.section=$3 OR ($2='wishlist' AND s0.section='wishlist'))
+       ORDER BY (s0.section='wishlist') DESC
+       LIMIT 1
+     ) s ON TRUE
+     WHERE u.id<>$1 AND u.account_type='business'
+       AND (u.business_category=$4 OR (u.business_category IS NULL AND s.section IS NOT NULL))
+       AND ($2<>'wishlist' OR u.seller_space IS NULL OR u.seller_space=$3 OR $3='wishlist')
+       AND ($5='' OR LOWER(u.name) LIKE $6 OR LOWER(u.username) LIKE $6)
+     ORDER BY lower(u.name),u.username,u.id`,
+    [ownerId, sphere, section, category, search, `%${search}%`],
+  );
+}

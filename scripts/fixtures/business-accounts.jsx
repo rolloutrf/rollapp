@@ -38,7 +38,48 @@ function Fixture() {
 }
 
 const root = createRoot(document.getElementById("root"));
-if (new URLSearchParams(location.search).has("clients")) {
+const params = new URLSearchParams(location.search);
+if (params.has("owner-access")) {
+  const target = params.get("owner-access");
+  const section = params.get("section");
+  const owner = { id: "test-owner", accountType: "personal", canDiscoverSpheres: true, name: "Владелец", username: "test-owner" };
+  const people = Array.from({ length: target === "wishlist" ? 52 : 3 }, (_, index) => ({
+    id: `business-${index + 1}`,
+    accountType: "business",
+    name: index === 1 ? "АкадемияПрофессиональнойПодготовкиИДополнительногоОбразования" : `Организация ${index + 1}`,
+    username: `business-account-${index + 1}`,
+    granted: index === 0,
+    grantSection: index === 0 && target === "wishlist" ? "wishlist" : section,
+  }));
+  window.ownerAccessCalls = [];
+  let failLoad = params.has("retry");
+  let failSave = params.has("retry");
+  api.get = async (path) => {
+    if (path === "/me") return { user: owner };
+    const { pathname, searchParams } = new URL(path, location.origin);
+    if (pathname === "/sphere-shares/context") return { owner, isOwner: true, people: [], requests: [] };
+    if (pathname === "/sphere-shares/candidates") {
+      window.ownerAccessCalls.push(Object.fromEntries(searchParams));
+      if (failLoad) { failLoad = false; throw new Error("Повторите загрузку"); }
+      return { people: params.has("empty") ? [] : people.map(person => ({ ...person })) };
+    }
+    if (pathname.startsWith("/business-catalog/") || pathname.endsWith("/accounts")) return { accounts: [] };
+    return {};
+  };
+  api.post = async (path, body) => {
+    if (path !== "/sphere-shares") throw new Error(`Unexpected request: ${path}`);
+    window.ownerAccessCalls.push(body);
+    if (failSave) { failSave = false; throw new Error("Повторите изменение доступа"); }
+    await new Promise(resolve => setTimeout(resolve, 80));
+    const person = people.find(candidate => candidate.id === body.viewerId);
+    person.granted = body.granted;
+    person.grantSection = section;
+    return { granted: body.granted };
+  };
+  const catalogue = target === "wishlist" ? "/app/wishes/catalog?source=brands&tab=" : `/app/spheres/${target}/business/catalog?tab=`;
+  history.replaceState({}, "", catalogue + encodeURIComponent(section));
+  root.render(<BrowserRouter><App /></BrowserRouter>);
+} else if (params.has("clients")) {
   const seller = { id: "seller-account", name: "Мой магазин", username: "seller-profile", accountType: "business", businessCategory: "seller", sellerSpace: "products" };
   const shared = { id: "shared-client", name: "Александр Соколов", username: "shared-client" };
   const pending = { id: "pending-client", name: "Алёна Воронцова", username: "pending-client" };

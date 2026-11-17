@@ -118,7 +118,7 @@ import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./modules/runt
 import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/modules/access/sphere-sharing.js";
 import { BUSINESS_CATEGORIES, BUSINESS_OFFER_SPHERES, businessCategoryForSection, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { registrationAccountSchema } from "./modules/catalog-marketplace/business-accounts.js";
-import { readBusinessAccessSnapshot } from "./modules/access/business-access.js";
+import { readBusinessAccessSnapshot, readSphereShareCandidates } from "./modules/access/business-access.js";
 import { wishlistProfileGrant, wishlistWishVisibility } from "./modules/wishlist/wishlist-profile-access.js";
 import { getSmsConfig, sendSms } from "./modules/identification/sms.js";
 import {
@@ -2099,25 +2099,12 @@ app.get("/api/business-catalog/:sphere", requireAuth, requirePrivateSphereOwner,
 
 app.get("/api/sphere-shares/candidates", requireAuth, requireShareOwner, asyncRoute(async (req, res) => {
   const { sphere, section } = sphereSectionStorageScope(String(req.query.sphere || ""), String(req.query.section || ""));
-  if (!isSphereSection(sphere, section)) return res.status(404).json({ error: "Раздел не найден" });
+  const category = businessCategoryForSection(sphere, section);
+  if (!category) return res.status(404).json({ error: "Раздел не найден" });
   const search = String(req.query.search || "").trim().slice(0, 80).toLocaleLowerCase("ru-RU");
-  const result = await query(
-    `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space,s.section AS grant_section,
-            (s.viewer_user_id IS NOT NULL) AS granted
-     FROM users u
-     LEFT JOIN LATERAL (SELECT s0.viewer_user_id,s0.section FROM sphere_section_shares s0 WHERE s0.viewer_user_id=u.id AND s0.owner_user_id=$1 AND s0.sphere=$2 AND (s0.section=$3 OR ($2='wishlist' AND s0.section='wishlist')) ORDER BY (s0.section='wishlist') DESC LIMIT 1) s ON TRUE
-     WHERE u.id<>$1
-       AND u.account_type='business'
-       AND (u.business_category IS NULL OR u.business_category=$6)
-       AND ($2<>'wishlist' OR u.business_category IS NULL OR u.seller_space IS NULL OR u.seller_space=$3 OR $3='wishlist')
-       AND ($4='' OR LOWER(u.name) LIKE $5 OR LOWER(u.username) LIKE $5)
-     ORDER BY (s.viewer_user_id IS NOT NULL) DESC,
-              u.name,u.username
-     LIMIT 50`,
-    [req.user.id, sphere, section, search, `%${search}%`, businessCategoryForSection(sphere, section)?.id],
-  );
+  const result = await readSphereShareCandidates(query, { ownerId: req.user.id, sphere, section, category: category.id, search });
   res.set("Cache-Control", "private, no-store");
-  return res.json({ people: result.rows.filter(row => canBusinessAccessSection(row, sphere, section)).map((row) => ({ ...shareUser(row), granted: Boolean(row.granted), grantSection: row.grant_section || section })) });
+  return res.json({ people: result.rows.filter(row => canBusinessAccessSection(row, sphere, section)).map((row) => ({ ...shareUser(row), granted: Boolean(row.grant_section), grantSection: row.grant_section || section })) });
 }));
 
 app.get("/api/business-access/users", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {

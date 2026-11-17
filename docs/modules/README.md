@@ -28,7 +28,7 @@
 
 | № | Инструкция | Где используется | Код |
 | --- | --- | --- | --- |
-| 14 | [Доступ и выдача прав](14-access.md) | Приватность списков, ссылки, права на сферы и бизнес-запросы | [Клиент](../../src/modules/access/) · [Сервер](../../server/modules/access/) · [Общий код](../../shared/modules/access/) |
+| 14 | [Доступ и выдача прав](14-access.md) | Приватность списков, ссылки, выдача доступа из каталогов сфер и бизнес-запросы | [Клиент](../../src/modules/access/) · [Сервер](../../server/modules/access/) · [Общий код](../../shared/modules/access/) |
 | 15 | [Вишлист](15-wishlist.md) | Желания, списки, группы, резерв, покупки и бюджеты, архив, заметки и копирование | [Клиент](../../src/modules/wishlist/) · [Сервер](../../server/modules/wishlist/) |
 | 16 | [Каталог и витрины](16-catalog-marketplace.md) | Бренды, транспорт, ассортимент, магазины | [Клиент](../../src/modules/catalog-marketplace/) · [Сервер](../../server/modules/catalog-marketplace/) · [Общий код](../../shared/modules/catalog-marketplace/) |
 | 17 | [Друзья и подписки](17-social.md) | Подписки, подписчики, поиск людей и дни рождения | [Клиент](../../src/modules/social/) · [Сервер](../../server/modules/social/) |
