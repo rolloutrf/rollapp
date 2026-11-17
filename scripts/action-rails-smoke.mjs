@@ -14,6 +14,59 @@ const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
+
+async function checkIdentitySelections(page, width) {
+ for (const [section, labels, retained] of [
+  ['values', ['Принятие другими', 'Точность'], []],
+  ['character', ['Любознательность', 'Критическое мышление'], ['legacy:0']],
+ ]) {
+  const path = `${origin}/__action-rails?variant=${section}`;
+  await page.goto(path);
+  const [first, second] = labels.map(name => page.locator(`[role="checkbox"][aria-label="${name}"]`));
+  await page.getByText('Выбор сохранён', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: /Сохранить выбор|Сохранено/ }).count(), 0);
+  await page.evaluate(() => { window.holdSelectionWrite = true; });
+  await first.press('Space');
+  await page.waitForFunction(() => Boolean(window.releaseSelectionWrite));
+  await second.press('Space');
+  await first.press('Space');
+  assert.equal(await first.isChecked(), false);
+  assert.equal(await second.isChecked(), true);
+  assert.equal(await page.evaluate(() => window.selectionWrites.length), 1, 'Writes must be serialized');
+
+  await page.getByRole('button', { name: 'Скрыть список' }).click();
+  await page.getByRole('button', { name: 'Показать список' }).click();
+  assert(await second.isDisabled(), 'Reopening must wait for pending writes');
+  await page.evaluate(() => { window.holdSelectionWrite = false; window.releaseSelectionWrite(); });
+  await page.getByText('Выбор сохранён', { exact: true }).waitFor();
+  assert.equal(await first.isChecked(), false);
+  assert.equal(await second.isChecked(), true);
+  const expected = section === 'values' ? 'accuracy' : 'critical-thinking';
+  assert.deepEqual(await page.evaluate(() => window.selectionContent.selected), [...retained, expected]);
+
+  await page.evaluate(() => { window.failSelectionWrite = true; });
+  await second.press('Space');
+  await page.getByText('Тестовый сбой сохранения', { exact: true }).waitFor();
+  assert.equal(await second.isChecked(), false, 'Keep the selection after a failed save');
+  await page.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
+  await page.getByText('Выбор сохранён', { exact: true }).waitFor();
+  assert.deepEqual(await page.evaluate(() => window.selectionContent.selected), retained);
+
+  if (section === 'character') {
+   await page.getByRole('button', { name: 'Снять выбор', exact: true }).click();
+   await page.waitForFunction(() => window.selectionContent.selected.length === 0);
+   assert.deepEqual(await page.evaluate(() => window.selectionContent.custom.map(item => item.id)), retained);
+  }
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Checklist overflow');
+  await page.goto(`${path}&readonly`);
+  await first.waitFor();
+  assert(await first.isDisabled());
+  assert.equal(await page.locator('[data-add-fab]').count(), 0);
+  assert.equal(await page.evaluate(() => window.selectionWrites.length), 0);
+  console.log(`PASS ${width} ${section}: autosave, pending tab reopen, retry, read-only`);
+ }
+}
+
 try{
  for(const width of (process.env.ACTION_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number)){
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
@@ -195,6 +248,7 @@ try{
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Identity document overflow');
    console.log(`PASS ${width} ${variant}: no marketplace/empty rail, document and Add retained`);
   }
+  await checkIdentitySelections(page, width);
   await page.goto(`${origin}/__action-rails?variant=contacts-real&readonly`);
   await page.getByText('Только чтение',{exact:true}).waitFor();
   assert.equal(await page.locator('.profile-section-navigation').count(),0,'Shared spheres must not display owner navigation');

@@ -19,10 +19,49 @@ import { Conferences } from '@/modules/education/conferences.jsx';
 import { CoachingSessions } from '@/modules/education/coaching-sessions.jsx';
 import { Medications } from '@/modules/health/medications.jsx';
 import { PerformanceReview } from '@/modules/career/performance-review.jsx';
+import { Values } from '@/modules/identity/values.jsx';
+import { CharacterTraits } from '@/modules/identity/character-traits.jsx';
 import '../../src/styles.css';
 import '../../src/index.css';
 
 const variant=new URLSearchParams(location.search).get('variant')||'text';
+const identitySelections = { values: Values, character: CharacterTraits };
+
+function IdentitySelectionFixture({ section }) {
+ const [visible, setVisible] = useState(true);
+ const Selection = identitySelections[section];
+ const readOnly = new URLSearchParams(location.search).has('readonly');
+ return <BrowserRouter><SphereSharingContext.Provider value={{ owner: { id: 'fixture-owner' }, readOnly }}>
+  <MobileFormPages><div className="app-layout app-layout--dark"><main className="app-main"><div className="app-page">
+   <button onClick={() => setVisible(current => !current)}>{visible ? 'Скрыть список' : 'Показать список'}</button>
+   {visible && <Selection />}
+  </div></main></div></MobileFormPages>
+ </SphereSharingContext.Provider></BrowserRouter>;
+}
+
+if (identitySelections[variant]) {
+ const path = `/identity/content/${variant}`;
+ window.selectionContent = variant === 'character' ? ['Пользовательская черта'] : { selected: [], custom: [] };
+ window.selectionWrites = [];
+ api.get = async (endpoint) => {
+  if (endpoint !== path) throw new Error(`Unexpected endpoint ${endpoint}`);
+  return { content: structuredClone(window.selectionContent) };
+ };
+ api.patch = async (endpoint, { content }) => {
+  if (endpoint !== path) throw new Error(`Unexpected endpoint ${endpoint}`);
+  window.selectionWrites.push(content);
+  if (window.failSelectionWrite) {
+   window.failSelectionWrite = false;
+   throw new Error('Тестовый сбой сохранения');
+  }
+  if (window.holdSelectionWrite) {
+   await new Promise(resolve => { window.releaseSelectionWrite = resolve; });
+  }
+  window.selectionContent = structuredClone(content);
+  return { content: structuredClone(content) };
+ };
+}
+
 const collections = {
   sport: [Workouts, 'workouts'], courses: [Courses, 'courses'], conferences: [Conferences, 'conferences'],
   coaching: [CoachingSessions, 'sessions'], medications: [Medications, 'medications'], performance: [PerformanceReview, 'cycles'],
@@ -115,4 +154,5 @@ function SphereRailFixture({ path }) {
 }
 
 createRoot(document.getElementById('root')).render(collections[variant] ? <CollectionFixture name={variant} />
+  : identitySelections[variant] ? <IdentitySelectionFixture section={variant} />
   : sphereRoutes[variant] ? <SphereRailFixture path={sphereRoutes[variant]} /> : <Fixture />);

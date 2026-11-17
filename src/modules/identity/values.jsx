@@ -1,16 +1,15 @@
 import { AddFab } from "@/components/add-fab";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { useCareerContent, CareerContentError } from "@/modules/career/career-content.jsx";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CareerContentError } from "@/modules/career/career-content.jsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { PERSONAL_VALUE_GROUPS, PERSONAL_VALUES } from "@/modules/identity/personal-values.js";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
+import { IdentitySelectionFeedback, useIdentitySelection } from "./identity-selection.jsx";
 
 const EMPTY_VALUES = { selected: [], custom: [] };
 
@@ -29,10 +28,6 @@ function normalizeValues(content) {
     }))
     : [];
   return { selected, custom };
-}
-
-function sameContent(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function ValueOption({ checked, description, disabled, label, onCheckedChange }) {
@@ -55,32 +50,20 @@ function ValueOption({ checked, description, disabled, label, onCheckedChange })
 
 export function Values() {
   const { readOnly } = useSphereSharing();
-  const valuesContent = useCareerContent("values", EMPTY_VALUES, "identity");
-  const [draft, setDraft] = useState(EMPTY_VALUES);
+  const selection = useIdentitySelection("values", EMPTY_VALUES, normalizeValues);
+  const { document: valuesContent, draft, change, disabled: editingDisabled } = selection;
   const [addingCustom, setAddingCustom] = useState(false);
   const [customValue, setCustomValue] = useState("");
   const [customDescription, setCustomDescription] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const editingDisabled = saving || valuesContent.loading || Boolean(valuesContent.error) || readOnly;
-
-  useEffect(() => {
-    if (valuesContent.loading) return;
-    setDraft(normalizeValues(valuesContent.content));
-  }, [valuesContent.content, valuesContent.loading]);
-
-  const savedContent = normalizeValues(valuesContent.content);
-  const dirty = !sameContent(draft, savedContent);
   const selected = useMemo(() => new Set(draft.selected), [draft.selected]);
 
   const toggle = (id, checked) => {
-    setDraft((current) => ({
+    change((current) => ({
       ...current,
       selected: checked
         ? [...new Set([...current.selected, id])]
         : current.selected.filter((value) => value !== id),
     }));
-    setSaveError("");
   };
 
   const addCustom = (event) => {
@@ -100,63 +83,35 @@ export function Values() {
     }
     const existing = draft.custom.find((value) => value.label.toLocaleLowerCase("ru-RU") === normalizedLabel);
     if (existing) {
-      setDraft((current) => ({
+      change((current) => ({
         selected: [...new Set([...current.selected, existing.id])],
         custom: current.custom.map((value) => value.id === existing.id ? { ...value, description } : value),
       }));
       setCustomValue("");
       setCustomDescription("");
-      setSaveError("");
       return;
     }
     const id = `custom:${crypto.randomUUID()}`;
-    setDraft((current) => ({
+    change((current) => ({
       selected: [...current.selected, id],
       custom: [...current.custom, { id, label, description }],
     }));
     setCustomValue("");
     setCustomDescription("");
-    setSaveError("");
   };
 
   const removeCustom = (id) => {
-    setDraft((current) => ({
+    change((current) => ({
       selected: current.selected.filter((value) => value !== id),
       custom: current.custom.filter((value) => value.id !== id),
     }));
-    setSaveError("");
-  };
-
-  const save = async () => {
-    if (editingDisabled || !dirty) return;
-    setSaving(true);
-    setSaveError("");
-    try {
-      await valuesContent.save(draft);
-    } catch (error) {
-      setSaveError(error.message);
-    } finally {
-      setSaving(false);
-    }
   };
 
   return (
-    <div className="identity-checklist not-typeset rollapp-body page-stack page-stack--sections" aria-busy={valuesContent.loading || saving}>
+    <div className="identity-checklist not-typeset rollapp-body page-stack page-stack--sections" aria-busy={valuesContent.loading}>
       {!readOnly && <AddFab actions={[{ label: "Добавить ценность", disabled: editingDisabled, onSelect: () => setAddingCustom(true) }]} />}
-      {!readOnly && <header className="flex flex-wrap items-center justify-end gap-2">
-        <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
-          {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-          {valuesContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || valuesContent.error ? "Сохранить выбор" : "Сохранено"}
-        </Button>
-      </header>}
-
       <CareerContentError error={valuesContent.error} onRetry={valuesContent.retry} />
-      {saveError && (
-        <Alert variant="destructive">
-          <AlertTitle>Не удалось сохранить ценности</AlertTitle>
-          <AlertDescription>{saveError}</AlertDescription>
-        </Alert>
-      )}
+      <IdentitySelectionFeedback selection={selection} />
 
       {draft.custom.length > 0 && (
         <section className="flex flex-col gap-3" aria-labelledby="custom-values-title">

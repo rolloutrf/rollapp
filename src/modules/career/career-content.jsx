@@ -20,7 +20,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 
 
-export function useCareerContent(section, fallbackContent, scope = "career") {
+export function useCareerContent(section, fallbackContent, scope = "career", beforeLoad) {
   const access = useSphereSharing();
   const fallbackRef = useRef(fallbackContent);
   const [requestVersion, setRequestVersion] = useState(0);
@@ -35,7 +35,11 @@ export function useCareerContent(section, fallbackContent, scope = "career") {
     let current = true;
     setState((value) => ({ ...value, error: "", loading: true }));
     if (access.loading) return () => { current = false; };
-    api.get(`/${scope}/content/${encodeURIComponent(section)}`).then((result) => {
+    const load = async () => {
+      if (beforeLoad) await beforeLoad();
+      if (current) return api.get(`/${scope}/content/${encodeURIComponent(section)}`);
+    };
+    load().then((result) => {
       if (!current) return;
       setState({
         content: result.content ?? fallbackRef.current,
@@ -47,7 +51,7 @@ export function useCareerContent(section, fallbackContent, scope = "career") {
       if (current) setState((value) => ({ ...value, error: error.message, loading: false }));
     });
     return () => { current = false; };
-  }, [requestVersion, scope, section, access.owner?.id, access.loading]);
+  }, [requestVersion, scope, section, access.owner?.id, access.loading, beforeLoad]);
 
   const save = async (content) => {
     if (access.readOnly || access.loading || access.error) throw new Error("Этот раздел сейчас недоступен для редактирования.");
