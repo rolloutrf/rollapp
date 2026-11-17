@@ -19,9 +19,9 @@ Geist normal and italic variable faces are loaded from the installed font packag
 Semantic emphasis (`em`/`i`, italic quotations) uses the real italic face; the primary
 body remains normal. Keep `font-synthesis: none` rather than synthesizing italics.
 
-Block quotations retain their italic face and `1em` start padding, with no vertical
-border beside the text. In «Тезисы» and «Принципы», the shared preset sets quote
-start padding to zero through the `theses-source` document class. Every line of
+Block quotations use italic and `1em` start padding by default, with no vertical
+border beside the text. In «Тезисы» and «Принципы», `theses-source` sets upright
+quote text and zero start padding. Explicit italic remains available. Every line of
 prose, including the first line, wrapped lines and explicit line breaks, starts
 at its content container's leading edge in both reading and inline editing.
 Top-level quotes and ordinary paragraphs share the same edge at all widths.

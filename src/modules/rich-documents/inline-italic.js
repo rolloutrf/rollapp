@@ -17,39 +17,47 @@ export function appendInlineEmphasisMark(marks, mark) {
   return [...previous, mark];
 }
 
-function parts(state) {
+function parts(state, inheritQuoteItalic) {
   const result = [], italic = state.schema.marks.italic;
   for (const { $from, $to } of state.selection.ranges) state.doc.nodesBetween($from.pos, $to.pos, (node, pos, parent) => {
     if (!(node.isText || node.type.name === "hardBreak") || !parent?.type.allowsMarkType(italic)) return;
-    result.push({ from: Math.max(pos, $from.pos), to: Math.min(pos + node.nodeSize, $to.pos), marks: node.marks, quote: quoteAt(state.doc, pos) });
+    result.push({ from: Math.max(pos, $from.pos), to: Math.min(pos + node.nodeSize, $to.pos), marks: node.marks, inherited: inheritQuoteItalic && quoteAt(state.doc, pos) });
   });
   return result;
 }
 
-export function hasEffectiveItalic(state) {
+export function hasEffectiveItalic(state, inheritQuoteItalic = true) {
   if (state.selection.empty) return state.selection.$from.parent.type.allowsMarkType(state.schema.marks.italic)
-    && effective(state.storedMarks || state.selection.$from.marks(), quoteAt(state.doc, state.selection.from));
-  const selected = parts(state);
-  return selected.length > 0 && selected.every(part => effective(part.marks, part.quote));
+    && effective(state.storedMarks || state.selection.$from.marks(), inheritQuoteItalic && quoteAt(state.doc, state.selection.from));
+  const selected = parts(state, inheritQuoteItalic);
+  return selected.length > 0 && selected.every(part => effective(part.marks, part.inherited));
 }
 
-export function italicStyleTransaction(state) {
-  const { italic, normalText } = state.schema.marks, turnOn = !hasEffectiveItalic(state);
+function inheritsQuoteItalic(editor) {
+  return !editor.view.dom?.closest(".theses-source");
+}
+
+export function hasEditorItalic(editor) {
+  return hasEffectiveItalic(editor.state, inheritsQuoteItalic(editor));
+}
+
+export function italicStyleTransaction(state, inheritQuoteItalic = true) {
+  const { italic, normalText } = state.schema.marks, turnOn = !hasEffectiveItalic(state, inheritQuoteItalic);
   if (!italic || !normalText) return null;
   const tr = closeHistory(state.tr);
   if (state.selection.empty) {
     if (!state.selection.$from.parent.type.allowsMarkType(italic)) return null;
-    const quote = quoteAt(state.doc, state.selection.from);
+    const inherited = inheritQuoteItalic && quoteAt(state.doc, state.selection.from);
     tr.removeStoredMark(italic).removeStoredMark(normalText);
-    if (turnOn && !quote) tr.addStoredMark(italic.create());
-    if (!turnOn && quote) tr.addStoredMark(normalText.create());
+    if (turnOn && !inherited) tr.addStoredMark(italic.create());
+    if (!turnOn && inherited) tr.addStoredMark(normalText.create());
   } else {
-    const selected = parts(state);
+    const selected = parts(state, inheritQuoteItalic);
     if (!selected.length) return null;
     for (const part of selected) {
       tr.removeMark(part.from, part.to, italic).removeMark(part.from, part.to, normalText);
-      if (turnOn && !part.quote) tr.addMark(part.from, part.to, italic.create());
-      if (!turnOn && part.quote) tr.addMark(part.from, part.to, normalText.create());
+      if (turnOn && !part.inherited) tr.addMark(part.from, part.to, italic.create());
+      if (!turnOn && part.inherited) tr.addMark(part.from, part.to, normalText.create());
     }
   }
   return tr;
@@ -57,7 +65,7 @@ export function italicStyleTransaction(state) {
 
 export function toggleEffectiveItalic(editor) {
   if (editor.isDestroyed || !editor.isEditable || editor.view.composing) return false;
-  const { doc, selection } = editor.state, tr = italicStyleTransaction(editor.state);
+  const { doc, selection } = editor.state, tr = italicStyleTransaction(editor.state, inheritsQuoteItalic(editor));
   if (!tr) return false;
   editor.view.focus();
   if (editor.isDestroyed || !editor.isEditable || editor.view.composing || editor.state.doc !== doc || !editor.state.selection.eq(selection)) return false;
@@ -66,8 +74,7 @@ export function toggleEffectiveItalic(editor) {
   return true;
 }
 
-// Quotes retain their default italic. Only an explicitly authored exception
-// carries this mark, so ordinary Markdown documents retain their existing shape.
+// The mark preserves an authored exception to inherited italic in Markdown.
 export const InlineNormalText = Mark.create({
   name: "normalText", priority: 90, excludes: "italic",
   parseHTML: () => [{ tag: 'span[data-inline-normal="true"]' }],
