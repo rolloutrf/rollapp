@@ -11,7 +11,6 @@ const png = await sharp({ create: { width: 47, height: 69, channels: 4, backgrou
 const server = await createServer({ cacheDir: "node_modules/.vite-medication-photo-smoke", server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: "medication-photo-fixture", enforce: "pre", transform(source, id) {
   if (id.endsWith("/src/modules/health/medications.jsx?medication-photo-fixture")) return source + "\nexport { MedicationDrawer, MedicationCard };";
   if (id.endsWith("/src/modules/access/sphere-sharing.jsx")) return source + "\nexport { SphereSharingContext };";
-  if (id.endsWith("/src/modules/runtime/api.js")) return "export const api = new Proxy({}, { get: (_, key) => (...args) => { if (!window.medicationPhotoTransport?.[key]) throw Error('Unexpected fixture transport: '+key); return window.medicationPhotoTransport[key](...args); } });";
 }, configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
   if (req.url.startsWith("/__medication-photo.png")) { res.setHeader("Content-Type", "image/png"); res.end(png); return; }
   if (!req.url.startsWith("/__medication-photo")) return next();

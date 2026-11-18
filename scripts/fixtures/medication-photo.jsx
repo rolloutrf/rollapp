@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MedicationDrawer, MedicationCard } from "@/modules/health/medications.jsx?medication-photo-fixture";
+import { api } from "@/modules/runtime/api.js";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { SphereSharingContext } from "@/modules/access/sphere-sharing.jsx";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
@@ -10,7 +11,7 @@ import "../../src/styles.css";
 import "../../src/index.css";
 const original = { id: "photo-test", name: "Витамин Е — IPSUM, 60 капсул", medicationForm: "capsule", status: "planned", dosage: "", frequency: "custom", scheduleTimes: [], purpose: "", prescriber: "", instructions: "", notes: "Фото упаковки", startOn: "", endOn: "", imageUrl: `${location.origin}/__medication-photo.png` };
 window.medicationPhotoCalls = [];
-window.medicationPhotoTransport = {
+Object.assign(api, {
   async patch(path, data) {
     window.medicationPhotoCalls.push({ method: "patch", path, data });
     if (window.failMedicationSave) { window.failMedicationSave = false; throw new Error("Не удалось сохранить: повторите"); }
@@ -22,7 +23,7 @@ window.medicationPhotoTransport = {
     return { id: "11111111-1111-4111-8111-111111111111", imageUrl: "/api/media/11111111-1111-4111-8111-111111111111" };
   },
   async delete(path) { window.medicationPhotoCalls.push({ method: "delete", path }); },
-};
+});
 function Fixture() {
   useVisualViewport();
   const [open, setOpen] = useState(false);
