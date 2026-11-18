@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { AlertTriangle, Pencil, Plus, RotateCcw, X } from "lucide-react";
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
+import { AlertTriangle, FileText, Pencil, Plus, RotateCcw, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/modules/career/career-icon-action.jsx";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
 import { MarkdownDocument } from "@/modules/identity/life-strategy.jsx";
 import { InlineDocument } from "@/modules/rich-documents/inline-document.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,7 +20,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 
 
-export function useCareerContent(section, fallbackContent, scope = "career") {
+export function useCareerContent(section, fallbackContent, scope = "career", beforeLoad) {
   const access = useSphereSharing();
   const fallbackRef = useRef(fallbackContent);
   const [requestVersion, setRequestVersion] = useState(0);
@@ -35,7 +35,11 @@ export function useCareerContent(section, fallbackContent, scope = "career") {
     let current = true;
     setState((value) => ({ ...value, error: "", loading: true }));
     if (access.loading) return () => { current = false; };
-    api.get(`/${scope}/content/${encodeURIComponent(section)}`).then((result) => {
+    const load = async () => {
+      if (beforeLoad) await beforeLoad();
+      if (current) return api.get(`/${scope}/content/${encodeURIComponent(section)}`);
+    };
+    load().then((result) => {
       if (!current) return;
       setState({
         content: result.content ?? fallbackRef.current,
@@ -47,7 +51,7 @@ export function useCareerContent(section, fallbackContent, scope = "career") {
       if (current) setState((value) => ({ ...value, error: error.message, loading: false }));
     });
     return () => { current = false; };
-  }, [requestVersion, scope, section, access.owner?.id, access.loading]);
+  }, [requestVersion, scope, section, access.owner?.id, access.loading, beforeLoad]);
 
   const save = async (content) => {
     if (access.readOnly || access.loading || access.error) throw new Error("Этот раздел сейчас недоступен для редактирования.");
@@ -83,7 +87,7 @@ export function CareerContentError({ error, onRetry }) {
   );
 }
 
-export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick, showLabel = false, sphereId = "career" }) {
+export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick, showLabel = false }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return null;
   const ActionIcon = Icon || Pencil;
@@ -114,7 +118,6 @@ export function CareerEditAction({ disabled = false, icon: Icon, loading = false
             {buttonContent}
           </CareerIconAction>
         )}
-        <SphereBusinessControls sphereId={sphereId} />
       </div>
     </header>
   );
@@ -331,8 +334,10 @@ export function EditableMarkdownDocument({
     <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
     {careerContent.loading && <span className="not-typeset text-muted-foreground" role="status">Загружаем…</span>}
     {!careerContent.loading && !careerContent.error && (sharing.readOnly
-      ? <MarkdownDocument source={content} label={label} className={className} collapsibleAges={collapsibleAges} collapsibleStrategies={collapsibleStrategies} hideSourceLabels={hideSourceLabels} />
-      : <InlineDocument key={`${scope}:${section}:${sharing.owner?.id || "self"}`} documentKey={`${scope}:${section}`} scope={scope}
+      ? (!sharing.error && !content?.trim()
+        ? <EmptyState icon={FileText} title="Раздел пока пуст" text="Здесь появится текст, когда владелец его добавит." />
+        : <MarkdownDocument source={content} label={label} className={className} collapsibleAges={collapsibleAges} collapsibleStrategies={collapsibleStrategies} hideSourceLabels={hideSourceLabels} />)
+      : <InlineDocument key={`${scope}:${section}:${sharing.owner?.id || "self"}`} documentKey={`${scope}:${section}`}
         value={content} onSave={careerContent.save} label={label} className={className}
         disabled={sharing.loading || Boolean(sharing.error)}
       />)}

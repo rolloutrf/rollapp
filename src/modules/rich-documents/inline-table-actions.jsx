@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { applyTableAction, headerEnabled } from "@/modules/rich-documents/inline-table-actions.js";
 import { InlineStyleButtons } from "@/modules/rich-documents/inline-text-styles.jsx";
 import { coloredBlockPositions } from "@/modules/rich-documents/inline-block-color.js";
-import { hasEffectiveItalic, toggleEffectiveItalic } from "@/modules/rich-documents/inline-italic.js";
+import { hasEditorItalic, toggleEffectiveItalic } from "@/modules/rich-documents/inline-italic.js";
 
 const items = [
   ["selectRow", "Выделить строку", Rows3], ["selectColumn", "Выделить столбец", Columns3], ["selectTable", "Выделить все ячейки", Table2],
@@ -22,7 +22,7 @@ const items = [
 export function InlineTableActions({ editor, position, onDone, onColors, onCellColors }) {
   return <div className="flex min-w-0 flex-col gap-2" role="group" aria-label="Действия таблицы">
     {editor.state.selection instanceof CellSelection && <div className="flex flex-wrap gap-2" role="group" aria-label="Оформление ячеек">
-      {[["Жирный", "bold", "toggleBold", Bold], ["Курсив", "italic", "toggleItalic", Italic]].map(([label,mark,command,Icon]) => <Button key={mark} type="button" size="icon" variant={(mark === "italic" ? hasEffectiveItalic(editor.state) : editor.isActive(mark)) ? "secondary" : "ghost"} aria-label={label} aria-pressed={mark === "italic" ? hasEffectiveItalic(editor.state) : editor.isActive(mark)} onMouseDown={event => event.preventDefault()} onClick={() => {
+      {[["Жирный", "bold", "toggleBold", Bold], ["Курсив", "italic", "toggleItalic", Italic]].map(([label,mark,command,Icon]) => <Button key={mark} type="button" size="icon" variant={(mark === "italic" ? hasEditorItalic(editor) : editor.isActive(mark)) ? "secondary" : "ghost"} aria-label={label} aria-pressed={mark === "italic" ? hasEditorItalic(editor) : editor.isActive(mark)} onMouseDown={event => event.preventDefault()} onClick={() => {
         editor.view.dispatch(closeHistory(editor.state.tr)); if (mark === "italic") toggleEffectiveItalic(editor); else editor.chain().focus()[command]().run(); editor.view.dispatch(closeHistory(editor.state.tr)); onDone();
       }}><Icon aria-hidden="true" /></Button>)}
       <InlineStyleButtons editor={editor} onApply={onDone} onColors={onColors} />

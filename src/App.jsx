@@ -1,5 +1,5 @@
 import { CAREER_TABS, IDENTITY_TABS, EDUCATION_TABS, HEALTH_TABS } from "../shared/modules/shell/sphere-tabs.js";
-import { useLocation, Navigate, Outlet, useParams, Link, Route, Routes } from "react-router-dom";
+import { useLocation, Navigate, Outlet, useParams, Route, Routes } from "react-router-dom";
 import { TabbedSpherePage } from "./modules/shell/sphere-page.jsx";
 import { ContactsSpherePage, LegacyContactsRedirect } from "./modules/contacts/contacts-page.jsx";
 import { APP_HOME } from "./modules/shell/home-path.jsx";
@@ -31,16 +31,12 @@ import {
   PUBLIC_WISH_ROUTE_PATH,
 } from "./modules/shell/app-routing.js";
 import { SPHERE_SERVICES, messagesHostPath } from "./modules/shell/service-menu.jsx";
-import { PageActionButton } from "@/components/page-action-button";
-import { ArrowLeft, Send, ShoppingBag } from "lucide-react";
-import { ControlBar } from "@/components/control-bar";
 import { PersonalOffers } from "@/components/personal-offers";
-import { buttonVariants } from "@/components/ui/button";
 import { BusinessCatalogList, BusinessCatalogProvider } from "@/modules/catalog-marketplace/catalog-brands.jsx";
 import { sphereBusinessCatalogPath } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { useSphereSharing } from "./modules/access/sphere-sharing.jsx";
-import { sphereSectionPath } from "../shared/modules/access/sphere-sharing.js";
-import { SphereSharePicker, BusinessAccessPage } from "./modules/access/sphere-access.jsx";
+import { BusinessAccessPage } from "./modules/access/sphere-access.jsx";
+import { SphereShareAction } from "./modules/access/sphere-share-action.jsx";
 import { SPHERE_APPLICATIONS } from "../shared/modules/shell/applications.js";
 import { RollsWallet } from "@/modules/payments/rolls-wallet.jsx";
 import { MemberNumberPage } from "@/modules/profile/member-number-page.jsx";
@@ -166,7 +162,6 @@ function SphereBusinessCatalogRoute() {
   const { sphereId } = useParams();
   const { search } = useLocation();
   const access = useSphereSharing();
-  const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const sphere = sphereId === "contacts" ? "career" : sphereId;
   const query = new URLSearchParams(search);
   const identityReports = sphere === "identity" && query.get("tab") === "identity-reports";
@@ -174,30 +169,18 @@ function SphereBusinessCatalogRoute() {
   const catalogPath = sphereBusinessCatalogPath(sphere, section);
   if (!catalogPath) return <Navigate to={APP_HOME} replace />;
   if (sphereId === "contacts") return <Navigate to={catalogPath} replace />;
-  const home = sphereSectionPath({ sphere, section });
   if (user.accountType !== "personal" || !access.isOwner || access.readOnly || query.has("owner")) return <Navigate to={APP_HOME} replace />;
   const offers = query.get("view") === "offers";
-  const offerSearch = new URLSearchParams({ tab: section, view: "offers" });
-  const title = SPHERE_SERVICES.find(item => item.id === sphere)?.label;
   return <div className="app-page page-stack rollapp-body">
-    <ControlBar as="nav" className="page-actions horizontal-action-scroller" aria-label={`Разделы сферы «${title}»`}>
-      <Link to={home} data-control-icon className={buttonVariants({ variant: "outline", size: "icon" })} aria-label={`К сфере «${title}»`} title={`К сфере «${title}»`}><ArrowLeft aria-hidden="true" /></Link>
-      <Link to={catalogPath} data-control-icon className={buttonVariants({ variant: offers ? "outline" : "default", size: "icon" })} aria-current={!offers ? "page" : undefined} aria-label="Каталог брендов" title="Каталог брендов"><ShoppingBag aria-hidden="true" /></Link>
-      <Link to={`${catalogPath.split("?")[0]}?${offerSearch}`} data-control-icon className={buttonVariants({ variant: offers ? "default" : "outline", size: "icon" })} aria-current={offers ? "page" : undefined} aria-label="Предложения" title="Предложения"><Send aria-hidden="true" /></Link>
-    </ControlBar>
     <section className="page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label={offers ? "Предложения сферы" : "Каталог брендов"}>
-      {offers ? <PersonalOffers key={`${user.id}:${sphere}`} user={user} sphere={sphere} /> : <>
-        <header className="typeset typeset-rollapp">
-          <h2>Бренды · {title}</h2>
-          <p>Подпишитесь на бизнес, чтобы получать от него предложения.</p>
-        </header>
-        <BusinessCatalogProvider sphere={sphere}><BusinessCatalogList /></BusinessCatalogProvider>
-        {access.active && <><div><PageActionButton type="button" variant="outline" onClick={event => {
-          event.currentTarget.focus({ preventScroll: true });
-          setSharePickerOpen(true);
-        }}>Доступ к личному разделу</PageActionButton></div>
-        <SphereSharePicker open={sharePickerOpen} onOpenChange={setSharePickerOpen} /></>}
-      </>}
+      {offers ? <PersonalOffers key={`${user.id}:${sphere}`} user={user} sphere={sphere} /> : (
+        <BusinessCatalogProvider sphere={sphere}>
+          <BusinessCatalogList
+            intro={<p className="text-pretty">Подпишитесь на бизнес, чтобы получать от него предложения.</p>}
+          />
+          <SphereShareAction />
+        </BusinessCatalogProvider>
+      )}
     </section>
   </div>;
 }

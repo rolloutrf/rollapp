@@ -20,7 +20,7 @@ const eventLabels = {
   resolve_release: "Платформа завершила расчёт", resolve_refund: "Платформа вернула роллы",
 };
 
-export function MarketplaceOrder({ order, userId, onReload, fallbackFocus, filtered }) {
+export function MarketplaceOrder({ order, userId, onReload, fallbackFocus, filtered, onOpenReceipt }) {
   const [action, setAction] = useState(null);
   const card = useRef(null);
   const opener = useRef(null);
@@ -76,7 +76,7 @@ export function MarketplaceOrder({ order, userId, onReload, fallbackFocus, filte
       {actions.map((name) => <Button key={name} variant={["fulfill", "accept", "claim"].includes(name) ? "default" : "outline"}
         onClick={(event) => open(event, name)}>{marketplaceActionLabels[name]}</Button>)}
     </ControlBar>}
-    <OrderReceipt order={order} />
+    <OrderReceipt order={order} onOpenReceipt={onOpenReceipt} />
     {action && <MarketplaceActionDialog order={order} userId={userId} action={action}
       returnFocus={() => {
         if (focusCard.current && filtered) return fallbackFocus();

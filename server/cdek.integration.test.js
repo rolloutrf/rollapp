@@ -168,6 +168,27 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
         const errors = [];
         page.on("pageerror", (error) => errors.push(error.message));
         await mkdir("/tmp/rollapp-cdek-checks", { recursive: true });
+        async function assertDrawer(dialog, viewport) {
+          assert.equal(await dialog.getAttribute("data-swipe-direction"), viewport.width < 768 ? "down" : "right");
+          const geometry = await dialog.evaluate((drawer) => {
+            const body = drawer.querySelector("[data-cdek-checkout-body]");
+            const footer = drawer.querySelector('[data-slot="drawer-footer"]');
+            const header = drawer.querySelector('[data-slot="drawer-header"]');
+            return {
+              panel: drawer.getBoundingClientRect().toJSON(),
+              body: body.getBoundingClientRect().toJSON(),
+              headerBottom: header.getBoundingClientRect().bottom,
+              footer: footer.getBoundingClientRect().toJSON(),
+              bodyWidth: body.clientWidth,
+              scrollWidth: body.scrollWidth,
+              actionSizes: Array.from(footer.querySelectorAll("button"), button => button.offsetHeight),
+            };
+          });
+          assert.ok(Math.abs(geometry.panel.right - viewport.width) <= 1 && Math.abs(geometry.panel.bottom - viewport.height) <= 1);
+          assert.ok(geometry.headerBottom <= geometry.body.top + 1 && geometry.body.bottom <= geometry.footer.top + 1);
+          assert.ok(geometry.scrollWidth <= geometry.bodyWidth + 1, JSON.stringify(geometry));
+          assert.ok(geometry.actionSizes.length && geometry.actionSizes.every((size) => size === 48));
+        }
         for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
           await page.setViewportSize(viewport);
           await page.goto(`${origin}/app/store`);
@@ -179,6 +200,34 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
           await dialog.getByRole("combobox", { name: "Город", exact: true }).fill("Моск");
           await page.getByRole("option", { name: "Москва", exact: true }).click();
           await dialog.getByLabel("Адрес пункта выдачи").fill("Тверская");
+          if (viewport.width < 768) {
+            await page.evaluate(() => {
+              Object.defineProperties(visualViewport, {
+                height: { configurable: true, value: 300 },
+                offsetTop: { configurable: true, value: 24 },
+              });
+              visualViewport.dispatchEvent(new Event("resize"));
+            });
+            try {
+              await page.waitForFunction(() => {
+                if (!document.documentElement.hasAttribute("data-overlay-keyboard")) return false;
+                const drawer = document.querySelector(".cat-checkout");
+                const address = drawer.querySelector("#cdek-search");
+                const body = drawer.querySelector("[data-cdek-checkout-body]").getBoundingClientRect();
+                const footer = drawer.querySelector('[data-slot="drawer-footer"]').getBoundingClientRect();
+                const field = address.getBoundingClientRect();
+                return document.activeElement === address && field.top >= body.top - 1 &&
+                  field.bottom <= body.bottom + 1 && footer.bottom <= 325 && footer.top >= body.bottom - 1;
+              });
+            } finally {
+              await page.evaluate(() => {
+                delete visualViewport.height;
+                delete visualViewport.offsetTop;
+                visualViewport.dispatchEvent(new Event("resize"));
+              });
+            }
+            await page.waitForFunction(() => !document.documentElement.hasAttribute("data-overlay-keyboard"));
+          }
           await dialog.getByRole("radio").first().waitFor();
           await dialog.getByRole("radio").first().click();
           assert.equal(await dialog.getByRole("radio").count(), 0);
@@ -187,27 +236,8 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
           assert.match(await map.getAttribute("src"), /^https:\/\/yandex\.ru\/map-widget\/v1\/\?/);
           await map.contentFrame().locator("body").waitFor();
           await page.waitForTimeout(1_000);
-          const overflow = await dialog.locator("[data-cdek-checkout-body]").evaluate((element) => ({
-            clientWidth: element.clientWidth,
-            scrollWidth: element.scrollWidth,
-            clientHeight: element.clientHeight,
-            scrollHeight: element.scrollHeight,
-            scrollbarWidth: getComputedStyle(element).scrollbarWidth,
-            offenders: [...element.querySelectorAll("*")].map((child) => ({
-              tag: child.tagName,
-              slot: child.getAttribute("data-slot"),
-              className: typeof child.className === "string" ? child.className : "",
-              left: child.getBoundingClientRect().left,
-              right: child.getBoundingClientRect().right,
-            })).filter((child) => child.left < element.getBoundingClientRect().left - 0.5 || child.right > element.getBoundingClientRect().right + 0.5).slice(0, 10),
-          }));
-          assert.ok(overflow.scrollWidth <= overflow.clientWidth, JSON.stringify(overflow));
-          assert.ok(overflow.scrollHeight <= overflow.clientHeight, JSON.stringify(overflow));
-          assert.equal(overflow.scrollbarWidth, "none");
+          await assertDrawer(dialog, viewport);
           await page.screenshot({ path: `/tmp/rollapp-cdek-checks/pickup-${viewport.width}.png` });
-          const box = await dialog.boundingBox();
-          assert.ok(box.x >= 0 && box.x + box.width <= viewport.width + 1);
-          assert.ok(box.y >= 0 && box.y + box.height <= viewport.height + 1);
           await dialog.getByRole("button", { name: "Выбрать другой пункт" }).click();
           await dialog.locator('[data-slot="combobox-clear"]').click();
           assert.equal(await dialog.getByLabel("Адрес пункта выдачи").isDisabled(), true);
@@ -220,10 +250,7 @@ test("CDEK checkout against production PostgreSQL; fixture operations roll back"
           await dialog.getByRole("heading", { name: "Подтвердите покупку" }).waitFor();
           await dialog.getByTitle(/Карта пункта CDEK:/).contentFrame().locator("body").waitFor();
           await page.waitForTimeout(1_000);
-          const reviewOverflow = await dialog.locator("[data-cdek-checkout-body]").evaluate((element) => ({
-            clientHeight: element.clientHeight, scrollHeight: element.scrollHeight,
-          }));
-          assert.ok(reviewOverflow.scrollHeight <= reviewOverflow.clientHeight, JSON.stringify(reviewOverflow));
+          await assertDrawer(dialog, viewport);
           await page.screenshot({ path: `/tmp/rollapp-cdek-checks/review-${viewport.width}.png` });
           await page.keyboard.press("Escape");
           await dialog.waitFor({ state: "hidden" });

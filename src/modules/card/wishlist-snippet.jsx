@@ -32,6 +32,8 @@ export function WishlistSnippet({
   icon = Gift,
   video = false,
   openButton,
+  mediaContent,
+  mediaClassName,
   mediaBadge,
   mediaAction,
   menu,
@@ -52,17 +54,17 @@ export function WishlistSnippet({
         className,
       )}
     >
-      {openButton && <Button {...openButton} type="button" variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full min-w-0 rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" />}
+      {openButton && <Button {...openButton} type="button" variant="ghost" className={cn("wish-card__open absolute inset-0 z-[2] h-full w-full min-w-0 rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0", openButton.className)} />}
       {beforeMedia}
-      <div className="wish-card__image">
-        <SnippetImage
+      <div className={cn("wish-card__image", mediaClassName)}>
+        {mediaContent ?? <SnippetImage
           key={JSON.stringify([imageUrl, fallbackImageUrl])}
           src={imageUrl}
           fallbackSrc={fallbackImageUrl}
           alt={imageAlt}
           loading={imageLoading}
           icon={icon}
-        />
+        />}
         {mediaBadge && <div className="wish-card__media-badge">{mediaBadge}</div>}
         {mediaAction && <div className="wish-card__media-action">{mediaAction}</div>}
       </div>

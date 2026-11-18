@@ -18,8 +18,8 @@ function withForm(location, id) {
   return { pathname: location.pathname, search: search.size ? `?${search}` : "", hash: location.hash };
 }
 
-function FormBack({ close }) {
-  return <Button data-control-icon type="button" variant="outline" size="icon" className="mobile-form-page__back rounded-full" aria-label="Назад" onClick={() => close.current()}><ArrowLeft aria-hidden="true" /></Button>;
+function FormBack({ close, onBack }) {
+  return <Button data-control-icon type="button" variant="outline" size="icon" className="mobile-form-page__back rounded-full" aria-label="Назад" onClick={onBack ?? (() => close.current())}><ArrowLeft aria-hidden="true" /></Button>;
 }
 
 function FormPageHost({ entry, active, hasFooter, setTarget }) {
@@ -195,7 +195,8 @@ export function MobileFormScreen({ open = true, onOpenChange, onAfterClose, chil
 
 // Keep actions in their original form DOM. One fixed parent moves Back and
 // submit/delete together without breaking native validation or Enter submission.
-export function MobileFormFooter({ as: Component = "footer", className, children, ...props }) {
+// onBack can navigate to a previous step while browser Back still closes the form.
+export function MobileFormFooter({ as: Component = "footer", className, children, onBack, ...props }) {
   const page = useContext(FormPageContext);
   useLayoutEffect(() => {
     if (!page) return;
@@ -204,7 +205,7 @@ export function MobileFormFooter({ as: Component = "footer", className, children
   }, [page]);
   if (!page) return <ControlBar as={Component} className={cn("app-form-actions", className)} {...props}>{children}</ControlBar>;
   return <ControlBar as={Component} {...props} className={cn("mobile-form-page__footer", className)} data-native-form-actions="">
-    <FormBack close={page.close} />
+    <FormBack close={page.close} onBack={onBack} />
     <div className="mobile-form-page__actions">{children}</div>
   </ControlBar>;
 }

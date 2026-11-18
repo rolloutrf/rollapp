@@ -10,30 +10,65 @@ import { MOOD_LEVELS, NEUTRAL_MOOD_LEVEL } from "../shared/modules/profile/profi
 const screenshotDir = process.env.ROLLAPP_MOOD_SCREENSHOTS;
 if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
 
-async function assertMoodGlow(avatar, { reduced = false } = {}) {
-  const paint = await avatar.evaluate((element) => {
-    const glow = getComputedStyle(element, "::before");
-    return {
-      border: getComputedStyle(element).borderTopColor,
-      overlay: getComputedStyle(element, "::after").display,
-      shadow: glow.boxShadow,
-      layer: glow.zIndex,
-      animation: glow.animationName,
-    };
-  });
-  assert.equal(paint.border, "rgba(0, 0, 0, 0)");
-  assert.equal(paint.overlay, "none");
-  assert.match(paint.shadow, /(?:oklch|color\(|rgba?\()/);
-  assert.equal(paint.layer, "-1");
-  assert.equal(paint.animation, reduced ? "none" : "profile-mood-breathe");
-}
-
-async function assertNoGlow(avatar) {
+async function assertUncoloredAvatar(avatar) {
   assert.deepEqual(await avatar.evaluate((element) => {
     const glow = getComputedStyle(element, "::before");
     return [element.hasAttribute("data-profile-mood"), glow.boxShadow, glow.animationName];
   }), [false, "none", "none"]);
 }
+
+async function assertMoodTiles(rail, mood, expectedCount) {
+  await rail.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+  });
+  const tiles = await rail.evaluate((element) => {
+    const probe = document.createElement("span");
+    probe.hidden = true;
+    element.append(probe);
+    const paint = (color) => {
+      probe.style.backgroundColor = color;
+      return getComputedStyle(probe).backgroundColor;
+    };
+    const idle = paint("var(--secondary)");
+    const hover = paint("color-mix(in oklch, var(--secondary), var(--foreground) 5%)");
+    probe.remove();
+    return Array.from(element.querySelectorAll("[data-list-tile]"), (tile) => {
+      const style = getComputedStyle(tile);
+      return {
+        selected: tile.matches('[aria-pressed="true"]'),
+        accent: style.getPropertyValue("--list-tile-accent").trim(),
+        gradient: style.backgroundImage,
+        inset: style.boxShadow,
+        usesNeutralSurface: style.backgroundColor === (tile.matches(":hover") ? hover : idle),
+        size: [tile.offsetWidth, tile.offsetHeight],
+      };
+    });
+  });
+  assert.equal(tiles.length, expectedCount);
+  const selected = tiles.filter((tile) => tile.selected);
+  assert.equal(selected.length, 1);
+  for (const tile of tiles) {
+    assert.deepEqual(tile.size, [130, 100]);
+    if (!tile.selected) {
+      assert.equal(tile.gradient, "none", "Inactive tile must not have a mood gradient");
+      assert.equal(tile.inset, "none", "Inactive tile must not have a tinted edge");
+      assert(tile.usesNeutralSurface, "Inactive tile uses the neutral surface, including on hover");
+      continue;
+    }
+    assert.equal(tile.accent, mood.color);
+    assert.match(tile.gradient, /^radial-gradient\((?:ellipse )?90% 60% at 45% 110%,/);
+    assert.match(tile.gradient, /radial-gradient\((?:ellipse )?at 100% 100%,/);
+    const stops = Array.from(tile.gradient.matchAll(/oklch\(([\d.]+) ([\d.]+) ([\d.]+)/g), ([, l, c, h]) => [Number(l), Number(c), Number(h)]);
+    assert.deepEqual(stops.map(([lightness]) => lightness), [0.87, 0.62, 0.35, 0.46], "Retain the original depth of the sheen");
+    assert.deepEqual(stops.map(([, chroma]) => chroma), mood.level === NEUTRAL_MOOD_LEVEL ? [0, 0, 0, 0] : [0.15, 0.23, 0.16, 0.18]);
+    assert.equal(new Set(stops.map(([, , hue]) => hue)).size, 1, "The highlight and reflection use one hue");
+    assert.match(tile.inset, /inset/);
+  }
+  return selected[0].gradient;
+}
+
+const neutral = MOOD_LEVELS[NEUTRAL_MOOD_LEVEL - 1];
+const great = MOOD_LEVELS[4];
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-profile-mood",
@@ -66,7 +101,9 @@ try {
     const open = owner.getByRole("button", { name: "Редактировать профиль Александра" });
     const submit = page.getByRole("button", { name: "Сохранить настроение" });
     const visible = page.getByRole("switch", { name: "Показывать посетителям профиля" });
-    const preview = page.locator(".mood-settings__portrait");
+    const question = page.getByRole("region", { name: "Как вы сейчас?", exact: true });
+    const ownerTiles = page.locator("[data-wishlist-list-navigation]");
+    const ownerPortrait = owner.locator(".wishes-page__hero-avatar");
     const list = page.getByRole("list", { name: "Отметки настроения" });
     await open.click();
     const moodSection = page.getByRole("button", { name: "Настроение", exact: true });
@@ -81,29 +118,24 @@ try {
     } else {
       await page.getByText("Здесь появятся ваши отметки с датой и временем.").waitFor();
     }
-    const radios = page.getByRole("radio");
+    const scale = question.getByRole("radiogroup", { name: "Как вы сейчас?", exact: true });
+    const radios = scale.getByRole("radio");
     assert.equal(await radios.count(), 5);
     assert.equal(await visible.count(), 0);
-    await page.getByText(/цветное настроение видно всем посетителям/).waitFor();
+    assert.equal(await question.locator("[data-list-tile]").count(), 0);
     assert(await submit.isDisabled());
     for (const [i, mood] of MOOD_LEVELS.entries()) {
       if (i === 0) await radios.nth(i).click();
       else await page.keyboard.press("ArrowRight");
-      assert.equal(await radios.nth(i).getAttribute("aria-checked"), "true");
-      if (mood.level === NEUTRAL_MOOD_LEVEL) await assertNoGlow(preview);
-      else {
-        assert.equal(await preview.getAttribute("data-profile-mood"), String(mood.level));
-        await assertMoodGlow(preview);
-      }
+      const picked = scale.getByRole("radio", { name: mood.label, exact: true });
+      assert.equal(await picked.getAttribute("aria-checked"), "true");
     }
     const geometry = await page.evaluate(() => {
       const boxes = [...document.querySelectorAll('[role="radio"]')].map((node) => node.getBoundingClientRect().toJSON());
       const footer = document.querySelector("form [data-control-bar]");
       const save = footer.querySelector('[type="submit"]');
-      const hint = document.querySelector("#profile-mood-visibility");
       return { boxes, screen: { width: innerWidth, height: innerHeight }, root: document.documentElement.scrollWidth,
         button: save.getBoundingClientRect().toJSON(), radius: getComputedStyle(save).borderTopLeftRadius,
-        hintFont: getComputedStyle(hint).fontSize, hintLeading: getComputedStyle(hint).lineHeight,
         nestedScroll: !!document.querySelector('form [data-slot="scroll-area-viewport"]') };
     });
     assert(geometry.root <= width, `root overflow ${width}`);
@@ -114,8 +146,6 @@ try {
     }
     assert.equal(geometry.button.height, 48);
     assert.equal(geometry.radius, "24px");
-    assert.equal(geometry.hintFont, "13px");
-    assert.equal(geometry.hintLeading, "16px");
     assert(geometry.button.bottom <= height + 1);
     assert.equal(geometry.nestedScroll, width >= 768);
     if (width < 768) assert.equal(await page.getByRole("button", { name: "Назад", exact: true }).count(), 1);
@@ -133,41 +163,50 @@ try {
     const close = async () => { await back.click(); await closeMenu(); };
     await close();
     await open.waitFor();
-    const avatar = owner.locator("[data-profile-mood='5']");
-    await avatar.waitFor();
     assert.equal(await owner.getByText(/^Настроение:/).count(), 0);
-    if (photo) await avatar.locator('[data-slot="avatar-image"]').waitFor();
-    await assertMoodGlow(avatar);
-    const [dimmed, bright] = await avatar.evaluate((element) => {
-      const animation = element.getAnimations({ subtree: true }).find(({ animationName }) => animationName === "profile-mood-breathe");
-      animation.pause();
-      const frames = [0, animation.effect.getTiming().duration / 2].map((time) => {
-        animation.currentTime = time;
-        const { opacity, transform } = getComputedStyle(element, "::before");
-        return { opacity: Number(opacity), transform };
-      });
-      animation.play();
-      return frames;
-    });
-    assert(bright.opacity > dimmed.opacity);
-    assert.notEqual(bright.transform, dimmed.transform);
+    if (photo) await ownerPortrait.locator('[data-slot="avatar-image"]').waitFor();
+    await assertUncoloredAvatar(ownerPortrait);
+    await assertMoodTiles(ownerTiles, great, 3);
+    if (width === 1440) {
+      await ownerTiles.locator('[data-list-tile][aria-pressed="false"]').first().hover();
+      await assertMoodTiles(ownerTiles, great, 3);
+    }
+    await ownerTiles.locator("[data-list-tile]").nth(1).click();
+    await assertMoodTiles(ownerTiles, great, 3);
+    assert.equal(await ownerTiles.locator("[data-list-tile]").nth(1).getAttribute("aria-pressed"), "true");
+    const picked = ownerTiles.locator('[aria-pressed="true"]');
+    assert.equal(await picked.evaluate(tile => getComputedStyle(tile).animationName), "wishlist-tile-glow");
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await assertMoodGlow(avatar, { reduced: true });
-    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await assertMoodTiles(ownerTiles, great, 3);
+    assert.equal(await picked.evaluate(tile => getComputedStyle(tile).animationName), "none");
+    if (width === 1440) {
+      await page.emulateMedia({ forcedColors: "active" });
+      assert.deepEqual(await ownerTiles.locator("[data-list-tile]").evaluateAll(tiles => tiles.map(tile => getComputedStyle(tile).backgroundImage)), ["none", "none", "none"]);
+      const active = ownerTiles.locator('[aria-pressed="true"]');
+      assert.equal(await active.evaluate(tile => {
+        const sample = tile.appendChild(document.createElement("span"));
+        sample.style.cssText = "background-color: Highlight; forced-color-adjust: none";
+        const activePaint = getComputedStyle(tile).backgroundColor;
+        const highlight = getComputedStyle(sample).backgroundColor;
+        sample.remove();
+        return activePaint === highlight;
+      }), true);
+      await page.emulateMedia({ forcedColors: "none" });
+    }
     if (screenshotDir && [390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${screenshotDir}/published-${width}.png` });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await open.click();
     await moodSection.click();
     await page.getByRole("radio", { name: "Нейтрально", exact: true }).click();
     await submit.click();
     await page.getByText("Отметка добавлена в журнал", { exact: true }).waitFor();
     assert.equal(await list.locator("li").first().getByText("Нейтрально", { exact: true }).count(), 1);
-    await assertNoGlow(preview);
     await radios.first().click();
     if (width < 768) await page.goBack(); else await page.keyboard.press("Escape");
     await closeMenu();
     await open.waitFor();
-    const ownerPortrait = owner.locator(".wishes-page__hero-avatar");
-    await assertNoGlow(ownerPortrait);
+    await assertUncoloredAvatar(ownerPortrait);
+    await assertMoodTiles(ownerTiles, neutral, 3);
     assert.equal(await owner.getByText(/^Настроение:/).count(), 0);
     const calls = await page.evaluate(() => window.__moodSaves);
     assert.deepEqual(calls, [calls[0], calls[0], calls[2]]);
@@ -177,16 +216,17 @@ try {
     assert.notEqual(calls[0].entry.requestId, calls[2].entry.requestId);
     await page.reload();
     await ownerPortrait.waitFor();
-    await assertNoGlow(ownerPortrait);
+    await assertUncoloredAvatar(ownerPortrait);
+    await assertMoodTiles(ownerTiles, neutral, 3);
     if (screenshotDir && photo) await page.screenshot({ path: `${screenshotDir}/neutral-owner-${width}.png` });
     // The photo and initials use different portrait CSS. Exercise both.
-    for (const scenario of ["", "&neutral", "&published"]) {
-      const published = scenario === "&published";
+    for (const scenario of ["", "&published", ...(width === 1440 ? ["&visitor", "&visitor&published"] : [])]) {
+      const published = scenario.includes("&published");
       await page.goto(`${smokeOrigin(server)}/__profile-mood?guest${scenario}${photo ? "&photo" : ""}`);
       const profile = page.locator("[data-friend-profile]");
       await profile.getByRole("heading", { name: "Александра", exact: true }).waitFor();
-      const portrait = profile.locator("[data-profile-mood='5']");
-      assert.equal(await portrait.count(), Number(published));
+      const portrait = profile.locator(".wishes-page__hero-avatar");
+      await assertUncoloredAvatar(portrait);
       assert.equal(await profile.getByText(/^Настроение:/).count(), 0);
       assert.equal(await page.getByRole("heading", { name: "Журнал настроения" }).count(), 0);
       if (photo) {
@@ -194,14 +234,23 @@ try {
         await image.waitFor();
         assert(await image.evaluate((el) => el.complete && el.naturalWidth > 0));
       }
-      if (published) {
-        await assertMoodGlow(portrait);
-        assert(await profile.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-        if (screenshotDir && [390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${screenshotDir}/guest-${width}.png` });
-      } else await assertNoGlow(profile.locator(".wishes-page__hero-avatar"));
+      const tiles = page.locator("[data-public-collection] [data-wishlist-list-navigation]");
+      await assertMoodTiles(tiles, published ? great : neutral, 3);
+      assert(await profile.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      if (published && screenshotDir && [390, 1440].includes(width) && height > 400)
+        await page.screenshot({ path: `${screenshotDir}/guest-${width}.png` });
+    }
+    if (width === 1440) {
+      const colors = new Set();
+      for (const mood of MOOD_LEVELS) {
+        await page.goto(`${smokeOrigin(server)}/__profile-mood?guest&published=${mood.level}`);
+        const tiles = page.locator("[data-public-collection] [data-wishlist-list-navigation]");
+        colors.add(await assertMoodTiles(tiles, mood, 3));
+      }
+      assert.equal(colors.size, 5, "Each mood gives the selected tile a distinct tint");
     }
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height}: 5 levels, preview, retry, private log, automatic glow without a caption, neutral without glow, cancel, 48px controls`);
+    console.log(`PASS ${width}×${height}: 5 choices, retry, private log, real tile tints, no avatar halo, public color, neutral fallback, cancel, 48px controls`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

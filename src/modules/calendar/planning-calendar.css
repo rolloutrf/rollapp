@@ -130,7 +130,6 @@
 .schedule-agenda__time { min-width: 0; padding-block: 12px; text-align: right; }
 .schedule-agenda__task { height: auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; white-space: normal; text-align: left; border-radius: var(--radius-sm); }
 .schedule-agenda__task > span { overflow-wrap: anywhere; }
-.schedule-empty { display: flex; min-height: 300px; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; color: var(--muted-foreground); }
 .schedule-list-panel { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 @media (max-width: 1100px) {
   .schedule-timegrid--week { min-width: 1266px; }

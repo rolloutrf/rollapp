@@ -23,13 +23,10 @@ function CollectionSnippetImage({ candidates, icon: Icon }) {
   </>;
 }
 
-// Portrait media shared by collection snippets in the education and health spheres.
-export function CollectionSnippetMedia({ src = "", sources, icon, children }) {
+// Load logos or photographs inside the shared Wishlist cover.
+export function CollectionSnippetGraphic({ src, sources, icon }) {
   const candidates = sources || (src ? [src] : []);
-  return <div className="collection-snippet__media">
-    <CollectionSnippetImage key={JSON.stringify(candidates)} candidates={candidates} icon={icon} />
-    {children}
-  </div>;
+  return <CollectionSnippetImage key={JSON.stringify(candidates)} candidates={candidates} icon={icon} />;
 }
 
 // Keep long status labels inside narrow media without hiding their first letters.

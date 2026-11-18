@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUp, MessageCircle, Search, Send, X } from 'lucide-react';
 import { ASSISTANT_MESSAGE_LIMIT } from '../../shared/modules/assistant/messenger-assistant.js';
@@ -178,7 +179,7 @@ function Messenger({ user, transport = api, initialConversationId = null }) {
               <h3 id="messenger-subscriptions" className="messenger-section-label text-xs font-semibold uppercase">Подписки</h3>
               {contacts.map(peer => <ParticipantEntry key={peer.id} peer={peer} disabled={opening} onSelect={start} />)}
             </section>}
-            {!loading && !error && !subscriptionsError && subscriptions?.length === 0 && !conversations.length && <div className="messenger-empty"><MessageCircle aria-hidden="true" /><h3 className="text-xl font-medium">Начните разговор</h3><p>Найдите участника по имени или username и напишите ему.</p></div>}
+            {!loading && !error && !subscriptionsError && subscriptions?.length === 0 && !conversations.length && <EmptyState compact icon={MessageCircle} title="Начните разговор" text="Найдите участника по имени или username и напишите ему." />}
           </>}
         </div>
       </section>}

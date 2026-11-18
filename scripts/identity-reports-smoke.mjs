@@ -38,7 +38,7 @@ try {
     assert.equal(await page.locator('.identity-pdf-score__track').first().getAttribute('aria-label'), 'Амбициозность: 84');
     assert.equal(await page.locator('.identity-pdf-subscale__cells > span').count(), 24);
     assert.equal(await page.locator('.identity-pdf-subscale__cells').first().getAttribute('aria-label'), 'Исходное название подшкалы: 1 / 4');
-    assert.equal(await page.locator('.identity-generated-document h2').textContent(), 'report-with-a-long-original-filename.pdf');
+    assert.equal(await page.getByText('report-with-a-long-original-filename.pdf', { exact: true }).count(), 0);
     }
     assert.equal(await page.locator('.identity-generated-documents [data-slot=card]').count(), 0);
     const geometry = await page.evaluate(() => {

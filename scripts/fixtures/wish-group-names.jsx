@@ -10,7 +10,7 @@ function Fixture() {
   const [opened, setOpened] = useState('');
   return <div className="app-layout app-layout--dark"><main className="app-main app-main--wishes">
     <div className="app-page wishes-page">
-      <div className="wish-grid">{titles.map((title, index) => <WishGroupTile
+      <div className="wish-grid snippet-grid">{titles.map((title, index) => <WishGroupTile
         key={title} group={{ id: String(index), title }}
         wishes={Array.from({ length: index + 1 }, (_, i) => ({ id: String(i), title: 'Желание' }))}
         onOpen={() => setOpened(title)}

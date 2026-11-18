@@ -1,17 +1,17 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3,
-  ImagePlus, RotateCcw, TicketCheck, Trash2, Users, X,
+  RotateCcw, TicketCheck, Users, X,
 } from "lucide-react";
 import { api, sessionFetch } from "@/modules/runtime/api.js";
-import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/modules/card/collection-snippet-media.jsx";
+import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
+import { CollectionSnippetBadge } from "@/modules/card/collection-snippet-media.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/form-surface";
@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useCardReorder } from "@/hooks/use-card-reorder";
+import { EducationLogoPicker } from "@/modules/education/education-logo-picker.jsx";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { savedOrder } from "@/lib/card-order";
@@ -112,13 +113,13 @@ function ConferenceLogo({ conference, size = "card" }) {
     ? "size-20 shrink-0 rounded-xl"
     : "size-10 shrink-0 rounded-lg";
   return (
-    <div className={`flex items-center justify-center overflow-hidden border bg-muted text-muted-foreground ${className}`}>
+    <span className={`flex items-center justify-center overflow-hidden border bg-muted text-muted-foreground ${className}`}>
       {conference.logoUrl ? (
         <img className="size-full object-contain" src={conference.logoUrl} alt="" />
       ) : (
         <TicketCheck className={size === "form" ? "size-8" : "size-5"} aria-hidden="true" />
       )}
-    </div>
+    </span>
   );
 }
 
@@ -129,18 +130,19 @@ function ConferenceCard({
   const status = CONFERENCE_STATUS[conference.status] || CONFERENCE_STATUS.planned;
   const StatusIcon = status.icon;
   return (
-    <div className="relative h-full min-w-0">
-      <Button
-        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
-        variant="ghost"
-        type="button"
-        data-card-drag-trigger={draggable ? "" : undefined}
-        aria-describedby={dragDescriptionId || undefined}
-        aria-haspopup="dialog"
-        aria-label={draggable ? `Открыть и переместить конференцию «${conference.title}»` : `Открыть конференцию «${conference.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой конференции и дождитесь подсветки" : "Нажмите, чтобы открыть"}
-        onClick={() => onEdit(conference)}
-        onKeyDown={(event) => {
+    <CollectionSnippet
+      title={conference.title}
+      media={{ src: conference.logoUrl, icon: TicketCheck }}
+      status={<CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>}
+      openButton={{
+        "data-card-drag-trigger": draggable ? "" : undefined,
+        "aria-describedby": dragDescriptionId,
+        className: draggable ? "cursor-grab active:cursor-grabbing" : undefined,
+        "aria-haspopup": "dialog",
+        "aria-label": draggable ? `Открыть и переместить конференцию «${conference.title}»` : `Открыть конференцию «${conference.title}»`,
+        title: draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой конференции и дождитесь подсветки" : "Нажмите, чтобы открыть",
+        onClick: () => onEdit(conference),
+        onKeyDown: (event) => {
           if (!draggable) return;
           if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
@@ -150,59 +152,41 @@ function ConferenceCard({
             event.preventDefault();
             onMove(conference.id, 1);
           }
-        }}
-      >
-        <span className="sr-only">Открыть или переместить конференцию «{conference.title}»</span>
-      </Button>
-      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
-        <CollectionSnippetMedia src={conference.logoUrl} icon={TicketCheck}>
-          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
-        </CollectionSnippetMedia>
-        <CardHeader>
-          <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
-            <div className="flex min-w-0 flex-col items-start gap-1">
-              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium" title={conference.title}>{conference.title}</h3>
-              {conference.location && <CardDescription className="w-full truncate" title={conference.location}>{conference.location}</CardDescription>}
-            </div>
-          </CardTitle>
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <EducationItemListMenu
-              currentListId={conference.listId}
-              grouping={grouping}
-              disabled={moveDisabled}
-              itemLabel="конференцию"
-              itemTitle={conference.title}
-              lists={lists}
-              moving={moving}
-              onCreateList={onCreateList}
-              onMove={(listId) => onMoveToList(conference, listId)}
-              onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(conference) : undefined}
-              removeBusy={removeBusy}
-            />
-          </CardAction>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col gap-4">
-          {conference.description && <p className="m-0 text-sm text-muted-foreground text-pretty">{conference.description}</p>}
-          <div className="mt-auto flex flex-col gap-2 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="size-4" aria-hidden="true" />
-              <span>{conferenceDateLabel(conference)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="size-4" aria-hidden="true" />
-              <span>{CONFERENCE_ROLE[conference.role]} · {CONFERENCE_FORMAT[conference.format]}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        },
+      }}
+      menu={
+        <EducationItemListMenu
+          currentListId={conference.listId}
+          grouping={grouping}
+          disabled={moveDisabled}
+          itemLabel="конференцию"
+          itemTitle={conference.title}
+          lists={lists}
+          moving={moving}
+          onCreateList={onCreateList}
+          onMove={(listId) => onMoveToList(conference, listId)}
+          onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(conference) : undefined}
+          removeBusy={removeBusy}
+        />
+      }
+    >
+      {conference.location && <span className="w-full truncate" title={conference.location}>{conference.location}</span>}
+      {conference.description && <p className="line-clamp-3 text-pretty">{conference.description}</p>}
+      <div className="flex items-center gap-2">
+        <CalendarDays className="size-4" aria-hidden="true" />
+        <span>{conferenceDateLabel(conference)}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Users className="size-4" aria-hidden="true" />
+        <span>{CONFERENCE_ROLE[conference.role]} · {CONFERENCE_FORMAT[conference.format]}</span>
+      </div>
+    </CollectionSnippet>
   );
 }
 
 function ConferenceDrawer({ conference, initialListId = "", lists = [], open, onOpenChange, onSaved }) {
   const isMobile = useIsMobile();
   const formId = useId();
-  const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const [form, setForm] = useState(EMPTY_CONFERENCE);
   const [saving, setSaving] = useState(false);
@@ -278,7 +262,6 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
       setLogoError(uploadError.message || "Не удалось загрузить логотип.");
     } finally {
       setLogoUploading(false);
-      if (imageFileRef.current) imageFileRef.current.value = "";
     }
   };
 
@@ -347,71 +330,10 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
             )}
 
             <FieldGroup className="gap-4">
-              <Field data-invalid={Boolean(logoError)}>
-                <FieldLabel htmlFor={`${formId}-logo`}>Логотип</FieldLabel>
-                <div className="flex flex-wrap items-center gap-4">
-                  <Button
-                    className="group relative size-20 shrink-0 cursor-pointer overflow-hidden rounded-xl p-0"
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    disabled={saving || logoUploading}
-                    aria-label={form.logoUrl ? "Заменить логотип конференции" : "Загрузить логотип конференции"}
-                    title={form.logoUrl ? "Заменить логотип" : "Загрузить логотип"}
-                    onClick={() => imageFileRef.current?.click()}
-                  >
-                    <ConferenceLogo conference={form} size="form" />
-                    <span
-                      className={`pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/60 text-white transition-opacity ${logoUploading ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}
-                      aria-hidden="true"
-                    >
-                      {logoUploading ? <Spinner /> : <ImagePlus className="size-6" />}
-                    </span>
-                  </Button>
-                  <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-                    <Input
-                      className="sr-only"
-                      id={`${formId}-logo`}
-                      ref={imageFileRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      tabIndex={-1}
-                      onChange={(event) => uploadLogo(event.target.files?.[0])}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        className="min-h-12 px-4 text-base"
-                        variant="outline"
-                        type="button"
-                        disabled={saving || logoUploading}
-                        onClick={() => imageFileRef.current?.click()}
-                      >
-                        {logoUploading ? <Spinner aria-hidden="true" /> : <ImagePlus data-icon="inline-start" aria-hidden="true" />}
-                        {logoUploading ? "Загружаем" : form.logoUrl ? "Заменить" : "Загрузить"}
-                      </Button>
-                      {form.logoUrl && (
-                        <Button
-                          className="min-h-12 px-4 text-base"
-                          variant="destructive"
-                          type="button"
-                          disabled={saving || logoUploading}
-                          onClick={() => {
-                            update("logoUrl", "");
-                            setLogoError("");
-                          }}
-                        >
-                          <Trash2 data-icon="inline-start" aria-hidden="true" />
-                          Удалить
-                        </Button>
-                      )}
-                    </div>
-                    <p className="m-0 text-sm text-muted-foreground text-pretty">
-                      Подтянется по ссылке на ресурс. Можно заменить своим JPG, PNG или WEBP до 8 МБ.
-                    </p>
-                  </div>
-                </div>
-                {logoError && <FieldError>{logoError}</FieldError>}
-              </Field>
+              <EducationLogoPicker label="Выбрать логотип конференции" uploading={logoUploading} disabled={saving}
+                error={logoError} onFileSelect={uploadLogo}>
+                <ConferenceLogo conference={form} size="form" />
+              </EducationLogoPicker>
 
               <Field>
                 <FieldLabel htmlFor={`${formId}-title`}>Название</FieldLabel>
@@ -858,8 +780,13 @@ export function Conferences() {
         </Card>
       )}
 
+      {!requestState.loading && !requestState.error && !visibleConferences.length && (
+        <EmptyState icon={TicketCheck} title={requestState.conferences.length ? "В этом списке пока пусто" : "Конференций пока нет"}
+          text={readOnly ? "Владелец пока не добавил сюда записи." : "Добавьте конференцию, которую планируете посетить."} />
+      )}
+
       {!requestState.loading && visibleConferences.length > 0 && (
-        <ul ref={cardOrder.listRef} className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label="Порядок и группы конференций" aria-busy={cardOrder.orderBusy}>
+        <ul ref={cardOrder.listRef} className="snippet-grid list-none p-0" aria-label="Порядок и группы конференций" aria-busy={cardOrder.orderBusy}>
           {visibleGroups.map((group) => (
             <EducationItemGroupTile
               key={group.id}

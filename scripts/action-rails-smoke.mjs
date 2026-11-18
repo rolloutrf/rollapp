@@ -4,7 +4,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
-  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { ContactsProfileControls } from \"./modules/contacts/contacts-page.jsx\";\nexport { WishesProfileControls } from \"./modules/wishlist/wish-navigation.jsx\";\nexport { WishesPage } from \"./modules/wishlist/wishes-page.jsx\";\nexport { AppShell } from \"./modules/shell/app-shell.jsx\";\nexport { ProfileEditorProvider } from \"./modules/profile/profile-editor.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
+  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { WishesProfileControls } from \"./modules/wishlist/wish-navigation.jsx\";\nexport { WishesPage } from \"./modules/wishlist/wishes-page.jsx\";\nexport { AppShell } from \"./modules/shell/app-shell.jsx\";\nexport { ProfileEditorProvider } from \"./modules/profile/profile-editor.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";`;
   if(id.endsWith('/src/modules/access/sphere-sharing.jsx'))return `${source}\nexport { SphereSharingContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
     res.setHeader('Content-Type','text/html');
@@ -14,12 +14,65 @@ const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
+
+async function checkIdentitySelections(page, width) {
+ for (const [section, labels, retained] of [
+  ['values', ['Принятие другими', 'Точность'], []],
+  ['character', ['Любознательность', 'Критическое мышление'], ['legacy:0']],
+ ]) {
+  const path = `${origin}/__action-rails?variant=${section}`;
+  await page.goto(path);
+  const [first, second] = labels.map(name => page.locator(`[role="checkbox"][aria-label="${name}"]`));
+  await page.getByText('Выбор сохранён', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: /Сохранить выбор|Сохранено/ }).count(), 0);
+  await page.evaluate(() => { window.holdSelectionWrite = true; });
+  await first.press('Space');
+  await page.waitForFunction(() => Boolean(window.releaseSelectionWrite));
+  await second.press('Space');
+  await first.press('Space');
+  assert.equal(await first.isChecked(), false);
+  assert.equal(await second.isChecked(), true);
+  assert.equal(await page.evaluate(() => window.selectionWrites.length), 1, 'Writes must be serialized');
+
+  await page.getByRole('button', { name: 'Скрыть список' }).click();
+  await page.getByRole('button', { name: 'Показать список' }).click();
+  assert(await second.isDisabled(), 'Reopening must wait for pending writes');
+  await page.evaluate(() => { window.holdSelectionWrite = false; window.releaseSelectionWrite(); });
+  await page.getByText('Выбор сохранён', { exact: true }).waitFor();
+  assert.equal(await first.isChecked(), false);
+  assert.equal(await second.isChecked(), true);
+  const expected = section === 'values' ? 'accuracy' : 'critical-thinking';
+  assert.deepEqual(await page.evaluate(() => window.selectionContent.selected), [...retained, expected]);
+
+  await page.evaluate(() => { window.failSelectionWrite = true; });
+  await second.press('Space');
+  await page.getByText('Тестовый сбой сохранения', { exact: true }).waitFor();
+  assert.equal(await second.isChecked(), false, 'Keep the selection after a failed save');
+  await page.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
+  await page.getByText('Выбор сохранён', { exact: true }).waitFor();
+  assert.deepEqual(await page.evaluate(() => window.selectionContent.selected), retained);
+
+  if (section === 'character') {
+   await page.getByRole('button', { name: 'Снять выбор', exact: true }).click();
+   await page.waitForFunction(() => window.selectionContent.selected.length === 0);
+   assert.deepEqual(await page.evaluate(() => window.selectionContent.custom.map(item => item.id)), retained);
+  }
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Checklist overflow');
+  await page.goto(`${path}&readonly`);
+  await first.waitFor();
+  assert(await first.isDisabled());
+  assert.equal(await page.locator('[data-add-fab]').count(), 0);
+  assert.equal(await page.evaluate(() => window.selectionWrites.length), 0);
+  console.log(`PASS ${width} ${section}: autosave, pending tab reopen, retry, read-only`);
+ }
+}
+
 try{
  for(const width of (process.env.ACTION_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number)){
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push(`Unexpected API request: ${route.request().method()} ${new URL(route.request().url()).pathname}`);return route.abort();});
-  for(const variant of ['text','overflow','collection','contacts-real','wishlist-real','report','wishlist','narrow','short','icons','icon-labels','edit','dynamic','nested']){
+  for(const variant of ['text','overflow','collection','contacts-real','identity-nav','education-nav','health-nav','wishlist-real','report','wishlist','narrow','short','icons','icon-labels','edit','dynamic','nested']){
    await page.goto(`${origin}/__action-rails?variant=${variant}`);
    const rail=page.locator('.page-actions.horizontal-action-scroller,.identity-report-manager__actions.horizontal-action-scroller');
    await rail.waitFor();await page.evaluate(()=>document.fonts.ready);
@@ -42,7 +95,16 @@ try{
     assert.equal(textActions.length,1,'Seller page uses the shared text action');
     assert.equal(await rail.getByRole('button',{name:/импорт/i}).count(),0,'Purchase import belongs in profile finances');
    }
-   if(variant==='contacts-real')assert.equal(textActions.length,0,'Contacts toolbar contains the store action');
+   if (['contacts-real','identity-nav','education-nav','health-nav'].includes(variant)) {
+    const profileNav = page.locator('[data-persistent-profile] .wishes-page__hero-copy > .profile-section-navigation');
+    assert.equal(await profileNav.count(),1);
+    assert.equal(await profileNav.locator('a[aria-current="page"]').count(),1);
+    assert.equal(await profileNav.getByRole('link',{name:'Открыть каталог брендов'}).count(),1);
+    assert.equal(await profileNav.getByRole('link',{name:'Предложения',exact:true}).count(),1);
+    assert.equal(await profileNav.getByRole('link',{name:'Открыть магазин за роллы'}).count(),variant==='identity-nav'?0:1);
+    assert.equal(await page.locator('.sphere-share-avatars a').count(),0);
+    assert.equal(textActions.length,0);
+   }
    if(['collection','wishlist-real'].includes(variant)){
     const tiles=await page.locator('.list-tabs [data-list-tile]').evaluateAll(elements=>elements.map(element=>{const r=element.getBoundingClientRect(),s=getComputedStyle(element),label=element.querySelector('[data-slot="list-tile-label"]'),count=element.querySelector('[data-slot="list-tile-count"]'),c=count.getBoundingClientRect();return {width:r.width,height:r.height,radius:s.borderTopLeftRadius,inlineStyle:element.hasAttribute('style')||label.hasAttribute('style')||count.hasAttribute('style'),countFits:c.top>=r.top&&c.bottom<=r.bottom};}));
     assert.equal(tiles.length,2);for(const tile of tiles){assert.equal(tile.width,130);assert.equal(tile.height,100);assert.equal(tile.radius,'18px');assert(!tile.inlineStyle,'List tiles must consume shared CSS without inline copies');assert(tile.countFits,'Tile count left its bounds');}
@@ -62,12 +124,14 @@ try{
       idle:{wishlist:style(tile('.list-tabs','false')),day:style(tile('[data-day-tile-comparison]','false'))},
       selected:{wishlist:style(wishlist),day:style(day)},
       wishlistPaint:expectedPaint(wishlist,'--list-tile-selected-surface','--list-tile-selected-ink','inherit'),
+      wishlistIdlePaint:expectedPaint(tile('.list-tabs','false'),'--list-tile-idle-surface','--secondary-foreground','var(--muted-foreground)'),
       dayPaint:expectedPaint(day,'--primary','--primary-foreground','color-mix(in oklch, var(--primary-foreground) 72%, transparent)'),
-      wishlistGlow:getComputedStyle(wishlist,'::before').backgroundImage,
-      dayGlow:getComputedStyle(day,'::before').backgroundImage,
+      wishlistGlow:getComputedStyle(wishlist).backgroundImage,
+      dayGlow:getComputedStyle(day).backgroundImage,
      };
     });
-    assert.deepEqual(parity.idle.day,parity.idle.wishlist,'Unselected day and Wishlist tiles share geometry and paint');
+    assert.deepEqual(parity.idle.day.geometry,parity.idle.wishlist.geometry,'Unselected day and Wishlist tiles share geometry');
+    assert.deepEqual(parity.idle.wishlist.paint,parity.wishlistIdlePaint,'Unselected Wishlist tiles keep their mood surface and muted metadata');
     assert.deepEqual(parity.selected.day.geometry,parity.selected.wishlist.geometry,'Selected day and Wishlist tiles share geometry and typography');
     assert.deepEqual(parity.selected.day.paint,parity.dayPaint,'Selected days use the shared primary colors');
     assert.deepEqual(parity.selected.wishlist.paint,parity.wishlistPaint,'Selected Wishlist tiles use the dedicated surface and equal title and count colors');
@@ -129,7 +193,7 @@ try{
    const selected = page.locator('[data-list-tile][aria-pressed="true"]');
    const initial = await selected.getAttribute('aria-label');
    assert.equal(await page.getByRole('button', { name: /^(Настройки списка|Настройки группы|Редактировать)$/ }).count(), 0);
-   assert.equal(await page.getByRole('link', { name: 'Открыть магазин за роллы' }).count(), 1);
+   assert.equal(await page.getByRole('link', { name: 'Открыть магазин за роллы' }).count(), 0,'Sphere destinations belong to the profile rail');
    await settings.focus();
    await page.keyboard.press('Enter');
    if (performance) {
@@ -178,12 +242,16 @@ try{
    await page.goto(`${origin}/__action-rails?variant=${variant}`);
    await page.locator('.ProseMirror').waitFor();
    assert.equal(await page.locator('a[href*="/identity/business/"]').count(),0,'Identity document has no marketplace entry');
-   assert.equal(await page.locator('.page-toolbar').count(),variant==='identity-document-add'?1:0,'Empty identity toolbar reserved a gap');
+   assert.equal(await page.locator('.page-toolbar').count(),0,'Empty identity toolbar reserved a gap');
    assert.equal(await page.getByRole('button',{name:'Добавить блок',exact:true}).count(),variant==='identity-document-add'?1:0,'Independent block creation must stay available');
    assert.equal(await page.locator('.ProseMirror').textContent(),'Текст раздела');
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Identity document overflow');
    console.log(`PASS ${width} ${variant}: no marketplace/empty rail, document and Add retained`);
   }
+  await checkIdentitySelections(page, width);
+  await page.goto(`${origin}/__action-rails?variant=contacts-real&readonly`);
+  await page.getByText('Только чтение',{exact:true}).waitFor();
+  assert.equal(await page.locator('.profile-section-navigation').count(),0,'Shared spheres must not display owner navigation');
   await page.goto(`${origin}/__action-rails?variant=wishlist-error`);
   await page.getByText('Не удалось загрузить Вишлист',{exact:true}).waitFor();
   assert.equal(await page.getByRole('navigation',{name:'Разделы Вишлиста'}).getByRole('link',{name:'Календарь',exact:true}).count(),1,'Publication links remain available when the Wishlist fails to load');

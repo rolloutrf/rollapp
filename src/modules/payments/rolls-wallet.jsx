@@ -1,18 +1,18 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, Check, Coins, Plus, Search, Send } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ArrowRight, Check, ChevronRight, Coins, Import, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ControlBar } from "@/components/control-bar";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { FinanceFundraiserCards } from "@/components/fundraiser-virtual-card";
 import { DrawerFooter } from "@/components/form-surface";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { MakiIcon } from "@/components/maki-icon";
 import { PageActionButton } from "@/components/page-action-button";
 import { PurchaseHistoryImport } from "@/modules/history/purchase-history-import.jsx";
 import { readTonIntent, readTrackedTonOrder } from "./ton-topup-intent.js";
@@ -21,6 +21,7 @@ import { clearRollTransfer, restoreRollTransfer, rollTransferMatches, rollTransf
 import { PersonalOffers } from "@/components/personal-offers";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
@@ -28,31 +29,12 @@ import { APP_ORDERS_PATH } from "../shell/app-routing.js";
 import { MarketplaceOrderAttention } from "../history/marketplace-order-attention.jsx";
 import { RollsHistory } from "../history/rolls-history.jsx";
 import { RollsActivity } from "../pfm/rolls-activity.jsx";
+import { WishPurchasesPanel } from "../wishlist/wish-purchases-panel.jsx";
+import { FINANCE_SECTIONS, FinanceBalance, FinanceNavigation } from "./finance-overview.jsx";
+import "./finance.css";
 
 const TonOrderStatus = lazy(() => import("./ton-topup.jsx").then((module) => ({ default: module.TonTopup })));
 const TonWallet = lazy(() => import("@/modules/payments/ton-wallet.jsx").then((module) => ({ default: module.TonWallet })));
-
-function RollsBalanceBreakdown({ balances }) {
-  const breakdown = [
-    ["Подарочные карты", balances.giftCards],
-    ["В резерве для наград", balances.reservedRewards],
-    ["В резерве за покупки", balances.reservedOrders],
-    ["Ожидается от продаж", balances.pendingSales],
-  ].filter(([, value]) => value && value !== "0");
-  if (!breakdown.length) return null;
-  return <dl className="flex w-full min-w-0 flex-wrap justify-center gap-x-6 gap-y-2" aria-label="Роллы вне доступного баланса">
-    {breakdown.map(([label, value]) => <div key={label} className="min-w-0">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="wrap-anywhere font-medium tabular-nums">{formatRolls(BigInt(value))}</dd>
-    </div>)}
-  </dl>;
-}
-
-function RollsHeroIcon() {
-  return <div className="rolls-hero-icon flex shrink-0 items-center justify-center rounded-full border border-border bg-card/60">
-    <Coins className="size-3/5 text-amber-300" aria-hidden="true" />
-  </div>;
-}
 
 function PersonAvatar({ person }) {
   return <Avatar className="size-12 shrink-0">
@@ -63,6 +45,10 @@ function PersonAvatar({ person }) {
 
 export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const transferFormId = useId();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [drawerSection, setDrawerSection] = useState("wallet");
+  const requestedSection = searchParams.get("finance");
+  const section = embedded ? drawerSection : (FINANCE_SECTIONS.some(([id]) => id === requestedSection) ? requestedSection : "wallet");
   const storageKey = `rollapp:pending-roll-transfer:${user.id}`;
   const [pending, setPending] = useState(() => restoreRollTransfer(storageKey));
   const [wallet, setWallet] = useState(null);
@@ -108,10 +94,10 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   }, [topupView]);
 
   useLayoutEffect(() => {
-    if (transferView || !restoreTransferFocus.current) return;
+    if (transferView || section !== "wallet" || !restoreTransferFocus.current) return;
     restoreTransferFocus.current = false;
     (pendingTransferOpener.current ?? transferOpener.current)?.focus({ preventScroll: true });
-  }, [transferView]);
+  }, [transferView, section]);
 
   const refresh = useCallback(async ({ quiet = false } = {}) => {
     if (busyRef.current) return;
@@ -194,6 +180,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
     restoreTransferFocus.current = true;
     setConfirmOpen(false);
     setTransferView(false);
+    chooseSection("wallet");
   }
 
   function resetTransferForm() {
@@ -306,13 +293,34 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
     finally { if (mounted.current) setLoadingMore(false); }
   };
 
+  function chooseSection(value) {
+    if (section === value) return;
+    if (embedded) setDrawerSection(value);
+    else setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value === "wallet") next.delete("finance");
+      else next.set("finance", value);
+      return next;
+    }, { preventScrollReset: true });
+
+    const viewport = walletScrollArea.current?.querySelector('[data-slot="scroll-area-viewport"]');
+    viewport?.scrollTo({ top: 0, behavior: "instant" });
+  }
+
+  const sectionNav = !transferView && !topupView && <div className={embedded ? "w-full shrink-0 px-4 pt-3 pb-2" : "w-full"}>
+    <FinanceNavigation />
+  </div>;
   const transferLabel = pending ? "Проверить перевод" : "Продолжить";
   const transferSubmit = <Button type="submit" form={transferFormId} className={embedded ? undefined : "w-full"} disabled={busy || (!pending && !canReview)} aria-label={transferLabel}>
     {embedded && pending ? <><span className="md:hidden">Проверить</span><span className="hidden md:inline">{transferLabel}</span></> : transferLabel}
   </Button>;
-  const content = <div className={cn("rolls-page rollapp-body", embedded ? "rolls-page--embedded min-w-0 px-4 pt-4 pb-1" : "app-page")}>
+  const content = <div className={cn("rolls-page rollapp-body", embedded ? "rolls-page--embedded min-w-0 px-4 pt-2 pb-6" : "app-page")}>
+    {!embedded && !transferView && !topupView && <>
+      <h1 className="font-heading text-4xl leading-10 font-semibold">Финансы</h1>
+      {sectionNav}
+    </>}
     <div className="rollapp-body flex flex-col gap-6">
-      {loadError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+      {loadError && (transferView || topupView || section !== "purchases") && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
         <span>{loadError}</span><Button variant="outline" onClick={() => refresh()} disabled={loading}>Повторить</Button>
       </AlertDescription></Alert>}
 
@@ -320,9 +328,9 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
         restoreTopupFocus.current = true;
         setTopupView(false);
       }} onPaid={() => refresh({ quiet: true })} /> : transferView ? <section className="rolls-transfer flex min-w-0 flex-col gap-6" aria-labelledby="rolls-transfer-title">
-          <header className="flex min-w-0 flex-col items-center gap-3 text-center">
-            <RollsHeroIcon />
-            <h1 id="rolls-transfer-title" className="rolls-balance__value">Перевод</h1>
+          <header className="grid min-w-0 gap-2">
+            <h1 id="rolls-transfer-title" className="font-heading text-3xl leading-9 font-semibold">Перевод</h1>
+            <p className="text-muted-foreground">Выберите получателя и укажите сумму.</p>
           </header>
           <form id={transferFormId} className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); if (pending || canReview) openTransferReview(); }}>
               <Field>
@@ -361,70 +369,73 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
               </div>}
           </form>
         </section> : <>
-          {pending && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-            <span>Ожидает проверки перевод · {formatRolls(pending.payload.amount)}</span>
-            <PageActionButton ref={pendingTransferOpener} variant="outline" onClick={() => { setTransferView(true); openTransferReview(); }}>Проверить перевод</PageActionButton>
-          </AlertDescription></Alert>}
-          {pendingTopup && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-            <span>Ожидает проверки пополнение через Telegram Stars</span>
-            <PageActionButton ref={pendingTopupOpener} variant="outline" onClick={() => setTopupView(true)}>Открыть счёт Stars</PageActionButton>
-          </AlertDescription></Alert>}
-          <section className="rolls-balance flex min-w-0 flex-col items-center gap-3 text-center" aria-label="Баланс роллов">
-            {wallet ? <div className="flex w-full min-w-0 flex-col gap-1">
-              <div className="rolls-balance__value max-w-full wrap-anywhere !whitespace-normal" aria-live="polite" aria-atomic="true" data-rolls-balance>
-                {new Intl.NumberFormat("ru-RU").format(wallet.balance)}
-              </div>
-              <span className="text-caption text-muted-foreground">Доступно</span>
-            </div> : <div className="flex min-h-15 items-center justify-center gap-2 text-base text-muted-foreground" role="status" aria-live="polite" aria-atomic="true" data-rolls-balance>
-              {loading && <Spinner />}
-              <span>{loading ? "Загружаем баланс…" : "Баланс недоступен"}</span>
-            </div>}
-            {wallet?.balances && <RollsBalanceBreakdown balances={wallet.balances} />}
-            {[wallet?.balances?.reservedOrders, wallet?.balances?.pendingSales].some((amount) => amount && amount !== "0") &&
-              <PageActionButton variant="outline" nativeButton={false} role="link"
-                render={<Link to={APP_ORDERS_PATH} state={{ ordersFromStore: true }} />}>Заказы и продажи</PageActionButton>}
-            <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" role="group" aria-label="Действия с роллами">
-              {wallet?.features?.starsPurchases && !pendingTopup && <Button ref={topupOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>}
-              <Button ref={transferOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => {
-                walletScrollArea.current?.focus({ preventScroll: true });
-                setTransferError("");
-                setTransferView(true);
-              }} disabled={!wallet || busy || Boolean(pending)}><ArrowRight aria-hidden="true" /></Button>
-            </div>
-          </section>
-          <MarketplaceOrderAttention attention={wallet?.orderAttention} />
+          <TabsContent value="wallet" className="grid min-w-0 gap-6 rollapp-body">
+            {pending && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>Ожидает проверки перевод · {formatRolls(pending.payload.amount)}</span>
+              <PageActionButton ref={pendingTransferOpener} variant="outline" onClick={() => { setTransferView(true); openTransferReview(); }}>Проверить перевод</PageActionButton>
+            </AlertDescription></Alert>}
+            {pendingTopup && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>Ожидает проверки пополнение через Telegram Stars</span>
+              <PageActionButton ref={pendingTopupOpener} variant="outline" onClick={() => setTopupView(true)}>Открыть счёт Stars</PageActionButton>
+            </AlertDescription></Alert>}
 
-          {embedded && <div className="flex justify-center">
-            <PageActionButton ref={importOpener} type="button" variant="outline" onClick={() => setImportOpen(true)}>
-              Импорт покупок
-            </PageActionButton>
-          </div>}
+            <FinanceBalance wallet={wallet} loading={loading} actions={<>
+              {wallet?.features?.starsPurchases && !pendingTopup && <PageActionButton ref={topupOpener} type="button"
+                aria-label="Пополнить баланс" onClick={() => setTopupView(true)} disabled={busy}>
+                <Plus data-icon="inline-start" aria-hidden="true" />Пополнить
+              </PageActionButton>}
+              <PageActionButton ref={transferOpener} type="button" variant={wallet?.features?.starsPurchases && !pendingTopup ? "outline" : "default"}
+                aria-label="Отправить роллы" onClick={() => {
+                  walletScrollArea.current?.focus({ preventScroll: true });
+                  setTransferError("");
+                  setTransferView(true);
+                }} disabled={!wallet || busy || Boolean(pending)}>
+                <ArrowRight data-icon="inline-start" aria-hidden="true" />Отправить
+              </PageActionButton>
+            </>} />
 
-          {wallet?.features?.rollActivity && <div className="flex justify-center">
-            <PageActionButton variant="outline" aria-expanded={activityOpen} onClick={() => setActivityOpen((open) => !open)}>
-              {activityOpen ? "Скрыть сводку" : "Сводка по роллам"}
-            </PageActionButton>
-          </div>}
-          {wallet?.features?.rollActivity && activityOpen && <RollsActivity key={`activity:${user.id}`} />}
+            {wallet && <section className="grid min-w-0 gap-3" aria-label="Заказы и счета">
+              <PageActionButton variant="outline" nativeButton={false} role="link" className="w-full justify-between"
+                render={<Link to={APP_ORDERS_PATH} state={{ ordersFromStore: true }} />}>
+                Заказы и продажи<ChevronRight data-icon="inline-end" aria-hidden="true" />
+              </PageActionButton>
+              <MarketplaceOrderAttention attention={wallet.orderAttention} />
+            </section>}
 
-          <FinanceFundraiserCards key={user.id} ownerId={user.id} />
-          <PersonalOffers user={user} onPaid={() => refresh({ quiet: true })} />
+            {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
+              <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
+            </Suspense>}
+            {wallet && !wallet.features?.tonWallet && hasTonStatus.current && <Suspense fallback={null}>
+              <TonOrderStatus key={user.id} userId={user.id} onPaid={refresh} />
+            </Suspense>}
+            <PersonalOffers user={user} onPaid={() => refresh({ quiet: true })} />
+            <FinanceFundraiserCards key={user.id} ownerId={user.id} />
+          </TabsContent>
 
-          {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
-            <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
-          </Suspense>}
-          {wallet && !wallet.features?.tonWallet && hasTonStatus.current && <Suspense fallback={null}>
-            <TonOrderStatus key={user.id} userId={user.id} onPaid={refresh} />
-          </Suspense>}
+          <TabsContent value="purchases" className="grid min-w-0 gap-6 rollapp-body">
+            <WishPurchasesPanel key={`purchases:${user.id}`} viewerId={user.id} historyAction={
+              <PageActionButton ref={importOpener} type="button" variant="outline" aria-label="Импорт покупок" onClick={() => setImportOpen(true)}>
+                <Import data-icon="inline-start" aria-hidden="true" />
+                <span className="@md/purchases:hidden">Импорт</span>
+                <span className="hidden @md/purchases:inline">Импорт покупок</span>
+              </PageActionButton>
+            } />
+          </TabsContent>
 
-          {!(wallet?.features?.rollActivity && activityOpen) && <RollsHistory
-            transactions={wallet?.transactions ?? null}
-            hasMore={wallet?.nextOffset != null}
-            loading={loading}
-            loadingMore={loadingMore}
-            busy={busy}
-            onLoadMore={loadMore}
-          />}
+          <TabsContent value="activity" className="grid min-w-0 gap-6 rollapp-body">
+            <header className="grid min-w-0 gap-2">
+              <h2 className="font-heading text-2xl leading-8 font-semibold">Операции с роллами</h2>
+              <p className="text-muted-foreground">Переводы, пополнения, покупки и возвраты в кошельке.</p>
+            </header>
+            {wallet?.features?.rollActivity && <ControlBar className="flex flex-wrap gap-2" role="group" aria-label="Вид операций">
+              <Button variant={!activityOpen ? "default" : "outline"} aria-pressed={!activityOpen} onClick={() => setActivityOpen(false)}>Журнал</Button>
+              <Button variant={activityOpen ? "default" : "outline"} aria-pressed={activityOpen} onClick={() => setActivityOpen(true)}>Сводка по роллам</Button>
+            </ControlBar>}
+            {wallet?.features?.rollActivity && activityOpen
+              ? <RollsActivity key={`activity:${user.id}`} />
+              : <RollsHistory transactions={wallet?.transactions ?? null} hasMore={wallet?.nextOffset != null}
+                  loading={loading} loadingMore={loadingMore} busy={busy} onLoadMore={loadMore} />}
+          </TabsContent>
         </>}
     </div>
 
@@ -481,14 +492,17 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
     </AlertDialog>
   </div>;
 
-  if (!embedded) return content;
-  return <>
-    <ScrollArea ref={walletScrollArea} tabIndex={-1} className="min-h-0 min-w-0 w-full flex-1">{content}</ScrollArea>
-    <DrawerFooter className="empty:hidden">
-      {transferView && <>
-        {transferSubmit}
-        <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={returnToWallet}><Coins aria-hidden="true" /></Button>
-      </>}
-    </DrawerFooter>
-  </>;
+  return <Tabs value={section} onValueChange={chooseSection}
+    className={embedded ? "flex min-h-0 min-w-0 w-full flex-1 flex-col gap-0" : "min-w-0"}>
+    {!embedded ? content : <>
+      {sectionNav}
+      <ScrollArea ref={walletScrollArea} tabIndex={-1} className="min-h-0 min-w-0 w-full flex-1">{content}</ScrollArea>
+      <DrawerFooter className="empty:hidden">
+        {transferView && <>
+          {transferSubmit}
+          <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={returnToWallet}><Coins aria-hidden="true" /></Button>
+        </>}
+      </DrawerFooter>
+    </>}
+  </Tabs>;
 }

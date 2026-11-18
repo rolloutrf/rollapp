@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { ControlBar } from "@/components/control-bar";
 import { CalendarSyncButton } from "@/modules/calendar/calendar-sync-button.jsx";
@@ -189,7 +190,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const periodLabel = label(selected, view === "day" ? { day: "numeric", month: "long" } : { month: "long" });
   const title = view === "year" ? selected.slice(0, 4) : <><strong className="font-semibold">{periodLabel[0].toLocaleUpperCase("ru") + periodLabel.slice(1)}</strong> {selected.slice(0, 4)} г.</>;
   const agendaProps = { columns, onEdit: editTask, onCreate };
-  const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <div className="schedule-empty"><CalendarDays className="size-8" /><p>В этом месяце планов нет.</p></div>}</div>;
+  const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <EmptyState icon={CalendarDays} title="В этом месяце планов нет." text="Задачи и события с датой появятся в этом списке." />}</div>;
   const keyboard = (event) => {
     if (event.target.closest('input, textarea, [contenteditable="true"], [data-slot="popover-content"], [data-calendar-sync]') || !(event.metaKey || event.ctrlKey)) return;
     if (["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); navigate(shiftCalendarDate(selected, view, event.key === "ArrowLeft" ? -1 : 1)); }

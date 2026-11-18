@@ -1,10 +1,11 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { HealthDayNavigation } from "@/components/health-day-navigation";
 import { PageActionButton } from "@/components/page-action-button";
 import { NutritionTodo } from "@/components/nutrition-todo";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSearchParams } from "react-router-dom";
 import { useEffect, useId, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Moon, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/form-surface";
@@ -66,11 +67,11 @@ function SleepDay({ entries, selected, today, onDateChange, canEdit, onEdit }) {
           </li>)}
         </ul>
         {canEdit && <PageActionButton className="hidden self-center md:inline-flex" onClick={create}>Записать сон</PageActionButton>}
-      </> : <Card className="relative min-w-0">
+      </> : <div className="relative min-w-0">
+        <EmptyState icon={Moon} title={canEdit ? "Как вы спали?" : "Нет записей о сне"}
+          text={canEdit ? "Нажмите, чтобы записать сон." : "На этот день записи сна не добавлены."} />
         {canEdit && <SleepCardAction label={`Записать сон: ${selected}`} onClick={create} />}
-        <CardHeader><CardTitle className="text-rollapp-body leading-7">{canEdit ? "Как вы спали?" : "Нет записей о сне"}</CardTitle></CardHeader>
-        {canEdit && <CardContent className="rollapp-body text-muted-foreground">Нажмите, чтобы записать сон</CardContent>}
-      </Card>}
+      </div>}
     </section>
   </div>;
 }

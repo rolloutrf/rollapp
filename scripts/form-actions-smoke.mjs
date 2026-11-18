@@ -104,13 +104,26 @@ try {
           await search.waitFor({ state: "detached" });
         }
         if (name === "contact") {
-          const heading = page.locator('.contact-detail__edit-heading--editable');
+          const heading = page.locator('.contact-detail__identity');
           await heading.waitFor();
           await page.evaluate(() => document.fonts.ready);
-          const parts = await heading.locator(':scope > *').evaluateAll(elements => elements.map(el => {
-            const r = el.getBoundingClientRect(); return { left: r.left, right: r.right };
-          }));
-          assert(parts.every((part, i) => !i || part.left >= parts[i - 1].right), "Contact avatar and name overlap");
+          const identity = await heading.evaluate(element => {
+            const picker = element.querySelector('.contact-detail__avatar-picker').getBoundingClientRect();
+            const avatar = element.querySelector('.contact-detail__avatar').getBoundingClientRect();
+            const name = element.querySelector('h2');
+            const range = document.createRange();
+            range.selectNodeContents(name);
+            const lines = [...range.getClientRects()];
+            const bounds = element.getBoundingClientRect();
+            const center = (box) => (box.left + box.right) / 2;
+            return {
+              avatarCentered: Math.abs(center(avatar) - center(bounds)) < 1,
+              avatarClickable: Math.abs(picker.top - avatar.top) < 1 && Math.abs(picker.bottom - avatar.bottom) < 1 && Math.abs(picker.width - avatar.width) < 1,
+              nameCentered: lines.every(line => Math.abs(center(line) - center(bounds)) < 1),
+              fits: lines.every(line => line.top >= avatar.bottom && line.left >= bounds.left - 1 && line.right <= bounds.right + 1),
+            };
+          });
+          assert.deepEqual(identity, { avatarCentered: true, avatarClickable: true, nameCentered: true, fits: true }, 'Contact name must fit below and centered with the avatar');
           assert.equal(await page.getByRole('button', { name: 'Удалить фото', exact: true }).count(), 0);
           assert.equal(await page.getByRole('button', { name: 'Удалить', exact: true }).count(), 0, "Ambiguous Delete action");
           const linkRow = page.locator('.contact-detail__edit-link');

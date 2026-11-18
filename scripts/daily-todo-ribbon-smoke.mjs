@@ -359,7 +359,7 @@ try{
 
    }
    assert.equal(await page.locator('.daily-todo__overview').count(),0,'Removed day overview is still rendered');
-   assert.equal(await page.locator('.daily-todo__empty').count(),empty?1:0,'Empty day state is incorrect');
+   assert.equal(await page.locator('.daily-todo [data-empty-state]').count(),empty?1:0,'Empty day state is incorrect');
    const beforeCalendar=new URL(page.url());
    const destination=new URL(beforeCalendar);
    destination.searchParams.set('tab','calendar');destination.searchParams.set('view','day');

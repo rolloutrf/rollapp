@@ -1,10 +1,10 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
 import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -284,11 +284,6 @@ export function LabResults() {
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
       {canManage && <AddFab actions={[{ label: "Добавить анализ", disabled: uploadState.loading || deleteState.busy, onSelect: () => fileInputRef.current?.click() }]} />}
       {canManage && (
-        <div className="page-actions horizontal-action-scroller w-full justify-center" role="group" aria-label="Действия с анализами">
-          <SphereBusinessControls sphereId="health" />
-        </div>
-      )}
-      {canManage && (
         <>
           <Input
             ref={fileInputRef}
@@ -312,6 +307,7 @@ export function LabResults() {
               title: report.dateLabel,
               displayTitle: reportTileTitle(report),
               detail: index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · "),
+              detailLines: 2,
             }))}
             onSelect={id => { if (id) setSelectedReportId(id); }}
             renderSettings={canManage ? (id, trigger) => (
@@ -322,15 +318,8 @@ export function LabResults() {
           <LabReportPanel key={selectedReport.id} report={selectedReport} />
         </>
       ) : (
-          <Card>
-            <CardContent className="flex min-h-40 flex-col items-center justify-center gap-3 text-center">
-              <FileUp className="size-6 text-muted-foreground" aria-hidden="true" />
-              <div className="flex flex-col gap-1">
-                <div className="font-medium">Анализов пока нет</div>
-                <div className="text-sm text-muted-foreground">{readOnly ? "Владелец пока не добавил анализы." : "Добавьте PDF, чтобы показатели появились здесь."}</div>
-              </div>
-            </CardContent>
-          </Card>
+          <EmptyState icon={FileUp} title="Анализов пока нет"
+            text={readOnly ? "Владелец пока не добавил анализы." : "Добавьте PDF, чтобы показатели появились здесь."} />
       )}
 
       {!readOnly && uploadState.error && (

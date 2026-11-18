@@ -5,7 +5,6 @@ import { Share2 } from "lucide-react";
 import { TELEGRAM_WAITLIST_ENABLED } from "../../../shared/modules/identification/telegram-waitlist.js";
 import { ControlBar } from "@/components/control-bar";
 import { PlanningSpaceSwitcher } from "@/modules/planning/planning-space-switcher.jsx";
-import { cn } from "@/lib/utils";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { BusinessCatalogSelect } from "@/modules/catalog-marketplace/catalog-brands.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -78,7 +77,7 @@ export function GlobalAppChrome() {
               return <>{Icon && <Icon aria-hidden="true" />}<span className="space-select__label">{option.label}</span></>;
             }}</SelectValue>
           </SelectTrigger>
-          <SelectContent className={cn("space-select__content global-service-select__content w-max min-w-(--anchor-width) max-w-(--available-width)", isMobile && "app-navigation-popup")} side={isMobile ? "top" : "bottom"} align={isMobile && !user ? "end" : "center"} alignItemWithTrigger={false}>
+          <SelectContent className="space-select__content global-service-select__content app-navigation-popup" side={isMobile ? "top" : "bottom"} align={isMobile && !user ? "end" : "center"} alignItemWithTrigger={false}>
             {options.map((option) => (
               <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
             ))}

@@ -684,6 +684,11 @@ export function parseStructuredProductMetadata(source, pageUrl) {
   };
 }
 
+export function readStructuredProducts(source) {
+  const { scriptBodies } = collectHtmlData(String(source ?? ""));
+  return collectJsonNodes(parseJsonLd(scriptBodies)).filter((node) => schemaTypes(node).includes("product"));
+}
+
 function largestSrcsetImage(value, pageUrl) {
   let best = { score: -1, imageUrl: "" };
   for (const entry of decodeHtmlEntities(value).split(",")) {

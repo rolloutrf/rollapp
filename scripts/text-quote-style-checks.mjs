@@ -34,7 +34,7 @@ export async function checkStatementAlignment(browser, origin) {
         });
         assert.equal(geometry.length, 3);
         assert(geometry[0].offsets.length >= 3, "The first quote must contain wrapped and explicit lines");
-        assert.deepEqual(geometry.map(block => block.italic), [true, false, true]);
+        assert.deepEqual(geometry.map(block => block.italic), [false, false, false]);
         for (const { offsets } of geometry) {
           assert(offsets.length && offsets.every(offset => Math.abs(offset) < 0.5),
             `${label} (${readOnly ? "reading" : "editing"}), ${width}x${height}: all lines start at the content edge, got ${offsets.join(", ")}`);
@@ -45,9 +45,29 @@ export async function checkStatementAlignment(browser, origin) {
         }
       }
       assert.deepEqual(await page.evaluate(() => window.inlineTest.saves), []);
+      if (!readOnly) {
+        const quote = editor.locator("blockquote").last();
+        await quote.locator("p").evaluate(paragraph => {
+          paragraph.closest('[role="textbox"]').focus();
+          const text = paragraph.firstChild;
+          getSelection().setBaseAndExtent(text, 0, text, 3);
+        });
+        const italic = page.getByRole("toolbar", { name: "Форматирование выделенного текста" }).getByRole("button", { name: "Курсив", exact: true });
+        await italic.waitFor();
+        assert.equal(await italic.getAttribute("aria-pressed"), "false");
+        await italic.click();
+        const emphasis = quote.locator("em");
+        await emphasis.waitFor();
+        assert.equal(await emphasis.textContent(), "Ещё");
+        assert.equal(await emphasis.evaluate(el => getComputedStyle(el).fontStyle), "italic");
+        await page.keyboard.press("ControlOrMeta+i");
+        await emphasis.waitFor({ state: "detached" });
+        assert.equal(await quote.locator('[data-inline-normal="true"]').count(), 0);
+        assert.equal(await quote.evaluate(el => getComputedStyle(el).fontStyle), "normal");
+      }
       assert.deepEqual(errors, []);
       await page.close();
-      console.log(`PASS statement alignment ${label} (${readOnly ? "reading" : "editing"}): ${viewports.length} viewports, first, wrapped and explicit lines`);
+      console.log(`PASS statement alignment ${label} (${readOnly ? "reading" : "editing"}): ${viewports.length} viewports, aligned lines, upright quotes and authored italic`);
     }
   }
 }

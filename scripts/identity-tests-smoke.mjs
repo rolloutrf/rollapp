@@ -141,8 +141,10 @@ try {
     if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-custom-tests-${width}.png`, fullPage: true });
     await tile('Gallup').click();
     await tile(renamedTitle).click();
-    await page.getByRole('heading', { name: 'Второй отчёт.pdf', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Результаты теста', exact: true }).last().waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Результаты теста', exact: true }).count(), 2);
+    assert.equal(await page.getByText(filename, { exact: true }).count(), 0);
+    assert.equal(await page.getByText('Второй отчёт.pdf', { exact: true }).count(), 0);
     await settings(renamedTitle).click();
     await page.locator('form [data-control-bar]').getByRole('button', { name: 'Удалить тест', exact: true }).click();
     await page.evaluate(() => { window.__identityFailNextDelete = true; });

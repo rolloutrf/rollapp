@@ -3,14 +3,14 @@ import { Avatar } from "@/modules/profile/profile-avatar.jsx";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api } from "../runtime/api.js";
-import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
+import { Button as ShadcnButton } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { publicProfilePath } from "../../../shared/modules/profile/profile-links.js";
 import { useAsync } from "../shell/use-async.jsx";
 import { useToast } from "../shell/toast.jsx";
-import { Button, LoadingScreen } from "../shell/page-feedback.jsx";
+import { EmptyState, Button, LoadingScreen } from "../shell/page-feedback.jsx";
 
 const friendSections = {
   subscriptions: {
@@ -58,6 +58,8 @@ export function FriendsPage() {
 
   if (!section) return <Navigate to="/app/friends/subscriptions" replace />;
 
+  const showSearch = section === "search" || Boolean(search) || Boolean(data?.people?.length);
+
   const toggleFollow = async (person) => {
     setBusyPersonId(person.id);
     try {
@@ -91,7 +93,7 @@ export function FriendsPage() {
               </ToggleGroupItem>;
             })}
           </ToggleGroup>
-          <InputGroup className="friends-search">
+          {showSearch && <InputGroup className="friends-search">
             <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
             <InputGroupInput
               className="h-full rounded-full py-0 font-semibold"
@@ -101,7 +103,7 @@ export function FriendsPage() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-          </InputGroup>
+          </InputGroup>}
           {loading ? <LoadingScreen compact /> : error ? (
             <div className="friends-empty" role="alert">
               <strong>Не удалось загрузить людей</strong>
@@ -139,12 +141,7 @@ export function FriendsPage() {
               ))}
             </ul>
           ) : (
-            <div className="friends-empty">
-              <span className="friends-empty__icon"><EmptyIcon /></span>
-              <strong>{config.emptyTitle}</strong>
-              <span>{config.emptyText}</span>
-              {section !== "search" && <Link to="/app/friends/search" className={buttonVariants({ className: "h-12" })}>Найти друзей</Link>}
-            </div>
+            <EmptyState icon={EmptyIcon} title={config.emptyTitle} text={config.emptyText} />
           )}
         </section>
       </div>

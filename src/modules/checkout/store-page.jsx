@@ -1,18 +1,16 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageActionButton } from "@/components/page-action-button";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Coins, PackageCheck } from "lucide-react";
+import { Coins, ShoppingBag } from "lucide-react";
 import { CatCheckout, restoreCatPurchase } from "@/modules/checkout/cat-checkout.jsx";
 import { OrdersDrawerContent } from "@/modules/history/orders-drawer.jsx";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
-import { Drawer, DrawerTrigger } from "@/components/form-surface";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { APP_ORDERS_PATH, APP_STORE_PATH } from "../shell/app-routing.js";
-import { SPACES } from "../categories/wish-spaces.jsx";
+import { Drawer } from "@/components/form-surface";
+import { APP_STORE_PATH } from "../shell/app-routing.js";
 import { useToast } from "../shell/toast.jsx";
-import { CatalogPageHeader } from "../catalog-marketplace/catalog-page-header.jsx";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
 import { STORE_CATS, STORE_CAT_PRICE } from "../catalog-marketplace/store-cats.jsx";
 
@@ -20,8 +18,8 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
   function changeOrdersOpen(open) {
-    if (open) navigate(APP_ORDERS_PATH, { state: { ordersFromStore: true } });
-    else if (location.state?.ordersFromStore) navigate(-1);
+    if (open) return;
+    if (location.state?.ordersFromStore || location.state?.ordersFromProfile) navigate(-1);
     else navigate(APP_STORE_PATH, { replace: true });
   }
   const toast = useToast();
@@ -35,18 +33,13 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
   return <>
     <div className="app-page wish-catalog-page cat-store-page page-stack">
       <Drawer mobileDrawer open={ordersOpen} onOpenChange={changeOrdersOpen}>
-        <CatalogPageHeader title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} action={isProducts && (
-          <DrawerTrigger render={<PageActionButton variant="outline" />}>
-            <PackageCheck aria-hidden="true" />Заказы
-          </DrawerTrigger>
-        )} />
         <OrdersDrawerContent products={STORE_CATS} userId={user.id} />
       </Drawer>
       {deferredPurchase && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
         <span>Ожидает проверки покупка · {formatRolls(deferredPurchase.expectedPrice)}</span>
         <PageActionButton variant="outline" onClick={() => setPurchase(deferredPurchase)}>Проверить покупку</PageActionButton>
       </AlertDescription></Alert>}
-      {isProducts ? <div className="wish-grid catalog-wish-grid">
+      {isProducts ? <div className="wish-grid snippet-grid catalog-wish-grid">
         {STORE_CATS.map((cat) => (
           <WishlistSnippet
             key={cat.id}
@@ -71,7 +64,7 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
             )}
           />
         ))}
-      </div> : <Empty><EmptyHeader><EmptyTitle>В этом разделе магазина пока пусто</EmptyTitle></EmptyHeader></Empty>}
+      </div> : <EmptyState title="В этом разделе магазина пока пусто" icon={ShoppingBag} text="Новые товары появятся здесь." />}
     </div>
     {!ordersOpen && purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={(cat, amount) => toast(`${cat.name} кот куплен за ${formatRolls(amount)}`, "success")} />}
   </>;

@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Building2 } from "lucide-react";
@@ -6,7 +7,6 @@ import { publicProfilePath, publicSpacePath } from "../../../shared/modules/prof
 import { APP_WISH_CATALOG_PATH } from "../shell/app-routing.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { PageActionButton } from "@/components/page-action-button";
@@ -74,7 +74,7 @@ export function BusinessCatalogSelect({ side = "bottom", fullWidth = false }) {
   </Select>;
 }
 
-export function BusinessCatalogList() {
+export function BusinessCatalogList({ intro }) {
   const { accounts, space, sphere, endpoint, loading, error, updateFollowing, retry } = useContext(BusinessCatalogContext);
   if (loading) return <p role="status" className="rollapp-body flex items-center justify-center gap-2"><Spinner />Загружаем бизнес-аккаунты…</p>;
   if (error) return <Alert variant="destructive" className="wish-catalog-page__error">
@@ -82,16 +82,12 @@ export function BusinessCatalogList() {
     <AlertDescription>{error.message}</AlertDescription>
     <PageActionButton type="button" variant="outline" onClick={retry}>Повторить</PageActionButton>
   </Alert>;
-  if (!accounts.length) return <Empty>
-    <EmptyHeader>
-      <EmptyTitle>В этом разделе пока нет бизнес-аккаунтов</EmptyTitle>
-      <EmptyDescription>{sphere ? "Здесь появятся бизнес-аккаунты этой сферы." : "Здесь появятся аккаунты продавцов этого раздела."}</EmptyDescription>
-    </EmptyHeader>
-  </Empty>;
-  return <ul className="business-catalog-grid rollapp-body mx-auto grid w-full max-w-(--layout-collection-width) gap-3 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="Бизнес-аккаунты">
+  if (!accounts.length) return <EmptyState icon={Building2} title="В этом разделе пока нет бизнес-аккаунтов"
+    text={sphere ? "Здесь появятся бизнес-аккаунты этой сферы." : "Здесь появятся аккаунты продавцов этого раздела."} />;
+  return <>{intro}<ul className="business-catalog-grid rollapp-body mx-auto grid w-full max-w-(--layout-collection-width) gap-3 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="Бизнес-аккаунты">
     {accounts.map(account => <BusinessCatalogAccount key={`${endpoint}:${account.username}`} account={account}
       path={space ? publicSpacePath(account, space) : publicProfilePath(account)} onChange={updateFollowing} />)}
-  </ul>;
+  </ul></>;
 }
 
 function BusinessCatalogAccount({ account, path, onChange }) {

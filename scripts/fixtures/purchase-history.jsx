@@ -46,6 +46,8 @@ window.wishlistRefreshes = 0;
 api.get = async (path) => {
   if (path === "/auth/yandex/config") return { enabled: false };
   if (path === "/rolls") return walletFixture();
+  if (path === "/dashboard/purchases") return { purchasePlans: [], wishes: [], subscriptions: [], purchaseCollaborations: [] };
+  if (path.startsWith("/dashboard/purchase-month?")) return { totals: [], openTotals: [], limits: [] };
   if (path.startsWith("/rolls/recipients?")) return { people: [transferRecipient] };
   if (path.startsWith("/rolls/transfers/")) {
     const state = transferFixture();

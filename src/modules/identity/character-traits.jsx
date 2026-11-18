@@ -1,7 +1,7 @@
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { RotateCcw, Trash2, X } from "lucide-react";
-import { useCareerContent, CareerContentError } from "@/modules/career/career-content.jsx";
+import { CareerContentError } from "@/modules/career/career-content.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { PERSONAL_CHARACTER_TRAIT_GROUPS, PERSONAL_CHARACTER_TRAITS } from "@/modules/identity/personal-character-traits.js";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
+import { IdentitySelectionFeedback, useIdentitySelection } from "./identity-selection.jsx";
 
 import "../../components/character-traits.css";
 
@@ -48,10 +49,6 @@ function normalizeCharacterTraits(content) {
     }))
     : [];
   return { selected, custom };
-}
-
-function sameContent(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function CharacterTraitOption({ checked, description, disabled, label, onCheckedChange }) {
@@ -110,32 +107,24 @@ function CharacterTraitDetails({ trait, readOnly, onClose, onSave }) {
 
 export function CharacterTraits() {
   const { readOnly, owner } = useSphereSharing();
-  const characterContent = useCareerContent("character", EMPTY_CHARACTER_TRAITS, "identity");
-  const [draft, setDraft] = useState(EMPTY_CHARACTER_TRAITS);
+  const selection = useIdentitySelection("character", EMPTY_CHARACTER_TRAITS, normalizeCharacterTraits);
+  const { document: characterContent, draft, change } = selection;
   const [addingCustom, setAddingCustom] = useState(false);
   const [customTrait, setCustomTrait] = useState("");
   const [details, setDetails] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const editingDisabled = saving || characterContent.loading || Boolean(characterContent.error) || readOnly;
-
-  useEffect(() => {
-    if (!characterContent.loading) setDraft(normalizeCharacterTraits(characterContent.content));
-  }, [characterContent.content, characterContent.loading]);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const editingDisabled = savingDetails || selection.disabled;
 
   useEffect(() => { setDetails(null); }, [characterContent.content, characterContent.loading, readOnly, owner?.id]);
 
-  const savedContent = normalizeCharacterTraits(characterContent.content);
-  const dirty = !sameContent(draft, savedContent);
   const selected = useMemo(() => new Set(draft.selected), [draft.selected]);
   const selectedCount = draft.selected.length;
 
   const toggle = (id, checked) => {
-    setDraft((current) => ({
+    change((current) => ({
       ...current,
       selected: checked ? [...new Set([...current.selected, id])] : current.selected.filter((trait) => trait !== id),
     }));
-    setSaveError("");
   };
 
   const addCustom = (event) => {
@@ -151,65 +140,48 @@ export function CharacterTraits() {
     } else {
       const existing = draft.custom.find((trait) => trait.label.toLocaleLowerCase("ru-RU") === normalizedLabel);
       if (existing) {
-        setDraft((current) => ({
+        change((current) => ({
           selected: [...new Set([...current.selected, existing.id])],
           custom: current.custom,
         }));
       } else {
         const id = `custom:${crypto.randomUUID()}`;
-        setDraft((current) => ({
+        change((current) => ({
           selected: [...current.selected, id],
           custom: [...current.custom, { id, label, description: "" }],
         }));
       }
-      setSaveError("");
     }
     setCustomTrait("");
   };
 
   const saveDetails = async (changes) => {
-    if (editingDisabled || !details || details.source !== characterContent.content || details.owner !== owner?.id || !draft.custom.some((trait) => trait.id === details.trait.id)) throw new Error("Эта черта сейчас недоступна для редактирования.");
+    if (editingDisabled || selection.status !== "saved" || !details || details.source !== characterContent.content || details.owner !== owner?.id || !draft.custom.some((trait) => trait.id === details.trait.id)) throw new Error("Эта черта сейчас недоступна для редактирования.");
     const normalized = changes.label.toLocaleLowerCase("ru-RU");
     const renamed = normalized !== details.trait.label.trim().replace(/\s+/g, " ").toLocaleLowerCase("ru-RU");
     if (renamed && (draft.custom.some((trait) => trait.id !== details.trait.id && trait.label.toLocaleLowerCase("ru-RU") === normalized) || PERSONAL_CHARACTER_TRAITS.some((trait) => trait.label.toLocaleLowerCase("ru-RU") === normalized))) throw new Error("Черта с таким названием уже существует.");
     const next = { ...draft, custom: draft.custom.map((trait) => trait.id === details.trait.id ? { ...trait, ...changes } : trait) };
-    setSaving(true);
-    setSaveError("");
+    setSavingDetails(true);
     try { await characterContent.save(next); }
-    finally { setSaving(false); }
+    finally { setSavingDetails(false); }
   };
 
   const removeCustom = (id) => {
-    setDraft((current) => ({
+    change((current) => ({
       selected: current.selected.filter((trait) => trait !== id),
       custom: current.custom.filter((trait) => trait.id !== id),
     }));
-    setSaveError("");
-  };
-
-  const save = async () => {
-    if (editingDisabled || !dirty) return;
-    setSaving(true);
-    setSaveError("");
-    try {
-      await characterContent.save(draft);
-    } catch (error) {
-      setSaveError(error.message);
-    } finally {
-      setSaving(false);
-    }
   };
 
   const reset = () => {
-    setDraft((current) => ({ ...current, selected: [] }));
-    setSaveError("");
+    change((current) => ({ ...current, selected: [] }));
   };
 
   return (
-    <div className="identity-checklist not-typeset rollapp-body page-stack page-stack--sections" aria-busy={characterContent.loading || saving}>
+    <div className="identity-checklist not-typeset rollapp-body page-stack page-stack--sections" aria-busy={characterContent.loading}>
       {!readOnly && <AddFab actions={[{ label: "Добавить черту характера", disabled: editingDisabled, onSelect: () => setAddingCustom(true) }]} />}
       <CareerContentError error={characterContent.error} onRetry={characterContent.retry} />
-      {saveError && <Alert variant="destructive"><AlertTitle>Не удалось сохранить черты характера</AlertTitle><AlertDescription>{saveError}</AlertDescription></Alert>}
+      <IdentitySelectionFeedback selection={selection} />
 
       {draft.custom.length > 0 && (
         <section className="flex flex-col gap-3" aria-labelledby="custom-traits-title">
@@ -218,7 +190,7 @@ export function CharacterTraits() {
             {draft.custom.map((trait) => (
               <li key={trait.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(trait.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
                 <Checkbox className="mt-1 size-5" checked={selected.has(trait.id)} disabled={editingDisabled} onCheckedChange={(checked) => toggle(trait.id, checked)} aria-label={trait.label} />
-                <Button variant="ghost" type="button" className="h-auto min-h-12 min-w-0 flex-1 items-start justify-start whitespace-normal px-0 py-0 text-left" disabled={saving || characterContent.loading || Boolean(characterContent.error)} aria-label={`Открыть детали черты «${trait.label}»`} onClick={() => setDetails({ trait, source: characterContent.content, owner: owner?.id })}><strong className="min-w-0 break-words font-semibold">{trait.label}</strong></Button>
+                <Button variant="ghost" type="button" className="h-auto min-h-12 min-w-0 flex-1 items-start justify-start whitespace-normal px-0 py-0 text-left" disabled={savingDetails || characterContent.loading || Boolean(characterContent.error) || (!readOnly && selection.status !== "saved")} aria-label={`Открыть детали черты «${trait.label}»`} onClick={() => setDetails({ trait, source: characterContent.content, owner: owner?.id })}><strong className="min-w-0 break-words font-semibold">{trait.label}</strong></Button>
                 {!readOnly && <Button className="shrink-0" variant="destructive" size="icon-sm" type="button" disabled={editingDisabled} onClick={() => removeCustom(trait.id)} aria-label={`Удалить черту «${trait.label}»`}><Trash2 aria-hidden="true" /></Button>}
               </li>
             ))}
@@ -260,7 +232,6 @@ export function CharacterTraits() {
         <p className="m-0 max-w-(--layout-text-width) text-sm text-muted-foreground">Выберите качества, которые чаще всего проявляются в ваших решениях, общении и работе.</p>
         {!readOnly && <div className="flex flex-wrap gap-2">
           <Button variant="ghost" type="button" disabled={selectedCount === 0 || editingDisabled} onClick={reset}><RotateCcw data-icon="inline-start" aria-hidden="true" />Снять выбор</Button>
-          <Button className="min-h-12 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>{saving && <Spinner data-icon="inline-start" aria-hidden="true" />}{characterContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || characterContent.error ? "Сохранить выбор" : "Сохранено"}</Button>
         </div>}
       </footer>
     </div>

@@ -6,7 +6,8 @@ import { ConferenceCard, CONFERENCE_STATUS } from '@/modules/education/conferenc
 import { CoachingSessionCard, SESSION_STATUS } from '@/modules/education/coaching-sessions.jsx?snippet-audit';
 import { WorkoutCard, WORKOUT_STATUS } from '@/modules/health/workouts.jsx?snippet-audit';
 import { MedicationCard, MEDICATION_STATUS } from '@/modules/health/medications.jsx?snippet-audit';
-import { CollectionSnippetMedia } from '@/modules/card/collection-snippet-media.jsx';
+import { WishlistSnippet } from '@/modules/card/wishlist-snippet.jsx';
+import { CollectionSnippetGraphic } from '@/modules/card/collection-snippet-media.jsx';
 import { useCardReorder } from '@/hooks/use-card-reorder';
 import { CardDragHandle } from '@/components/card-drag-handle';
 import { SphereSharingContext } from '@/modules/access/sphere-sharing.jsx';
@@ -47,14 +48,19 @@ function Fixture() {
  const props = item => ({[prop]:item,lists:[],groups:[],draggable:!readOnly,moveDisabled:busy,moving:busy,
   onEdit:()=>call('open',item.id),onMove:drag.moveByOffset,onCreateList:()=>call('create-list',item.id),onCreateGroup:()=>call('create-group',item.id),onDelete:()=>call('delete',item.id),onMoveToList:()=>call('move',item.id),onMoveToGroup:()=>call('move',item.id)});
  return <MemoryRouter><SphereSharingContext.Provider value={{readOnly}}>
-  <div className="app-layout app-layout--dark"><main className="app-main"><div className="app-page rollapp-body">
-   <ul className="grid list-none grid-cols-2 gap-x-3 gap-y-7 lg:grid-cols-4" data-snippet-grid ref={drag.listRef}>
+  <div className="app-layout app-layout--dark"><main className="app-main"><div className="app-page wishes-page rollapp-body">
+   <ul className="snippet-grid list-none p-0" data-snippet-grid ref={drag.listRef}>
     {orderedItems.map(item=><li className={`education-card is-draggable min-w-0 rounded-xl ${drag.draggedId===item.id?"is-dragging":""}`} onPointerDown={event=>drag.beginPointerDrag(event,item.id)} data-sortable-card-id={item.id} key={item.id} data-audit-card={item.id} data-status={item.status}>
      {!readOnly && kind!=='medications' && <CardDragHandle title={item.title} disabled={busy} />}
      <Card {...props(item)} />
     </li>)}
    </ul>
-   <div className="mt-6 w-40" data-media-runtime><CollectionSnippetMedia sources={sources} icon={Waves} /></div>
+   <div className="wish-grid snippet-grid mt-6" data-wishlist-reference>
+    <WishlistSnippet title="Один сниппет Вишлиста" />
+   </div>
+   <div className="mt-6 w-40" data-media-runtime>
+    <WishlistSnippet title="Проверка загрузки" mediaClassName="collection-snippet__media" mediaContent={<CollectionSnippetGraphic sources={sources} icon={Waves} />} />
+   </div>
   </div></main></div>
  </SphereSharingContext.Provider></MemoryRouter>;
 }

@@ -124,13 +124,18 @@ export async function checkIdentityReportCharts(browser, origin, {navigationOnly
     await checkIdentityChartNavigation(page, width, 4);
     if(navigationOnly) await writeFile(`/tmp/rollapp-report-anchor-trace-${width}.json`,JSON.stringify(await page.evaluate(()=>window.reportAnchorTrace),null,2));
     assert.equal(await page.locator('.identity-generated-document').count(), 3);
-    assert.equal(await page.locator('.identity-generated-document h2').first().textContent(), 'Summary.pdf');
+    assert.equal(await page.getByText('Summary.pdf', { exact: true }).count(), 0);
+    assert.equal(await page.getByText(/ДлинноеИмяФайла/).count(), 0);
+    const chartLinks = page.getByRole('navigation', { name: 'Графики отчёта', exact: true });
+    for (const name of ['Шкалы · 1', 'Субшкалы · 1', 'Шкалы · 2', 'Субшкалы · 2']) {
+      assert.equal(await chartLinks.getByRole('link', { name, exact: true }).count(), 1);
+    }
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await page.goto(`${origin}/__hogan-scales?charts=none`);
     await page.getByText('В этом PDF только текст.', { exact: true }).waitFor();
     assert.equal(await page.getByRole('navigation', { name: 'Графики отчёта', exact: true }).count(), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS Hogan chart navigation ${width}: two chart files after long summary, unique keyboard destinations, full filenames and text-only state without API`);
+    console.log(`PASS Hogan chart navigation ${width}: two chart groups, unique keyboard destinations, hidden filenames and text-only state without API`);
     await page.close();
   }
 }

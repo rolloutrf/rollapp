@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
+import { AlertTriangle, BookOpen, X } from "lucide-react";
 import { InlineDocument } from "@/modules/rich-documents/inline-document.jsx";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import {
@@ -166,9 +167,11 @@ function IdentityStatements({ section }) {
   return <div className="sphere-text-page page-stack">
     <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
     {careerContent.loading && <span role="status">Загружаем…</span>}
-    {!careerContent.loading && !careerContent.error && <InlineDocument key={`${section}:${sharing.owner?.id || "self"}`}
+    {!careerContent.loading && !careerContent.error && (sharing.readOnly && !sharing.error && !content.trim()
+      ? <EmptyState icon={BookOpen} title={labels.emptyTitle} text={labels.emptyReadOnlyDescription} />
+      : <InlineDocument key={`${section}:${sharing.owner?.id || "self"}`}
       documentKey={`identity:${section}`} value={content} onSave={careerContent.save} label={labels.title}
       readOnly={sharing.readOnly || sharing.loading || Boolean(sharing.error)}
-      placeholder={labels.description} className="theses-source" focusOnEntry />}
+      placeholder={labels.description} className="theses-source" focusOnEntry />)}
   </div>;
 }

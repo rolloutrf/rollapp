@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -173,7 +174,10 @@ export function NotesLibrary({ library, group, loading, error, creating, onCreat
         <DropdownMenuItem variant="destructive" className={menuItemClass} onClick={() => show({ type: "disband", id: group.id, title: group.title })}><Ungroup />Расформировать</DropdownMenuItem>
       </NoteActions>
     </header>}
-    <div className="notes-grid" ref={drag.listRef}>
+    {!loading && !error && orderedItems.length === 0 ? (
+      <EmptyState icon={group ? Folder : FileText} title={group ? "В этой группе пока пусто" : "Заметок пока нет"}
+        text={group ? "Здесь появятся заметки, которые вы добавите в группу." : "Создайте заметку, чтобы сохранить мысли и идеи."} />
+    ) : <div className="notes-grid" ref={drag.listRef}>
       {loading ? [0, 1, 2].map(index => <Skeleton key={index} className="notes-grid__skeleton" aria-hidden="true" />) : !error && orderedItems.map((item, index) => {
         const isGroup = Boolean(item.noteIds);
         const targeted = drag.groupTarget === `${isGroup ? "group" : "card"}:${item.id}`;
@@ -206,7 +210,7 @@ export function NotesLibrary({ library, group, loading, error, creating, onCreat
           </NoteActions>
         </div>;
       })}
-    </div>
+    </div>}
     {!group && <AddFab actions={[{ label: "Создать заметку", disabled: actionsDisabled, onSelect: onCreate }]} />}
     <p role="status" className="sr-only">{drag.announcement}</p>
     {action && <NoteLayoutDialog action={action} busy={busy} error={layoutError} onClose={close} onSave={apply} />}

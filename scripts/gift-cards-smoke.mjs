@@ -142,17 +142,28 @@ try {
       await page.getByText(/Ожидает проверки · Отправка карты/).waitFor();
     }
     await check.click();
-    await page.getByText("Карта отправлена: Получатель подарочной карты", { exact: true }).waitFor();
+    const success = page.getByRole("region", { name: "Карта отправлена", exact: true });
+    await success.getByText("Получатель подарочной карты", { exact: true }).waitFor();
+    await success.getByText(`${sent.at(-1).payload.expectedBalance} роллов`, { exact: true }).waitFor();
+    const resultTitle = success.getByRole("heading", { name: "Карта отправлена", exact: true });
+    assert(await resultTitle.evaluate(node => node === document.activeElement));
+    const done = page.getByRole("button", { name: "Готово", exact: true });
+    assert.equal((await done.boundingBox()).height, 48);
     assert.deepEqual(await posted(), sent);
     assert.deepEqual(await page.evaluate(() => giftHarness.giftChecks.at(-1)), {
       kind: "send", key: sent.at(-1).payload.idempotencyKey,
     });
     if (recoverFromProfile) {
-      await closeProfileOperation();
+      if (width === 320 || width === 1440) await done.click();
+      else await closeProfileOperation();
+      await success.waitFor({ state: "hidden" });
       await page.getByRole("group", { name: "Операции с картами, ожидающие проверки" }).waitFor({ state: "hidden" });
       await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Подарочные карты");
       assert(await page.evaluate(() => sessionStorage.getItem("rollapp:gift-intent:someone:business") !== null));
-    } else await closeStoreCard();
+    } else {
+      await done.click();
+      await success.waitFor({ state: "hidden" });
+    }
     if (width < 768) assert.equal(await page.evaluate(() => document.querySelectorAll("[data-form-page-host]").length), 0);
     assert.deepEqual(errors, []);
     console.log(`PASS gift cards ${width}x${height}: issue, topup, read-only recovery, confirmed send, profile recovery, 48px footer, cancel, overflow`);
@@ -245,39 +256,53 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__gift-cards?cards${missing ? "&missing-card" : ""}`);
-    const card = page.getByRole("article").filter({ hasText: "50 роллов · Только у этого бизнеса" });
-    await card.getByRole("button", { name: "Открыть карту", exact: true }).click();
+    const open = (balance) => page.getByRole("region", { name: "Подарочные карты" })
+      .getByRole("button", { name: new RegExp(`^Открыть сертификат: .+, ${balance} роллов,`) });
+    await open(50).click();
     if (missing) {
-      await page.getByText("Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую.", { exact: true }).waitFor();
-      const other = page.getByRole("button", { name: "Мастерская подарков и хорошего настроения · 25 роллов", exact: true });
-      assert.equal(await other.getAttribute("aria-pressed"), "false");
+      await page.getByText("Этот сертификат больше недоступен. Вернитесь к списку карт.", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("article", { name: /^Сертификат:/ }).count(), 0);
       assert.equal(await page.getByLabel("Сколько роллов добавить").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Подарить карту", exact: true }).count(), 0);
-      await other.click();
-      await page.getByLabel("Сколько роллов добавить").waitFor();
-      assert.equal(await other.getAttribute("aria-pressed"), "true");
-      assert.equal(await page.getByText(/Выбранная карта больше недоступна/).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Выпустить карту", exact: true }).count(), 0);
+      await page.getByRole("button", { name: "Назад", exact: true }).click();
+      await open(25).click();
+      await page.getByRole("article", { name: /^Сертификат:/ }).getByText("25 роллов", { exact: true }).waitFor();
     } else {
-      const selected = page.getByRole("button", { name: "Мастерская подарков и хорошего настроения · 50 роллов", exact: true });
-      await selected.waitFor();
-      assert.equal(await selected.getAttribute("aria-pressed"), "true");
+      await page.getByRole("article", { name: /^Сертификат:/ }).getByText("50 роллов", { exact: true }).waitFor();
     }
     assert.equal(await page.evaluate(() => giftHarness.calls.length), 0);
     assert.deepEqual(errors, []);
     console.log(`PASS profile gift selection ${width} missing=${missing}: exact source card, no automatic substitution or writes`);
     await page.close();
   }
-  for (const width of [390, 1440]) {
-    const page = await browser.newPage({ viewport: { width, height: 400 } });
+  for (const [width, height] of [[320, 844], [390, 844], [390, 400], [768, 900], [820, 450], [1024, 900], [1440, 400], [1920, 900]]) {
+    const page = await browser.newPage({ viewport: { width, height }, reducedMotion: "reduce" });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__gift-cards?cards&wallet-error`);
     const list = page.getByRole("region", { name: "Подарочные карты" });
-    const open = (balance) => list.getByRole("article").filter({
-      has: page.getByText(`${balance} роллов · Только у этого бизнеса`, { exact: true }),
-    })
-      .getByRole("button", { name: "Открыть карту", exact: true });
+    const open = (balance) => list.getByRole("button", { name: new RegExp(`^Открыть сертификат: .+, ${balance} роллов,`) });
+    const active = (balance) => page.getByRole("article", { name: /^Сертификат:/ }).getByText(`${balance} роллов`, { exact: true });
+    const topup = page.getByRole("button", { name: "Пополнить", exact: true });
+    const gift = page.getByRole("button", { name: "Подарить", exact: true });
+    const submitGift = page.getByRole("button", { name: "Отправить подарочную карту", exact: true });
+    const actions = page.locator('[data-control-bar][aria-label="Действия с подарочной картой"]:visible');
+    const back = page.getByRole("button", { name: "Назад", exact: true });
+    const topupResult = page.getByRole("region", { name: "Баланс после пополнения", exact: true });
+    const amount = page.getByLabel("Сколько роллов добавить");
+    const recipient = page.getByLabel("Кому подарить", { exact: true });
+    const chooseFriend = page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true });
+    const giftDetails = page.getByRole("region", { name: "Детали подарка", exact: true });
+    const assertGiftDetails = async (balance) => {
+      await page.getByRole("heading", { name: "Подтвердите подарок", exact: true }).waitFor();
+      await giftDetails.getByText("Получатель подарочной карты", { exact: true }).waitFor();
+      await giftDetails.getByText("@friend", { exact: true }).waitFor();
+      await giftDetails.getByText(`${balance} роллов`, { exact: true }).waitFor();
+      assert.equal(await recipient.isVisible(), false);
+      assert(await submitGift.isEnabled());
+    };
     const zero = open(0);
     await zero.focus();
     await page.evaluate(() => { giftHarness.holdCardDetails = true; });
@@ -286,36 +311,161 @@ try {
     assert.equal(await page.getByRole("button", { name: "Выпустить карту", exact: true }).count(), 0);
     await page.waitForFunction(() => Boolean(giftHarness.finishCardDetails));
     await page.evaluate(() => giftHarness.finishCardDetails());
-    const active = (balance) => page.getByRole("button", { name: new RegExp(` · ${balance} роллов$`), pressed: true });
     await active(0).waitFor({ timeout: 5000 });
+    assert(await gift.isDisabled());
+    assert.equal(await amount.isVisible(), false);
+    await actions.getByRole("button", { name: "Пополнить", exact: true }).waitFor();
+    const footerGeometry = async (actionCount = 2) => {
+      const boxes = await actions.getByRole("button").evaluateAll(buttons => buttons.map(button => {
+        const { x, y, width, height, right } = button.getBoundingClientRect();
+        const text = document.createRange();
+        text.selectNodeContents(button);
+        const label = text.getBoundingClientRect();
+        return { label: button.getAttribute("aria-label") || button.textContent, x, y, width, height, right, radius: getComputedStyle(button).borderRadius,
+          labelFits: label.left >= x - 1 && label.right <= right + 1 };
+      }));
+      assert.equal(boxes.length, actionCount + (width < 768 ? 1 : 0));
+      const row = boxes[0].y;
+      for (const box of boxes) {
+        assert(box.height === 48 && box.radius === "24px" && box.labelFits, JSON.stringify({ viewport: [width, height], boxes }));
+        assert(Math.abs(box.y - row) <= 1 && box.x >= 0 && box.right <= width + 1);
+      }
+      assert(row >= height - 82 && row + 48 <= height + 1);
+      for (let i = 1; i < boxes.length; i++) assert(Math.abs(boxes[i].x - boxes[i - 1].right - 8) <= 1);
+      return boxes;
+    };
+    const beforeScroll = await footerGeometry();
+    const bodyScroll = await actions.evaluate(footer => {
+      const body = footer.closest('[data-slot="drawer-popup"]')?.querySelector(".app-drawer-body") ?? document.scrollingElement;
+      body.scrollTo({ top: body.scrollHeight, behavior: "instant" });
+      return body.scrollTop;
+    });
+    if (height <= 450) assert(bodyScroll > 0);
+    assert.deepEqual(await footerGeometry(), beforeScroll);
+    await topup.click();
+    await page.getByRole("heading", { name: "Пополнение карты", exact: true }).waitFor();
+    assert.equal(await active(0).count(), 0);
+    await footerGeometry(1);
     await page.getByText("Кошелёк временно недоступен", { exact: true }).waitFor();
-    assert.equal(await page.getByText(/Выбранная карта больше недоступна/).count(), 0);
-    assert(await page.getByRole("button", { name: "Подарить карту", exact: true }).isDisabled());
-    assert(await page.getByLabel("Сколько роллов добавить").isDisabled());
+    assert.equal(await page.getByText(/Этот сертификат больше недоступен/).count(), 0);
+    assert(await amount.isDisabled());
     await page.screenshot({ path: `/tmp/rollapp-gift-opening-wallet-error-${width}.png` });
     const readsBefore = await page.evaluate(() => giftHarness.reads.length);
     await page.evaluate(() => { giftHarness.walletUnavailable = false; });
     await page.getByRole("button", { name: "Повторить загрузку кошелька", exact: true }).click();
-    const amount = page.getByLabel("Сколько роллов добавить");
-    const recipient = page.getByLabel("Кому подарить", { exact: true });
     await amount.fill("12");
     assert.deepEqual(await page.evaluate((from) => giftHarness.reads.slice(from), readsBefore), ["/rolls"]);
-    await recipient.fill("friend");
-    await page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true }).click();
-    await page.getByRole("button", { name: / · 25 роллов$/, pressed: false }).click();
-    await active(25).waitFor();
-    assert.equal(await amount.inputValue(), "");
-    assert.equal(await recipient.inputValue(), "");
-    assert(await page.getByRole("button", { name: "Подарить карту", exact: true }).isDisabled());
-    if (width < 768) await page.goBack();
-    else await page.getByRole("button", { name: "Назад", exact: true }).click();
+    await back.click();
+    await active(0).waitFor();
+    assert.equal(await amount.isVisible(), false);
+    if (width < 768) {
+      await page.waitForURL(url => url.searchParams.has("formScreen"));
+      await topup.click();
+      assert.equal(await amount.inputValue(), "12");
+      assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+      await page.goBack();
+    } else await back.click();
     await zero.waitFor();
-    await page.waitForFunction(() => document.activeElement?.closest("article")?.querySelector("p")?.textContent === "0 роллов · Только у этого бизнеса");
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.includes(", 0 роллов,"));
     await open(25).click();
     await active(25).waitFor();
+    await topup.click();
+    assert.equal(await amount.inputValue(), "");
+    await back.click();
+    assert(await topup.evaluate(button => button === document.activeElement));
+    await gift.click();
+    assert.equal(await amount.isVisible(), false);
+    assert.equal(await submitGift.count(), 0);
+    await recipient.fill("friend");
+    await chooseFriend.click();
+    await assertGiftDetails(25);
     assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+    await back.click();
+    assert.equal(await recipient.inputValue(), "@friend");
+    assert.equal(await submitGift.count(), 0);
+    await back.click();
+    assert(await gift.evaluate(button => button === document.activeElement));
+    await topup.click();
+    assert.equal(await recipient.isVisible(), false);
+    assert.equal(await submitGift.count(), 0);
+    await back.click();
+    await gift.click();
+    assert.equal(await recipient.inputValue(), "@friend");
+    await chooseFriend.click();
+    await assertGiftDetails(25);
+    assert.equal(await active(25).count(), 0);
+    await footerGeometry(1);
+    if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-gift-confirm-${width}x${height}.png` });
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+    if (width === 1440 || (width === 390 && height === 400)) {
+      await back.click();
+      await recipient.waitFor();
+      await back.click();
+      await active(25).waitFor();
+      await back.click();
+      await zero.click();
+      await active(0).waitFor();
+      await topup.click();
+      await amount.fill("10");
+      await page.evaluate((loseResponse) => {
+        giftHarness.lost = true;
+        if (loseResponse) giftHarness.nextGiftLoss = "posted";
+      }, width === 390);
+      await page.getByRole("button", { name: "Пополнить на 10 роллов", exact: true }).click();
+      if (width === 390) {
+        await page.getByText("Ожидает проверки · Пополнение карты · 10 роллов", { exact: true }).waitFor();
+        assert.equal(await topupResult.count(), 0);
+        await actions.getByRole("button", { name: "Проверить результат", exact: true }).click();
+      }
+      await page.getByRole("heading", { name: "Карта пополнена", exact: true }).waitFor();
+      await topupResult.getByText("10 роллов", { exact: true }).waitFor();
+      assert.equal(await amount.isVisible(), false);
+      assert.equal(await recipient.isVisible(), false);
+      await footerGeometry();
+      await page.screenshot({ path: `/tmp/rollapp-gift-topup-result-${width}x${height}.png` });
+      if (width === 1440) {
+        await gift.click();
+        await recipient.waitFor();
+        await back.click();
+        await topupResult.getByText("10 роллов", { exact: true }).waitFor();
+        await actions.getByRole("button", { name: "К карте", exact: true }).click();
+        await active(10).waitFor();
+      }
+      await gift.click();
+      await page.getByRole("heading", { name: "Подарить карту", exact: true }).waitFor();
+      await page.getByText("На карте: 10 роллов", { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => giftHarness.calls.length), 1);
+      await recipient.fill("friend");
+      await chooseFriend.click();
+      await assertGiftDetails(10);
+      assert.equal(await page.evaluate(() => giftHarness.calls.length), 1);
+      await submitGift.click();
+      const success = page.getByRole("region", { name: "Карта отправлена", exact: true });
+      await success.getByText("Получатель подарочной карты", { exact: true }).waitFor();
+      await success.getByText("10 роллов", { exact: true }).waitFor();
+      assert.equal(await submitGift.count(), 0);
+      const done = page.getByRole("button", { name: "Готово", exact: true });
+      const doneBox = await done.boundingBox();
+      assert.equal(doneBox.height, 48);
+      assert(doneBox.y >= height - 82 && doneBox.y + doneBox.height <= height + 1);
+      const resultBox = await success.boundingBox();
+      assert(resultBox.y >= 0 && resultBox.y + resultBox.height <= doneBox.y,
+        `The confirmation, recipient and full amount must fit above Done: ${JSON.stringify({ resultBox, doneBox })}`);
+      assert(await success.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+      await page.screenshot({ path: `/tmp/rollapp-gift-send-success-${width}x${height}.png` });
+      const calls = await page.evaluate(() => giftHarness.calls);
+      assert.deepEqual(calls.map(({ path }) => path),
+        ["/rolls/gift-cards/second-card/topup", "/rolls/gift-cards/second-card/send"]);
+      assert.equal(calls[1].payload.expectedBalance, 10);
+      await done.click();
+      await open(25).waitFor();
+      await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Подарочные карты");
+      assert.deepEqual(await page.evaluate(() => giftHarness.calls), calls);
+      assert.equal(await open(10).count(), 0);
+      assert.equal(await zero.count(), 0);
+    }
     assert.deepEqual(errors, []);
-    console.log(`PASS gift card reopening ${width}x400: exact zero/positive card, independent wallet retry, draft ownership, Back focus`);
+    console.log(`PASS gift card steps ${width}x${height}: review recipient and amount, fixed footer, Back and confirmed balances`);
     await page.close();
   }
   for (const width of [390, 1440]) {

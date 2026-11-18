@@ -35,6 +35,8 @@ window.starsFixture = {
 // UI transport only. All real API traffic is explicitly rejected by the runner.
 api.get = async (path) => {
   reads.push(path);
+  if (path === "/dashboard/purchases") return { purchasePlans: [], wishes: [], subscriptions: [], purchaseCollaborations: [] };
+  if (path.startsWith("/dashboard/purchase-month?")) return { totals: [], openTotals: [], limits: [] };
   if (path === "/rolls") return { balance: state.balance, transactions: [], features: { starsPurchases: state.enabled } };
   if (path === "/personal-offers") return { offers: [] };
   if (path === "/rolls/stars") return { enabled: state.enabled, linked: true,

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { ListTileContent } from "@/components/list-tile-content";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useWishListDrag } from "@/hooks/use-wish-list-drag";
 import { wishCountNoun } from "@/modules/categories/list-navigation.js";
+import { useProfileTileMood } from "@/modules/profile/profile-tile-mood.js";
 import { cn } from "@/lib/utils";
 
 // Move only the list row; selecting a list must not scroll the page vertically.
@@ -30,7 +31,9 @@ function readOrder(key) {
   }
 }
 
-function ListTile({ id, title, displayTitle = title, count, detail, privateList, sortable, onSettings, settingsLabel, renderSettings, accessibleName, settingsDisabled }) {
+function ListTile({ id, title, displayTitle = title, count, detail, detailLines, privateList, sortable, onSettings, settingsLabel, renderSettings, accessibleName, settingsDisabled }) {
+  const descriptionId = useId();
+  const detailId = detail && detailLines === 2 ? descriptionId : undefined;
   const label = accessibleName ?? (detail == null ? `${title}, ${count} ${wishCountNoun(count)}${privateList ? ", приватный список" : ""}` : title);
   const tile = (
     <ToggleGroupItem
@@ -38,10 +41,11 @@ function ListTile({ id, title, displayTitle = title, count, detail, privateList,
       value={id}
       data-wish-list-tile={sortable ? id : undefined}
       aria-label={detail == null ? label : accessibleName}
+      aria-describedby={detailId}
       title={detail == null ? undefined : title}
       aria-keyshortcuts={sortable ? "Alt+ArrowLeft Alt+ArrowRight" : undefined}
     >
-      <ListTileContent title={displayTitle} count={count} detail={detail} privateList={privateList} />
+      <ListTileContent title={displayTitle} count={count} detail={detail} detailLines={detailLines} detailId={detailId} privateList={privateList} />
     </ToggleGroupItem>
   );
   if (!onSettings && !renderSettings) return tile;
@@ -69,7 +73,8 @@ function ListTile({ id, title, displayTitle = title, count, detail, privateList,
   );
 }
 
-export function WishListNavigation({ value, className, items, leadingItem, orderScope, onSelect, onSettings, onOrderError, label = "Списки желаний", settingsLabel = title => `Настройки списка «${title}»`, settingsDisabled, renderSettings }) {
+export function WishListNavigation({ value, className, moodLevel, items, leadingItem, orderScope, onSelect, onSettings, onOrderError, label = "Списки желаний", settingsLabel = title => `Настройки списка «${title}»`, settingsDisabled, renderSettings }) {
+  const moodStyle = useProfileTileMood(moodLevel);
   const viewportRef = useRef(null);
   const storageKey = orderScope ? `rollapp:wishlist-list-order:${orderScope}` : null;
   const [preference, setPreference] = useState(() => ({ key: storageKey, order: readOrder(storageKey) }));
@@ -134,6 +139,8 @@ export function WishListNavigation({ value, className, items, leadingItem, order
       ref={viewportRef}
       className={cn("list-tabs horizontal-tile-scroller", className)}
       data-wishlist-list-navigation
+      data-list-tile-palette
+      style={moodStyle}
       onClickCapture={suppressDragClick}
       onFocusCapture={(event) => {
         const button = event.target.closest("button");

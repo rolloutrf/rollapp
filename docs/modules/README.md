@@ -14,22 +14,22 @@
 | --- | --- | --- | --- |
 | 01 | [Авторизация](01-auth.md) | Вход, регистрация, восстановление, проверка сессии | [Клиент](../../src/modules/auth/) · [Сервер](../../server/modules/auth/) |
 | 02 | [Идентификация](02-identification.md) | Подтверждение способа входа и привязка к аккаунту | [Клиент](../../src/modules/identification/) · [Сервер](../../server/modules/identification/) |
-| 03 | [Профиль](03-profile.md) | Публичная шапка, настройки, аватар и настроение | [Клиент](../../src/modules/profile/) · [Сервер](../../server/modules/profile/) · [Общий код](../../shared/modules/profile/) |
+| 03 | [Профиль](03-profile.md) | Публичная шапка, настройки, аватар, палитра плиток по настроению и номер участника | [Клиент](../../src/modules/profile/) · [Сервер](../../server/modules/profile/) · [Общий код](../../shared/modules/profile/) |
 | 04 | [Категории](04-categories.md) | Пространства вишлиста и общий выбор категории | [Клиент](../../src/modules/categories/) · [Сервер](../../server/modules/categories/) |
-| 05 | [Карточка](05-card.md) | Сниппеты и детали желаний, товаров и предложений | [Клиент](../../src/modules/card/) |
+| 05 | [Карточка](05-card.md) | Сниппеты Вишлиста, витрин, образования и здоровья; детали желаний и товаров | [Клиент](../../src/modules/card/) |
 | 06 | [Доставка](06-delivery.md) | СДЭК, выбор ПВЗ, снимок доставки заказа | [Клиент](../../src/modules/delivery/) · [Сервер](../../server/modules/delivery/) |
 | 08 | [Платежи](08-payments.md) | Роллы, переводы, восстановление счетов Stars и TON, сверка остатков, пополнений и счетов | [Клиент](../../src/modules/payments/) · [Сервер](../../server/modules/payments/) · [Сверка](../rolls-operations.md) · [Общий код](../../shared/modules/payments/) |
 | 09 | [Чекаут](09-checkout.md) | Подтверждение и проверка покупок, персональных счетов и действий по сделкам, резерв и возврат | [Клиент](../../src/modules/checkout/) · [Сервер](../../server/modules/checkout/) · [Общий код](../../shared/modules/checkout/) |
-| 10 | [История операций](10-history.md) | История роллов, заказы, подборки действий и квитанции | [Клиент](../../src/modules/history/) · [Сервер](../../server/modules/history/) · [Общий код](../../shared/modules/history/) |
-| 11 | [PFM](11-pfm.md) | Сводка по роллам, календарный период и выписка | [Клиент](../../src/modules/pfm/) · [Сервер](../../server/modules/pfm/) · [Общий код](../../shared/modules/pfm/) |
-| 12 | [Лояльность](12-loyalty.md) | Приветствие, подарочные карты и их восстановление, награды и расчёт по потребностям | [Клиент](../../src/modules/loyalty/) · [Сервер](../../server/modules/loyalty/) |
+| 10 | [История операций](10-history.md) | История роллов, заказы, подборки действий и просмотр квитанций | [Клиент](../../src/modules/history/) · [Сервер](../../server/modules/history/) · [Общий код](../../shared/modules/history/) |
+| 11 | [PFM](11-pfm.md) | «Операции» в финансах: сводка, период и выписка роллов | [Клиент](../../src/modules/pfm/) · [Сервер](../../server/modules/pfm/) · [Общий код](../../shared/modules/pfm/) |
+| 12 | [Лояльность](12-loyalty.md) | Приветствие, сертификаты в профиле, выпуск карт и восстановление операций, награды за потребности | [Клиент](../../src/modules/loyalty/) · [Сервер](../../server/modules/loyalty/) |
 | 13 | [Ассистент](13-assistant.md) | Рекомендации подарков, поиск предложений, OpenRouter | [Клиент](../../src/modules/assistant/) · [Сервер](../../server/modules/assistant/) |
-| 14 | [Доступ и выдача прав](14-access.md) | Приватность списков, ссылки, права на сферы и бизнес-запросы | [Клиент](../../src/modules/access/) · [Сервер](../../server/modules/access/) · [Общий код](../../shared/modules/access/) |
-| 15 | [Вишлист](15-wishlist.md) | Желания, списки, группы, резерв, архив, заметки и копирование | [Клиент](../../src/modules/wishlist/) · [Сервер](../../server/modules/wishlist/) |
+| 14 | [Доступ и выдача прав](14-access.md) | Приватность списков, ссылки, выдача доступа из каталогов сфер и бизнес-запросы | [Клиент](../../src/modules/access/) · [Сервер](../../server/modules/access/) · [Общий код](../../shared/modules/access/) |
+| 15 | [Вишлист](15-wishlist.md) | Желания, списки, группы, резерв, покупки и бюджеты, архив, заметки и копирование | [Клиент](../../src/modules/wishlist/) · [Сервер](../../server/modules/wishlist/) |
 | 16 | [Каталог и витрины](16-catalog-marketplace.md) | Бренды, транспорт, ассортимент, магазины | [Клиент](../../src/modules/catalog-marketplace/) · [Сервер](../../server/modules/catalog-marketplace/) · [Общий код](../../shared/modules/catalog-marketplace/) |
 | 17 | [Друзья и подписки](17-social.md) | Подписки, подписчики, поиск людей и дни рождения | [Клиент](../../src/modules/social/) · [Сервер](../../server/modules/social/) |
 | 18 | [Задачи и пространства](18-planning.md) | Единая модель задач, связей и редактор | [Клиент](../../src/modules/planning/) · [Сервер](../../server/modules/planning/) · [Общий код](../../shared/modules/planning/) |
-| 19 | [Ежедневный To Do](19-daily-todo.md) | Список задач выбранного дня | [Клиент](../../src/modules/daily-todo/) |
+| 19 | [Ежедневный To Do](19-daily-todo.md) | Список задач выбранного дня и пересмотр покупок | [Клиент](../../src/modules/daily-todo/) |
 | 20 | [Календарь](20-calendar.md) | События, расписание, отображение повторов | [Клиент](../../src/modules/calendar/) · [Общий код](../../shared/modules/calendar/) |
 | 21 | [Kanban](21-kanban.md) | Карточки, колонки и порядок на доске | [Клиент](../../src/modules/kanban/) |
 | 22 | [Идентичность](22-identity.md) | Личные документы, стратегия, Gallup, Hogan и другие тесты | [Клиент](../../src/modules/identity/) · [Сервер](../../server/modules/identity/) · [Общий код](../../shared/modules/identity/) |
@@ -39,7 +39,7 @@
 | 26 | [Здоровье](26-health.md) | Анализы, тренировки и препараты | [Клиент](../../src/modules/health/) · [Сервер](../../server/modules/health/) |
 | 27 | [Документы и встроенный редактор](27-rich-documents.md) | Редактирование, чтение, Markdown и автосохранение | [Клиент](../../src/modules/rich-documents/) |
 | 28 | [Медиа и импорт](28-media-import.md) | Загрузки, распознавание ссылок, адаптеры файлов | [Клиент](../../src/modules/media-import/) · [Сервер](../../server/modules/media-import/) · [Общий код](../../shared/modules/media-import/) |
-| 29 | [Оболочка приложения](29-shell.md) | Маршруты, навигация, формы и адаптивное размещение | [Клиент](../../src/modules/shell/) |
+| 29 | [Оболочка приложения](29-shell.md) | Маршруты, общая панель сфер, пустые состояния, формы и адаптивное размещение | [Клиент](../../src/modules/shell/) |
 | 30 | [Запуск и эксплуатация](30-runtime.md) | API-транспорт, БД, health, фоновые процессы и выпуск | [Клиент](../../src/modules/runtime/) · [Сервер](../../server/modules/runtime/) |
 
 ## Работа с модулем

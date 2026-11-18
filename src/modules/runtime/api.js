@@ -73,6 +73,15 @@ export const api = {
     body: file,
     signal,
   }),
+  uploadPurchaseReceipt: (id, file, version) => request(`/dashboard/purchase-history/${encodeURIComponent(id)}/receipt`, {
+    method: "POST",
+    headers: { "Content-Type": file.type || "application/octet-stream", "X-File-Name": encodeURIComponent(file.name), "X-Receipt-Version": version || "none" },
+    body: file,
+  }),
+  deletePurchaseReceipt: (id, version) => request(`/dashboard/purchase-history/${encodeURIComponent(id)}/receipt`, {
+    method: "DELETE",
+    headers: { "X-Receipt-Version": version },
+  }),
   resolveContactAvatar: (links) => request("/contacts/avatar/resolve", {
     method: "POST",
     body: JSON.stringify({ links }),

@@ -32,13 +32,22 @@ async function setTheme(page,dark){
   await Promise.all(animations.filter(animation=>animation.effect?.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));
  },dark);
  // Inherited color can start a child's transition after its parent has finished.
- await page.waitForFunction(()=>[...document.querySelectorAll('.collection-snippet, .collection-snippet h3, .collection-snippet [data-slot="card-footer"] a')].every(element=>getComputedStyle(element).color===getComputedStyle(document.documentElement).getPropertyValue('--card-foreground').trim()));
+ await page.waitForFunction(()=>{
+  const reference=document.querySelector('[data-wishlist-reference] h3');
+  const color=getComputedStyle(reference).color;
+  return [...document.querySelectorAll('.collection-snippet, .collection-snippet h3, .collection-snippet [data-slot="card-footer"] a')].every(element=>getComputedStyle(element).color===color);
+ });
 }
 async function measure(page){return page.locator('[data-audit-card]').evaluateAll(cards=>cards.map(card=>{
  const rect=el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
  const badge=card.querySelector('.collection-snippet__badge'),label=badge.querySelector('span'),range=document.createRange();range.selectNodeContents(label);
  const handle=card.querySelector('[data-card-drag-handle]'),menu=card.querySelector('[data-slot="card-action"] button');
- return {id:card.dataset.auditCard,card:rect(card),media:rect(card.querySelector('.collection-snippet__media')),badge:rect(badge),glyphs:[...range.getClientRects()].map(r=>({left:r.left,right:r.right,top:r.top,bottom:r.bottom})),handle:handle&&getComputedStyle(handle).display!=='none'?rect(handle):null,menu:menu?rect(menu):null,handleIcon:handle?getComputedStyle(handle.querySelector("svg")).width:null,menuIcon:menu?getComputedStyle(menu.querySelector("svg")).width:null,accessibleBadge:!badge.closest('[aria-hidden="true"]'),imageFit:card.querySelector('.collection-snippet__media img')?getComputedStyle(card.querySelector('.collection-snippet__media img')).objectFit:null,
+ const square=element=>({width:rect(element).width,height:rect(element).height,radius:getComputedStyle(element).borderRadius});
+ const mediaFrame=card.querySelector('.collection-snippet__media');
+ const reference=document.querySelector('[data-wishlist-reference] .wish-card__image');
+ const columns=getComputedStyle(card.parentElement).gridTemplateColumns;
+ const titleMetrics=el=>{const style=getComputedStyle(el);return [style.fontSize,style.lineHeight,style.fontWeight,style.textOverflow];};
+ return {id:card.dataset.auditCard,card:rect(card),media:rect(mediaFrame),mediaGeometry:square(mediaFrame),referenceGeometry:square(reference),columns,referenceColumns:getComputedStyle(reference.closest('.snippet-grid')).gridTemplateColumns,title:titleMetrics(card.querySelector('h3')),referenceTitle:titleMetrics(reference.parentElement.querySelector('h3')),badge:rect(badge),glyphs:[...range.getClientRects()].map(r=>({left:r.left,right:r.right,top:r.top,bottom:r.bottom})),handle:handle&&getComputedStyle(handle).display!=='none'?rect(handle):null,menu:menu?rect(menu):null,handleIcon:handle?getComputedStyle(handle.querySelector("svg")).width:null,menuIcon:menu?getComputedStyle(menu.querySelector("svg")).width:null,accessibleBadge:!badge.closest('[aria-hidden="true"]'),imageFit:card.querySelector('.collection-snippet__media img')?getComputedStyle(card.querySelector('.collection-snippet__media img')).objectFit:null,
  overflow:[...card.querySelectorAll('*')].filter(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return r.width&&s.overflowX==='visible'&&el.scrollWidth>el.clientWidth+1&&s.position!=='absolute'&&s.display!=='inline'&&s.display!=='contents';}).map(el=>({tag:el.tagName,classes:el.className,width:el.clientWidth,scroll:el.scrollWidth})),
  links:[...card.querySelectorAll('[data-slot="card-footer"] a')].map(rect)};
 }));}
@@ -71,6 +80,13 @@ try{
     const cards=await measure(page);
     for(const item of cards){
      const {badge,media,handle,menu,glyphs}=item;
+     // Grid tracks can differ by a fraction of a CSS pixel when the rail
+     // cannot be divided evenly; compare against the first (single-card) track.
+     assert(Math.abs(item.mediaGeometry.width-item.referenceGeometry.width)<.1&&Math.abs(item.mediaGeometry.height-item.referenceGeometry.height)<.1,'Media geometry differs from a single Wishlist item');
+     assert.equal(item.mediaGeometry.radius,item.referenceGeometry.radius,'Cover radius must match the Wishlist');
+     assert.equal(item.columns,item.referenceColumns,'The grid stretches items or uses other tracks than the Wishlist');
+     assert.equal(item.columns.split(' ').length,width<=640?2:width<=1023?3:4,'Wishlist track count at viewport breakpoint');
+     assert.deepEqual(item.title,item.referenceTitle,'Card titles must use the Wishlist typography and truncation');
      assert(item.accessibleBadge,'Status badge must remain in the accessibility tree');
      assert(Math.abs(media.height/media.width-286/236)<.015,'Snippet media must retain its portrait ratio');
      if(item.imageFit)assert.equal(item.imageFit,'contain','Logos/photos must not be stretched or cropped');

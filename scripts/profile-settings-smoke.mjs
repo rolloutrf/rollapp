@@ -346,7 +346,48 @@ try {
     await page.getByRole("heading", { name: "Персональные офферы" }).waitFor();
     assert.equal(await page.getByRole("region", { name: "Подарочные карты" }).count(), 0);
     assert.equal(await page.evaluate(() => window.giftCardReads || 0), 0);
-    const wallet = balance.locator("xpath=ancestor::div[contains(@class, 'rolls-page--embedded')]");
+    const wallet = page.locator(".rolls-page--embedded:visible");
+    const tabs = page.getByRole("tablist", { name: "Разделы финансов" });
+    const walletTab = tabs.getByRole("tab", { name: "Кошелёк", exact: true });
+    const purchasesTab = tabs.getByRole("tab", { name: "Покупки", exact: true });
+    const activityTab = tabs.getByRole("tab", { name: "Операции", exact: true });
+    assert.equal(await walletTab.getAttribute("aria-selected"), "true");
+    assert.equal(await wallet.getByRole("region", { name: "Покупки", exact: true }).count(), 0);
+    const tabMetrics = await tabs.getByRole("tab").evaluateAll(nodes => nodes.map(node => {
+      const css = getComputedStyle(node), box = node.getBoundingClientRect();
+      return { height: box.height, left: box.left, right: box.right, scroll: node.scrollWidth, width: node.clientWidth,
+        color: css.color, background: css.backgroundColor, size: css.fontSize, leading: css.lineHeight };
+    }));
+    assert.equal(tabMetrics.length, 3);
+    assert(tabMetrics.every(({ height, left, right, scroll, width: client, size, leading }) => height === 48
+      && left >= 0 && right <= width && scroll <= client + 1 && size === "18px" && leading === "28px"));
+    assert.notEqual(tabMetrics[0].color, tabMetrics[0].background);
+    await walletTab.focus();
+    await page.keyboard.press("ArrowRight");
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Покупки");
+    await page.keyboard.press("Enter");
+    await tabs.getByRole("tab", { name: "Покупки", selected: true }).waitFor();
+    await balance.waitFor({ state: "hidden" });
+    const purchases = wallet.getByRole("region", { name: "Покупки", exact: true });
+    const limitOpener = purchases.getByRole("button", { name: "Настроить лимит", exact: true });
+    await limitOpener.waitFor();
+    await page.screenshot({ path: `/tmp/rollapp-profile-purchases-top-${width}x${height}.png` });
+    await limitOpener.click();
+    const limits = page.getByRole("heading", { name: "Лимит месяца", exact: true });
+    await limits.waitFor();
+    if (mobile) await page.goBack();
+    else await page.keyboard.press("Escape");
+    await limits.waitFor({ state: "hidden" });
+    await financeTitle.waitFor();
+    await limitOpener.waitFor();
+    assert.equal(await purchasesTab.getAttribute("aria-selected"), "true");
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Настроить лимит");
+    await page.screenshot({ path: `/tmp/rollapp-profile-purchases-${width}x${height}.png` });
+    await activityTab.click();
+    await tabs.getByRole("tab", { name: "Операции", selected: true }).waitFor();
+    await purchases.waitFor({ state: "hidden" });
+    await wallet.getByRole("heading", { name: "Операции с роллами", exact: true }).waitFor();
+
     const backBox = await back.boundingBox();
     assert.equal(backBox.width, 48);
     assert.equal(backBox.height, 48);
@@ -373,6 +414,10 @@ try {
     const lastBox = await lastTransaction.boundingBox();
     assert(lastBox.y + lastBox.height <= (mobile ? backBox.y : height));
     assert.deepEqual(await back.boundingBox(), backBox);
+    await page.screenshot({ path: `/tmp/rollapp-profile-operations-${width}x${height}.png` });
+    await walletTab.click();
+    await balance.getByText(/23\s999\s870/).waitFor();
+    await page.screenshot({ path: `/tmp/rollapp-profile-wallet-${width}x${height}.png` });
     const sendRolls = button("Отправить роллы");
     await sendRolls.click();
     await page.getByRole("heading", { name: "Перевод" }).waitFor();
@@ -396,44 +441,47 @@ try {
     assert.equal(page.url(), source.href);
     const gifts = button("Подарочные карты");
     const giftList = page.getByRole("region", { name: "Подарочные карты" });
-    const cardRow = (balance) => giftList.getByRole("article").filter({
-      has: page.getByText(`${balance} роллов · Только у этого бизнеса`, { exact: true }),
-    });
-    const business = cardRow(100).getByRole("link", { name: "Магазин", exact: true });
+    const openCard = giftList.getByRole("button", { name: "Открыть сертификат: Магазин, 100 роллов, номер заканчивается на 67A100", exact: true });
+    const openEmptyCard = giftList.getByRole("button", { name: "Открыть сертификат: Магазин, 0 роллов, номер заканчивается на 67F000", exact: true });
+    const detail = (suffix) => page.getByRole("article", { name: `Сертификат: Магазин, номер заканчивается на ${suffix}`, exact: true });
     await gifts.click();
     await giftList.waitFor();
-    await business.waitFor();
+    await openCard.waitFor();
     assert.equal(await page.getByRole("heading", { name: "Подарочные карты", exact: true }).count(), 1);
     assert.equal(await balance.count(), 0);
     assert.equal(new URL(page.url()).pathname, source.pathname);
     if (!mobile) assert.equal(page.url(), source.href);
     await page.evaluate(() => document.fonts.ready);
-    const openCard = cardRow(100).getByRole("button", { name: "Открыть карту", exact: true });
     const giftBox = await openCard.boundingBox();
     const giftBackBox = await back.boundingBox();
-    assert.equal(giftBox.height, 48);
+    assert(Math.abs(giftBox.width / giftBox.height - 1.7) < 0.05);
     assert(giftBox.x >= 0 && giftBox.x + giftBox.width <= width);
     assert(giftBox.y + giftBox.height <= (mobile ? giftBackBox.y : height));
+    assert.equal(await openCard.locator("button, a").count(), 0);
     assert.deepEqual([giftBackBox.width, giftBackBox.height], [48, 48]);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.screenshot({ path: `/tmp/rollapp-profile-gift-cards-${width}x${height}.png` });
-    await openCard.click();
+    await openCard.press("Enter");
     const card = page.getByRole("heading", { name: "Подарочная карта", exact: true });
     await card.waitFor();
-    await page.getByRole("button", { name: "Магазин · 100 роллов", pressed: true }).waitFor();
+    await detail("67A100").getByText("100 роллов", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("group", { name: "Мои карты этого бизнеса" }).count(), 0);
+    assert.equal(await page.getByLabel("Сколько роллов добавить").isVisible(), false);
+    assert.equal(await page.getByLabel("Кому подарить", { exact: true }).isVisible(), false);
+    await page.getByRole("link", { name: "Перейти в магазин", exact: true }).waitFor();
+    await page.screenshot({ path: `/tmp/rollapp-profile-certificate-detail-${width}x${height}.png` });
     await back.click();
     await card.waitFor({ state: "hidden" });
     await giftList.waitFor();
-    await page.waitForFunction(() => document.activeElement?.closest("article")?.querySelector("p")?.textContent === "100 роллов · Только у этого бизнеса");
-    const openEmptyCard = cardRow(0).getByRole("button", { name: "Открыть карту", exact: true });
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.endsWith("67A100"));
     await openEmptyCard.click();
-    await page.getByRole("button", { name: "Магазин · 0 роллов", pressed: true }).waitFor();
-    assert(await page.getByRole("button", { name: "Подарить карту", exact: true }).isDisabled());
+    await detail("67F000").getByText("0 роллов", { exact: true }).waitFor();
+    assert(await page.getByRole("button", { name: "Подарить", exact: true }).isDisabled());
     if (mobile) await page.goBack();
     else await back.click();
     await card.waitFor({ state: "hidden" });
     await giftList.waitFor();
-    await page.waitForFunction(() => document.activeElement?.closest("article")?.querySelector("p")?.textContent === "0 роллов · Только у этого бизнеса");
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.endsWith("67F000"));
     if (mobile && width === 320) await page.goBack();
     else await back.click();
     await menu.waitFor();
@@ -443,7 +491,8 @@ try {
     const destination = giftExit ? "/fixture-shop" : "/app/orders";
     if (giftExit) {
       await gifts.click();
-      await business.click();
+      await openCard.click();
+      await page.getByRole("link", { name: "Перейти в магазин", exact: true }).click();
     } else await button("Заказы").click();
     await page.waitForURL(url => url.pathname === destination && !url.searchParams.has("formScreen"));
     await menu.waitFor({ state: "hidden" });
@@ -459,7 +508,7 @@ try {
       await page.evaluate(() => window.finishGiftLoad());
       await giftList.getByText("Подарочные карты временно недоступны").waitFor();
       await giftList.getByRole("button", { name: "Повторить", exact: true }).click();
-      await business.waitFor();
+      await openCard.waitFor();
       await page.goto(`${origin}/__profile-settings?state=gifts-recovery`);
       await gifts.click();
       const operation = giftList.getByRole("button", { name: "Проверить операцию · Выпуск карты", exact: true });
@@ -479,7 +528,7 @@ try {
       if (mobile) await page.goBack();
       else await back.click();
       await recoveryPage.waitFor({ state: "hidden" });
-      await business.waitFor();
+      await openCard.waitFor();
       assert.equal(await operation.count(), 0);
       await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Подарочные карты");
     }
@@ -655,6 +704,27 @@ try {
     assert(initialFooter.ownsSubmit && initialFooter.outsideScroll && initialFooter.hit);
     if (mobile) assert.equal((await back.boundingBox()).y, initialFooter.y);
     else assert(Math.abs(initialFooter.drawerGap) < 1);
+    const setup = keys.getByRole("region", { name: "Как подключить" });
+    await setup.getByText("https://роллапп.рф/mcp", { exact: true }).waitFor();
+    assert.equal(await setup.getByRole("listitem").count(), 3);
+    assert.equal(await setup.getByRole("list").evaluate(node => getComputedStyle(node).listStyleType), "decimal");
+    if (shortMobile || width === 1440) {
+      const terminal = keys.getByRole("button", { name: "Codex в терминале", exact: true });
+      assert.equal(await terminal.getAttribute("aria-expanded"), "false");
+      await terminal.press("Enter");
+      const commands = keys.locator("pre");
+      await commands.waitFor();
+      const instructions = await commands.textContent();
+      assert.match(instructions, /^read -rs ROLLAPP_MCP_TOKEN/);
+      assert.match(instructions, /codex mcp add rollapp/);
+      assert.match(instructions, /--url https:\/\/xn--80avakiab\.xn--p1ai\/mcp/);
+      assert.match(instructions, /--bearer-token-env-var ROLLAPP_MCP_TOKEN/);
+      assert.equal(await secret.count(), 0);
+      assert(await commands.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+      assert.deepEqual(await footerGeometry(), initialFooter);
+      await terminal.press("Enter");
+      await commands.waitFor({ state: "hidden" });
+    }
     await createKey.click();
     await secret.waitFor();
     const readToken = `rwmcp_read_${"x".repeat(43)}`;

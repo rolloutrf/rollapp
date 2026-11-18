@@ -11,3 +11,5 @@
 **Приёмка.** Переход через смену месяца, переключение и создание списка на выбранной дате, отмена/успех формы, прокрутка последней задачи, размеры и стабильность кнопок на мобильном и десктопе. Запускайте `npm run test:todo`, `npm run test:controls`, `npm run test:dates` и `npm run test:form-pages`.
 
 [Экран To Do](../../src/modules/daily-todo/planning-daily-todo.jsx) · [Выбор даты](../../src/modules/planning/planning-date-picker.jsx) · [Общая форма](../../src/modules/planning/planning-space.jsx)
+
+Задачи покупок открывают карточку пересмотра с бюджетом и решениями, а задачи подписок и сопровождения открывают соответствующие карточки Вишлиста. Обычные задачи сохраняют общий редактор. Проверка: `npm run test:purchase-plan`.

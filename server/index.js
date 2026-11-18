@@ -53,6 +53,8 @@ import { registerBusinessMarketplaceRoutes } from "./modules/catalog-marketplace
 import { registerNeedRewardsRoutes, startNeedRewardSettlementWorker } from "./modules/loyalty/need-rewards.js";
 import { checkRewardProofRuntime, startRewardProofWorker } from "./modules/loyalty/reward-proof-queue.js";
 
+import { formatEventDate, mapWish } from "./modules/wishlist/wish-projection.js";
+import { startPurchasePriceChecks } from "./modules/wishlist/purchase-price-watch.js";
 import { registerPlanningRoutes } from "./modules/planning/planning.js";
 import { createRollappMcpHttp } from "./modules/runtime/mcp-http.js";
 import { registerNotesRoutes } from "./modules/planning/notes.js";
@@ -116,7 +118,7 @@ import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./modules/runt
 import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/modules/access/sphere-sharing.js";
 import { BUSINESS_CATEGORIES, BUSINESS_OFFER_SPHERES, businessCategoryForSection, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { registrationAccountSchema } from "./modules/catalog-marketplace/business-accounts.js";
-import { readBusinessAccessSnapshot } from "./modules/access/business-access.js";
+import { readBusinessAccessSnapshot, readSphereShareCandidates } from "./modules/access/business-access.js";
 import { wishlistProfileGrant, wishlistWishVisibility } from "./modules/wishlist/wishlist-profile-access.js";
 import { getSmsConfig, sendSms } from "./modules/identification/sms.js";
 import {
@@ -472,21 +474,6 @@ function mapList(row) {
   };
 }
 
-function formatEventDate(value) {
-  if (value === null || value === undefined) return null;
-  if (value instanceof Date) {
-    // node-pg парсит DATE как полночь в локальной таймзоне, pg-mem — как полночь в UTC.
-    // Выбираем компоненты даты без сдвига: UTC-полночь → UTC-компоненты, иначе локальные.
-    const isUtcMidnight = value.getUTCHours() === 0 && value.getUTCMinutes() === 0
-      && value.getUTCSeconds() === 0 && value.getUTCMilliseconds() === 0;
-    const year = isUtcMidnight ? value.getUTCFullYear() : value.getFullYear();
-    const month = (isUtcMidnight ? value.getUTCMonth() : value.getMonth()) + 1;
-    const day = isUtcMidnight ? value.getUTCDate() : value.getDate();
-    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
-  return String(value).slice(0, 10);
-}
-
 function mapEducationList(row) {
   return {
     id: row.id,
@@ -533,34 +520,6 @@ function mapEducationItemGroups(rows = []) {
     if (row.item_id) groups.get(row.id).itemIds.push(row.item_id);
   }
   return [...groups.values()];
-}
-
-function mapWish(row) {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    title: row.title,
-    description: row.description,
-    url: row.url,
-    imageUrl: row.image_url,
-    fundraisingUrl: row.fundraising_url ?? "",
-    vehicleMake: row.vehicle_make ?? "",
-    vehicleModel: row.vehicle_model ?? "",
-    price: row.price === null ? null : Number(row.price),
-    currency: row.currency,
-    priority: Number(row.priority),
-    privacy: row.privacy,
-    allowMultiple: row.allow_multiple,
-    status: row.status,
-    sortOrder: Number(row.sort_order || 0),
-    eventDate: formatEventDate(row.event_date),
-    space: row.space ?? null,
-    createdAt: row.created_at,
-    reservationCount: Number(row.reservation_count || 0),
-    reservedByMe: Boolean(row.reserved_by_me),
-    likedByMe: Boolean(row.liked_by_me),
-    listIds: row.list_ids || [],
-  };
 }
 
 function asyncRoute(handler) {
@@ -2140,25 +2099,12 @@ app.get("/api/business-catalog/:sphere", requireAuth, requirePrivateSphereOwner,
 
 app.get("/api/sphere-shares/candidates", requireAuth, requireShareOwner, asyncRoute(async (req, res) => {
   const { sphere, section } = sphereSectionStorageScope(String(req.query.sphere || ""), String(req.query.section || ""));
-  if (!isSphereSection(sphere, section)) return res.status(404).json({ error: "Раздел не найден" });
+  const category = businessCategoryForSection(sphere, section);
+  if (!category) return res.status(404).json({ error: "Раздел не найден" });
   const search = String(req.query.search || "").trim().slice(0, 80).toLocaleLowerCase("ru-RU");
-  const result = await query(
-    `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space,s.section AS grant_section,
-            (s.viewer_user_id IS NOT NULL) AS granted
-     FROM users u
-     LEFT JOIN LATERAL (SELECT s0.viewer_user_id,s0.section FROM sphere_section_shares s0 WHERE s0.viewer_user_id=u.id AND s0.owner_user_id=$1 AND s0.sphere=$2 AND (s0.section=$3 OR ($2='wishlist' AND s0.section='wishlist')) ORDER BY (s0.section='wishlist') DESC LIMIT 1) s ON TRUE
-     WHERE u.id<>$1
-       AND u.account_type='business'
-       AND (u.business_category IS NULL OR u.business_category=$6)
-       AND ($2<>'wishlist' OR u.business_category IS NULL OR u.seller_space IS NULL OR u.seller_space=$3 OR $3='wishlist')
-       AND ($4='' OR LOWER(u.name) LIKE $5 OR LOWER(u.username) LIKE $5)
-     ORDER BY (s.viewer_user_id IS NOT NULL) DESC,
-              u.name,u.username
-     LIMIT 50`,
-    [req.user.id, sphere, section, search, `%${search}%`, businessCategoryForSection(sphere, section)?.id],
-  );
+  const result = await readSphereShareCandidates(query, { ownerId: req.user.id, sphere, section, category: category.id, search });
   res.set("Cache-Control", "private, no-store");
-  return res.json({ people: result.rows.filter(row => canBusinessAccessSection(row, sphere, section)).map((row) => ({ ...shareUser(row), granted: Boolean(row.granted), grantSection: row.grant_section || section })) });
+  return res.json({ people: result.rows.filter(row => canBusinessAccessSection(row, sphere, section)).map((row) => ({ ...shareUser(row), granted: Boolean(row.grant_section), grantSection: row.grant_section || section })) });
 }));
 
 app.get("/api/business-access/users", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
@@ -3552,6 +3498,10 @@ if (!sphereApplication) {
   if (isProduction && diskSyncAvailable) diskSyncWorker = startYandexDiskSync({ query, transaction, track: trackBackgroundTask });
 }
 
+const purchasePricePoller = isProduction && !isMemoryDatabase && !splitPlatform && servesSphere("wishlist") ? startPurchasePriceChecks({
+  query, transaction, onError: () => console.warn("[purchase-prices] Scheduled check failed"),
+}) : null;
+
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`Rollapp ${applicationId} listening on ${port}`);
 });
@@ -3563,10 +3513,11 @@ async function shutdown() {
   rewardProofWorker?.stop();
   needRewardSettlementWorker?.stop();
   diskSyncWorker?.stop();
+  const purchasePriceCheck = purchasePricePoller?.stop();
   server.close(async () => {
-    if (backgroundTasks.size) {
+    if (backgroundTasks.size || purchasePriceCheck) {
       await Promise.race([
-        Promise.allSettled([...backgroundTasks]),
+        Promise.allSettled([...backgroundTasks, purchasePriceCheck]),
         new Promise((resolve) => setTimeout(resolve, 20_000)),
       ]);
     }

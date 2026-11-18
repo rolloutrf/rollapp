@@ -69,6 +69,8 @@ const client = {
       return path.includes("offset=100") ? { offers: [first, older], nextOffset: null } : { offers: [first], nextOffset: 100 };
     }
     if (path === "/rolls/gift-cards") return { cards: [] };
+    if (path === "/dashboard/purchases") return { purchasePlans: [], wishes: [], subscriptions: [], purchaseCollaborations: [] };
+    if (path.startsWith("/dashboard/purchase-month?")) return { totals: [], openTotals: [], limits: [] };
     if (path === "/rolls") return { balance: 100, transactions: scenario === "wallet-page" ? [
       { id: "purchase:shop", kind: "purchase", direction: "outgoing", amount: 50, productTitle: "Товар магазина", createdAt: base.expiresAt },
       { id: "refund:shop", kind: "refund", direction: "incoming", amount: 50, productTitle: "Товар магазина", createdAt: base.expiresAt },

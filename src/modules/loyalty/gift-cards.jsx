@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Gift, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, Gift, X } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { api } from "@/modules/runtime/api.js";
 import { useOperationRecovery } from "../payments/use-operation-recovery.js";
 import { ControlBar } from "@/components/control-bar";
@@ -14,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { publicProfilePath } from "../../../shared/modules/profile/profile-links.js";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
+import { GiftCertificate } from "./gift-certificate";
 
 const giftCardPath = "/rolls/gift-cards";
 const giftRejections = new Set(["INVALID_GIFT_CARD", "BUSINESS_NOT_FOUND", "GIFT_CARD_NOT_FOUND", "GIFT_CARD_LIMIT",
@@ -74,9 +76,38 @@ function describePendingGift(intent) {
     Number.isSafeInteger(intent.payload.expectedBalance) ? formatRolls(intent.payload.expectedBalance) : null].filter(Boolean).join(" · ");
 }
 
-export function GiftCardManager({ business, user, initialCardId = "", returnFocusRef, fallbackFocusRef, recoveryOnly = false, onClose, onChanged }) {
+function GiftSendResult({ gift, titleRef }) {
+  const titleId = useId();
+  return <section aria-labelledby={titleId} className="mx-auto my-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-col items-center gap-4 px-2 py-4 text-center [@media(max-height:480px)]:gap-3 [@media(max-height:480px)]:py-0">
+    <span aria-hidden="true" className="flex size-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 [@media(max-height:480px)]:size-10">
+      <Check className="size-7" />
+    </span>
+    <div className="grid min-w-0 gap-2">
+      <h2 id={titleId} ref={titleRef} tabIndex={-1} className="wrap-anywhere text-2xl font-semibold outline-none">Карта отправлена</h2>
+      {gift.recipient && <p className="wrap-anywhere text-muted-foreground">Получатель: <strong className="font-medium text-foreground">{gift.recipient}</strong></p>}
+    </div>
+    {(gift.amount || gift.business) && <div className="grid min-w-0 gap-1">
+      {gift.amount && <p className="wrap-anywhere text-3xl font-semibold tabular-nums">{formatRolls(gift.amount)}</p>}
+      {gift.business && <p className="wrap-anywhere text-muted-foreground">{gift.business}</p>}
+    </div>}
+  </section>;
+}
+
+export function GiftCardManager({ business, user, initialCardId = "", returnFocusRef, fallbackFocusRef, recoveryOnly = false, onClose, onChanged, onNavigate }) {
   const storageKey = `${giftStoragePrefix(user.id)}${business.id}`;
+  // From the wallet a certificate opens as one record. The issuer manager
+  // can still select between its cards and issue another one.
+  const profileCard = Boolean(initialCardId);
+  const mobile = useIsMobile();
   const [open, setOpen] = useState(true);
+  const [step, setStep] = useState(null);
+  const topupFormId = useId();
+  const actionPanel = useRef(null);
+  const topupAction = useRef(null);
+  const giftAction = useRef(null);
+  const previousStep = useRef(null);
+  const sendFromTopup = useRef(false);
+  const destination = useRef(null);
   const [cards, setCards] = useState([]);
   const [selectedId, setSelectedId] = useState(initialCardId || null);
   const [wallet, setWallet] = useState(null);
@@ -91,9 +122,31 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [message, setMessage] = useState("");
+  const [sentGift, setSentGift] = useState(null);
+  const bodyRef = useRef(null);
+  const resultTitle = useRef(null);
   const cardReads = useRef(0);
   const walletReads = useRef(0);
   const selected = cards.find((card) => card.id === selectedId);
+
+  useLayoutEffect(() => {
+    if (sentGift || step || previousStep.current) {
+      if (mobile) window.scrollTo({ top: 0, behavior: "instant" });
+      else bodyRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    }
+    if (sentGift) {
+      previousStep.current = null;
+      resultTitle.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+      resultTitle.current?.focus({ preventScroll: true });
+    } else if (step) {
+      previousStep.current = step;
+      actionPanel.current?.focus({ preventScroll: true });
+    } else if (previousStep.current) {
+      const opener = previousStep.current === "send" ? giftAction : topupAction;
+      previousStep.current = null;
+      opener.current?.focus({ preventScroll: true });
+    }
+  }, [step, mobile, sentGift]);
 
   async function loadCards() {
     const read = ++cardReads.current;
@@ -169,9 +222,24 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       return card.id === cardId && (kind === "topup" ? card.amount === intent.payload.amount : card.recipientId === intent.payload.recipientId);
     },
     onComplete(card, intent) {
-      setSelectedId(giftOperation(intent.path).kind === "send" ? "" : card.id);
+      const operation = giftOperation(intent.path);
+      if (!profileCard) setSelectedId(operation.kind === "send" ? "" : card.id);
+      else if (operation.kind === "send" && operation.cardId === initialCardId) {
+        setSelectedId("");
+        setStep(null);
+      }
       setAmount(""); setRecipient(null); setSearch("");
-      setMessage(intent.label);
+      if (operation.kind === "send") {
+        const amount = intent.payload.expectedBalance;
+        setSentGift({
+          recipient: typeof intent.recipientName === "string" ? intent.recipientName.trim() : "",
+          business: business.name,
+          amount: Number.isSafeInteger(amount) && amount > 0 && amount <= ROLLS_MAX_TRANSFER ? amount : null,
+        });
+      } else if (profileCard && operation.kind === "topup" && operation.cardId === initialCardId) {
+        setStep("topped-up");
+        setMessage("");
+      } else setMessage(intent.label);
       if (!recoveryOnly) {
         void loadCards();
         void loadWallet();
@@ -213,14 +281,55 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     : insufficient ? "На вашем балансе недостаточно роллов."
       : exceedsLimit ? "На карте можно хранить не больше 1 000 000 000 роллов."
         : "Роллы спишутся с вашего баланса.";
-  const title = recoveryOnly ? "Операция с подарочной картой" : "Подарочная карта";
-  const description = recoveryOnly ? business.name : `${business.name} · Роллы с карты можно потратить только у этого бизнеса.`;
+  const title = recoveryOnly ? "Операция с подарочной картой"
+    : step === "topup" ? "Пополнение карты"
+    : step === "topped-up" ? "Карта пополнена"
+    : step === "send" ? "Подарить карту"
+    : step === "confirm" ? "Подтвердите подарок"
+    : "Подарочная карта";
+  const showGiftAction = selected && !profileCard;
+  const showIssueAction = !profileCard && !selected && (!selectedId || cardsReady);
+  const showCertificateActions = profileCard && selected;
+  const showCertificateFooter = showCertificateActions && (step !== "send" || mobile);
+  const hasFooterAction = pending || (!recoveryOnly && (showCertificateFooter || showGiftAction || showIssueAction));
+  const canSendGift = !locked && cardsReady && recipient && selected?.balance > 0 && (!profileCard || step === "confirm");
+  const recipientChoices = profileCard && recipient ? [recipient] : people;
+  const topupLabel = valid ? `Пополнить на ${formatRolls(value)}` : "Пополнить карту";
+
+  function beginGift() {
+    sendFromTopup.current = step === "topped-up";
+    setStep("send");
+  }
+
+  function chooseRecipient(person) {
+    setRecipient(person);
+    setSearch(`@${person.username}`);
+    if (profileCard) setStep("confirm");
+  }
+
+  function backToPreviousStep() {
+    if (step === "confirm") setStep("send");
+    else setStep(step === "send" && sendFromTopup.current ? "topped-up" : null);
+  }
+
+  const stepBack = step && !pending && !sentGift ? backToPreviousStep : undefined;
+
+  function sendGift() {
+    if (!canSendGift) return;
+    run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id, expectedBalance: selected.balance },
+      `Карта отправлена: ${recipient.name}`, recipient.name);
+  }
+  const description = recoveryOnly ? business.name : profileCard ? undefined : `${business.name} · Роллы с карты можно потратить только у этого бизнеса.`;
   function returnFocusTarget() {
     const opener = returnFocusRef?.current;
     return opener?.isConnected && !opener.closest("[hidden]") ? opener : fallbackFocusRef?.current;
   }
   function finishClosing() {
-    if (!recoveryOnly) {
+    if (destination.current) {
+      onNavigate(destination.current);
+      return;
+    }
+    if (!recoveryOnly && !sentGift) {
       returnFocusTarget()?.focus({ preventScroll: true });
       return;
     }
@@ -232,24 +341,28 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       if (!visibleTarget?.closest("[hidden], [inert]")) visibleTarget?.focus({ preventScroll: true });
     });
   }
-  return <Drawer open={open} onAfterClose={recoveryOnly || returnFocusRef ? finishClosing : undefined} onOpenChange={(nextOpen, event) => {
-    if (nextOpen) return;
+  return <Drawer open={open} onAfterClose={recoveryOnly || sentGift || returnFocusRef ? finishClosing : undefined} onOpenChange={(nextOpen, event) => {
+    if (nextOpen || destination.current) return;
     if (recovery.inFlight.current) event?.cancel?.();
-    else if (recoveryOnly) setOpen(false);
+    else if (recoveryOnly || sentGift) setOpen(false);
     else onClose();
   }}>
     <DrawerContent className="rollapp-body app-drawer--form" finalFocus={recoveryOnly ? false : returnFocusRef && returnFocusTarget}>
-      {returnFocusRef ? <DrawerSectionHeader title={title} description={description} startAction={<DrawerBack disabled={busy} />} /> : <>
+      {returnFocusRef ? <DrawerSectionHeader title={title} description={description} startAction={stepBack && !mobile ? (
+        <Button type="button" variant="outline" size="icon" data-control-icon aria-label="Назад" onClick={stepBack}><ArrowLeft aria-hidden="true" /></Button>
+      ) : <DrawerBack disabled={busy} />} /> : <>
         <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 size-12" disabled={busy} />} aria-label="Закрыть подарочную карту"><X aria-hidden="true" /></DrawerClose>
         <DrawerHeader className="pr-16"><DrawerTitle>{title}</DrawerTitle><DrawerDescription className="text-xs break-words">{description}</DrawerDescription></DrawerHeader>
       </>}
-      <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 break-words">
+      <div ref={bodyRef} className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 break-words">
+        {sentGift ? <GiftSendResult gift={sentGift} titleRef={resultTitle} /> : <>
         {!recoveryOnly && loading && <p role="status" className="flex items-center gap-2"><Spinner />Загружаем карты…</p>}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {cardsError && <Alert variant="destructive"><AlertDescription>{cardsError}</AlertDescription></Alert>}
         {message && <p role="status">{message}</p>}
         {recoveryOnly && !pending && !error && !message && <p role="status">Сохранённый запрос уже закрыт.</p>}
-        {cardsReady && !pending && selectedId && !selected && <p role="status">Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую.</p>}
+        {cardsReady && !pending && selectedId && !selected &&
+          <p role="status">{profileCard ? "Этот сертификат больше недоступен. Вернитесь к списку карт." : "Выбранная карта больше недоступна. Можно выбрать другую карту или выпустить новую."}</p>}
         {pending && <Alert><AlertDescription className="grid gap-2">
           <p className="wrap-anywhere">Ожидает проверки · {describePendingGift(pending)}</p>
           {result === "missing" && <><p role="status">Операция пока не записана.</p>
@@ -260,7 +373,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
           </>}
         </AlertDescription></Alert>}
         {!recoveryOnly && <>
-          {cards.length > 0 && <div className="flex flex-col gap-2" role="group" aria-label="Мои карты этого бизнеса">
+          {!profileCard && cards.length > 0 && <div className="flex flex-col gap-2" role="group" aria-label="Мои карты этого бизнеса">
             {cards.map((card) => <Button type="button" key={card.id} variant={card.id === selectedId ? "secondary" : "outline"} aria-pressed={card.id === selectedId} disabled={locked || !cardsReady} className="h-auto min-h-12 justify-between gap-3 whitespace-normal text-left" onClick={() => {
               if (card.id === selectedId) return;
               setSelectedId(card.id);
@@ -268,46 +381,102 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
               recovery.resetNotice(); setMessage("");
             }}><Gift className="size-5 shrink-0" /><span className="min-w-0 break-words">{business.name} · {formatRolls(card.balance)}</span></Button>)}
           </div>}
-          {cardsReady && !cards.length && !selectedId && !message && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
-          {selected && <>
-            <section className="flex flex-col gap-3" aria-label="Пополнение карты">
-              <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>
+          {!profileCard && cardsReady && !cards.length && !selectedId && !message && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
+          {selected && <div className={profileCard ? "gift-certificate-rail" : "flex min-w-0 flex-col gap-6"}>
+            {profileCard && !step && cardsReady && <>
+              <GiftCertificate card={selected} />
+              <div className="grid gap-2">
+                <PageActionButton className="w-fit" variant="outline" to={publicProfilePath(business)} onClick={(event) => {
+                  if (!onNavigate || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+                  event.preventDefault();
+                  if (recovery.inFlight.current) return;
+                  // Leave the certificate's native history entry first, then
+                  // let profile settings unwind its own entries.
+                  destination.current = publicProfilePath(business);
+                  setOpen(false);
+                }}>Перейти в магазин <ArrowUpRight aria-hidden="true" data-icon="inline-end" /></PageActionButton>
+                <p>Действует только в этом магазине. При оплате роллами выберите подарочную карту.</p>
+              </div>
+            </>}
+            {step === "topped-up" && <section ref={actionPanel} tabIndex={-1} aria-label="Баланс после пополнения" className="grid gap-2 outline-none">
+              {cardsReady && <><p className="text-muted-foreground">Теперь на карте</p>
+                <p className="wrap-anywhere text-3xl font-semibold tabular-nums">{formatRolls(selected.balance)}</p></>}
+            </section>}
+            <section hidden={profileCard && step !== "topup"} ref={step === "topup" ? actionPanel : null}
+              tabIndex={step === "topup" ? -1 : undefined} className="flex flex-col gap-3 outline-none"
+              id="gift-topup-panel" aria-label="Пополнение карты">
+              {!profileCard && <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>}
               {walletError ? <>
                 <Alert variant="destructive"><AlertDescription>{walletError}</AlertDescription></Alert>
                 <Button type="button" variant="outline" disabled={busy} onClick={loadWallet}>Повторить загрузку кошелька</Button>
               </> : <p>Ваш баланс: {walletReady ? formatRolls(wallet.balance) : "загружается…"}</p>}
-              {selected.balance === 0 && <p className="text-muted-foreground">Пополните карту, чтобы подарить её.</p>}
-              <form id="gift-topup" className="flex flex-col gap-3" onSubmit={(event) => { event.preventDefault(); if (valid && !locked) run(`/rolls/gift-cards/${selected.id}/topup`, { amount: value }, `Карта пополнена на ${formatRolls(value)}`); }}>
+              {!profileCard && selected.balance === 0 && <p className="text-muted-foreground">Пополните карту, чтобы подарить её.</p>}
+              <form id={topupFormId} className="flex flex-col gap-3" onSubmit={(event) => { event.preventDefault(); if (valid && !locked) run(`/rolls/gift-cards/${selected.id}/topup`, { amount: value }, `Карта пополнена на ${formatRolls(value)}`); }}>
                 <Field><FieldLabel htmlFor="gift-amount">Сколько роллов добавить</FieldLabel><Input id="gift-amount" inputMode="numeric" pattern="[0-9]+" maxLength={10} required value={amount} disabled={locked || !cardsReady || !walletReady} onChange={(event) => setAmount(event.target.value)} aria-invalid={Boolean(amount && !valid)} aria-describedby="gift-amount-hint" /><FieldDescription className="text-xs leading-4" id="gift-amount-hint" aria-live="polite">{amountHint}</FieldDescription></Field>
-                <Button type="submit" variant="outline" className="h-auto min-h-12 whitespace-normal" disabled={!valid || locked}>Пополнить{valid ? ` на ${formatRolls(value)}` : ""}</Button>
+                {!profileCard && <Button type="submit" variant="outline" className="h-auto min-h-12 whitespace-normal" disabled={!valid || locked}>
+                  {valid ? topupLabel : "Пополнить"}
+                </Button>}
               </form>
             </section>
-            <section className="flex flex-col gap-3" aria-label="Получатель подарочной карты">
+            <section hidden={profileCard && step !== "send"} ref={step === "send" ? actionPanel : null}
+              tabIndex={step === "send" ? -1 : undefined} className="flex flex-col gap-3 outline-none"
+              id="gift-send-panel" aria-label="Получатель подарочной карты">
+              {profileCard && cardsReady && <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>}
               <Field>
                 <FieldLabel htmlFor="gift-recipient">Кому подарить</FieldLabel>
                 <Input id="gift-recipient" placeholder="Имя или @username" autoComplete="off" maxLength={80} value={search} disabled={locked} aria-describedby="gift-recipient-hint" onChange={(event) => { setSearch(event.target.value); setRecipient(null); }} />
                 <FieldDescription className="text-xs leading-4" id="gift-recipient-hint">
-                  Введите имя или @username в Rollapp. Для поиска нужно хотя бы два символа, не считая @. После отправки карта появится в разделе «Подарочные карты» профиля получателя и исчезнет из вашего списка.
+                  {profileCard ? "Сертификат и весь остаток перейдут получателю в Rollapp." : "Введите имя или @username в Rollapp. Для поиска нужно хотя бы два символа, не считая @. После отправки карта появится в разделе «Подарочные карты» профиля получателя и исчезнет из вашего списка."}
                 </FieldDescription>
               </Field>
               {searching && <p role="status">Ищем получателя…</p>}
               {searchError && <p role="alert">{searchError}</p>}
               {!searching && !searchError && !recipient && search.trim().replace(/^@/, "").length >= 2 && !people.length && <p>Никого не нашли. Проверьте имя или username.</p>}
-              {people.map((person) => <Button type="button" key={person.id} variant="outline" className="h-auto min-h-12 justify-start whitespace-normal text-left" disabled={locked} onClick={() => { setRecipient(person); setSearch(`@${person.username}`); }}><span className="min-w-0 break-words">{person.name} · @{person.username}</span></Button>)}
-              {recipient && <p>Получатель: <strong>{recipient.name}</strong> · @{recipient.username}<br />Подарок: {formatRolls(selected.balance)} у {business.name}.</p>}
+              {recipientChoices.map((person) => <Button type="button" key={person.id} variant="outline" className="h-auto min-h-12 justify-start whitespace-normal text-left" disabled={locked} onClick={() => chooseRecipient(person)}><span className="min-w-0 break-words">{person.name} · @{person.username}</span></Button>)}
+              {!profileCard && recipient && <p>Получатель: <strong>{recipient.name}</strong> · @{recipient.username}<br />Подарок: {formatRolls(selected.balance)} у {business.name}.</p>}
             </section>
-        </>}
-        {selected && !pending && <Button variant="outline" disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Новая карта выпущена")}>Выпустить ещё карту</Button>}
+            {step === "confirm" && recipient && <section ref={actionPanel} tabIndex={-1} aria-label="Детали подарка" className="min-w-0 outline-none">
+              <dl className="grid min-w-0 gap-6">
+                <div className="grid min-w-0 gap-1">
+                  <dt className="text-muted-foreground">Получатель</dt>
+                  <dd className="wrap-anywhere text-xl font-semibold">{recipient.name}</dd>
+                  <dd className="wrap-anywhere text-muted-foreground">@{recipient.username}</dd>
+                </div>
+                <div className="grid min-w-0 gap-1">
+                  <dt className="text-muted-foreground">Сумма подарка</dt>
+                  <dd className="wrap-anywhere text-3xl font-semibold tabular-nums">{formatRolls(selected.balance)}</dd>
+                </div>
+              </dl>
+            </section>}
+          </div>}
+        {!profileCard && selected && !pending && <Button variant="outline" disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Новая карта выпущена")}>Выпустить ещё карту</Button>}
         {cardsError && !pending && <Button variant="outline" disabled={busy} onClick={loadCards}>Повторить загрузку</Button>}
         </>}
+        </>}
       </div>
-      <DrawerFooter>
+      {sentGift ? <DrawerFooter aria-label="Действия с подарочной картой">
+        <Button type="button" onClick={() => setOpen(false)}>Готово</Button>
+      </DrawerFooter> : hasFooterAction && <DrawerFooter aria-label="Действия с подарочной картой" onBack={stepBack}
+        className={showCertificateActions && !pending && (!step || step === "topped-up") ? "gift-certificate-actions" : undefined}>
         {pending ? <Button disabled={busy} onClick={recovery.check}>{busy && <Spinner />}
           {busy ? (requestMode === "send" ? "Выполняем…" : "Проверяем…") : "Проверить результат"}
         </Button>
-          : recoveryOnly ? null : selected ? <Button disabled={busy || !cardsReady || !recipient || selected.balance <= 0} onClick={() => run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id, expectedBalance: selected.balance }, `Карта отправлена: ${recipient.name}`, recipient.name)}>{busy && <Spinner />}Подарить карту</Button>
-            : (!selectedId || cardsReady) && <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}
-      </DrawerFooter>
+          : showCertificateActions ? step === "topup" ? (
+            <Button key="topup-submit" type="submit" form={topupFormId} disabled={!valid || locked} aria-label={topupLabel}>Пополнить</Button>
+          ) : step === "topped-up" ? <>
+            <Button type="button" variant="outline" onClick={() => setStep(null)}>К карте</Button>
+            <Button type="button" disabled={!cardsReady || selected.balance <= 0} onClick={beginGift}>Подарить</Button>
+          </> : step === "confirm" ? (
+            <Button type="button" disabled={!canSendGift} aria-label="Отправить подарочную карту" onClick={sendGift}>Отправить</Button>
+          ) : step === "send" ? null : <>
+            <Button key="topup-open" ref={topupAction} type="button" disabled={locked || !cardsReady} aria-controls="gift-topup-panel"
+              onClick={(event) => { event.preventDefault(); setStep("topup"); }}>Пополнить</Button>
+            <Button ref={giftAction} type="button" variant="outline" disabled={locked || !cardsReady || selected.balance <= 0}
+              aria-controls="gift-send-panel" onClick={beginGift}>Подарить</Button>
+          </>
+            : showGiftAction ? <Button type="button" disabled={!canSendGift} onClick={sendGift}>Подарить карту</Button>
+            : <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}
+      </DrawerFooter>}
     </DrawerContent>
   </Drawer>;
 }
@@ -392,16 +561,13 @@ export function ProfileGiftCards({ user, onNavigate }) {
     {loading && <p role="status">Загружаем карты…</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error} <Button variant="outline" onClick={refresh}>Повторить</Button></AlertDescription></Alert>}
     {!loading && !error && !cards.length && <p className="text-muted-foreground">Полученные и выпущенные карты появятся здесь.</p>}
-    {cards.map((card) => <article key={card.id} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4">
-      <Link className="break-words font-semibold underline underline-offset-4" to={publicProfilePath(card.business)} onClick={(event) => {
-        if (!onNavigate || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-        event.preventDefault();
-        onNavigate(publicProfilePath(card.business));
-      }}>{card.business.name}</Link>
-      <p>{formatRolls(card.balance)} · Только у этого бизнеса</p>
-      <Button variant="outline" onClick={(event) => { cardOpener.current = event.currentTarget; setManager({ business: card.business, initialCardId: card.id }); }}>Открыть карту</Button>
-    </article>)}
+    {cards.length > 0 && <div className="gift-certificate-rail">
+      {cards.map((card) => <GiftCertificate key={card.id} card={card} onOpen={(event) => {
+        cardOpener.current = event.currentTarget;
+        setManager({ business: card.business, initialCardId: card.id });
+      }} />)}
+    </div>}
     {manager && <GiftCardManager key={manager.initialCardId ?? `operation:${manager.business.id}`} user={user} {...manager}
-      returnFocusRef={cardOpener} fallbackFocusRef={listRef} onClose={closeManager} onChanged={refresh} />}
+      returnFocusRef={cardOpener} fallbackFocusRef={listRef} onClose={closeManager} onChanged={refresh} onNavigate={onNavigate} />}
   </section>;
 }

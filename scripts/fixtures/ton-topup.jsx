@@ -32,6 +32,8 @@ const ordersPath = "/rolls/ton/orders";
 api.get = async (path) => {
   reads.push(path);
   const next = state();
+  if (path === "/dashboard/purchases") return { purchasePlans: [], wishes: [], subscriptions: [], purchaseCollaborations: [] };
+  if (path.startsWith("/dashboard/purchase-month?")) return { totals: [], openTotals: [], limits: [] };
   if (path === "/rolls") return { balance: next.order?.status === "paid" ? 100 + next.order.rolls : 100,
     transactions: [], features: { tonWallet: false } };
   if (path === "/personal-offers") return { offers: [] };

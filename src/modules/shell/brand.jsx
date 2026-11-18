@@ -5,7 +5,6 @@ import { Avatar } from "@/modules/profile/profile-avatar.jsx";
 import { useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
 import { api } from "../runtime/api.js";
-import { cn } from "@/lib/utils";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { serviceSwitcherItemsForUser } from "./service-navigation.js";
@@ -88,7 +87,7 @@ export function SphereSwitcher({ docked = false }) {
         </svg>
       </PopoverTrigger>
       <PopoverContent
-        className={cn("sphere-switcher__panel !gap-3 !rounded-3xl !p-2 max-[560px]:!rounded-2xl", docked ? "app-navigation-popup" : "!w-[min(20rem,calc(100vw-2rem))]")}
+        className="sphere-switcher__panel app-navigation-popup !gap-3 !rounded-3xl !p-2 max-[560px]:!rounded-2xl"
         align="start"
         side={docked ? "top" : "bottom"}
         sideOffset={10}

@@ -111,6 +111,70 @@ async function checkRegistrationAndRequestForms(page, label) {
     }
 }
 
+async function checkOwnerAccess(page, width, height) {
+  const scopes = { identity: "mission", health: "nutrition", wishlist: "food", education: "coaching", career: "contacts" };
+  for (const [sphere, section] of Object.entries(scopes)) {
+    const retry = sphere === "identity" && width === 390 && height === 400;
+    const empty = sphere === "health" && width === 390 && height === 400;
+    await page.goto(`${origin}/__business-accounts?owner-access=${sphere}&section=${section}${retry ? "&retry=1" : ""}${empty ? "&empty=1" : ""}`);
+    const trigger = page.getByRole("button", { name: "Доступ к личному разделу", exact: true });
+    await trigger.click();
+    const drawer = page.getByRole("dialog", { name: `Доступ к разделу «${SPHERE_SECTION_LABELS[section]}»`, exact: true });
+    await drawer.waitFor();
+    assert.equal(await drawer.getByRole("searchbox").count(), 0);
+    assert.equal(await drawer.getAttribute("data-swipe-axis"), width < 768 ? "y" : "x");
+    if (retry) {
+      await drawer.getByText("Не удалось загрузить бизнес-аккаунты", { exact: true }).waitFor();
+      await drawer.getByRole("button", { name: "Повторить", exact: true }).click();
+    }
+    const close = drawer.getByRole("button", { name: "Закрыть доступы", exact: true });
+    if (empty) {
+      await drawer.getByText("В этом разделе пока нет бизнес-аккаунтов", { exact: true }).waitFor();
+      await close.click();
+      continue;
+    }
+    const list = drawer.getByRole("list", { name: "Бизнес-аккаунты", exact: true });
+    await list.waitFor();
+    assert.equal(await list.getByRole("listitem").count(), sphere === "wishlist" ? 52 : 3);
+    const fitted = await drawer.evaluate((node) => {
+      const body = node.querySelector(".app-drawer-body");
+      return body.scrollWidth <= body.clientWidth + 1 && [...body.querySelectorAll("button")].every(button =>
+        button.offsetHeight >= 48 && button.scrollWidth <= button.clientWidth + 1);
+    });
+    assert(fitted, `${width}x${height} ${sphere}: candidate list or actions overflow`);
+    if (sphere === "wishlist" && [390, 1440].includes(width) && height >= 800) {
+      await page.screenshot({ path: `${output}/${width}x${height}-owner-access.png`, animations: "disabled" });
+    }
+    const index = sphere === "wishlist" ? 52 : 3;
+    const name = `Организация ${index}`;
+    const grant = list.getByRole("button", { name: `Открыть доступ для ${name}`, exact: true });
+    await grant.click();
+    if (retry) {
+      await drawer.getByText("Не удалось изменить доступ", { exact: true }).waitFor();
+      await grant.click();
+    }
+    const revoke = list.getByRole("button", { name: `Закрыть доступ для ${name}`, exact: true });
+    await revoke.waitFor();
+    await revoke.click();
+    await grant.waitFor();
+    if (sphere === "wishlist") {
+      await list.getByText("Доступ ко всему Вишлисту").waitFor();
+      await list.getByRole("button", { name: "Закрыть доступ для Организация 1", exact: true }).click();
+      await list.getByRole("button", { name: "Открыть доступ для Организация 1", exact: true }).waitFor();
+    }
+    const calls = await page.evaluate(() => window.ownerAccessCalls);
+    assert(calls.filter(call => !("viewerId" in call)).every(call => JSON.stringify(call) === JSON.stringify({ sphere, section })));
+    assert.deepEqual(calls.filter(call => "viewerId" in call), [
+      ...(retry ? [{ viewerId: `business-${index}`, sphere, section, granted: true }] : []),
+      { viewerId: `business-${index}`, sphere, section, granted: true },
+      { viewerId: `business-${index}`, sphere, section, granted: false },
+      ...(sphere === "wishlist" ? [{ viewerId: "business-1", sphere, section: "wishlist", granted: false }] : []),
+    ]);
+    await close.click();
+    await drawer.waitFor({ state: "hidden" });
+  }
+}
+
 try {
   for (const [width, height] of [[320, 844], [390, 844], [768, 844], [820, 844], [1024, 844], [1440, 900], [1920, 1080], [390, 400]]) {
     const page = await browser.newPage({ viewport: { width, height } });
@@ -192,6 +256,7 @@ try {
       { ownerId: "new-client", sphere: "wishlist", section: "products", message: "" },
       "/business-access/requests/initial-request",
     ]);
+    if (!clientsOnly) await checkOwnerAccess(page, width, height);
     assert.deepEqual(errors, [], `${label}: runtime errors or API requests`);
     await page.close();
     console.log(`PASS ${label}: ${clientsOnly ? "" : "registration, categories, five scoped request forms, "}client cards, search and access actions; no API requests`);

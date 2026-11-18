@@ -70,6 +70,16 @@ async function checkMouseListTiles(page, width) {
   await showListTiles(page);
   const initial = await listOrder(page);
   const { start } = await listPoints(page);
+  assert.equal(await tiles(page).first().getAttribute('aria-pressed'), 'false');
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await listPreview(page).waitFor();
+  assert.equal(await listPreview(page).evaluate(node => getComputedStyle(node).backgroundImage), 'none',
+    'Lifting an inactive tile must not add a mood gradient');
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await listPreview(page).waitFor({ state: 'detached' });
+  assert.deepEqual(await listOrder(page), initial);
   await page.mouse.click(start.x, start.y);
   assert.equal(await tiles(page).first().getAttribute('aria-pressed'), 'true', 'Short click still selects the tile');
   assert.equal(await listPreview(page).count(), 0);
@@ -120,6 +130,10 @@ async function checkMouseListTiles(page, width) {
     await page.mouse.down();
     await listPreview(page).waitFor();
     assert.equal(await listPreview(page).evaluate(node => node.inert && node.offsetWidth === 130 && node.offsetHeight === 100), true);
+    const sourceTint = await tiles(page).first().evaluate(node => getComputedStyle(node).backgroundImage);
+    assert.match(sourceTint, /^radial-gradient/);
+    assert.equal(await listPreview(page).evaluate(node => getComputedStyle(node).backgroundImage), sourceTint,
+      'The lifted tile must keep the original mood gradient outside the rail');
     await page.mouse.move(point.end.x, point.end.y);
     await waitForTileShift(page);
     if (action === 'escape') {
@@ -255,6 +269,10 @@ try {
     await checkTouchListTiles(touch, client);
     if (width === 390) await checkListTileEdgeAndStorage(page);
     console.log(`PASS ${width}: list tiles mouse/touch hold, swipe, cancellation, reload and keyboard reorder`);
+    if (process.argv.includes('--list-tiles-only')) {
+      assert.deepEqual(errors, []);
+      continue;
+    }
 
     for (const [target, input] of [[page, 'mouse'], [touch, 'touch']]) {
       await load(target, '?mode=badges');

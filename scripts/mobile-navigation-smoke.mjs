@@ -48,14 +48,14 @@ async function checkFriendsToggle(page, width) {
  assert(await followers.evaluate(item => item === document.activeElement));
  await followers.press('Space');
  await page.waitForURL('**/app/friends/followers');
- await page.getByRole('searchbox', { name: 'Поиск по подписчикам' }).waitFor();
+ await page.getByText('Подписчиков пока нет', { exact: true }).waitFor();
  assert.equal(await pressed.innerText(), 'Подписчики');
  await subscriptions.click();
  await page.waitForURL('**/app/friends/subscriptions');
- await page.getByRole('searchbox', { name: 'Поиск по подпискам' }).waitFor();
+ await page.getByText('Подписок пока нет', { exact: true }).waitFor();
  assert.equal(await pressed.innerText(), 'Подписки');
  await page.goBack();
- await page.getByRole('searchbox', { name: 'Поиск по подписчикам' }).waitFor();
+ await page.getByText('Подписчиков пока нет', { exact: true }).waitFor();
  assert.equal(await pressed.innerText(), 'Подписчики');
  await page.goBack();
  await page.getByRole('searchbox', { name: 'Имя или @профиль' }).waitFor();
@@ -140,9 +140,12 @@ try{
      assert(await select.evaluate(node => getComputedStyle(node).boxShadow !== 'none'), 'Keyboard focus ring missing');
      await page.screenshot({ path: `/tmp/rollapp-wishlist-select-focus-${width}.png` });
      await page.keyboard.press('Space');
-     const popup = page.getByRole('listbox');
+     const popup = page.locator('.global-service-select__content');
      await popup.waitFor(); await settle(popup);
-     assert((await popup.boundingBox()).y >= c.y + c.height - 1, 'Desktop section menu must open down');
+     const sectionMenu = await popup.boundingBox();
+     assert(sectionMenu.y >= c.y + c.height - 1, 'Desktop section menu must open down');
+     assert(Math.abs(sectionMenu.x + sectionMenu.width / 2 - (c.x + c.width / 2)) < 1, 'Desktop section menu must remain centered');
+     assert(sectionMenu.x >= 0 && sectionMenu.x + sectionMenu.width <= width, 'Desktop section menu exceeds viewport width');
      await page.keyboard.press('End');
      const transport = popup.getByRole('option', { name: 'Транспорт', exact: true });
      await transport.and(page.locator('[data-highlighted]')).waitFor();
@@ -150,6 +153,13 @@ try{
      await page.waitForURL('**/app/wishes?tab=transport');
      await select.getByText('Транспорт', { exact: true }).waitFor();
      await select.locator('[data-slot="select-value"] svg').waitFor();
+     await sphere.click();
+     const menu = page.locator('.sphere-switcher__panel');
+     await menu.waitFor(); await settle(menu);
+     const sphereMenu = await menu.boundingBox();
+     assert.equal(sphereMenu.width, 320, 'Desktop sphere menu must be 320px wide');
+     assert.equal(sectionMenu.width, sphereMenu.width, 'Desktop section and sphere menus must have equal widths');
+     await page.keyboard.press('Escape');
     }
    }
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${route}: horizontal overflow`);
@@ -191,6 +201,13 @@ try{
    await page.getByRole('button',{name:'Открыть переключатель сфер',exact:true}).click();
    await settle(page.locator('.sphere-switcher__panel'));
    const m=await page.locator('.sphere-switcher__panel').boundingBox();assert(m.y>=0&&m.y+m.height<=360,'Short-viewport menu clipped');
+   await page.keyboard.press('Escape');
+   await page.locator('.global-service-select').click();
+   const shortSectionMenu = page.locator('.global-service-select__content');
+   await shortSectionMenu.waitFor(); await settle(shortSectionMenu);
+   const shortMenu = await shortSectionMenu.boundingBox();
+   assert.equal(shortMenu.width, m.width, 'Short-viewport section and sphere menus must have equal widths');
+   assert(shortMenu.y >= 0 && shortMenu.y + shortMenu.height <= 360, 'Short-viewport section menu clipped');
   }
   assert.deepEqual(errors,[]);await page.close();
  }

@@ -1,7 +1,8 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useState } from "react";
 import {
-  AlertTriangle, Pencil, X,
+  AlertTriangle, FileText, Pencil, X,
 } from "lucide-react";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/modules/career/career-icon-action.jsx";
@@ -308,6 +309,8 @@ export function CvResume() {
   const careerContent = useCareerContent("cv", normalizeCvContent(null, ""));
   const cv = useMemo(() => normalizeCvContent(careerContent.content, ""), [careerContent.content]);
   const hasStructuredContent = cvHasStructuredContent(cv);
+  const empty = !hasStructuredContent && !cv.legacyMarkdown.trim()
+    && cv.employment === EMPLOYMENT_OPTIONS[0] && cv.schedule === SCHEDULE_OPTIONS[0];
 
   const saveEditor = (activeEditor, draft) => {
     let next = { ...cv };
@@ -366,19 +369,26 @@ export function CvResume() {
 
   return (
     <div className="page-stack">
-      <CareerEditAction
+      {!empty && <CareerEditAction
         label="Редактировать"
         loading={careerContent.loading}
         showLabel
         onClick={() => setEditor({ kind: "profile" })}
-      />
+      />}
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
 
-      <article className="cv-builder typeset-document rollapp-body" aria-label="CV">
       {!readOnly && !careerContent.loading && !careerContent.error && <AddFab actions={[
         { label: "Добавить место работы", onSelect: () => setEditor({ kind: "experience" }) },
         { label: "Добавить образование", onSelect: () => setEditor({ kind: "education" }) },
+        ...(empty ? [
+          { label: "Добавить сведения о себе", onSelect: () => setEditor({ kind: "profile" }) },
+          { label: "Добавить навыки", onSelect: () => setEditor({ kind: "about" }) },
+        ] : []),
       ]} />}
+      {careerContent.loading ? <p className="not-typeset text-muted-foreground" role="status">Загружаем резюме…</p> : careerContent.error ? null : empty ? (
+        <EmptyState icon={FileText} title="Резюме пока пусто"
+          text={readOnly ? "Здесь появится резюме владельца." : "Добавьте опыт работы, образование или навыки."} />
+      ) : <article className="cv-builder typeset-document rollapp-body" aria-label="CV">
         <section className="cv-builder__section" aria-labelledby="cv-experience-title">
           <header className="cv-builder__section-header">
             <div data-typeset-group><h2 id="cv-experience-title">Опыт работы</h2></div>
@@ -454,7 +464,7 @@ export function CvResume() {
             </AccordionItem>
           </Accordion>
         )}
-      </article>
+      </article>}
 
       <CvEditor onDelete={readOnly ? undefined : removeItem} cv={cv} editor={editor} onOpenChange={(open) => !open && setEditor(null)} onSave={saveEditor} />
     </div>

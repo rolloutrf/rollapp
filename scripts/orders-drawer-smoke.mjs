@@ -46,7 +46,10 @@ try {
       const fixture = window.ordersDrawerFixture = { mode: savedAction ? "protected" : "loading", reads: 0,
         unexpected: [], submittedActions: savedAction?.attempts ?? [], actionChecks: [] };
       const user = { id: "orders-smoke", username: "orders-smoke", name: "Покупатель", accountType: "personal", canDiscoverSpheres: true };
-      const point = { code: "PICKUP-TEST", city: "Москва", address: "Улица проверки, 1" };
+      const point = { code: "PICKUP-TEST", city: "Москва", cityCode: "44", region: "Москва", address: "Улица проверки, 1" };
+      const pickupPoints = Array.from({ length: 3 }, (_, index) => ({
+        ...point, code: `PICKUP-${index + 1}`, address: `Улица проверки, ${index + 1}`, workTime: "Пн–вс 10:00–20:00",
+      }));
       const catKey = "23ecb1bb-45d7-4ebe-beff-ad3344d1f11c";
       const catReceipt = { id: "cat-recovered", amount: 1000, productId: "cat:white",
         status: "placed", delivery: { provider: "cdek", point } };
@@ -71,10 +74,13 @@ try {
       fixture.api = {
         async get(path) {
           if (path === "/me") return { user };
+          if (path === "/auth/yandex/config") return { enabled: false };
           if (path === "/sphere-shares/incoming") return { shares: [] };
           if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, owner: user, people: [], requests: [] };
           if (path === "/business-marketplace/career/store") return { items: [item], protectedCheckout: true };
           if (path === "/rolls/gift-cards") return { cards: [{ id: "test-card", balance: 80, business: { id: "seller" } }] };
+          if (path === "/delivery/cdek/cities") return { cities: [{ code: "44", label: "Москва" }] };
+          if (path.startsWith("/delivery/cdek/points?cityCode=44&")) return { points: pickupPoints, total: 3, nextOffset: null };
           if (path.startsWith("/rolls/purchases/")) {
             fixture.catChecks.push(path.split("/").at(-1));
             return { purchase: marketplaceMiss ? null : catReceipt };
@@ -180,17 +186,77 @@ try {
     try {
       const store = `${storeUrl}?from=smoke#store`;
       await page.goto(store);
-      const trigger = page.getByRole("button", { name: "Заказы", exact: true });
-      await trigger.scrollIntoViewIfNeeded();
-      assert.deepEqual(await trigger.evaluate((el) => {
-        const style = getComputedStyle(el);
-        return [el.offsetHeight, style.paddingLeft, style.paddingRight];
-      }), [48, "24px", "24px"]);
+      const profile = page.getByRole("button", { name: /^Редактировать профиль/ });
+      const openOrders = async () => {
+        await profile.click();
+        await page.getByRole("navigation", { name: "Разделы профиля" })
+          .getByRole("button", { name: "Заказы", exact: true }).click();
+      };
+      await page.getByRole("button", { name: /Купить «Красный кот»/ }).waitFor();
+      await profile.scrollIntoViewIfNeeded();
+      assert.equal(await page.getByRole("button", { name: "Заказы", exact: true }).count(), 0);
       assert.equal(await page.evaluate(() => window.ordersDrawerFixture.reads), 0);
+      const boxOf = async (element) => element.evaluate(node => {
+        const { top, right, bottom } = node.getBoundingClientRect();
+        return { top, right, bottom };
+      });
+      const assertCheckoutDrawer = async (dialog) => {
+        await page.waitForFunction(() => getComputedStyle(document.querySelector(".cat-checkout")).transform === "matrix(1, 0, 0, 1, 0, 0)");
+        assert.equal(await dialog.getAttribute("data-swipe-direction"), width < 768 ? "down" : "right");
+        const footer = dialog.locator('[data-slot="drawer-footer"]');
+        const body = dialog.locator("[data-cdek-checkout-body]");
+        const [frame, header, scrollport, actions] = await Promise.all([
+          boxOf(dialog), boxOf(dialog.locator('[data-slot="drawer-header"]')), boxOf(body), boxOf(footer),
+        ]);
+        assert(frame.top >= -1 && Math.abs(frame.right - width) <= 1 && Math.abs(frame.bottom - height) <= 1);
+        assert(header.bottom <= scrollport.top + 1 && scrollport.bottom <= actions.top + 1);
+        assert(await body.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+        const sizes = await dialog.locator('[data-slot="drawer-footer"] button, [data-slot="drawer-header"] button').evaluateAll(nodes =>
+          nodes.map(node => [node.offsetHeight, getComputedStyle(node).borderRadius]));
+        assert(sizes.length >= 2 && sizes.every(([size, radius]) => size === 48 && radius === "24px"));
+        return { footer, body };
+      };
+
+      const buyCat = page.getByRole("button", { name: /Купить «Красный кот»/ });
+      await buyCat.click();
+      const pickupDialog = page.getByRole("dialog", { name: "Выберите пункт CDEK", exact: true });
+      const city = pickupDialog.getByRole("combobox", { name: "Город", exact: true });
+      const address = pickupDialog.getByLabel("Адрес пункта выдачи");
+      const next = pickupDialog.getByRole("button", { name: "Продолжить", exact: true });
+      await city.waitFor();
+      assert(await address.isDisabled());
+      assert(await next.isDisabled());
+      await city.fill("Мос");
+      await page.getByRole("option", { name: "Москва", exact: true }).click();
+      await address.fill("Улица проверки");
+      const pointChoice = pickupDialog.getByRole("radio", { name: /PICKUP-3/ });
+      await pointChoice.waitFor();
+      const { body, footer } = await assertCheckoutDrawer(pickupDialog);
+      if (height < 500) {
+        const before = await boxOf(footer);
+        await pointChoice.scrollIntoViewIfNeeded();
+        assert(await body.evaluate(node => node.scrollTop > 0));
+        assert.deepEqual(await boxOf(footer), before);
+        assert.equal(await next.evaluate(node => getComputedStyle(node).opacity), "1");
+      }
+      if (width === 1440 || height < 500) await page.screenshot({ path: join(screenshots, `cdek-pickup-${width}x${height}.png`) });
+      await pointChoice.click();
+      await next.click();
+      const catReview = page.getByRole("dialog", { name: "Подтвердите покупку", exact: true });
+      await catReview.getByText("Москва, Улица проверки, 3", { exact: true }).waitFor();
+      await assertCheckoutDrawer(catReview);
+      if (width === 1440 || height < 500) await page.screenshot({ path: join(screenshots, `cdek-review-${width}x${height}.png`) });
+      await catReview.getByRole("button", { name: "Изменить пункт", exact: true }).click();
+      await pickupDialog.getByText("Москва, Улица проверки, 3", { exact: true }).waitFor();
+      await page.keyboard.press("Escape");
+      await pickupDialog.waitFor({ state: "hidden" });
+      await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.startsWith("Купить «Красный кот»"));
+      assert.deepEqual(await page.evaluate(() => window.ordersDrawerFixture.catSends), []);
+      await profile.scrollIntoViewIfNeeded();
       await page.locator(".cat-store-page").evaluate((element) => { element.dataset.smokeMounted = "true"; });
       const storeScroll = await page.evaluate(() => scrollY);
 
-      await trigger.click();
+      await openOrders();
       await page.waitForURL(ordersUrl);
       const drawer = page.getByRole("dialog", { name: "Заказы", exact: true });
       const close = drawer.getByRole("button", { name: "Закрыть заказы" });
@@ -234,15 +300,65 @@ try {
       assert.deepEqual(await close.boundingBox(), closeBefore);
       const returnedOrder = drawer.locator('[data-order-status="refunded"]');
       await returnedOrder.getByText("возвращены на подарочную карту").waitFor();
-      await returnedOrder.getByRole("button", { name: "Квитанция", exact: true }).click();
-      const returnReceipt = returnedOrder.getByRole("region", { name: "Квитанция Rollapp" });
+      const originReceipt = returnedOrder.getByRole("button", { name: "Квитанция", exact: true });
+      await originReceipt.scrollIntoViewIfNeeded();
+      const ordersBody = drawer.getByRole("region", { name: "Список заказов" });
+      const orderScroll = await ordersBody.evaluate(node => node.scrollTop);
+      const originalOrdersUrl = page.url();
+      const ordersFrame = await drawer.boundingBox();
+      await originReceipt.press("Enter");
+      const returnReceipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
       await returnReceipt.getByText("Роллы возвращены").waitFor();
       await returnReceipt.getByText("Дата расчёта · Москва").waitFor();
       await returnReceipt.getByText("Подарочная карта", { exact: true }).waitFor();
       assert(!(await returnReceipt.innerText()).includes("Салавата Юлаева"));
       assert(!(await returnReceipt.innerText()).includes("private-card-fixture"));
-      await returnedOrder.getByRole("button", { name: "Скрыть квитанцию" }).click();
+      const receiptDialog = page.getByRole("dialog", { name: "Квитанция Rollapp", exact: true });
+      assert.equal(await receiptDialog.getAttribute("data-slot"), "drawer-popup");
+      assert.equal(await receiptDialog.getAttribute("data-swipe-direction"), width < 768 ? "down" : "right");
+      await page.waitForFunction(() => {
+        const popup = document.querySelector("[data-slot=drawer-popup]:not(.orders-drawer) [data-roll-receipt]")?.closest("[data-slot=drawer-popup]");
+        return popup && new DOMMatrixReadOnly(getComputedStyle(popup).transform).isIdentity;
+      });
+      const receiptFrame = await receiptDialog.boundingBox();
+      assert(await receiptDialog.evaluate(node => node.contains(document.activeElement)));
+      assert.equal(await page.locator(".orders-drawer[data-nested-drawer-open]").count(), 1, "Orders stay mounted under the receipt");
+      assert(Math.abs(receiptFrame.y + receiptFrame.height - height) <= 1);
+      if (width < 768) {
+        assert.equal(receiptFrame.width, width);
+        assert(receiptFrame.y > 0);
+      } else {
+        assert.equal(receiptFrame.x, ordersFrame.x);
+        assert.equal(receiptFrame.width, ordersFrame.width);
+        assert.equal(receiptFrame.y, ordersFrame.y);
+      }
+      assert(await returnReceipt.evaluate(node => [node, ...node.querySelectorAll("button, dl, dd, [data-receipt-body]")]
+        .every(element => element.scrollWidth <= element.clientWidth + 1)));
+      assert.equal(await returnedOrder.locator("[data-roll-receipt]").count(), 0);
+      assert.equal(await drawer.count(), 0, "Only the top drawer is accessible");
+      assert.equal(page.url(), originalOrdersUrl, "Private receipt references do not enter the URL");
+      if (height < 500) {
+        const download = returnReceipt.getByRole("button", { name: "Скачать квитанцию", exact: true });
+        const downloadBefore = await download.boundingBox();
+        await returnReceipt.getByText("Дата расчёта · Москва").scrollIntoViewIfNeeded();
+        assert((await returnReceipt.locator("[data-receipt-body]").evaluate(node => node.scrollTop)) > 0);
+        assert.deepEqual(await download.boundingBox(), downloadBefore);
+      }
+      const receiptActions = returnReceipt.getByRole("button", { name: /^(Назад|Скачать квитанцию)$/ });
+      for (const action of await receiptActions.all()) assert.equal((await action.boundingBox()).height, 48);
+      if (height < 500 || width === 1440) await page.screenshot({ path: join(screenshots, `receipt-${width}x${height}.png`) });
+      if (width < 768) await page.goBack();
+      else await returnReceipt.getByRole("button", { name: "Назад", exact: true }).click();
       await returnReceipt.waitFor({ state: "hidden" });
+      await originReceipt.waitFor();
+      assert.equal(page.url(), originalOrdersUrl);
+      assert.equal(await ordersBody.evaluate(node => node.scrollTop), orderScroll);
+      await originReceipt.evaluate(async node => {
+        // Let the nested drawer release focus before evaluating the source.
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        if (document.activeElement !== node) throw Error("Receipt did not restore its opener");
+      });
       assert.equal(await page.evaluate(() => scrollY), storeScroll);
       const refund = drawer.getByRole("button", { name: "Вернуть товар", exact: true }).last();
       await refund.click();
@@ -256,7 +372,8 @@ try {
       await close.click();
       await page.waitForURL(store);
       await drawer.waitFor({ state: "hidden" });
-      await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Заказы");
+      await profile.waitFor();
+      assert.equal(await page.getByRole("button", { name: "Заказы", exact: true }).count(), 0);
       assert.equal(await page.locator(".cat-store-page").getAttribute("data-smoke-mounted"), "true");
       assert.equal(await page.evaluate(() => scrollY), storeScroll);
       await page.goForward();
@@ -276,12 +393,12 @@ try {
       await page.evaluate(() => { window.ordersDrawerFixture.mode = "empty"; });
       await retry.click();
       await drawer.getByText("Заказов пока нет").waitFor();
-      await drawer.getByRole("button", { name: "В магазин" }).click();
+      await drawer.getByRole("link", { name: "В магазин" }).click();
       await page.waitForURL(storeUrl);
       await drawer.waitFor({ state: "hidden" });
 
       await page.evaluate(() => { window.ordersDrawerFixture.mode = "protected"; });
-      await trigger.click();
+      await openOrders();
       await page.waitForURL(ordersUrl);
       const buyerOrder = drawer.locator('[data-order-role="buyer"]');
       const sellerOrder = drawer.locator('[data-order-role="seller"]');
@@ -302,15 +419,19 @@ try {
       await buyerOrder.getByRole("button", { name: "История заказа" }).click();
       await buyerOrder.getByText("Встреча состоялась").waitFor();
       await buyerOrder.getByRole("button", { name: "Квитанция", exact: true }).click();
-      const buyerReceipt = buyerOrder.getByRole("region", { name: "Квитанция Rollapp" });
+      const buyerReceipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
       await buyerReceipt.getByText("На проверке").waitFor();
       assert.equal((await buyerReceipt.getByRole("button", { name: "Скачать квитанцию" }).boundingBox()).height, 48);
       assert(!(await buyerReceipt.innerText()).includes("Встреча состоялась"));
+      await buyerReceipt.getByRole("button", { name: "Назад", exact: true }).click();
+      await buyerReceipt.waitFor({ state: "hidden" });
       await sellerOrder.getByRole("button", { name: "Квитанция", exact: true }).click();
-      const sellerReceipt = sellerOrder.getByRole("region", { name: "Квитанция Rollapp" });
+      const sellerReceipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
       await sellerReceipt.getByText("Покупатель", { exact: true }).waitFor();
       assert(!(await sellerReceipt.innerText()).includes("Источник оплаты"));
-      await sellerOrder.getByRole("button", { name: "Скрыть квитанцию" }).click();
+      await page.keyboard.press("Escape");
+      await sellerReceipt.waitFor({ state: "hidden" });
+      await sellerOrder.getByRole("button", { name: "Квитанция", exact: true }).waitFor();
       await buyerOrder.getByRole("button", { name: "Открыть спор" }).click();
       await confirmation.getByLabel("Причина спора").fill("Черновик");
       await page.keyboard.press("Escape");
@@ -435,6 +556,7 @@ try {
       await page.goto(storeUrl);
       const catDialog = page.getByRole("dialog", { name: "Подтвердите покупку" });
       await catDialog.getByText("Улица проверки, 1", { exact: false }).waitFor();
+      await assertCheckoutDrawer(catDialog);
       await catDialog.getByRole("button", { name: "Позже", exact: true }).click();
       await catDialog.waitFor({ state: "hidden" });
       assert.equal(await page.evaluate(() => window.ordersDrawerFixture.catChecks.length), 0);

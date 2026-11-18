@@ -2,7 +2,7 @@ import { sharePageUrl } from "../../applications/location.js";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Heart, ListPlus } from "lucide-react";
+import { CalendarPlus, Heart, ListPlus, Repeat2 } from "lucide-react";
 import { api } from "../runtime/api.js";
 import { createCardDragPreview, guardDragClick } from "../../lib/card-drag-preview.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -63,6 +63,10 @@ import { WishDetailsModal } from "../card/wish-details.jsx";
 import { ListModal, WishModal } from "./wish-editor.jsx";
 import { ProfilePublicationsPage } from "../profile/public-pages.jsx";
 
+import { WishPurchasePlan } from "./wish-purchase-plan.jsx";
+import { WishSubscription } from "./wish-subscription.jsx";
+import { WishPurchaseNeed } from "./wish-purchase-need.jsx";
+
 export function WishesPage({ onAdd, version }) {
   const { user } = useSession();
   const { isOwner } = useSphereSharing();
@@ -77,6 +81,7 @@ export function WishesPage({ onAdd, version }) {
   const { data, loading, error, reload, updateData } = useAsync(async () => ({
     ...await api.get("/dashboard"), viewerId,
   }), [version, wishlistVersion, viewerId]);
+  const purchasesAvailable = Boolean(viewerId && data?.viewerId === viewerId && Array.isArray(data.purchasePlans));
   const { data: giftSuggestionData, reload: reloadGiftSuggestions } = useAsync(() => api.get("/gift-suggestions"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
@@ -85,6 +90,16 @@ export function WishesPage({ onAdd, version }) {
   });
   const [selectedWishId, setSelectedWishId] = useState(null);
   const [editingWishId, setEditingWishId] = useState(null);
+  const [plannedWishId, setPlannedWishId] = useState(null);
+  const plannedWish = plannedWishId && data?.viewerId === viewerId ? data?.wishes.find((wish) => wish.id === plannedWishId && wish.status === "active") : null;
+  const [purchaseNeedForm, setPurchaseNeedForm] = useState(false);
+  const [subscriptionForm, setSubscriptionForm] = useState(false);
+  useLayoutEffect(() => {
+    setPlannedWishId(null);
+    setPurchaseNeedForm(false);
+    setSubscriptionForm(false);
+  }, [viewerId, publication]);
+  const purchaseDialogOpen = Boolean(plannedWish || purchaseNeedForm || subscriptionForm);
   const [listModal, setListModal] = useState(null);
   const listSettingsTriggerRef = useRef(null);
   const [draggedWishId, setDraggedWishId] = useState(null);
@@ -134,9 +149,9 @@ export function WishesPage({ onAdd, version }) {
   }, [location.search, selectedSpace]);
   const wishOrderKey = (data?.wishes || []).map((wish) => wish.id).join("\0");
   useEffect(() => {
-    if (selectedWishId || editingWishId || listModal || openedGroupId) return undefined;
+    if (selectedWishId || editingWishId || listModal || openedGroupId || purchaseDialogOpen) return undefined;
     return scheduleDocumentScrollUnlock();
-  }, [selectedWishId, editingWishId, listModal, openedGroupId]);
+  }, [selectedWishId, editingWishId, listModal, openedGroupId, purchaseDialogOpen]);
   useEffect(() => {
     if (data?.wishes) {
       const ids = data.wishes.map((wish) => wish.id);
@@ -250,7 +265,7 @@ export function WishesPage({ onAdd, version }) {
   const profileControls = <WishesProfileControls selectedSpace={selectedSpace} />;
   const wishlistPath = wishlistPublicationPath(selectedSpace);
   const publicationContent = publication && <ProfilePublicationsPage key={`${user.id}:${user.username}:${publication}`} section={publication}
-    username={user.username} user={user} returnTo={wishlistPath} showIntro={publication !== "calendar"} />;
+    username={user.username} user={user} returnTo={wishlistPath} showIntro={false} />;
   const loadError = error && <Alert variant="destructive" className="not-typeset rollapp-body">
     <AlertTitle>Не удалось загрузить Вишлист</AlertTitle>
     <AlertDescription className="grid gap-3">{error.message}<ShadcnButton type="button" variant="outline" onClick={() => reload({ background: Boolean(data) }).catch(() => {})}>Повторить</ShadcnButton></AlertDescription>
@@ -283,6 +298,7 @@ export function WishesPage({ onAdd, version }) {
     reload({ background: true }),
     reloadGiftSuggestions({ background: true }),
   ]);
+  const refreshPurchases = () => { reload({ background: true }).catch(() => toast("Не удалось обновить список желаний", "error")); };
   const saveList = async (saved) => {
     const editingList = Boolean(listModal?.id);
     const attachWishId = listModal?.attachWishId;
@@ -1140,7 +1156,7 @@ export function WishesPage({ onAdd, version }) {
     return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} groupOptions={group ? [] : groups} onCreateGroup={!group && groupingListId ? () => createGroup(wish.id) : undefined} onAddToGroup={!group && groupingListId ? (groupId) => addToGroup(wish.id, groupId) : undefined} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startNativeDrag(event, wish.id, group)} onDragEnd={() => finishDrag({ persist: false, restore: true })} onDragOver={(event) => allowNativeWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
     if (suppressOpenRef.current) { suppressOpenRef.current = false; return; }
     setSelectedWishId(wish.id);
-  }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
+  }} onEdit={() => editWish(wish.id)} onPlanPurchase={purchasesAvailable ? () => setPlannedWishId(wish.id) : undefined} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
   const renderGroupTile = (group, groupWishes) => <WishGroupTile
     key={group.id}
@@ -1178,6 +1194,10 @@ export function WishesPage({ onAdd, version }) {
     {profileControls}{loadError}
     {!publication && data && <AddFab actions={[
       { label: "Добавить желание", onSelect: () => onAdd(selectedSpace, selectedList?.id) },
+      ...(purchasesAvailable ? [
+        { label: "Новая потребность", icon: CalendarPlus, onSelect: () => setPurchaseNeedForm(true) },
+        { label: "Новая подписка", icon: Repeat2, onSelect: () => setSubscriptionForm(true) },
+      ] : []),
       { label: "Новый список", icon: ListPlus, onSelect: () => setListModal({}) },
     ]} />}
     {!publication && shouldShowListNavigation({ listCount: categoryLists.length, unlistedCount: unlistedWishes.length }) && <WishListNavigation
@@ -1203,10 +1223,13 @@ export function WishesPage({ onAdd, version }) {
   onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)}
   finalFocus={groupOpenerRef}
   busy={Boolean(removingGroupId)}
-  suspended={Boolean(selectedWish || editingWish || listModal)}
+  suspended={Boolean(selectedWish || editingWish || purchaseDialogOpen || listModal)}
   onClose={() => setOpenedGroupId(null)}
-><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
-{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
+><div className="wish-grid snippet-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
+{plannedWish && <WishPurchasePlan key={plannedWish.id} wish={plannedWish} onClose={() => setPlannedWishId(null)} onSaved={refreshPurchases} />}
+{purchaseNeedForm && <WishPurchaseNeed wishes={data.wishes} onClose={() => setPurchaseNeedForm(false)} onSaved={refreshPurchases} />}
+{subscriptionForm && <WishSubscription onClose={() => setSubscriptionForm(false)} onSaved={refreshPurchases} />}
+{wishes.length ? <div className="wish-grid snippet-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
 <SharedWishes wishes={spaceSharedWishes} profile={user} onOpen={(id) => {
   if (isMobile) navigate(publicWishPath(user, id), { state: { fromWishlistBoard: true } });
   else setSelectedWishId(id);

@@ -144,7 +144,7 @@ export function AboutMe() {
   return <div className="sphere-text-page page-stack">
     <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
     {!careerContent.loading && !careerContent.error && <InlineDocument
-      key={`about-${sharing.owner?.id || "self"}`} documentKey="career:about" scope="career"
+      key={`about-${sharing.owner?.id || "self"}`} documentKey="career:about"
       value={content} onSave={careerContent.save} label="О себе"
       readOnly={sharing.readOnly || sharing.loading || Boolean(sharing.error)}
       addBlock={[{ type: "heading", attrs: { level: 3 } }, { type: "paragraph" }]}

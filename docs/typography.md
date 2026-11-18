@@ -19,9 +19,9 @@ Geist normal and italic variable faces are loaded from the installed font packag
 Semantic emphasis (`em`/`i`, italic quotations) uses the real italic face; the primary
 body remains normal. Keep `font-synthesis: none` rather than synthesizing italics.
 
-Block quotations retain their italic face and `1em` start padding, with no vertical
-border beside the text. In «Тезисы» and «Принципы», the shared preset sets quote
-start padding to zero through the `theses-source` document class. Every line of
+Block quotations use italic and `1em` start padding by default, with no vertical
+border beside the text. In «Тезисы» and «Принципы», `theses-source` sets upright
+quote text and zero start padding. Explicit italic remains available. Every line of
 prose, including the first line, wrapped lines and explicit line breaks, starts
 at its content container's leading edge in both reading and inline editing.
 Top-level quotes and ordinary paragraphs share the same edge at all widths.
@@ -46,6 +46,11 @@ wrapping. This is a verified local1px-media exception, not a new font/control
 size or a claim about Notion's exact minimum. Shared figure/caption flow remains.
 
 Standard content tiles use the shared `list-tile-label` and `list-tile-count` roles in `src/index.css`: a 16px/19px label and a 24px/29px semibold numeric value. Desktop daily To Do dates reuse these roles, with the weekday above the date number; they are separate from the 18px/28px navigation control role.
+
+The available balance uses tabular numerals in the shared finance card. Its
+32–48px display size follows the card width in `src/modules/payments/finance.css`.
+Currency labels, actions and other financial values use the existing body or
+caption roles. Transfer and top-up titles use the semantic heading scale.
 
 The document renderer preserves ordered-list HTML `type` and mirrors it in
 `data-list-marker` (`a`, `A`, `i`, `I`), which the typography preset styles in

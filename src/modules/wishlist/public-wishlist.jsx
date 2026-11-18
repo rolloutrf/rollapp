@@ -64,7 +64,7 @@ export function SharedWishes({ wishes, profile, onOpen, onChanged }) {
   if (!wishes.length) return null;
   return <section className="page-stack min-w-0" aria-labelledby={titleId}>
     <h2 id={titleId} className="font-semibold">Совместные со мной</h2>
-    <div className="wish-grid">
+    <div className="wish-grid snippet-grid">
       {wishes.map((wish) => <WishCard key={wish.id} wish={wish} profile={profile} onChanged={onChanged} onOpen={(opener) => onOpen(wish.id, opener)} />)}
     </div>
   </section>;
@@ -93,7 +93,7 @@ export function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = f
     onCreateList={ownerCollection ? () => cardProps.onCreateList(wish.id) : undefined}
   />;
   return <>
-    <div className="wish-grid" ref={gridRef} aria-busy={saving || undefined}>
+    <div className="wish-grid snippet-grid" ref={gridRef} aria-busy={saving || undefined}>
       {buildWishGroupGridItems({ wishes: orderedWishes, groups }).slice(0, visibleLimit).map((item) => item.type === "group"
         ? <WishGroupTile key={item.id} group={item.group} wishes={item.wishes} onOpen={() => setOpenedGroupId(item.id)} />
         : renderWish(item.wish))}
@@ -105,7 +105,7 @@ export function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = f
         shareToken={cardProps.shareToken}
         description={`${openedGroupWishes.length} ${wishCountNoun(openedGroupWishes.length)}`}
       />
-      <div className="wish-grid">{openedGroupWishes.map(renderWish)}</div>
+      <div className="wish-grid snippet-grid">{openedGroupWishes.map(renderWish)}</div>
     </GroupDialog>}
   </>;
 }
@@ -170,12 +170,12 @@ export function PublicProfile({ shared = false }) {
   const renderCollectionState = ({ title, text, returnPath = APP_HOME, returnLabel = "В приложение", friendsContext = !shared }) => {
     const page = <div className="app-page wishes-page public-collection-page" data-public-collection-state>
       <div className="app-shell-chrome-spacer" aria-hidden="true" />
-      <EmptyState
-        icon={Gift}
-        title={title}
-        text={text}
-        action={<Link to={returnPath} className={buttonVariants()}>{returnLabel}</Link>}
-      />
+      <div className="not-found rollapp-body" role="status">
+        <Gift aria-hidden="true" />
+        <h1>{title}</h1>
+        <p>{text}</p>
+        <Link to={returnPath} className={buttonVariants()}>{returnLabel}</Link>
+      </div>
     </div>;
     if (user) return <AppShell friendsContext={friendsContext} collectionChrome>{page}</AppShell>;
     return <div className="app-layout app-layout--dark public-collection-shell"><main className="app-main app-main--with-profile app-main--wishes">{page}</main></div>;
@@ -342,7 +342,7 @@ export function PublicProfile({ shared = false }) {
   const sellerSpace = activeSpace;
   const managesStorefront = sellerProfile && data.isOwner && user?.id === data.profile.id
     && canManageWishlistSpace(user, sellerSpace);
-  const moodLevel = data.isOwner && data.profile.id === user?.id ? user.moodLevel ?? user.publicMood : data.profile.publicMood;
+  const moodLevel = (data.isOwner && data.profile.id === user?.id ? user.moodLevel ?? user.publicMood : data.profile.publicMood) ?? null;
   const identity = (
     <div className="wishes-page__identity friend-profile-page__identity">
       {data.isOwner ? <ShadcnButton
@@ -353,8 +353,8 @@ export function PublicProfile({ shared = false }) {
         title={businessProfile ? undefined : "Редактировать профиль"}
         onClick={openProfileEditor}
       >
-        <ProfilePortrait user={data.profile} moodLevel={moodLevel} />
-      </ShadcnButton> : <ProfilePortrait user={data.profile} moodLevel={moodLevel} />}
+        <ProfilePortrait user={data.profile} />
+      </ShadcnButton> : <ProfilePortrait user={data.profile} />}
       {businessProfile && <BusinessGiftAction business={data.profile} user={user} />}
       <div className="wishes-page__hero-copy">
         <h1 id="public-profile-name">{data.profile.name}</h1>
@@ -412,6 +412,7 @@ export function PublicProfile({ shared = false }) {
     ]} />}
     {!publication && !businessStorefront && shouldShowListNavigation({ shared, listCount: navigationLists.length, unlistedCount: unlistedWishes.length }) && <WishListNavigation
       value={selectedValue}
+      moodLevel={moodLevel}
       className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}
       items={shared ? [] : navigationLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: ownerCollection && list.privacy === "private" }))}
       leadingItem={showAllCollection ? { title: shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE, count: unlistedWishes.length } : null}

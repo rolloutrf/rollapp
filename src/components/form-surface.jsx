@@ -43,8 +43,8 @@ export function DrawerSectionHeader({ title, titleId, titleRef, description, sta
 export function DrawerDescription({ className, ...props }) {
   return useContext(FormMode) ? <p className={cn("text-muted-foreground", className)} {...props} /> : <Sheet.DrawerDescription className={className} {...props} />;
 }
-export function DrawerFooter({ className, ...props }) {
-  return useContext(FormMode) ? <MobileFormFooter className={className} {...props} /> : <ControlBar as={Sheet.DrawerFooter} className={cn("app-form-actions", className)} {...props} />;
+export function DrawerFooter({ className, onBack, ...props }) {
+  return useContext(FormMode) ? <MobileFormFooter className={className} onBack={onBack} {...props} /> : <ControlBar as={Sheet.DrawerFooter} className={cn("app-form-actions", className)} {...props} />;
 }
 export function DrawerClose(props) {
   // Every native form page has one common fixed Back action at the bottom.

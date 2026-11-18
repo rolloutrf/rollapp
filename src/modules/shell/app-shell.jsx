@@ -11,6 +11,8 @@ import { SphereSharingProvider, sphereScopeFromLocation } from "../access/sphere
 import { useSession } from "../auth/session.jsx";
 import { isFriendsDirectoryPath, SERVICE_TABS } from "./service-menu.jsx";
 import { SphereAccessRequestBanner } from "../access/sphere-access.jsx";
+import { WishlistSectionNavigation } from "../wishlist/wish-navigation.jsx";
+import { PrivateSphereNavigation } from "./private-sphere-navigation.jsx";
 import { PersistentProfileHero } from "../profile/profile-hero.jsx";
 
 export function AppProfileButton({ user, compact = false }) {
@@ -57,7 +59,7 @@ export function AppShell({ children, friendsContext = false, collectionChrome = 
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {wishlistChrome ? <PersistentProfileHero user={user} wishlistChrome /> : !collectionChrome && !catalogRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          {wishlistChrome ? <PersistentProfileHero user={user} wishlistChrome sectionNavigation={<WishlistSectionNavigation user={user} />} /> : !collectionChrome && !catalogRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero user={user} sectionNavigation={<PrivateSphereNavigation user={user} />} />}
           <SphereAccessRequestBanner />
           {children}
         </main>

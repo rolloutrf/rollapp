@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { api } from "@/modules/runtime/api.js";
 import App, { PersistentProfileHero, ProfileEditorProvider, SessionProvider, ToastContext, useSession } from "@/App.jsx?profile-mood-smoke";
+import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { highlightedMood } from "../../shared/modules/profile/profile-mood.js";
 import "../../src/styles.css";
@@ -11,6 +12,11 @@ import "../../src/index.css";
 
 const params = new URLSearchParams(location.search);
 const guest = params.has("guest");
+const items = [
+  { id: "one", title: "Список 1", count: 3 },
+  { id: "two", title: "Список 2", count: 2 },
+  { id: "three", title: "Список 3", count: 1 },
+];
 const userBase = {
   id: "mood-owner", name: "Александра", username: "mood-owner",
   ...(params.has("photo") && { avatarUrl: "/art/plant.svg" }),
@@ -35,11 +41,12 @@ api.get = async (path) => {
   if (path === "/auth/yandex/config") return { enabled: false };
   if (path === "/me") {
     const { level, publicMood } = snapshot();
-    return { user: guest ? null : { ...userBase, moodLevel: level, publicMood } };
+    const visitor = params.has("visitor") ? { id: "visitor", name: "Посетитель", username: "visitor", moodLevel: 1 } : null;
+    return { user: guest ? visitor : { ...userBase, moodLevel: level, publicMood } };
   }
   if (guest && path === "/profile/mood-owner") return {
-    profile: { ...userBase, publicMood: params.has("neutral") ? 3 : params.has("published") ? 5 : null },
-    lists: [], wishes: [], groups: [], isOwner: false, followersCount: 0, followingCount: 0,
+    profile: { ...userBase, ...(params.has("published") && { publicMood: Number(params.get("published")) || 5 }) },
+    lists: items.map(({ id, title }) => ({ id, title, space: "products", privacy: "public" })), wishes: [], groups: [], isOwner: false, followersCount: 0, followingCount: 0,
   };
   const url = new URL(path, location.origin);
   if (guest || url.pathname !== "/me/mood") throw new Error(`Unexpected fixture read: ${path}`);
@@ -59,10 +66,14 @@ api.patch = async (path, payload) => {
 function Fixture() {
   useVisualViewport();
   const { user } = useSession();
+  const [selected, setSelected] = useState("one");
   if (!user) return null;
   return <div className="app-layout app-layout--dark">
     <main className="app-main app-main--with-profile">
       <PersistentProfileHero user={user} wishlistChrome />
+      <article className="app-page wishes-page">
+        <WishListNavigation value={selected} items={items} onSelect={setSelected} />
+      </article>
     </main>
   </div>;
 }

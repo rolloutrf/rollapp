@@ -1,3 +1,4 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
@@ -7,21 +8,20 @@ import {
   ImagePlus, ListPlus, MoreHorizontal, Pill, Plus, RotateCcw, Stethoscope, Trash2, X,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
-import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/modules/card/collection-snippet-media.jsx";
-import { SphereBusinessControls } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
+import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
+import { CollectionSnippetBadge } from "@/modules/card/collection-snippet-media.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -210,51 +210,38 @@ function MedicationCard({ groups, medication, moveDisabled, moving, onCreateGrou
   const status = MEDICATION_STATUS[medication.status] || MEDICATION_STATUS.active;
   const StatusIcon = status.icon;
   return (
-    <div className="relative h-full min-w-0">
-      <Button
-        className="collection-snippet__open peer absolute inset-0 z-10 h-full w-full cursor-pointer rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0"
-        variant="ghost"
-        type="button"
-        aria-haspopup="dialog"
-        aria-label={`${readOnly ? "Открыть" : "Редактировать"} препарат «${medication.name}»`}
-        title={readOnly ? "Открыть препарат" : "Редактировать препарат"}
-        onClick={() => onEdit(medication)}
-      >
-        <span className="sr-only">{readOnly ? "Открыть" : "Редактировать"} препарат «{medication.name}»</span>
-      </Button>
-      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
-        <CollectionSnippetMedia key={medication.imageUrl || "empty"} src={medication.imageUrl} icon={Pill}>
-          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
-        </CollectionSnippetMedia>
-        <CardHeader>
-          <CardTitle className="flex min-w-0 flex-col items-start gap-1">
-            <h4 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{medication.name}</h4>
-          </CardTitle>
-          <CardDescription className="min-w-0 wrap-anywhere">{medication.purpose || MEDICATION_FORMS[medication.medicationForm]}</CardDescription>
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <MedicationGroupMenu
-              currentGroupId={medication.groupId}
-              disabled={moveDisabled}
-              groups={groups}
-              medicationName={medication.name}
-              moving={moving}
-              onCreateGroup={onCreateGroup}
-              onMove={(groupId) => onMoveToGroup(medication, groupId)}
-            />
-          </CardAction>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col gap-4">
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-            {medication.dosage && <span className="flex items-center gap-2"><Pill className="size-4" aria-hidden="true" />{medication.dosage}</span>}
-            <span className="flex items-center gap-2"><Clock3 className="size-4" aria-hidden="true" />{scheduleLabel(medication)}</span>
-            <span className="flex items-center gap-2"><CalendarDays className="size-4" aria-hidden="true" />{courseLabel(medication)}</span>
-            {medication.prescriber && <span className="flex items-center gap-2"><Stethoscope className="size-4" aria-hidden="true" />{medication.prescriber}</span>}
-          </div>
-          {medication.instructions && <p className="m-0 text-sm text-foreground text-pretty">{medication.instructions}</p>}
-          {medication.notes && <p className="m-0 text-sm text-muted-foreground text-pretty">{medication.notes}</p>}
-        </CardContent>
-      </Card>
-    </div>
+    <CollectionSnippet
+      title={medication.name}
+      media={{ src: medication.imageUrl, icon: Pill }}
+      status={<CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>}
+      openButton={{
+        "aria-haspopup": "dialog",
+        "aria-label": `${readOnly ? "Открыть" : "Редактировать"} препарат «${medication.name}»`,
+        title: readOnly ? "Открыть препарат" : "Редактировать препарат",
+        onClick: () => onEdit(medication),
+      }}
+      menu={
+        <MedicationGroupMenu
+          currentGroupId={medication.groupId}
+          disabled={moveDisabled}
+          groups={groups}
+          medicationName={medication.name}
+          moving={moving}
+          onCreateGroup={onCreateGroup}
+          onMove={(groupId) => onMoveToGroup(medication, groupId)}
+        />
+      }
+    >
+      <span>{medication.purpose || MEDICATION_FORMS[medication.medicationForm]}</span>
+      <div className="flex flex-col gap-2">
+        {medication.dosage && <span className="flex items-center gap-2"><Pill className="size-4" aria-hidden="true" />{medication.dosage}</span>}
+        <span className="flex items-center gap-2"><Clock3 className="size-4" aria-hidden="true" />{scheduleLabel(medication)}</span>
+        <span className="flex items-center gap-2"><CalendarDays className="size-4" aria-hidden="true" />{courseLabel(medication)}</span>
+        {medication.prescriber && <span className="flex items-center gap-2"><Stethoscope className="size-4" aria-hidden="true" />{medication.prescriber}</span>}
+      </div>
+      {medication.instructions && <p className="line-clamp-3 text-foreground text-pretty">{medication.instructions}</p>}
+      {medication.notes && <p className="line-clamp-3 text-pretty">{medication.notes}</p>}
+    </CollectionSnippet>
   );
 }
 
@@ -811,7 +798,7 @@ function MedicationSection({ groups, hideTitle = false, id, medications, moveSta
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-labelledby={id}>
       <h3 className={hideTitle ? "sr-only" : "m-0 font-heading text-lg leading-7 font-semibold"} id={id}>{title}</h3>
-      <ul className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4">
+      <ul className="snippet-grid list-none p-0">
         {medications.map((medication) => (
           <li className="min-w-0" key={medication.id}>
             <MedicationCard
@@ -926,17 +913,11 @@ export function Medications() {
 
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-labelledby="medications-title">
+      <h2 className="sr-only" id="medications-title">Препараты</h2>
       {!readOnly && <AddFab actions={[
         { label: "Добавить препарат", onSelect: addMedication },
         !requestState.loading && !requestState.error && { label: "Новая группа", icon: ListPlus, onSelect: () => setGroupDrawerState({ group: null, moveItem: null }) },
       ]} />}
-      {!readOnly && <header className="page-toolbar w-full justify-center">
-        <h2 className="sr-only" id="medications-title">Препараты</h2>
-        <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Препараты»">
-          <SphereBusinessControls sphereId="health" />
-        </div>
-      </header>}
-
       {requestState.error && (
         <Alert variant="destructive">
           <AlertTriangle aria-hidden="true" />
@@ -981,14 +962,9 @@ export function Medications() {
         />
       )}
 
-      {!requestState.loading && !requestState.error && !requestState.medications.length && (
-        <Empty className="min-h-64 border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon"><Pill aria-hidden="true" /></EmptyMedia>
-            <EmptyTitle><h3 className="m-0 text-sm font-medium">Препаратов пока нет</h3></EmptyTitle>
-            <EmptyDescription>Добавьте текущее назначение или запланированный курс.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+      {!requestState.loading && !requestState.error && !visibleMedications.length && (
+        <EmptyState icon={Pill} title={requestState.medications.length ? "В этой группе пока пусто" : "Препаратов пока нет"}
+          text={readOnly ? "Владелец пока не добавил сюда препараты." : "Добавьте текущее назначение или запланированный курс."} />
       )}
 
       {!requestState.loading && !requestState.error && visibleMedications.length > 0 && (

@@ -66,11 +66,13 @@ function Fixture() {
       request={request}
       description="6 желаний"
     />
-    <div className="wish-grid">{Array.from({ length: 6 }, (_, i) => <div key={i} className="flex min-w-0 flex-col gap-2"><div className="aspect-square rounded-2xl bg-muted" /><span>Часы {i + 1}</span></div>)}</div>
+    <div className="wish-grid snippet-grid">{Array.from({ length: 6 }, (_, i) => <div key={i} className="flex min-w-0 flex-col gap-2"><div className="aspect-square rounded-2xl bg-muted" /><span>Часы {i + 1}</span></div>)}</div>
   </GroupDialog>;
 }
 
 api.get = async path => {
+  if (path === "/dashboard/purchases") return { purchasePlans: [], wishes: [], subscriptions: [], purchaseCollaborations: [] };
+  if (path.startsWith("/dashboard/purchase-month?")) return { totals: [], openTotals: [], limits: [] };
   if (path === "/rolls") return { balance: 500, transactions: [], features: {} };
   if (path === "/personal-offers") return { offers: [] };
   throw new Error(`Unexpected fixture request: ${path}`);

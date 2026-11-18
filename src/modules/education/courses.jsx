@@ -1,12 +1,14 @@
+import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3, FolderInput, GraduationCap,
-  ImagePlus, MoreHorizontal, Pencil, PlayCircle, RotateCcw, Trash2, Ungroup, X,
+  MoreHorizontal, Pencil, PlayCircle, RotateCcw, Ungroup, X,
 } from "lucide-react";
 import { api, sessionFetch } from "@/modules/runtime/api.js";
-import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/modules/card/collection-snippet-media.jsx";
+import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
+import { CollectionSnippetBadge } from "@/modules/card/collection-snippet-media.jsx";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -34,6 +36,7 @@ import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { useCardReorder } from "@/hooks/use-card-reorder";
 import { sortCourses } from "@/modules/education/course-order.js";
 import { courseLogoUrls } from "@/modules/education/education-logo.js";
+import { EducationLogoPicker } from "@/modules/education/education-logo-picker.jsx";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 import {
   EducationItemListMenu, EducationListDrawer, EducationListNavigation, EducationSectionHeader,
@@ -134,18 +137,19 @@ function CourseCard({
   const status = COURSE_STATUS[course.status] || COURSE_STATUS.planned;
   const StatusIcon = status.icon;
   return (
-    <div className="relative h-full min-w-0">
-      <Button
-        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
-        variant="ghost"
-        type="button"
-        data-card-drag-trigger={draggable ? "" : undefined}
-        aria-describedby={dragDescriptionId || undefined}
-        aria-haspopup="dialog"
-        aria-label={draggable ? `Открыть и переместить курс «${course.title}»` : `Открыть курс «${course.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другого курса и дождитесь подсветки" : "Нажмите, чтобы открыть"}
-        onClick={() => onEdit(course)}
-        onKeyDown={(event) => {
+    <CollectionSnippet
+      title={course.title}
+      media={{ sources: courseLogoUrls(course), icon: GraduationCap }}
+      status={<CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>}
+      openButton={{
+        "data-card-drag-trigger": draggable ? "" : undefined,
+        "aria-describedby": dragDescriptionId,
+        className: draggable ? "cursor-grab active:cursor-grabbing" : undefined,
+        "aria-haspopup": "dialog",
+        "aria-label": draggable ? `Открыть и переместить курс «${course.title}»` : `Открыть курс «${course.title}»`,
+        title: draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другого курса и дождитесь подсветки" : "Нажмите, чтобы открыть",
+        onClick: () => onEdit(course),
+        onKeyDown: (event) => {
           if (!draggable) return;
           if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
@@ -155,44 +159,31 @@ function CourseCard({
             event.preventDefault();
             onMove(course.id, 1);
           }
-        }}
-      >
-        <span className="sr-only">Открыть или переместить курс «{course.title}»</span>
-      </Button>
-      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
-        <CollectionSnippetMedia sources={courseLogoUrls(course)} icon={GraduationCap}>
-          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
-        </CollectionSnippetMedia>
-        <CardHeader>
-          <CardTitle className="flex min-w-0 flex-col items-start gap-2 pr-2">
-            <div className="flex w-full min-w-0 flex-col items-start gap-1">
-              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium" title={course.title}>{course.title}</h3>
-              {course.provider && <span className="w-full truncate text-sm font-normal text-muted-foreground" title={course.provider}>{course.provider}</span>}
-            </div>
-            {course.description && <p className="m-0 w-full min-w-0 line-clamp-3 wrap-anywhere text-sm font-normal text-muted-foreground text-pretty">{course.description}</p>}
-            <div className="flex w-full min-w-0 items-center gap-2 text-sm font-normal text-muted-foreground">
-              <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 wrap-anywhere">{courseDateLabel(course)}</span>
-            </div>
-          </CardTitle>
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <EducationItemListMenu
-              currentListId={course.listId}
-              grouping={grouping}
-              disabled={moveDisabled}
-              itemLabel="курс"
-              itemTitle={course.title}
-              lists={lists}
-              moving={moving}
-              onCreateList={onCreateList}
-              onMove={(listId) => onMoveToList(course, listId)}
-              onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(course) : undefined}
-              removeBusy={removeBusy}
-            />
-          </CardAction>
-        </CardHeader>
-      </Card>
-    </div>
+        },
+      }}
+      menu={
+        <EducationItemListMenu
+          currentListId={course.listId}
+          grouping={grouping}
+          disabled={moveDisabled}
+          itemLabel="курс"
+          itemTitle={course.title}
+          lists={lists}
+          moving={moving}
+          onCreateList={onCreateList}
+          onMove={(listId) => onMoveToList(course, listId)}
+          onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(course) : undefined}
+          removeBusy={removeBusy}
+        />
+      }
+    >
+      {course.provider && <span className="w-full truncate" title={course.provider}>{course.provider}</span>}
+      {course.description && <p className="line-clamp-3 text-pretty">{course.description}</p>}
+      <div className="flex items-center gap-2">
+        <CalendarDays className="size-4" aria-hidden="true" />
+        <span>{courseDateLabel(course)}</span>
+      </div>
+    </CollectionSnippet>
   );
 }
 
@@ -440,7 +431,7 @@ function CourseGroupOpen({
             />
           )}
       />
-      <ul className="mx-auto grid w-full max-w-(--layout-collection-width) list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label={`Курсы группы «${group.title}»`}>
+      <ul className="snippet-grid list-none p-0" aria-label={`Курсы группы «${group.title}»`}>
         {courses.map((course) => (
           <li className="min-w-0" key={course.id}>
             <CourseCard
@@ -483,7 +474,6 @@ function CourseGroupOpen({
 function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChange, onSaved }) {
   const isMobile = useIsMobile();
   const formId = useId();
-  const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const [form, setForm] = useState(EMPTY_COURSE);
   const [saving, setSaving] = useState(false);
@@ -549,7 +539,6 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
       setLogoError(uploadError.message || "Не удалось загрузить логотип.");
     } finally {
       setLogoUploading(false);
-      if (imageFileRef.current) imageFileRef.current.value = "";
     }
   };
 
@@ -618,71 +607,10 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
             )}
 
             <FieldGroup className="gap-4">
-              <Field data-invalid={Boolean(logoError)}>
-                <FieldLabel htmlFor={`${formId}-logo`}>Логотип</FieldLabel>
-                <div className="flex flex-wrap items-center gap-4">
-                  <Button
-                    className="group relative size-20 shrink-0 cursor-pointer overflow-hidden rounded-xl p-0"
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    disabled={saving || logoUploading}
-                    aria-label={form.logoUrl ? "Заменить логотип курса" : "Загрузить логотип курса"}
-                    title={form.logoUrl ? "Заменить логотип" : "Загрузить логотип"}
-                    onClick={() => imageFileRef.current?.click()}
-                  >
-                    <CourseLogo course={form} size="form" />
-                    <span
-                      className={`pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/60 text-white transition-opacity ${logoUploading ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}
-                      aria-hidden="true"
-                    >
-                      {logoUploading ? <Spinner /> : <ImagePlus className="size-6" />}
-                    </span>
-                  </Button>
-                  <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-                    <Input
-                      className="sr-only"
-                      id={`${formId}-logo`}
-                      ref={imageFileRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      tabIndex={-1}
-                      onChange={(event) => uploadLogo(event.target.files?.[0])}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        className="min-h-12 px-4 text-base"
-                        variant="outline"
-                        type="button"
-                        disabled={saving || logoUploading}
-                        onClick={() => imageFileRef.current?.click()}
-                      >
-                        {logoUploading ? <Spinner aria-hidden="true" /> : <ImagePlus data-icon="inline-start" aria-hidden="true" />}
-                        {logoUploading ? "Загружаем" : form.logoUrl ? "Заменить" : "Загрузить"}
-                      </Button>
-                      {form.logoUrl && (
-                        <Button
-                          className="min-h-12 px-4 text-base"
-                          variant="destructive"
-                          type="button"
-                          disabled={saving || logoUploading}
-                          onClick={() => {
-                            update("logoUrl", "");
-                            setLogoError("");
-                          }}
-                        >
-                          <Trash2 data-icon="inline-start" aria-hidden="true" />
-                          Удалить
-                        </Button>
-                      )}
-                    </div>
-                    <p className="m-0 text-sm text-muted-foreground">
-                      По ссылке на курс логотип подставится автоматически. Можно заменить своим JPG, PNG или WEBP до 8 МБ.
-                    </p>
-                  </div>
-                </div>
-                {logoError && <FieldError>{logoError}</FieldError>}
-              </Field>
+              <EducationLogoPicker label="Выбрать логотип курса" uploading={logoUploading} disabled={saving}
+                error={logoError} onFileSelect={uploadLogo}>
+                <CourseLogo course={form} size="form" />
+              </EducationLogoPicker>
 
               <Field>
                 <FieldLabel htmlFor={`${formId}-title`}>Название</FieldLabel>
@@ -1119,8 +1047,13 @@ export function Courses() {
         </Card>
       )}
 
+      {!requestState.loading && !requestState.error && !visibleCourses.length && (
+        <EmptyState icon={GraduationCap} title={requestState.courses.length ? "В этом списке пока пусто" : "Курсов пока нет"}
+          text={readOnly ? "Владелец пока не добавил сюда записи." : "Добавьте курс, который планируете пройти или уже проходите."} />
+      )}
+
       {!requestState.loading && visibleCourses.length > 0 && (
-        <ul ref={cardOrder.listRef} className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label="Порядок и группы курсов" aria-busy={cardOrder.orderBusy}>
+        <ul ref={cardOrder.listRef} className="snippet-grid list-none p-0" aria-label="Порядок и группы курсов" aria-busy={cardOrder.orderBusy}>
           {visibleGroups.map((group) => (
             <CourseGroupTile
               key={group.id}

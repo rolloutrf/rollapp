@@ -337,6 +337,7 @@
 
       &:where(.theses-source *) {
         padding-inline-start: 0;
+        font-style: normal;
       }
     }
 
