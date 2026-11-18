@@ -67,7 +67,16 @@ if (routing) {
     if (path === "/profile/host/calendar" || path === "/profile/host/announcements") return { ...snapshot, isOwner: routing !== "booking" };
     throw new Error(`Unexpected GET ${path}`);
   };
-  const path = { wishlist: "/app/wishes?tab=media", public: "/host/lists/media-list", booking: "/host/calendar/book?slot=open&zone=UTC" };
+  const wishlistTabs = {
+    brands: "/app/wishes/catalog?source=brands&tab=media",
+    sales: "/app/wishes/sales?tab=media",
+    announcements: "/app/wishes?tab=media&publication=announcements",
+  };
+  const path = {
+    wishlist: wishlistTabs[params.get("tabView")] || "/app/wishes?tab=media",
+    public: "/host/lists/media-list",
+    booking: "/host/calendar/book?slot=open&zone=UTC",
+  };
   history.replaceState({}, "", path[routing]);
 }
 api.post = async (path, body) => {

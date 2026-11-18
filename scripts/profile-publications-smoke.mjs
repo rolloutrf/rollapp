@@ -485,6 +485,16 @@ try {
         await page.getByRole("heading", { name: "Открыта запись на ноябрь" }).waitFor();
         assert.equal(await boardLink.getAttribute("aria-current"), "page");
         assert(await original.evaluate(node => node.isConnected));
+        const bounds = [];
+        for (const tabView of ["brands", "sales", "announcements"]) {
+          await page.goto(`${origin}/__profile-publications?routing=wishlist&mode=empty&tabView=${tabView}`);
+          const empty = page.locator("[data-empty-state]:visible");
+          await empty.waitFor();
+          const box = await empty.boundingBox();
+          assert(box?.width > 0, tabView);
+          bounds.push([Math.round(box.x), Math.round(box.width)]);
+        }
+        assert.deepEqual(bounds, [bounds[0], bounds[0], bounds[0]], "Границы коллекций Вишлиста");
       }
       assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     }
