@@ -1494,6 +1494,7 @@ const startYandexLogin = asyncRoute(async (req, res) => {
   await cleanupExpiredAuthData();
   const authorization = createYandexAuthorization({ ...config, diskBackupEnabled: !diskSyncAvailable && config.diskBackupEnabled && !isMemoryDatabase }, {
     nextPath,
+    signingUp,
     linkUserId: wantsLink ? req.user.id : null,
     addUserId: wantsAdd ? req.user.id : null,
   });
@@ -1505,7 +1506,7 @@ const startYandexLogin = asyncRoute(async (req, res) => {
       authorization.attempt.stateHash,
       authorization.attempt.verifier,
       authorization.attempt.nextPath,
-      signingUp ? "invite" : authorization.attempt.purpose,
+      authorization.attempt.purpose,
       authorization.attempt.userId,
       authorization.expiresAt,
       inviteToken ? inviteTokenHash(inviteToken) : null,

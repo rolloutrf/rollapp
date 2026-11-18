@@ -29,7 +29,9 @@ try {
         page.on("pageerror", error => errors.push(error.message));
         // Presentation checks run with all API traffic blocked.
         await page.route("**/api/**", route => route.abort());
-        await page.goto(`${origin}/member-fixture?screen=1${variant}`, { waitUntil: "domcontentloaded" });
+        const retryInvite = variant.includes("auth") && width === 390 && height === 400;
+        const errorQuery = retryInvite ? "&auth_error=YANDEX_EMAIL_REQUIRED" : "";
+        await page.goto(`${origin}/member-fixture?screen=1${variant}${errorQuery}`, { waitUntil: "domcontentloaded" });
         await page.locator(variant.includes("profile") ? ".profile-settings-dialog" : variant.includes("invites") ? "#account-invite-email" : variant.includes("auth") ? ".auth-form" : ".member-flip-board").waitFor();
         if (variant.includes("auth")) {
           const submit = page.getByRole("button", { name: "Создать с Яндекс ID" });
@@ -37,6 +39,10 @@ try {
           assert.equal(await page.locator("form button[type=submit]").count(), 1);
           assert.equal(await page.locator("form input[type=password], form input[type=email], .or, .member-flip-board").count(), 0);
           assert(await page.getByText("invited@example.com").isVisible());
+          if (retryInvite) {
+            assert(await page.getByText("Яндекс не передал email", { exact: true }).isVisible());
+            assert(await page.getByText(/адрес приглашения указан как основной/).isVisible());
+          }
           const seller = width === 390 && height === 844;
           if (seller) {
             await page.getByRole("radio", { name: /^Бизнес/ }).check();

@@ -84,6 +84,16 @@ test("adding an account requests the Yandex chooser and binds the attempt to the
   assert.equal(new URL(createYandexAuthorization(config).authorizationUrl).searchParams.has("force_confirm"), false);
 });
 
+test("invited registration prompts for account selection and required email consent every time", () => {
+  const registration = createYandexAuthorization({ ...config, diskBackupEnabled: true }, { signingUp: true });
+  const params = new URL(registration.authorizationUrl).searchParams;
+  assert.equal(params.get("force_confirm"), "yes");
+  assert.equal(params.get("scope"), "login:info login:email");
+  assert.equal(params.get("optional_scope"), "login:avatar");
+  assert.equal(registration.attempt.purpose, "invite");
+  assert.equal(registration.attempt.userId, null);
+});
+
 test("OAuth return paths reject external, protocol-relative and backslash redirects", () => {
   assert.equal(safeOauthReturnPath("/app/wishes?space=food#top"), "/app/wishes?space=food#top");
   assert.equal(safeOauthReturnPath("https://evil.example"), "/app/wishes");

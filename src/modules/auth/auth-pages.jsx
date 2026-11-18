@@ -426,7 +426,7 @@ export function RegistrationForm({ invite, email }) {
   const params = new URLSearchParams(search);
   const nextPath = safeNextPath(params.get("next"));
   const authErrorCode = params.get("auth_error");
-  const yandexError = yandexAuthErrorDetails(authErrorCode);
+  const yandexError = yandexAuthErrorDetails(authErrorCode, { registering: true });
 
   const submit = async (event) => {
     event.preventDefault();

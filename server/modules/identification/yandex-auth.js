@@ -92,7 +92,7 @@ export function yandexRegistrationReturnPath(value) {
   return /^\/app\/member-number\/?(?:[?#]|$)/i.test(path) ? "/app/wishes" : path;
 }
 
-export function createYandexAuthorization(config, { nextPath, linkUserId = null, addUserId = null, now = Date.now() } = {}) {
+export function createYandexAuthorization(config, { nextPath, linkUserId = null, addUserId = null, signingUp = false, now = Date.now() } = {}) {
   if (!config?.enabled) {
     throw new YandexAuthError("Вход через Яндекс ID не настроен", "YANDEX_AUTH_UNAVAILABLE", 503);
   }
@@ -110,11 +110,10 @@ export function createYandexAuthorization(config, { nextPath, linkUserId = null,
     ? "login:avatar cloud_api:disk.read cloud_api:disk.write"
     : "login:avatar");
   if (optionalScope) authorizationUrl.searchParams.set("optional_scope", optionalScope);
-  if (requestsBackup || config.forceConfirm) authorizationUrl.searchParams.set("force_confirm", "yes");
+  if (requestsBackup || config.forceConfirm || addUserId || signingUp) authorizationUrl.searchParams.set("force_confirm", "yes");
   authorizationUrl.searchParams.set("state", state);
   authorizationUrl.searchParams.set("code_challenge", challenge);
   authorizationUrl.searchParams.set("code_challenge_method", "S256");
-  if (addUserId) authorizationUrl.searchParams.set("force_confirm", "yes");
 
   return {
     authorizationUrl: authorizationUrl.toString(),
@@ -125,7 +124,7 @@ export function createYandexAuthorization(config, { nextPath, linkUserId = null,
       stateHash: createHash("sha256").update(state).digest("hex"),
       verifier,
       nextPath: safeOauthReturnPath(nextPath),
-      purpose: requestsBackup ? "link-backup" : linkUserId ? "link" : addUserId ? "add" : "login",
+      purpose: signingUp ? "invite" : requestsBackup ? "link-backup" : linkUserId ? "link" : addUserId ? "add" : "login",
       userId: linkUserId || addUserId,
     },
   };

@@ -100,9 +100,12 @@ const yandexAuthErrors = {
   },
 };
 
-export function yandexAuthErrorDetails(code, { legacySignInEnabled = false } = {}) {
+export function yandexAuthErrorDetails(code, { legacySignInEnabled = false, registering = false } = {}) {
   if (!code) return null;
   const details = Object.hasOwn(yandexAuthErrors, code) ? yandexAuthErrors[code] : yandexAuthErrors.YANDEX_PROVIDER_ERROR;
+  if (registering && code === "YANDEX_EMAIL_REQUIRED") {
+    return { ...details, description: "Снова нажмите «Создать с Яндекс ID». Выберите аккаунт, у которого адрес приглашения указан как основной, и подтвердите доступ к почте." };
+  }
   if (legacySignInEnabled && code === "YANDEX_LINK_REQUIRED") {
     return { ...details, description: "Войдите по email или номеру телефона, чтобы подключить Яндекс ID." };
   }

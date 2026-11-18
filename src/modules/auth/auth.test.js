@@ -30,6 +30,8 @@ test("Yandex callback errors map to safe local copy", () => {
   assert.match(yandexAuthErrorDetails("YANDEX_LINK_REQUIRED").description, /настройки профиля/);
   assert.match(yandexAuthErrorDetails("YANDEX_LINK_REQUIRED", { legacySignInEnabled: true }).description, /по email/);
   assert.equal(yandexAuthErrorDetails("unknown-provider-text"), yandexAuthErrorDetails("YANDEX_PROVIDER_ERROR"));
+  assert.match(yandexAuthErrorDetails("YANDEX_EMAIL_REQUIRED", { registering: true }).description, /адрес приглашения указан как основной/);
+  assert.doesNotMatch(yandexAuthErrorDetails("YANDEX_EMAIL_REQUIRED").description, /приглашени/);
   assert.equal(yandexAuthErrorDetails("constructor"), yandexAuthErrorDetails("YANDEX_PROVIDER_ERROR"));
   assert.equal(yandexAuthErrorDetails(""), null);
 });
