@@ -847,6 +847,8 @@ Lazy/transformed app chrome требует предварительной опт
 UI import без prebundle делает unit красным. Это предотвращает позднее обновление
 графа зависимостей/перезагрузку в середине authoring scenario. Discovery остаётся
 включённым, root/error/geometry/history assertions и прежние timeout не меняются.
+Редакторный fixture также заранее оптимизирует `sonner`, который загружается
+вместе с app chrome при открытии «Тезисов» и «Принципов».
 
 `smoke-browser-diagnostics.mjs` только наблюдает события публичных browser/page
 API. На отказе сохраняются bounded pageerror/console/HTTP/pending module requests
