@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { CatalogWishDetailsContent, CatalogWishDetailsDrawer } from "@/modules/catalog-marketplace/wish-catalog.jsx";
-import { CatalogPageHeader } from "@/modules/catalog-marketplace/catalog-page-header.jsx";
 import { ContentPage } from "@/components/content-page";
 import { Button } from "@/components/ui/button";
 import { StorePage } from "@/modules/checkout/store-page.jsx";
@@ -16,7 +15,6 @@ function Catalog({ state, drawer }) {
     participantCount: 4, participants: [owner] };
   const props = { item, wishlistDisabled: state === "pending", wishlistPending: state === "pending", onToggleWishlist: () => setActive(value => !value) };
   return <Scenario>{drawer ? <Page>
-    <CatalogPageHeader selectedSpace="products" source="community" title="Каталог желаний" />
     <Button onClick={() => setOpen(true)}>Открыть товар</Button>
     {open && <CatalogWishDetailsDrawer {...props} onClose={() => setOpen(false)} />}
   </Page> : <ContentPage title="Каталог желаний" className="catalog-item-page" onBack={noop}>
