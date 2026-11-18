@@ -4,7 +4,8 @@ import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
 
-async function assertProfileHeading(hero, { owner, name = 'Профиль' }) {
+async function assertProfileHeading(page, { owner, name = 'Профиль', selector = '.public-collection-page__hero' }) {
+  const hero = page.locator(selector);
   const heading = hero.getByRole('heading', { name, exact: true, level: 1 });
   await heading.waitFor();
   const memberNumber = hero.getByText("ID #12345", { exact: true });
@@ -18,32 +19,37 @@ async function assertProfileHeading(hero, { owner, name = 'Профиль' }) {
   assert.equal(await friends.count(), owner ? 1 : 0);
   if (!owner) return;
   assert.equal(await friends.getAttribute('href'), '/app/friends');
-  const friendsIcon = friends.locator('svg[aria-hidden="true"]');
-  // The owner row can become visible before its glyph after a profile route change.
-  await friendsIcon.waitFor({ state: 'visible' });
-  const geometry = await friendsIcon.evaluate(glyph => {
-    const link = glyph.parentElement;
-    const nav = link.parentElement;
-    const name = nav.previousElementSibling;
+  // A profile rename can replace the hero between Playwright calls. Resolve
+  // the current row and read its layout in one callback on a rendered frame.
+  const renderedGeometry = await page.waitForFunction(({ selector, name }) => {
+    const hero = document.querySelector(selector);
+    const link = hero?.querySelector('a[href="/app/friends"]');
+    const glyph = link?.querySelector('svg[aria-hidden="true"]');
+    const nav = link?.parentElement;
+    const heading = nav?.previousElementSibling;
+    const id = nav?.querySelector(':scope > span');
+    const label = link?.querySelector('span');
+    if (heading?.textContent.trim() !== name || !glyph?.isConnected || !id || !label) return false;
     const linkBox = link.getBoundingClientRect();
     const rowBox = nav.getBoundingClientRect();
-    const id = nav.querySelector(':scope > span');
-    const label = link.querySelector('span');
+    const nameBox = heading.getBoundingClientRect();
+    const icon = glyph.getBoundingClientRect();
+    if (!icon.width || !icon.height) return false;
     const textStyle = element => {
       const style = getComputedStyle(element);
       return [style.fontSize, style.lineHeight, style.fontWeight, style.color];
     };
-    const nameBox = name.getBoundingClientRect();
-    const icon = glyph.getBoundingClientRect();
     return {
-      nameTag: name.tagName,
+      nameTag: heading.tagName,
       gap: linkBox.top - nameBox.bottom,
       centerOffset: rowBox.left + rowBox.width / 2 - nameBox.left - nameBox.width / 2,
       sameStyle: JSON.stringify(textStyle(id)) === JSON.stringify(textStyle(label)),
       sameLine: Math.abs(id.getBoundingClientRect().top - label.getBoundingClientRect().top) < 1,
       icon: [icon.width, icon.height],
     };
-  });
+  }, { selector, name });
+  const geometry = await renderedGeometry.jsonValue();
+  await renderedGeometry.dispose();
   assert.equal(geometry.nameTag, 'H1');
   assert(Math.abs(geometry.gap) <= 1, 'Friends should sit directly below the profile name');
   assert(Math.abs(geometry.centerOffset) <= 1, 'Friends and the profile name should share a center');
@@ -75,7 +81,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', route => { errors.push('Unexpected network API request'); return route.abort(); });
     await page.goto(origin + '/fixture');
-    await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: true });
+    await assertProfileHeading(page, { owner: true });
     const open = page.getByRole('button', { name: 'Редактировать профиль Профиль', exact: false });
     const wishlistEntry = page.getByRole('button', { name: 'Внешние вишлисты', exact: true });
     const personalEntry = page.getByRole('button', { name: 'Персональная информация', exact: true });
@@ -340,12 +346,12 @@ try {
       await page.waitForURL(url => decodeURI(url.pathname) === '/колосков-михаил');
       assert.deepEqual(await page.evaluate(() => window.profilePatches.at(-1)), { name: 'Mikhail Koloskov' });
       await page.locator('.profile-settings-dialog').waitFor({ state: 'detached' });
-      await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: true, name: 'Mikhail Koloskov' });
+      await assertProfileHeading(page, { owner: true, name: 'Mikhail Koloskov' });
       assert.equal(await badges.count(), 0);
     }
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
     await page.goto(origin + '/fixture?guest');
-    await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: false });
+    await assertProfileHeading(page, { owner: false });
     assert.equal(await badges.count(), 0, 'Guests must not see external wishlist badges');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
@@ -368,7 +374,7 @@ try {
     }
     await page.goto(origin + '/app/wishes?tab=products&sharing-fixture');
     const hero = page.locator('[data-persistent-profile]');
-    await assertProfileHeading(hero, { owner: true });
+    await assertProfileHeading(page, { owner: true, selector: '[data-persistent-profile]' });
     await page.getByRole('region', { name: 'Запросы доступа к пространству' }).getByRole('button', { name: 'Открыть доступ', exact: true }).waitFor();
     assert.equal(await hero.getByRole('button', { name: /Открыть доступ/ }).count(), 0);
     assert.equal(await hero.getByRole('button', { name: /QR-код/ }).count(), 0);
