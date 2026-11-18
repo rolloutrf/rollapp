@@ -4,12 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-function SnippetImage({ src, fallbackSrc, alt, loading, icon: Icon }) {
+export function WishlistSnippetImage({ src, fallbackSrc, alt, loading, icon = Gift, className, placeholderClassName }) {
+  return <SnippetImage key={JSON.stringify([src, fallbackSrc])} src={src} fallbackSrc={fallbackSrc} alt={alt} loading={loading} icon={icon} className={className} placeholderClassName={placeholderClassName} />;
+}
+
+function SnippetImage({ src, fallbackSrc, alt, loading, icon: Icon, className, placeholderClassName }) {
   const [failedSources, setFailedSources] = useState([]);
   const imageUrl = [src, fallbackSrc].find((url) => url && !failedSources.includes(url));
   return imageUrl ? (
     <img
       key={imageUrl}
+      className={className}
       src={imageUrl}
       alt={alt}
       loading={loading}
@@ -18,7 +23,7 @@ function SnippetImage({ src, fallbackSrc, alt, loading, icon: Icon }) {
       onError={() => setFailedSources((current) => [...current, imageUrl])}
     />
   ) : (
-    <span className="wish-card__placeholder" aria-hidden="true"><Icon size={36} /></span>
+    <span className={placeholderClassName || "wish-card__placeholder"} aria-hidden="true"><Icon size={36} /></span>
   );
 }
 
@@ -57,8 +62,7 @@ export function WishlistSnippet({
       {openButton && <Button {...openButton} type="button" variant="ghost" className={cn("wish-card__open absolute inset-0 z-[2] h-full w-full min-w-0 rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0", openButton.className)} />}
       {beforeMedia}
       <div className={cn("wish-card__image", mediaClassName)}>
-        {mediaContent ?? <SnippetImage
-          key={JSON.stringify([imageUrl, fallbackImageUrl])}
+        {mediaContent ?? <WishlistSnippetImage
           src={imageUrl}
           fallbackSrc={fallbackImageUrl}
           alt={imageAlt}

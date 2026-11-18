@@ -32,8 +32,28 @@ try {
       const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
       await page.route('**/api/**', (route) => { errors.push('Unexpected API request'); return route.abort(); });
+      await page.route('**/api/media/youtube-thumbnail/*', (route) => {
+        const id = new URL(route.request().url()).pathname.split('/').at(-1);
+        assert(['dQw4w9WgXcQ', 'abcdefghijk'].includes(id));
+        return id === 'dQw4w9WgXcQ'
+          ? route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jEioAAAAASUVORK5CYII=', 'base64') })
+          : route.fulfill({ status: 502 });
+      });
+      await page.route('https://i.ytimg.com/**', (route) => {
+        assert.equal(new URL(route.request().url()).pathname, '/vi/abcdefghijk/hqdefault.jpg');
+        return route.abort();
+      });
+      await page.route('**/__broken-wish-preview', (route) => route.fulfill({ status: 404 }));
       await page.goto(`${origin}/__wish-group-smoke${readonly ? '?readonly' : ''}`);
       await page.locator('.wish-group-tile__title').first().waitFor();
+      const media = page.locator('[data-group-id="2"] .wish-group-tile__preview');
+      await media.scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => {
+        const root = document.querySelector('[data-group-id="2"] .wish-group-tile__preview');
+        return root?.querySelector('img')?.naturalWidth > 0 && root.querySelectorAll('.wish-card__placeholder').length === 2;
+      });
+      assert.equal(await media.locator('img').getAttribute('src'), '/api/media/youtube-thumbnail/dQw4w9WgXcQ');
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
       await page.evaluate(() => document.fonts.ready);
       const geometry = await page.locator('.wish-group-tile').evaluateAll((tiles) => tiles.map((tile) => {
         const title = tile.querySelector('.wish-group-tile__title');

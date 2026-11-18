@@ -21,6 +21,7 @@ import { publicMood, registerProfileMoodRoutes, verifyProfileMoodAvailability } 
 import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/modules/identification/telegram-waitlist.js";
 import { registerPrivateFiles } from "./private-files.js";
 import { createYandexBackupJobs, uploadYandexBackup } from "./modules/profile/yandex-disk-backup.js";
+import { registerYouTubeThumbnailRoutes } from "./modules/media-import/youtube-thumbnails.js";
 import { imageIsInUse } from "./modules/media-import/image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./modules/profile/profile-aliases.js";
 import { profileWishlistLinksPatchSchema } from "./modules/profile/profile-wishlists.js";
@@ -245,6 +246,7 @@ app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
 if (domainCookies) app.use(readBrowserSessionCookies(domainCookies));
 registerTonConnectRoutes(app);
+registerYouTubeThumbnailRoutes(app);
 
 const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 const waitlistRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10 });

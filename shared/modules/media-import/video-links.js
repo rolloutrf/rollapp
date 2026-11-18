@@ -60,6 +60,16 @@ export function youtubeThumbnailUrl(id) {
   return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
 }
 
+export function youtubeThumbnailPath(id) {
+  return YOUTUBE_VIDEO_ID_PATTERN.test(id) ? `/api/media/youtube-thumbnail/${id}` : "";
+}
+
+export function youtubeThumbnailVideoId(value) {
+  const url = parseHttpUrl(value);
+  if (!url || !["i.ytimg.com", "img.youtube.com"].includes(url.hostname) || url.username || url.password || url.port) return "";
+  return /^\/vi(?:_webp)?\/([A-Za-z0-9_-]{11})\/(?:[0-3]|default|mqdefault|hqdefault|sddefault|maxresdefault)\.(?:jpg|webp)$/.exec(url.pathname)?.[1] || "";
+}
+
 export function parseVkVideoId(value) {
   const url = parseHttpUrl(value);
   if (!url || !VK_VIDEO_HOSTS.has(url.hostname.toLowerCase())) return "";

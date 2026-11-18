@@ -47,9 +47,9 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { isGeneralList, listDisplayTitle } from "../categories/list-navigation.js";
-import { wishPreviewImageUrl } from "../../../shared/modules/media-import/kinopoisk.js";
 import { publicWishPath } from "../../../shared/modules/profile/profile-links.js";
-import { applyRetailerPreviewFallback } from "../wishlist/wish-preview.jsx";
+import { wishCardImageSources } from "../wishlist/wish-preview.jsx";
+import { WishlistSnippetImage } from "./wishlist-snippet.jsx";
 import { formatMoney } from "./price.jsx";
 import { isYandexMapsUrl, formatEventDate } from "../wishlist/wish-form-data.jsx";
 import { participantCountLabel } from "../catalog-marketplace/wish-catalog.jsx";
@@ -96,7 +96,7 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
   const linkedListNames = linkedLists.map(listDisplayTitle);
   const listLabel = linkedListNames.length > 1 ? `${linkedListNames[0]} +${linkedListNames.length - 1}` : linkedListNames[0] || "Без списка";
   const listTitleText = linkedListNames.join(", ") || "Без списка";
-  const previewImageUrl = wishPreviewImageUrl(wish);
+  const previewImage = wishCardImageSources(wish);
 
   useEffect(() => {
     if (!listMutationRef.current) setSelectedListIds(normalizeListIds(wish.listIds));
@@ -259,9 +259,12 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
   const detailsContent = (
           <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
-            {previewImageUrl
-              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
-              : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
+            <WishlistSnippetImage
+              {...previewImage}
+              className="block h-auto w-full"
+              placeholderClassName="grid aspect-[4/3] w-full place-items-center text-muted-foreground [&>svg]:size-6"
+              alt={`Фото желания «${wish.title}»`}
+            />
             {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute left-3 top-3"><Check data-icon="inline-start" aria-hidden="true" />Исполнено</Badge>}
           </Card>
 

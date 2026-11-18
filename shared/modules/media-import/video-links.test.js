@@ -5,6 +5,8 @@ import {
   isVkVideoUrl,
   parseVkVideoId,
   vkVideoOembedUrl,
+  youtubeThumbnailPath,
+  youtubeThumbnailVideoId,
 } from "./video-links.js";
 
 test("recognizes VK Video links from VK, VK Video and exported players", () => {
@@ -52,4 +54,15 @@ test("builds a canonical public VK oEmbed API URL", () => {
     "https://api.vk.com/method/video.getOembed?url=https%3A%2F%2Fvk.com%2Fvideo-4829_456240230&v=5.199",
   );
   assert.equal(vkVideoOembedUrl("https://vkvideo.ru/@channel"), "");
+});
+
+test("legacy YouTube thumbnail URLs resolve to the same checked route as new video links", () => {
+  const id = "dQw4w9WgXcQ";
+  assert.equal(youtubeThumbnailPath(id), `/api/media/youtube-thumbnail/${id}`);
+  assert.equal(youtubeThumbnailPath("invalid"), "");
+  assert.equal(youtubeThumbnailVideoId(`https://i.ytimg.com/vi/${id}/hqdefault.jpg?limit=1`), id);
+  assert.equal(youtubeThumbnailVideoId(`https://img.youtube.com/vi_webp/${id}/maxresdefault.webp`), id);
+  for (const source of [`https://i.ytimg.com.example.test/vi/${id}/hqdefault.jpg`, `https://i.ytimg.com:8443/vi/${id}/hqdefault.jpg`, `https://u@i.ytimg.com/vi/${id}/hqdefault.jpg`, "/api/media/photo"]) {
+    assert.equal(youtubeThumbnailVideoId(source), "");
+  }
 });

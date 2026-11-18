@@ -24,8 +24,8 @@ import {
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { wishPreviewImageUrl } from "../../../shared/modules/media-import/kinopoisk.js";
-import { applyRetailerPreviewFallback } from "./wish-preview.jsx";
+import { wishCardImageSources } from "./wish-preview.jsx";
+import { WishlistSnippetImage } from "../card/wishlist-snippet.jsx";
 import { GroupDialog } from "@/components/group-dialog";
 import { WishGroupHeader } from "@/components/wish-group-fundraiser";
 
@@ -99,10 +99,11 @@ export function WishGroupTile({
   <div data-group-id={group.id} draggable={nativeDraggable} className={`wish-group-tile ${draggable ? "is-draggable" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""}`} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown}>
     <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу «${group.title}», ${wishes.length} ${wishCountNoun(wishes.length)}`} title={draggable ? "Нажмите, чтобы открыть. Перетащите, чтобы изменить порядок" : undefined} />
     <span className="wish-group-tile__preview">
-      {wishes.slice(0, 4).map((wish) => {
-        const previewImageUrl = wishPreviewImageUrl(wish);
-        return <span key={wish.id}>{previewImageUrl ? <img src={previewImageUrl} alt="" referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <Gift />}</span>;
-      })}
+      {wishes.slice(0, 4).map((wish) => (
+        <span key={wish.id}>
+          <WishlistSnippetImage {...wishCardImageSources(wish)} alt="" icon={Gift} loading="lazy" />
+        </span>
+      ))}
     </span>
     {draggable && <span className="wish-card__drag-handle wish-group-tile__drag-handle" data-wish-group-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
     <div className="wish-card__body wish-group-tile__meta">

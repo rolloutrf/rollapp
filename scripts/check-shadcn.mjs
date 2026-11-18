@@ -891,7 +891,7 @@ const wishDetailsDrawerTag = primaryWishDetailsDialog.match(/<Drawer\b[^>]*>/)?.
 assert(wishDetailsDrawerTag.includes('swipeDirection="right"') || wishDetailsDrawerTag.includes('swipeDirection={isMobile ? "down" : "right"}'), "WishDetailsModal must stay a right-side drawer");
 assert(wishDetailsDrawerTag.includes("showSwipeHandle"), "WishDetailsModal drawer must show the swipe handle");
 const wishMediaTag = primaryWishDetailsDialog.match(/<Card\b[^>]*data-slot="wish-media"[^>]*>/)?.[0] || "";
-const wishMediaImageTag = primaryWishDetailsDialog.match(/<img\b[^>]*className="[^"]*"[^>]*>/)?.[0] || "";
+const wishMediaImageTag = primaryWishDetailsDialog.match(/<WishlistSnippetImage\b[\s\S]*?\/>/)?.[0] || "";
 assert(wishMediaTag && !/aspect-\[/.test(wishMediaTag), "WishDetailsModal must not force photos into a fixed aspect ratio");
 assert(/\bw-full\b/.test(wishMediaImageTag) && /\bh-auto\b/.test(wishMediaImageTag), "WishDetailsModal photos must fill the container width and keep their intrinsic height");
 const listModalSource = appComponentSource("src/modules/wishlist/wish-editor.jsx", "ListModal", "WishModal");

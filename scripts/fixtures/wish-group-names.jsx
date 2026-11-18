@@ -12,7 +12,14 @@ function Fixture() {
     <div className="app-page wishes-page">
       <div className="wish-grid snippet-grid">{titles.map((title, index) => <WishGroupTile
         key={title} group={{ id: String(index), title }}
-        wishes={Array.from({ length: index + 1 }, (_, i) => ({ id: String(i), title: 'Желание' }))}
+        wishes={Array.from({ length: index + 1 }, (_, i) => ({
+          id: String(i), title: 'Желание',
+          ...(index === 2 && [
+            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+            { imageUrl: 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg' },
+            { imageUrl: '/__broken-wish-preview' },
+          ][i]),
+        }))}
         onOpen={() => setOpened(title)}
         onRename={readonly ? undefined : () => { throw new Error('Rename must not save during this check'); }}
       />)}</div>

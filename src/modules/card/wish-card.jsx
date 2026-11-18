@@ -47,8 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
 import { isGeneralList, listDisplayTitle } from "../categories/list-navigation.js";
-import { wishPreviewImageUrl } from "../../../shared/modules/media-import/kinopoisk.js";
-import { retailerPreviewImageUrl } from "../../../shared/modules/media-import/retailer-previews.js";
+import { wishCardImageSources } from "../wishlist/wish-preview.jsx";
 import { isVideoUrl } from "../../../shared/modules/media-import/video-links.js";
 import { formatMoney } from "./price.jsx";
 import { isYandexMapsUrl, formatEventDate } from "../wishlist/wish-form-data.jsx";
@@ -118,7 +117,7 @@ export function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onPla
   const visibleLists = categoryLists.filter((list) => listSpace(list) === cardSpace);
   const placeAddress = cardSpace === "places" ? placeSnippetAddress(wish.description) : "";
   const secretListMembership = lists.some((list) => list.privacy === "private" && wish.listIds?.includes(list.id));
-  const previewImageUrl = wishPreviewImageUrl(wish);
+  const previewImage = wishCardImageSources(wish);
   const videoPreview = isVideoUrl(wish.url);
 
   useEffect(() => {
@@ -177,8 +176,9 @@ export function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onPla
         wish.price != null ? formatMoney(wish.price, wish.currency) : "",
         wish.eventDate ? formatEventDate(wish.eventDate) : "",
       ].filter(Boolean).join(" · ")}
-      imageUrl={previewImageUrl}
-      fallbackImageUrl={retailerPreviewImageUrl(wish.url)}
+      imageUrl={previewImage.src}
+      fallbackImageUrl={previewImage.fallbackSrc}
+      imageLoading={videoPreview ? "lazy" : undefined}
       video={videoPreview}
       mediaBadge={wish.status === "fulfilled" && (
         <Badge variant="secondary"><Check data-icon="inline-start" aria-hidden="true" />Исполнено</Badge>

@@ -1,6 +1,19 @@
 import { api } from "../runtime/api.js";
 import { retailerPreviewImageUrl } from "../../../shared/modules/media-import/retailer-previews.js";
 
+import { wishPreviewImageUrl } from "../../../shared/modules/media-import/kinopoisk.js";
+import { parseYouTubeVideoId, youtubeThumbnailPath, youtubeThumbnailUrl, youtubeThumbnailVideoId } from "../../../shared/modules/media-import/video-links.js";
+
+export function wishCardImageSources(wish) {
+  const savedOrDerived = wishPreviewImageUrl(wish);
+  const videoId = savedOrDerived ? youtubeThumbnailVideoId(savedOrDerived) : parseYouTubeVideoId(wish.url);
+  if (videoId) return {
+    src: youtubeThumbnailPath(videoId),
+    fallbackSrc: savedOrDerived || youtubeThumbnailUrl(videoId),
+  };
+  return { src: savedOrDerived, fallbackSrc: retailerPreviewImageUrl(wish.url) };
+}
+
 const previewBackfillRequests = new Map();
 
 export function requestPreviewBackfill(userId) {
