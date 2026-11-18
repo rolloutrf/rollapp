@@ -148,7 +148,7 @@ export function CdekPickupPicker({ pickup, idPrefix = "cdek" }) {
         </ComboboxContent>
       </Combobox>
     </Field>
-    {citiesError && <Alert variant="destructive"><AlertDescription className="flex flex-col gap-2">{citiesError}<Button variant="outline" onClick={retryCities}>Загрузить города повторно</Button></AlertDescription></Alert>}
+    {citiesError && <Alert variant="destructive"><AlertDescription className="flex flex-col gap-2">{citiesError}<Button variant="outline" className="text-foreground" onClick={retryCities}>Загрузить города повторно</Button></AlertDescription></Alert>}
     <Field>
       <FieldLabel htmlFor={`${idPrefix}-search`}>Адрес пункта выдачи</FieldLabel>
       <InputGroup><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon><InputGroupInput id={`${idPrefix}-search`} value={query} disabled={!cityCode} maxLength={120} autoComplete="off" placeholder="Улица и номер дома" onChange={(event) => changeQuery(event.target.value)} /></InputGroup>
@@ -158,7 +158,7 @@ export function CdekPickupPicker({ pickup, idPrefix = "cdek" }) {
         : !cityCode ? <span className="text-muted-foreground">Сначала выберите город, затем уточните адрес.</span>
         : !searchError && result && <span className="text-xs text-muted-foreground">{result.total ? `Найдено пунктов: ${result.total}` : "Пункты не найдены. Попробуйте другую улицу или номер дома."}</span>}
     </div>
-    {searchError && <Alert variant="destructive"><AlertDescription className="flex flex-col gap-2">{searchError}<Button variant="outline" onClick={retrySearch}>Повторить поиск</Button></AlertDescription></Alert>}
+    {searchError && <Alert variant="destructive"><AlertDescription className="flex flex-col gap-2">{searchError}<Button variant="outline" className="text-foreground" onClick={retrySearch}>Повторить поиск</Button></AlertDescription></Alert>}
     {!loading && !searchError && result?.stale && <p className="text-xs text-muted-foreground">CDEK временно не отвечает. Показан справочник от {new Date(result.syncedAt).toLocaleDateString("ru-RU")}.</p>}
     {!loading && !searchError && result?.points.length > 0 && <RadioGroup className="min-w-0" aria-label="Пункты выдачи CDEK" value="" onValueChange={selectPoint}>
       {result.points.map((item) => <label key={item.code} className="flex min-w-0 max-w-full cursor-pointer items-start gap-3 rounded-xl border p-4 hover:bg-muted/50">

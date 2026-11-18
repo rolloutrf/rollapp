@@ -44,7 +44,7 @@ export function FinanceBalance({ wallet, loading, actions }) {
         <span>{loading ? "Загружаем баланс…" : "Баланс недоступен"}</span>
       </div>}
     </div>
-    <div className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Действия с роллами">{actions}</div>
+    <div className="flex min-w-0 flex-wrap items-center gap-2" role="group" aria-label="Действия с роллами">{actions}</div>
     {breakdown.length > 0 && <dl className="finance-balance__details grid min-w-0 gap-x-4 gap-y-3" aria-label="Роллы вне доступного баланса">
       {breakdown.map(([label, value]) => <div key={label} className="grid min-w-0 gap-1">
         <dt className="text-caption text-muted-foreground">{label}</dt>

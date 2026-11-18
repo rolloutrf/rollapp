@@ -257,7 +257,7 @@ try {
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__gift-cards?cards${missing ? "&missing-card" : ""}`);
     const open = (balance) => page.getByRole("region", { name: "Подарочные карты" })
-      .getByRole("button", { name: new RegExp(`^Открыть сертификат: .+, ${balance} роллов,`) });
+      .getByRole("button", { name: new RegExp(`^Подарочный сертификат .+ Остаток ${balance} роллов `) });
     await open(50).click();
     if (missing) {
       await page.getByText("Этот сертификат больше недоступен. Вернитесь к списку карт.", { exact: true }).waitFor();
@@ -283,7 +283,7 @@ try {
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__gift-cards?cards&wallet-error`);
     const list = page.getByRole("region", { name: "Подарочные карты" });
-    const open = (balance) => list.getByRole("button", { name: new RegExp(`^Открыть сертификат: .+, ${balance} роллов,`) });
+    const open = (balance) => list.getByRole("button", { name: new RegExp(`^Подарочный сертификат .+ Остаток ${balance} роллов `) });
     const active = (balance) => page.getByRole("article", { name: /^Сертификат:/ }).getByText(`${balance} роллов`, { exact: true });
     const topup = page.getByRole("button", { name: "Пополнить", exact: true });
     const gift = page.getByRole("button", { name: "Подарить", exact: true });
@@ -365,8 +365,7 @@ try {
       assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
       await page.goBack();
     } else await back.click();
-    await zero.waitFor();
-    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.includes(", 0 роллов,"));
+    await zero.and(page.locator(":focus")).waitFor();
     await open(25).click();
     await active(25).waitFor();
     await topup.click();

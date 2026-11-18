@@ -11,10 +11,13 @@ export function GiftCertificate({ card, onOpen }) {
     {onOpen && <ArrowUpRight aria-hidden="true" className="gift-certificate__arrow" />}
     <span className="gift-certificate__issuer text-xl">{card.business.name}</span>
     <span className="gift-certificate__balance"><span>Остаток</span><strong className="text-2xl">{balance}</strong></span>
-    <span className="gift-certificate__reference" aria-hidden="true">··· {reference}</span>
+    <span className="gift-certificate__reference">
+      <span className="sr-only">Номер заканчивается на </span>
+      <span aria-hidden="true">··· </span>{reference}
+    </span>
   </>;
   return onOpen
     ? <Button type="button" variant="ghost" className="gift-certificate" onClick={onOpen}
-      aria-label={`Открыть сертификат: ${card.business.name}, ${balance}, номер заканчивается на ${reference}`}>{face}</Button>
+      aria-description="Открыть сертификат">{face}</Button>
     : <article className="gift-certificate" aria-label={`Сертификат: ${card.business.name}, номер заканчивается на ${reference}`}>{face}</article>;
 }

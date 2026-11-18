@@ -441,8 +441,8 @@ try {
     assert.equal(page.url(), source.href);
     const gifts = button("Подарочные карты");
     const giftList = page.getByRole("region", { name: "Подарочные карты" });
-    const openCard = giftList.getByRole("button", { name: "Открыть сертификат: Магазин, 100 роллов, номер заканчивается на 67A100", exact: true });
-    const openEmptyCard = giftList.getByRole("button", { name: "Открыть сертификат: Магазин, 0 роллов, номер заканчивается на 67F000", exact: true });
+    const openCard = giftList.getByRole("button", { name: "Подарочный сертификат Магазин Остаток 100 роллов Номер заканчивается на 67A100", exact: true });
+    const openEmptyCard = giftList.getByRole("button", { name: "Подарочный сертификат Магазин Остаток 0 роллов Номер заканчивается на 67F000", exact: true });
     const detail = (suffix) => page.getByRole("article", { name: `Сертификат: Магазин, номер заканчивается на ${suffix}`, exact: true });
     await gifts.click();
     await giftList.waitFor();
@@ -473,7 +473,7 @@ try {
     await back.click();
     await card.waitFor({ state: "hidden" });
     await giftList.waitFor();
-    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.endsWith("67A100"));
+    await openCard.and(page.locator(":focus")).waitFor();
     await openEmptyCard.click();
     await detail("67F000").getByText("0 роллов", { exact: true }).waitFor();
     assert(await page.getByRole("button", { name: "Подарить", exact: true }).isDisabled());
@@ -481,7 +481,7 @@ try {
     else await back.click();
     await card.waitFor({ state: "hidden" });
     await giftList.waitFor();
-    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.endsWith("67F000"));
+    await openEmptyCard.and(page.locator(":focus")).waitFor();
     if (mobile && width === 320) await page.goBack();
     else await back.click();
     await menu.waitFor();
