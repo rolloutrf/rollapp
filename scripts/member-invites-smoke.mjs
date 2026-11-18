@@ -66,7 +66,7 @@ try {
             invite: "a".repeat(43), next: "/app/wishes",
             accountType: seller ? "business" : "personal", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "transport" : null,
           });
-          await page.getByRole("alert").waitFor();
+          await page.getByRole("alert").getByText(/Сервер временно недоступен/).waitFor();
           assert(await submit.isEnabled());
         }
         const profile = variant.includes("profile");
