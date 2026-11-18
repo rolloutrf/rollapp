@@ -4001,7 +4001,8 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 
 .app-layout--dark .app-main--with-profile > .business-marketplace-page { padding-top: 0; }
 .business-marketplace-page {
-  width: min(100%, 1120px);
+  width: 100%;
+  min-width: 0;
   margin-inline: auto;
   display: grid;
   gap: var(--layout-section-gap);

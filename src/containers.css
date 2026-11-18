@@ -12,7 +12,7 @@
     --layout-menu-width: var(--container-2xs);
     --layout-menu-wide-width: var(--container-xs);
     --layout-page-width: calc(var(--layout-wide-width) + 2 * var(--layout-page-inset));
-    --layout-wishlist-page-width: calc(var(--layout-collection-width) + 2 * var(--layout-page-inset));
+    --layout-collection-page-width: calc(var(--layout-collection-width) + 2 * var(--layout-page-inset));
     --layout-panel-inset: 1rem;
   }
 }
@@ -29,9 +29,10 @@
   .friends-directory { width: 100%; max-width: var(--layout-form-width); margin-inline: auto; }
   .contacts-sphere { width: 100%; max-width: var(--layout-wide-width); }
 
-  .app-layout--dark :is(.wishes-page, .wish-catalog-page, .wish-sales-page) {
-    max-width: var(--layout-wishlist-page-width);
+  .app-layout--dark .app-page--collection {
+    max-width: var(--layout-collection-page-width);
   }
+  .business-marketplace-page:not(.app-page) { max-width: var(--layout-collection-width); }
   /* A short last row uses the same tracks as a full row. This also applies in portals. */
   .snippet-grid {
     display: grid;

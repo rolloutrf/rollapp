@@ -84,7 +84,7 @@ function ProtectedWishlistBusiness({ listings = false }) {
   if (listings) {
     const space = wishlistSpace(location.search);
     const business = new URLSearchParams(location.search).get("business") || "";
-    return <AppShell><section className="app-page page-stack rollapp-body">
+    return <AppShell><section className="app-page app-page--collection page-stack rollapp-body">
       <header className="typeset typeset-rollapp"><h1>Объявления продавцов</h1></header>
       <WishlistBusinessListing key={`${user.id}:${space}:${business}`} space={space} business={business} viewerId={user.id} />
     </section></AppShell>;
@@ -138,7 +138,7 @@ function WishlistOffersRoute() {
   const { user } = useSession();
   const space = wishlistSpace(search);
   const label = SPACES.find((entry) => entry.id === space)?.label;
-  return <section className="app-page page-stack rollapp-body" aria-label={`Предложения: ${label}`}>
+  return <section className="app-page app-page--collection page-stack rollapp-body" aria-label={`Предложения: ${label}`}>
     <WishlistBusinessListing key={`${user.id}:${space}`} space={space} offers viewerId={user.id} />
   </section>;
 }
@@ -171,18 +171,16 @@ function SphereBusinessCatalogRoute() {
   if (sphereId === "contacts") return <Navigate to={catalogPath} replace />;
   if (user.accountType !== "personal" || !access.isOwner || access.readOnly || query.has("owner")) return <Navigate to={APP_HOME} replace />;
   const offers = query.get("view") === "offers";
-  return <div className="app-page page-stack rollapp-body">
-    <section className="page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label={offers ? "Предложения сферы" : "Каталог брендов"}>
-      {offers ? <PersonalOffers key={`${user.id}:${sphere}`} user={user} sphere={sphere} /> : (
-        <BusinessCatalogProvider sphere={sphere}>
-          <BusinessCatalogList
-            intro={<p className="text-pretty">Подпишитесь на бизнес, чтобы получать от него предложения.</p>}
-          />
-          <SphereShareAction />
-        </BusinessCatalogProvider>
-      )}
-    </section>
-  </div>;
+  return <section className="app-page app-page--collection page-stack rollapp-body" aria-label={offers ? "Предложения сферы" : "Каталог брендов"}>
+    {offers ? <PersonalOffers key={`${user.id}:${sphere}`} user={user} sphere={sphere} /> : (
+      <BusinessCatalogProvider sphere={sphere}>
+        <BusinessCatalogList
+          intro={<p className="text-pretty">Подпишитесь на бизнес, чтобы получать от него предложения.</p>}
+        />
+        <SphereShareAction />
+      </BusinessCatalogProvider>
+    )}
+  </section>;
 }
 
 function AssistantRoute() {

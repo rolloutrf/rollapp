@@ -250,7 +250,7 @@ export function LabResults() {
 
   if (requestState.loading) {
     return (
-      <Card className="not-typeset rollapp-body mx-auto w-full max-w-(--layout-text-width)">
+      <Card className="not-typeset rollapp-body mx-auto w-full max-w-(--layout-collection-width)">
         <CardContent className="flex min-h-56 flex-col items-center justify-center gap-3 text-center" aria-live="polite">
           <Spinner className="size-5" aria-label="Загружаем анализы" />
           <div className="flex flex-col gap-1">
@@ -263,7 +263,7 @@ export function LabResults() {
   }
   if (requestState.error) {
     return (
-      <Alert variant="destructive" className="not-typeset rollapp-body mx-auto max-w-(--layout-text-width)">
+      <Alert variant="destructive" className="not-typeset rollapp-body mx-auto w-full max-w-(--layout-collection-width)">
         <AlertTriangle aria-hidden="true" />
         <AlertTitle>Не удалось загрузить анализы</AlertTitle>
         <AlertDescription>{requestState.error.message}</AlertDescription>

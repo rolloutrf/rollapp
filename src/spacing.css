@@ -511,7 +511,7 @@
 
   /* Public collections and personal Wishlist share the same viewport rail. */
   .app-layout--dark .wishes-page {
-    --wishes-shell-inset: calc(var(--layout-page-inset) + max(0px, (100vw - var(--layout-wishlist-page-width) - var(--layout-shell-inset) - var(--layout-shell-inset)) / 2));
+    --wishes-shell-inset: calc(var(--layout-page-inset) + max(0px, (100vw - var(--layout-collection-page-width) - var(--layout-shell-inset) - var(--layout-shell-inset)) / 2));
     --wishes-viewport-inset: calc(var(--wishes-shell-inset) + var(--layout-shell-inset));
   }
 

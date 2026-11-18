@@ -282,7 +282,7 @@ export function WishCatalogPage() {
   }, [location.pathname, location.search, navigate]);
 
   if (source === "brands" && !selectedBrand) return (
-    <div className="app-page wish-catalog-page page-stack">
+    <div className="app-page app-page--collection wish-catalog-page page-stack">
       <BusinessCatalogList />
       <SphereShareAction />
     </div>
@@ -534,7 +534,7 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
     </div>
   );
   return (
-    <div className="app-page wish-catalog-page page-stack">
+    <div className="app-page app-page--collection wish-catalog-page page-stack">
       {brand?.label && <header className="typeset typeset-rollapp"><h2>{brand.label}</h2></header>}
       {certificates.length > 0 && <section className="flex min-w-0 flex-col gap-4" aria-labelledby="catalog-brand-certificates">
         <h2 id="catalog-brand-certificates" className="text-2xl font-semibold">Сертификаты</h2>

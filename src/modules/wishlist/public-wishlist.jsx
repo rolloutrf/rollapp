@@ -168,7 +168,7 @@ export function PublicProfile({ shared = false }) {
   }, [canonicalProfileAddress, data?.requestEndpoint, endpoint, loading, shared, params.username, location, navigate]);
 
   const renderCollectionState = ({ title, text, returnPath = APP_HOME, returnLabel = "В приложение", friendsContext = !shared }) => {
-    const page = <div className="app-page wishes-page public-collection-page" data-public-collection-state>
+    const page = <div className="app-page app-page--collection wishes-page public-collection-page" data-public-collection-state>
       <div className="app-shell-chrome-spacer" aria-hidden="true" />
       <div className="not-found rollapp-body" role="status">
         <Gift aria-hidden="true" />
@@ -371,7 +371,7 @@ export function PublicProfile({ shared = false }) {
   if (isMobile && selectedWish && !editingWish) {
     return <WishDetailsModal screen wish={selectedWish} owner={data.isOwner && !selectedWish.sharedBy} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />;
   }
-  const collectionPage = <div className={`app-page wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
+  const collectionPage = <div className={`app-page app-page--collection wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
     <div className="app-shell-chrome-spacer" aria-hidden="true" />
 
     <section className={`wishes-page__hero public-collection-page__hero ${profileVisitor ? "friend-profile-page__hero" : ""}`} data-friend-profile={profileVisitor && !shared ? "" : undefined} aria-labelledby="public-profile-name">

@@ -5,6 +5,8 @@ import path from "node:path";
 import { chromium } from "playwright-core";
 import { internalPageUrl, localizedPageUrl } from "../shared/modules/shell/page-urls.js";
 import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../shared/modules/shell/applications.js";
+import { businessMarketplacePath } from "../shared/modules/catalog-marketplace/business-marketplace.js";
+import { sphereBusinessCatalogPath } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 
 const dist = path.resolve(import.meta.dirname, "../dist");
@@ -19,6 +21,22 @@ const routes = {
 const account = { id: "sphere-smoke", name: "Проверка сфер", username: "sphere-smoke", canDiscoverSpheres: true, accountType: "personal" };
 const browser = await chromium.launch(browserLaunchOptions());
 
+async function assertCollectionWidth(page, content) {
+  await content.waitFor();
+  const sizes = await content.evaluate((element) => {
+    const page = document.querySelector(".app-main > .app-page");
+    const main = page.parentElement;
+    const inset = parseFloat(getComputedStyle(page).paddingInlineStart);
+    const mainStyle = getComputedStyle(main);
+    const available = main.clientWidth - parseFloat(mainStyle.paddingInlineStart) - parseFloat(mainStyle.paddingInlineEnd) - 2 * inset;
+    const bounds = element.getBoundingClientRect();
+    return { width: bounds.width, expected: Math.min(1024, available), center: bounds.left + bounds.width / 2, screenCenter: document.documentElement.clientWidth / 2 };
+  });
+  assert(Math.abs(sizes.width - sizes.expected) <= 1, `${page.url()} width: ${JSON.stringify(sizes)}`);
+  assert(Math.abs(sizes.center - sizes.screenCenter) <= 1, `${page.url()} center: ${JSON.stringify(sizes)}`);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), page.url());
+}
+
 try {
   const viewports = [320, 390, 768, 820, 1024, 1440, 1920].map(width => ({ width, height: 844 }));
   viewports.push({ width: 390, height: 400 });
@@ -27,6 +45,8 @@ try {
     const errors = [];
     const requests = [];
     let authenticated = true;
+    let collectionState = null;
+    let pendingLabResults;
     page.on("pageerror", error => errors.push(error.message));
     await page.route("**/*", async route => {
       const target = new URL(route.request().url());
@@ -48,6 +68,29 @@ try {
         if (pathname === "/api/planning/spaces") return route.fulfill({ json: { spaces: [] } });
         if (pathname === "/api/dashboard") return route.fulfill({ json: { wishes: [], lists: [], groups: [] } });
         if (pathname === "/api/wishes/backfill-previews") return route.fulfill({ json: { updated: 0 } });
+        if (collectionState) {
+          if (pathname.startsWith("/api/business-catalog/") || pathname === "/api/wishlist-business/media/accounts") {
+            return route.fulfill({ json: { accounts: [] } });
+          }
+          if (pathname === "/api/personal-offers") return route.fulfill({ json: { offers: [] } });
+          if (pathname === "/api/catalog" || /^\/api\/wishlist-business\/media\/(offers|sales|store)$/.test(pathname)) {
+            return route.fulfill({ json: { items: [], total: 0 } });
+          }
+          if (pathname === "/api/profile/sphere-smoke/announcements") {
+            return route.fulfill({ json: { profile: account, isOwner: true, announcements: [] } });
+          }
+          if (pathname === "/api/health/lab-results" && collectionState === "empty") {
+            await pendingLabResults;
+            return route.fulfill({ json: { reports: [] } });
+          }
+          if (/^\/api\/business-marketplace\/\w+\/store$/.test(pathname) && collectionState !== "error") {
+            const items = collectionState === "filled" ? [{
+              id: "test-item", itemType: "service", title: "Предложение магазина", priceRolls: 100,
+              business: { id: "provider", name: "Бизнес", username: "provider" },
+            }] : [];
+            return route.fulfill({ json: { items } });
+          }
+        }
         return route.fulfill({ status: 503, json: { error: "Проверка ошибки загрузки" } });
       }
       const asset = path.join(dist, pathname);
@@ -116,6 +159,42 @@ try {
       await sleepTab.waitFor();
       assert.match(await sleepTab.innerText(), /Сон/);
 
+      async function openCollection(id, path, selector = "[data-empty-state]") {
+        await page.goto(`https://${SPHERE_APPLICATIONS[id].host}${spherePageUrl(path, id)}`);
+        await assertCollectionWidth(page, page.locator(selector));
+      }
+      collectionState = "empty";
+      for (const [id, tab] of [["identity", "mission"], ["health", "lab-results"], ["career", "contacts"], ["education", "courses"]]) {
+        const catalog = sphereBusinessCatalogPath(id, tab);
+        await openCollection(id, catalog);
+        await openCollection(id, `${catalog}&view=offers`);
+        const store = businessMarketplacePath(id);
+        if (store) await openCollection(id, `${store}?tab=${tab}`);
+      }
+      for (const path of [
+        "/app/wishes/catalog?tab=media", "/app/wishes/catalog?source=brands&tab=media", "/app/store?tab=media",
+        "/app/wishes/offers?tab=media", "/app/wishes/sales?tab=media", "/app/wishes?publication=announcements&tab=media",
+        "/app/wishes/listings?tab=media",
+      ]) await openCollection("wishlist", path);
+
+      const labs = `${home}?tab=lab-results`;
+      const healthStore = `${businessMarketplacePath("health")}?tab=lab-results`;
+      const labsResponse = Promise.withResolvers();
+      pendingLabResults = labsResponse.promise;
+      try {
+        await openCollection("health", labs, ".app-page [data-slot='card']");
+      } finally {
+        labsResponse.resolve();
+        pendingLabResults = undefined;
+      }
+      await openCollection("health", labs);
+      collectionState = "filled";
+      await openCollection("health", healthStore, ".business-marketplace-grid");
+      collectionState = "error";
+      await openCollection("health", healthStore, ".app-page [role='alert']");
+      await openCollection("health", labs, ".app-page [role='alert']");
+      collectionState = null;
+
       authenticated = false;
       await page.goto(`https://${PLATFORM_HOST}${home}?tab=sleep#focus`);
       await page.waitForURL(url => url.hostname === PLATFORM_HOST && decodeURI(url.pathname) === "/вход");
@@ -123,7 +202,7 @@ try {
       await page.getByRole("link", { name: /Яндекс ID/ }).waitFor();
       assert(requests.some(([host, api]) => host === PLATFORM_HOST && api === "/api/auth/sphere-session"));
       assert.deepEqual(errors, []);
-      console.log(`PASS ${viewport.width}×${viewport.height}: short Russian links, catalog switch, five entrypoints, owner scope, Back, reload, auth handoff`);
+      console.log(`PASS ${viewport.width}×${viewport.height}: sphere routes, collection widths, owner scope, Back, reload, auth handoff`);
     } catch (error) {
       console.error(page.url(), requests, errors);
       throw error;

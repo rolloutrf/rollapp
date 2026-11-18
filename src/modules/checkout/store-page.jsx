@@ -31,7 +31,7 @@ export function StorePage({ user, selectedSpace, ordersOpen }) {
     setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
   };
   return <>
-    <div className="app-page wish-catalog-page cat-store-page page-stack">
+    <div className="app-page app-page--collection wish-catalog-page cat-store-page page-stack">
       <Drawer mobileDrawer open={ordersOpen} onOpenChange={changeOrdersOpen}>
         <OrdersDrawerContent products={STORE_CATS} userId={user.id} />
       </Drawer>

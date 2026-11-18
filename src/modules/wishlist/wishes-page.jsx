@@ -291,7 +291,7 @@ export function WishesPage({ onAdd, version }) {
   };
   globalShareRef.current = share;
   if (loading || (error && !data)) {
-    return <div className="app-page wishes-page">{profileControls}{publicationContent || (loading ? <LoadingScreen compact /> : loadError)}</div>;
+    return <div className="app-page app-page--collection wishes-page">{profileControls}{publicationContent || (loading ? <LoadingScreen compact /> : loadError)}</div>;
   }
   const editWish = (id) => { setSelectedWishId(null); setEditingWishId(id); };
   const refreshWishes = () => Promise.all([
@@ -1190,7 +1190,7 @@ export function WishesPage({ onAdd, version }) {
       ? renderGroupTile(item.group, item.wishes)
       : renderWish(item.wish)
   );
-  return <div className="app-page wishes-page">
+  return <div className="app-page app-page--collection wishes-page">
     {profileControls}{loadError}
     {!publication && data && <AddFab actions={[
       { label: "Добавить желание", onSelect: () => onAdd(selectedSpace, selectedList?.id) },

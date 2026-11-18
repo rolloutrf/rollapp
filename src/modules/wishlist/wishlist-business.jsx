@@ -292,7 +292,7 @@ export function WishSalesPage({ user }) {
  const { search } = useLocation();
  const space = wishlistSpace(search);
  const wishId = new URLSearchParams(search).get("wish");
- return <section className="app-page wish-sales-page page-stack rollapp-body" aria-label={`Мои продажи · ${labelFor(space)}`}>
+ return <section className="app-page app-page--collection page-stack rollapp-body" aria-label={`Мои продажи · ${labelFor(space)}`}>
    {canManageWishSales(user, space)
      ? <WishSalesManager key={`${user.id}:${space}:${wishId || ""}`} user={user} space={space} wishId={wishId} />
      : <Alert><AlertTitle>Продажи недоступны</AlertTitle><AlertDescription>Выберите раздел, в котором можете размещать объявления.</AlertDescription></Alert>}

@@ -142,7 +142,7 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
   if (hideEmpty && !state.loading && !state.error && !state.items.length && !pending && !selected) return null;
 
   return (
-    <div className={`${businessUsername ? "" : "app-page"} business-marketplace-page rollapp-body`}>
+    <div className={`${businessUsername ? "" : "app-page app-page--collection "}business-marketplace-page rollapp-body`}>
       {pending && !selected && <Alert><AlertDescription className="flex flex-col gap-3">Остался платёж с неизвестным результатом. Проверьте исходный заказ в журнале.<Button variant="outline" onClick={() => { recovery.resetNotice(); setSelected(pending.item); }}>Проверить оплату</Button></AlertDescription></Alert>}
       {state.loading ? <div className="business-marketplace-page__status"><Spinner /><span>Загружаем предложения…</span></div> : null}
       {state.error ? <Alert variant="destructive"><AlertTitle>Не удалось загрузить раздел</AlertTitle><AlertDescription>{state.error}</AlertDescription></Alert> : null}
