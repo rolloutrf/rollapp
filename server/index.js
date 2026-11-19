@@ -65,8 +65,8 @@ import { registerProfilePublicationRoutes } from "./modules/profile/profile-publ
 import { getEmailConfig, sendPasswordResetEmail } from "./modules/auth/email.js";
 import { sendAccountInviteEmail } from "./modules/auth/email.js";
 import {
-  confirmAccountInviteDelivery, drawAvailableNumber, formatMemberNumber, INVITE_DELIVERY_WINDOW_MS,
-  inviteTokenHash, lockMembership, membershipHasCapacity, prepareAccountInvite, readRegistrationInvite,
+  accountInviteShareToken, confirmAccountInviteDelivery, drawAvailableNumber, findActiveAccountInvite, formatMemberNumber,
+  INVITE_DELIVERY_WINDOW_MS, isAccountInviteToken, lockMembership, membershipHasCapacity, prepareAccountInvite, readRegistrationInvite,
 } from "./modules/auth/invites.js";
 import { startMemberTonAnchor } from "./member-ton-anchor.js";
 
@@ -1484,16 +1484,17 @@ const startYandexLogin = asyncRoute(async (req, res) => {
     return res.status(503).json({ error: "Вход через Яндекс ID не настроен", code: "YANDEX_AUTH_UNAVAILABLE" });
   }
   const signingUp = req.method === "POST";
-  const inviteToken = signingUp && typeof req.body?.invite === "string" && /^[A-Za-z0-9_-]{43}$/.test(req.body.invite) ? req.body.invite : "";
+  const inviteToken = signingUp && isAccountInviteToken(req.body?.invite) ? req.body.invite : "";
   const wantsLink = !signingUp && req.query.link === "1";
   let account;
+  let invite;
   if (signingUp) {
     if (!inviteToken) return res.status(403).json(inviteRequired);
     const parsedAccount = registrationAccountSchema.safeParse(req.body);
     if (!parsedAccount.success) return res.status(400).json({ error: parsedAccount.error.issues[0].message });
     account = parsedAccount.data;
-    const invite = await query("SELECT 1 FROM account_invites WHERE token_hash=$1 AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP", [inviteTokenHash(inviteToken)]);
-    if (!invite.rowCount) return res.status(403).json(invalidInvite);
+    invite = await findActiveAccountInvite(query, inviteToken);
+    if (!invite) return res.status(403).json(invalidInvite);
   }
   const nextPath = signingUp ? yandexRegistrationReturnPath(req.body.next) : safeOauthReturnPath(req.query.next);
   const wantsAdd = !signingUp && !wantsLink && addAccountRequested(req);
@@ -1518,7 +1519,7 @@ const startYandexLogin = asyncRoute(async (req, res) => {
       authorization.attempt.purpose,
       authorization.attempt.userId,
       authorization.expiresAt,
-      inviteToken ? inviteTokenHash(inviteToken) : null,
+      invite?.token_hash ?? null,
     ],
   );
   res.cookie(
@@ -1567,7 +1568,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   const nextPath = account ? yandexRegistrationReturnPath(attempt.next_path) : safeOauthReturnPath(attempt.next_path);
 
   const authErrorRedirect = (code) => {
-    if (!/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) return yandexLoginRedirect(nextPath, code, "", undefined, addingAccount);
+    if (!isAccountInviteToken(inviteToken)) return yandexLoginRedirect(nextPath, code, "", undefined, addingAccount);
     const params = new URLSearchParams({ next: nextPath, auth_error: code });
     return localizedPageUrl(`/register?${params}#invite=${inviteToken}`);
   };
@@ -1825,26 +1826,24 @@ app.post("/api/auth/password-reset/confirm", requireLegacySignIn, authRateLimit,
 
 app.post("/api/auth/invite/validate", inviteValidationRateLimit, asyncRoute(async (req, res) => {
   res.set("Cache-Control", "no-store");
-  const token = typeof req.body?.invite === "string" ? req.body.invite : "";
-  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return res.status(403).json(invalidInvite);
-  const invite = await query(
-    `SELECT recipient_email,expires_at FROM account_invites WHERE token_hash=$1
-     AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP`,
-    [inviteTokenHash(token)],
-  );
-  if (!invite.rowCount) return res.status(403).json(invalidInvite);
-  return res.json({ valid: true, email: invite.rows[0].recipient_email, expiresAt: invite.rows[0].expires_at });
+  const invite = await findActiveAccountInvite(query, req.body?.invite);
+  if (!invite) return res.status(403).json(invalidInvite);
+  return res.json({ valid: true, email: invite.recipient_email, expiresAt: invite.expires_at });
 }));
 
 app.post("/api/auth/register", authRateLimit, (_req, res) => {
   res.status(403).json({ error: "Регистрация доступна только через Яндекс ID по приглашению", code: "YANDEX_REGISTRATION_REQUIRED" });
 });
 
+function buildAccountInviteUrl(origin, token) {
+  return new URL(localizedPageUrl(`/register#${new URLSearchParams({ invite: token })}`), origin).href;
+}
+
 app.get("/api/me/invites", requireAuth, asyncRoute(async (req, res) => {
   if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
   const result = await query(
     `SELECT id,recipient_email,created_at,expires_at,CASE
-       WHEN consumed_at IS NOT NULL THEN 'accepted'
+       WHEN consumed_by IS NOT NULL OR consumed_at IS NOT NULL THEN 'accepted'
        WHEN expires_at<=CURRENT_TIMESTAMP THEN 'expired'
        WHEN delivery_status='pending' AND created_at<=CURRENT_TIMESTAMP - $2::int * INTERVAL '1 millisecond' THEN 'failed'
        ELSE delivery_status END AS status,
@@ -1853,10 +1852,15 @@ app.get("/api/me/invites", requireAuth, asyncRoute(async (req, res) => {
      FROM account_invites invite WHERE created_by=$1 ORDER BY created_at DESC LIMIT 100`,
     [req.user.id, INVITE_DELIVERY_WINDOW_MS],
   );
-  res.set("Cache-Control", "no-store").json({ invites: result.rows.map(row => ({
-    id: row.id, email: row.recipient_email, createdAt: row.created_at,
-    expiresAt: row.expires_at, status: row.status, canResend: row.can_resend,
-  })) });
+  const origin = getPasswordResetOrigin();
+  res.set("Cache-Control", "private, no-store").json({ invites: result.rows.map(row => {
+    const shareToken = origin && row.status === "sent" ? accountInviteShareToken(row.id) : null;
+    return {
+      id: row.id, email: row.recipient_email, createdAt: row.created_at,
+      expiresAt: row.expires_at, status: row.status, canResend: row.can_resend,
+      ...(shareToken && { copyUrl: buildAccountInviteUrl(origin, shareToken) }),
+    };
+  }) });
 }));
 
 async function deliverAccountInvite(res, { creatorId, email, previousId }) {
@@ -1865,9 +1869,9 @@ async function deliverAccountInvite(res, { creatorId, email, previousId }) {
   const created = await transaction(client => prepareAccountInvite(client, { creatorId, email, previousId, isMemoryDatabase }));
   if (created.error) return res.status(created.status).json({ error: created.error });
   const { invite, previousCreatedAt } = created;
-  const inviteUrl = new URL(localizedPageUrl(`/register#${new URLSearchParams({ invite: invite.token })}`), origin);
+  const inviteUrl = buildAccountInviteUrl(origin, invite.token);
   try {
-    await sendAccountInviteEmail({ to: invite.email, inviteUrl: inviteUrl.toString(), requestId: invite.id });
+    await sendAccountInviteEmail({ to: invite.email, inviteUrl, requestId: invite.id });
   } catch (error) {
     await query("UPDATE account_invites SET delivery_status='failed' WHERE id=$1 AND delivery_status='pending'", [invite.id]);
     console.error(`[account-invite] Delivery failed: ${error.message}`);

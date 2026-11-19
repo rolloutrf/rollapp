@@ -15,6 +15,7 @@ export function InvitesManager() {
   const [sending, setSending] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [copyResult, setCopyResult] = useState(null);
   const submitting = useRef(false);
   const initialRead = useRef(null);
   const busy = sending !== null;
@@ -34,6 +35,7 @@ export function InvitesManager() {
     setSending({ inviteId: invite?.id });
     setError("");
     setNotice("");
+    setCopyResult(null);
     try {
       if (invite) {
         await api.post(`/me/invites/${encodeURIComponent(invite.id)}/resend`);
@@ -47,6 +49,18 @@ export function InvitesManager() {
       setInvites((await api.get("/me/invites")).invites);
     } catch (cause) { setError(current => current || cause.message); }
     finally { submitting.current = false; setSending(null); }
+  };
+  const copyLink = async invite => {
+    if (Date.parse(invite.expiresAt) <= Date.now()) {
+      setCopyResult({ id: invite.id, message: "Срок действия ссылки истёк." });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(invite.copyUrl);
+      setCopyResult({ id: invite.id, message: "Ссылка скопирована." });
+    } catch {
+      setCopyResult({ id: invite.id, message: "Скопируйте ссылку из поля ниже.", showLink: true });
+    }
   };
   const send = event => {
     event.preventDefault();
@@ -64,19 +78,34 @@ export function InvitesManager() {
         </Field>
         {error && <p role="alert" className="text-destructive">{error}</p>}
         {notice && <p role="status">{notice}</p>}
-        {invites.length > 0 && <ul className="grid gap-2" aria-label="Приглашения">{invites.map(invite =>
-          <li key={invite.id} className="flex flex-wrap items-center justify-between gap-2">
-            <div className="grid min-w-0 gap-1">
-              <span className="break-all">{invite.email}</span>
-              <span>{statusLabel[invite.status] || invite.status} · до {new Date(invite.expiresAt).toLocaleDateString("ru-RU")}</span>
+        {invites.length > 0 && <ul className="grid gap-2" aria-label="Приглашения">{invites.map(invite => {
+          const canCopy = invite.status === "sent" && Boolean(invite.copyUrl);
+          const canResend = invite.canResend !== false && latestInviteByEmail.get(invite.email) === invite.id
+            && ["sent", "failed", "expired"].includes(invite.status);
+          const feedback = copyResult?.id === invite.id ? copyResult : null;
+          return <li key={invite.id} className="grid min-w-0 gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="grid min-w-0 gap-1">
+                <span className="break-all">{invite.email}</span>
+                <span>{statusLabel[invite.status] || invite.status} · до {new Date(invite.expiresAt).toLocaleDateString("ru-RU")}</span>
+              </div>
+              {(canCopy || canResend) && <div className="flex min-w-0 flex-wrap gap-2">
+                {canCopy && <PageActionButton type="button" variant="outline" disabled={busy}
+                  aria-label={`Скопировать ссылку — ${invite.email}`} onClick={() => void copyLink(invite)}>
+                  Скопировать ссылку
+                </PageActionButton>}
+                {canResend && <PageActionButton type="button" variant="outline" disabled={busy} aria-busy={sending?.inviteId === invite.id || undefined}
+                  aria-label={`Отправить снова — ${invite.email}`} onClick={() => void deliver(invite)}>
+                  {sending?.inviteId === invite.id ? "Отправляем…" : "Отправить снова"}
+                </PageActionButton>}
+              </div>}
             </div>
-            {invite.canResend !== false && latestInviteByEmail.get(invite.email) === invite.id && ["sent", "failed", "expired"].includes(invite.status) && (
-              <PageActionButton type="button" variant="outline" disabled={busy} aria-busy={sending?.inviteId === invite.id || undefined}
-                aria-label={`Отправить снова — ${invite.email}`} onClick={() => void deliver(invite)}>
-                {sending?.inviteId === invite.id ? "Отправляем…" : "Отправить снова"}
-              </PageActionButton>
-            )}
-          </li>)}</ul>}
+            {feedback && <p role="status">{feedback.message}</p>}
+            {feedback?.showLink && canCopy && <Input value={invite.copyUrl} readOnly
+              aria-label={`Ссылка на приглашение — ${invite.email}`} onFocus={event => event.currentTarget.select()}
+              onKeyDown={event => { if (event.key === "Enter") event.preventDefault(); }} />}
+          </li>;
+        })}</ul>}
       </div>
     </ScrollArea>
     <DrawerFooter>

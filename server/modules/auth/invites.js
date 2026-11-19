@@ -1,4 +1,5 @@
-import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
+import { userCredentialsConfigured } from "./user-credentials.js";
 
 export const MEMBER_LIMIT = 30_000;
 export const INVITE_LIFETIME_MS = 10 * 24 * 60 * 60 * 1000;
@@ -38,6 +39,41 @@ export const inviteSchema = `
 
 export function inviteTokenHash(token) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+const emailTokenPattern = /^[A-Za-z0-9_-]{43}$/;
+const shareTokenPattern = /^v1\.([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\.[A-Za-z0-9_-]{43}$/;
+
+export function isAccountInviteToken(token) {
+  return typeof token === "string" && (emailTokenPattern.test(token) || shareTokenPattern.test(token));
+}
+
+export function accountInviteShareToken(id, env = process.env) {
+  if (!userCredentialsConfigured(env)) return null;
+  const signature = createHmac("sha256", env.USER_CREDENTIALS_SECRET)
+    .update(`rollapp:account-invite-share:v1\0${id}`)
+    .digest("base64url");
+  return `v1.${id}.${signature}`;
+}
+
+export async function findActiveAccountInvite(query, token, env = process.env) {
+  if (!isAccountInviteToken(token)) return null;
+  const shareMatch = shareTokenPattern.exec(token);
+  let column = "token_hash";
+  let value = inviteTokenHash(token);
+  if (shareMatch) {
+    const id = shareMatch[1];
+    const expected = accountInviteShareToken(id, env);
+    if (!expected || !timingSafeEqual(Buffer.from(token), Buffer.from(expected))) return null;
+    column = "id";
+    value = id;
+  }
+  const result = await query(
+    `SELECT token_hash,recipient_email,expires_at FROM account_invites WHERE ${column}=$1
+     AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP`,
+    [value],
+  );
+  return result.rows[0] ?? null;
 }
 
 export function createInvite({ email, creatorId, now = new Date() }) {
