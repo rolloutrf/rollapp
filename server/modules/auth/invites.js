@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 
 export const MEMBER_LIMIT = 30_000;
 export const INVITE_LIFETIME_MS = 10 * 24 * 60 * 60 * 1000;
+export const INVITE_DELIVERY_WINDOW_MS = 2 * 60 * 1000;
 
 export const inviteSchema = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS member_number INTEGER;
@@ -46,6 +47,85 @@ export function createInvite({ email, creatorId, now = new Date() }) {
     email: email.trim().toLowerCase(), creatorId,
     createdAt: now, expiresAt: new Date(now.getTime() + INVITE_LIFETIME_MS),
   };
+}
+
+export async function readRegistrationInvite(client, tokenHash) {
+  const result = await client.query(
+    `SELECT id FROM account_invites WHERE token_hash=$1
+     AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP FOR UPDATE`,
+    [tokenHash],
+  );
+  const invite = result.rows[0];
+  if (!invite) return { kind: "invite-invalid" };
+  return { kind: "success", id: invite.id };
+}
+
+export async function prepareAccountInvite(client, { creatorId, email, previousId, isMemoryDatabase }) {
+  await lockMembership(client, isMemoryDatabase);
+  let previous;
+  if (previousId) {
+    const result = await client.query(
+      `SELECT source.recipient_email,source.created_at,
+         (source.consumed_by IS NOT NULL OR EXISTS (
+           SELECT 1 FROM account_invites accepted WHERE accepted.created_by=source.created_by
+           AND accepted.recipient_email=source.recipient_email AND accepted.consumed_at>=source.created_at
+         )) AS accepted
+       FROM account_invites source WHERE source.id=$1 AND source.created_by=$2`,
+      [previousId, creatorId],
+    );
+    previous = result.rows[0];
+    if (!previous) return { status: 404, error: "Приглашение не найдено" };
+    if (previous.accepted) return { status: 409, error: "Приглашение уже принято" };
+  }
+
+  const recipient = previous?.recipient_email ?? email;
+  const count = await client.query("SELECT COUNT(*) AS count FROM users");
+  if (!membershipHasCapacity(count.rows[0].count)) return { status: 409, error: "Лимит 30 000 аккаунтов достигнут" };
+  const active = await client.query(
+    `SELECT delivery_status FROM account_invites WHERE created_by=$1 AND recipient_email=$2
+     AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP AND (
+       (delivery_status='pending' AND created_at>CURRENT_TIMESTAMP - $4::int * INTERVAL '1 millisecond') OR
+       (delivery_status='sent' AND ($3::timestamptz IS NULL OR created_at>$3))
+     ) ORDER BY (delivery_status='pending') DESC LIMIT 1`,
+    [creatorId, recipient, previous?.created_at ?? null, INVITE_DELIVERY_WINDOW_MS],
+  );
+  if (active.rows[0]?.delivery_status === "pending") return { status: 409, error: "Приглашение уже отправляется" };
+  if (active.rowCount) {
+    return { status: 409, error: previous ? "Более новое приглашение уже отправлено" : "Для этого email уже есть активный инвайт" };
+  }
+
+  const invite = createInvite({ email: recipient, creatorId });
+  await client.query(
+    `INSERT INTO account_invites (id,token_hash,recipient_email,created_by,created_at,expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [invite.id, invite.tokenHash, invite.email, invite.creatorId, invite.createdAt, invite.expiresAt],
+  );
+  return { invite, previousCreatedAt: previous?.created_at ?? null };
+}
+
+export async function confirmAccountInviteDelivery(client, invite, isMemoryDatabase, previousCreatedAt = null) {
+  await lockMembership(client, isMemoryDatabase);
+  // The original link can be accepted while the replacement email is in flight.
+  const result = await client.query(
+    `UPDATE account_invites AS invite SET delivery_status='sent', expires_at=CASE
+       WHEN EXISTS (
+         SELECT 1 FROM account_invites accepted WHERE accepted.created_by=invite.created_by
+         AND accepted.recipient_email=invite.recipient_email AND accepted.consumed_at>=$3::timestamptz
+       ) THEN LEAST(expires_at,CURRENT_TIMESTAMP)
+       ELSE expires_at END
+     WHERE id=$1 AND delivery_status='pending' AND created_at>CURRENT_TIMESTAMP - $2::int * INTERVAL '1 millisecond'
+     RETURNING expires_at>CURRENT_TIMESTAMP AS active`,
+    [invite.id, INVITE_DELIVERY_WINDOW_MS, previousCreatedAt],
+  );
+  if (!result.rowCount) return { status: 409, error: "Срок ожидания отправки истёк. Повторите попытку." };
+  if (!result.rows[0].active) return { status: 409, error: "Приглашение уже принято" };
+
+  await client.query(
+    `UPDATE account_invites SET expires_at=CURRENT_TIMESTAMP WHERE created_by=$1 AND recipient_email=$2
+     AND id<>$3 AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP`,
+    [invite.creatorId, invite.email, invite.id],
+  );
+  return { ok: true };
 }
 
 export function formatMemberNumber(number) {

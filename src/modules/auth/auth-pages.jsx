@@ -426,7 +426,8 @@ export function RegistrationForm({ invite, email }) {
   const params = new URLSearchParams(search);
   const nextPath = safeNextPath(params.get("next"));
   const authErrorCode = params.get("auth_error");
-  const yandexError = yandexAuthErrorDetails(authErrorCode, { registering: true });
+  // A fresh invitation check takes precedence over an error left by an earlier callback.
+  const yandexError = yandexAuthErrorDetails(authErrorCode === "INVITE_INVALID" ? "" : authErrorCode, { registering: true });
 
   const submit = async (event) => {
     event.preventDefault();
@@ -450,7 +451,7 @@ export function RegistrationForm({ invite, email }) {
           <div>
             <span className="eyebrow">Новый аккаунт</span>
             <h1>Создать свой Rollapp</h1>
-            <p>Для регистрации выберите Яндекс ID с адресом <strong className="wrap-anywhere">{email}</strong>.</p>
+            <p>Приглашение отправлено на <strong className="wrap-anywhere">{email}</strong>. Выберите Яндекс ID, с которым будете входить в Rollapp.</p>
           </div>
           <FieldGroup className="gap-4">
             <RegistrationAccountFields id={id} value={account} onChange={setAccount} disabled={loading} />

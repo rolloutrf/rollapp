@@ -193,6 +193,33 @@ try {
     await sendInvite.click();
     await page.getByText("bob@example.com", { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.inviteRequests), 3);
+    const resend = button("Отправить снова — previous-0@example.com");
+    assert.equal(await button("Отправить снова — previous-1@example.com").count(), 0);
+    assert.equal(await button("Отправить снова — previous-2@example.com").count(), 0);
+    assert.equal(await button("Отправить снова — previous-3@example.com").count(), 0);
+    await inviteEmail.fill("draft@example.com");
+    await resend.scrollIntoViewIfNeeded();
+    assert.deepEqual(await resend.evaluate(node => {
+      const style = getComputedStyle(node);
+      return [node.offsetHeight, style.paddingInlineStart, style.paddingInlineEnd];
+    }), [48, "24px", "24px"]);
+    await resend.press("Enter");
+    await page.waitForFunction(() => Boolean(window.finishInviteResend));
+    assert(await resend.isDisabled());
+    assert(await sendInvite.isDisabled());
+    assert.equal(await resend.getAttribute("aria-busy"), "true");
+    await page.evaluate(() => window.finishInviteResend());
+    await page.getByRole("alert").filter({ hasText: "Не удалось отправить приглашение" }).waitFor();
+    await resend.locator("xpath=ancestor::li").getByText(/Ошибка отправки/).waitFor();
+    await resend.click();
+    await page.getByRole("status").filter({ hasText: "Новое приглашение отправлено" }).waitFor();
+    await resend.locator("xpath=ancestor::li").getByText(/Отправлен/).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.inviteResendIds), ["old-0", "resend-failed"]);
+    assert.equal(await page.evaluate(() => window.inviteRequests), 3);
+    assert.equal(await inviteEmail.inputValue(), "draft@example.com");
+    assert.deepEqual(await inviteAction(), initialInviteAction);
+    await resend.scrollIntoViewIfNeeded();
+    if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-profile-resend-${width}x${height}.png` });
     if (height < 500) {
       const lastInvite = page.getByRole("list", { name: "Приглашения", exact: true }).getByRole("listitem").last();
       const scroll = (top) => lastInvite.evaluate((node, top) => {

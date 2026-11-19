@@ -24,7 +24,8 @@ if (mode === "gifts-recovery") {
 }
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
 let invites = Array.from({ length: 20 }, (_, index) => ({
-  id: `old-${index}`, email: `previous-${index}@example.com`, status: "sent", expiresAt: "2026-11-17T00:00:00.000Z",
+  id: `old-${index}`, email: `previous-${index}@example.com`, status: ["sent", "accepted", "pending"][index] ?? "expired",
+  expiresAt: "2026-11-29T00:00:00.000Z", canResend: index !== 3,
 }));
 let mcpKeys = [];
 let diskSync = { connected: true, hasNotes: true, enabled: false, pending: false, running: false, lastCompletedAt: null, error: null };
@@ -120,6 +121,18 @@ api.post = async (path, data) => {
     if (window.inviteRequests === 1) throw new Error("Отправка временно недоступна");
     invites = [{ id: String(window.inviteRequests), email: data.email, status: "sent", expiresAt: "2026-11-17T00:00:00.000Z" }, ...invites];
     return { id: String(window.inviteRequests), email: data.email, expiresAt: invites[0].expiresAt };
+  }
+  const resendId = path.match(/^\/me\/invites\/([^/]+)\/resend$/)?.[1];
+  if (resendId) {
+    const previous = invites.find(invite => invite.id === resendId);
+    if (!previous || data !== undefined) throw new Error("Unexpected invitation resend");
+    window.inviteResendIds = [...(window.inviteResendIds ?? []), resendId];
+    const failed = window.inviteResendIds.length === 1;
+    if (failed) await new Promise(resolve => { window.finishInviteResend = resolve; });
+    const invite = { ...previous, id: failed ? "resend-failed" : "resend-sent", status: failed ? "failed" : "sent" };
+    invites = [invite, ...invites.map(row => !failed && row.email === previous.email && row.status === "sent" ? { ...row, status: "expired" } : row)];
+    if (failed) throw new Error("Не удалось отправить приглашение");
+    return invite;
   }
   if (mode === "openrouter" && path === "/me/openrouter" && openRouter.keyHint === "…fixture"
       && data.apiKey === "sk-or-v1-fixture_test_key" && data.model === "fixture-model") {

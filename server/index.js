@@ -63,7 +63,10 @@ import { registerCalendarDeviceRoutes } from "./modules/calendar/calendar-device
 import { registerProfilePublicationRoutes } from "./modules/profile/profile-publications.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./modules/auth/email.js";
 import { sendAccountInviteEmail } from "./modules/auth/email.js";
-import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, lockMembership, membershipHasCapacity } from "./modules/auth/invites.js";
+import {
+  confirmAccountInviteDelivery, drawAvailableNumber, formatMemberNumber, INVITE_DELIVERY_WINDOW_MS,
+  inviteTokenHash, lockMembership, membershipHasCapacity, prepareAccountInvite, readRegistrationInvite,
+} from "./modules/auth/invites.js";
 import { startMemberTonAnchor } from "./member-ton-anchor.js";
 
 import { externalCatalogItemFromRow } from "./modules/catalog-marketplace/external-catalog.js";
@@ -1121,6 +1124,13 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
 
   const result = await withMutationLock(`yandex-auth:${yandexUser.id}`, () => transaction(async (client) => {
     await lockYandexMutation(client, yandexUser, attempt);
+    let invite;
+    if (attempt.purpose === "invite") {
+      if (!account || !attempt.invite_token_hash) return { kind: "invite-required" };
+      await lockMembership(client, isMemoryDatabase);
+      invite = await readRegistrationInvite(client, attempt.invite_token_hash);
+      if (invite.kind !== "success") return invite;
+    }
     const knownIdentity = await client.query(
       "SELECT user_id FROM yandex_identities WHERE yandex_user_id=$1",
       [yandexUser.id],
@@ -1149,14 +1159,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
     if (existingEmail.rowCount) return { kind: "link-required" };
     if (attempt.purpose === "add") return { kind: "account-not-found" };
 
-    await lockMembership(client, isMemoryDatabase);
-    if (!account || !attempt.invite_token_hash) return { kind: "invite-required" };
-    const invite = await client.query(
-      `SELECT id FROM account_invites WHERE token_hash=$1 AND recipient_email=$2
-       AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP FOR UPDATE`,
-      [attempt.invite_token_hash, yandexUser.email],
-    );
-    if (!invite.rowCount) return { kind: "invite-invalid" };
+    if (!invite) return { kind: "invite-required" };
     const count = await client.query("SELECT COUNT(*) AS count FROM users");
     if (!membershipHasCapacity(count.rows[0].count)) return { kind: "limit-reached" };
 
@@ -1165,7 +1168,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
     const unusablePasswordHash = `oauth-only:${randomBytes(32).toString("base64url")}`;
     const created = await insertYandexUser(client, yandexUser, userId, unusablePasswordHash, account);
     if (created.kind === "link-required") return created;
-    await client.query("UPDATE account_invites SET consumed_by=$1,consumed_at=CURRENT_TIMESTAMP WHERE id=$2", [userId, invite.rows[0].id]);
+    await client.query("UPDATE account_invites SET consumed_by=$1,consumed_at=clock_timestamp() WHERE id=$2", [userId, invite.id]);
     await client.query(
       `INSERT INTO wishlists (id,user_id,title,description,privacy,color,share_token)
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
@@ -1582,7 +1585,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
       return res.redirect(303, yandexLoginRedirect(nextPath, "INVITE_REQUIRED"));
     }
     if (result.kind === "invite-invalid") {
-      return res.redirect(303, authErrorRedirect("INVITE_INVALID"));
+      return loginError("INVITE_INVALID");
     }
     if (result.kind === "link-required") {
       return loginError(addingAccount ? "YANDEX_ADD_USE_CREDENTIALS" : "YANDEX_LINK_REQUIRED");
@@ -1834,52 +1837,53 @@ app.post("/api/auth/register", authRateLimit, (_req, res) => {
 app.get("/api/me/invites", requireAuth, asyncRoute(async (req, res) => {
   if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
   const result = await query(
-    `SELECT id,recipient_email,created_at,expires_at,delivery_status,consumed_at
-     FROM account_invites WHERE created_by=$1 ORDER BY created_at DESC LIMIT 100`,
-    [req.user.id],
+    `SELECT id,recipient_email,created_at,expires_at,CASE
+       WHEN consumed_at IS NOT NULL THEN 'accepted'
+       WHEN expires_at<=CURRENT_TIMESTAMP THEN 'expired'
+       WHEN delivery_status='pending' AND created_at<=CURRENT_TIMESTAMP - $2::int * INTERVAL '1 millisecond' THEN 'failed'
+       ELSE delivery_status END AS status,
+       NOT EXISTS (SELECT 1 FROM account_invites accepted WHERE accepted.created_by=invite.created_by
+         AND accepted.recipient_email=invite.recipient_email AND accepted.consumed_at>=invite.created_at) AS can_resend
+     FROM account_invites invite WHERE created_by=$1 ORDER BY created_at DESC LIMIT 100`,
+    [req.user.id, INVITE_DELIVERY_WINDOW_MS],
   );
   res.set("Cache-Control", "no-store").json({ invites: result.rows.map(row => ({
     id: row.id, email: row.recipient_email, createdAt: row.created_at,
-    expiresAt: row.expires_at, status: row.consumed_at ? "accepted" : new Date(row.expires_at).getTime() <= Date.now() ? "expired" : row.delivery_status,
+    expiresAt: row.expires_at, status: row.status, canResend: row.can_resend,
   })) });
 }));
 
-app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req, res) => {
-  if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
-  const parsed = z.object({ email: z.string().trim().email().max(160).transform(value => value.toLowerCase()) }).strict().safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Укажите корректный email" });
+async function deliverAccountInvite(res, { creatorId, email, previousId }) {
   const origin = getPasswordResetOrigin();
   if (!origin || !getEmailConfig().enabled) return res.status(503).json({ error: "Отправка почты не настроена" });
-  const invite = createInvite({ email: parsed.data.email, creatorId: req.user.id });
-  const created = await transaction(async client => {
-    await lockMembership(client, isMemoryDatabase);
-    const count = await client.query("SELECT COUNT(*) AS count FROM users");
-    if (!membershipHasCapacity(count.rows[0].count)) return { error: "Лимит 30 000 аккаунтов достигнут", status: 409 };
-    if ((await client.query("SELECT 1 FROM users WHERE email=$1", [invite.email])).rowCount) return { error: "Аккаунт с таким email уже есть", status: 409 };
-    const recent = await client.query(
-      `SELECT 1 FROM account_invites WHERE created_by=$1 AND recipient_email=$2
-       AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP AND delivery_status IN ('pending','sent') LIMIT 1`,
-      [req.user.id, invite.email],
-    );
-    if (recent.rowCount) return { error: "Для этого email уже есть активный инвайт", status: 409 };
-    await client.query(
-      `INSERT INTO account_invites (id,token_hash,recipient_email,created_by,created_at,expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [invite.id, invite.tokenHash, invite.email, invite.creatorId, invite.createdAt, invite.expiresAt],
-    );
-    return { ok: true };
-  });
+  const created = await transaction(client => prepareAccountInvite(client, { creatorId, email, previousId, isMemoryDatabase }));
   if (created.error) return res.status(created.status).json({ error: created.error });
+  const { invite, previousCreatedAt } = created;
   const inviteUrl = new URL(localizedPageUrl(`/register#${new URLSearchParams({ invite: invite.token })}`), origin);
   try {
     await sendAccountInviteEmail({ to: invite.email, inviteUrl: inviteUrl.toString(), requestId: invite.id });
-    await query("UPDATE account_invites SET delivery_status='sent' WHERE id=$1 AND delivery_status='pending'", [invite.id]);
   } catch (error) {
     await query("UPDATE account_invites SET delivery_status='failed' WHERE id=$1 AND delivery_status='pending'", [invite.id]);
     console.error(`[account-invite] Delivery failed: ${error.message}`);
     return res.status(502).json({ error: "Не удалось отправить приглашение" });
   }
+  const confirmed = await transaction(client => confirmAccountInviteDelivery(client, invite, isMemoryDatabase, previousCreatedAt));
+  if (confirmed.error) return res.status(confirmed.status).json({ error: confirmed.error });
   res.status(201).json({ id: invite.id, email: invite.email, expiresAt: invite.expiresAt });
+}
+
+app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req, res) => {
+  if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
+  const parsed = z.object({ email: z.string().trim().email().max(160).transform(value => value.toLowerCase()) }).strict().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Укажите корректный email" });
+  return deliverAccountInvite(res, { creatorId: req.user.id, email: parsed.data.email });
+}));
+
+app.post("/api/me/invites/:id/resend", requireAuth, inviteRateLimit, asyncRoute(async (req, res) => {
+  if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
+  const parsed = z.string().uuid().safeParse(req.params.id);
+  if (!parsed.success) return res.status(404).json({ error: "Приглашение не найдено" });
+  return deliverAccountInvite(res, { creatorId: req.user.id, previousId: parsed.data });
 }));
 
 app.post("/api/me/member-number/draw", requireAuth, authRateLimit, asyncRoute(async (req, res) => {

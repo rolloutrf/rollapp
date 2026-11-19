@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, INVITE_LIFETIME_MS, MEMBER_LIMIT, membershipHasCapacity } from "./invites.js";
+import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, INVITE_LIFETIME_MS, MEMBER_LIMIT, membershipHasCapacity, readRegistrationInvite } from "./invites.js";
 
-test("invites are opaque, bound to a normalized email, and expire after ten days", () => {
+test("invites use opaque tokens, normalize the delivery address, and expire after ten days", () => {
   const now = new Date("2026-11-06T00:00:00.000Z");
   const first = createInvite({ email: " Person@Example.com ", creatorId: "owner", now });
   const second = createInvite({ email: "Person@Example.com", creatorId: "owner", now });
@@ -12,6 +12,21 @@ test("invites are opaque, bound to a normalized email, and expire after ten days
   assert.equal(first.tokenHash, inviteTokenHash(first.token));
   assert.notEqual(first.token, second.token);
   assert.notEqual(first.tokenHash, first.token);
+});
+
+test("registration checks the invitation token independently of the delivery address", async () => {
+  const invite = createInvite({ email: "invited@example.com", creatorId: "owner" });
+  const clientWithRows = (rows) => ({
+    async query(sql, params) {
+      assert.match(sql, /SELECT id FROM account_invites/);
+      assert.match(sql, /token_hash=\$1/);
+      assert.match(sql, /delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP FOR UPDATE/);
+      assert.deepEqual(params, [invite.tokenHash]);
+      return { rows };
+    },
+  });
+  assert.deepEqual(await readRegistrationInvite(clientWithRows([]), invite.tokenHash), { kind: "invite-invalid" });
+  assert.deepEqual(await readRegistrationInvite(clientWithRows([{ id: invite.id }]), invite.tokenHash), { kind: "success", id: invite.id });
 });
 
 test("member draw skips occupied numbers and formats the full range", () => {

@@ -50,7 +50,7 @@ const yandexAuthErrors = {
   },
   YANDEX_INVITE_REQUIRED: {
     title: "Для нового аккаунта нужно приглашение",
-    description: "Откройте действительную ссылку из письма и используйте в Yandex ID тот же email.",
+    description: "Откройте ссылку из письма и выберите Яндекс ID для входа в Rollapp.",
     variant: "default",
   },
   YANDEX_LIMIT_REACHED: {
@@ -104,7 +104,7 @@ export function yandexAuthErrorDetails(code, { legacySignInEnabled = false, regi
   if (!code) return null;
   const details = Object.hasOwn(yandexAuthErrors, code) ? yandexAuthErrors[code] : yandexAuthErrors.YANDEX_PROVIDER_ERROR;
   if (registering && code === "YANDEX_EMAIL_REQUIRED") {
-    return { ...details, description: "Снова нажмите «Создать с Яндекс ID». Выберите аккаунт, у которого адрес приглашения указан как основной, и подтвердите доступ к почте." };
+    return { ...details, description: "Снова нажмите «Создать с Яндекс ID» и разрешите передать адрес почты выбранного аккаунта." };
   }
   if (legacySignInEnabled && code === "YANDEX_LINK_REQUIRED") {
     return { ...details, description: "Войдите по email или номеру телефона, чтобы подключить Яндекс ID." };

@@ -23,15 +23,16 @@ await mkdir("/tmp/rollapp-member-invites", { recursive: true });
 try {
   for (const width of [320, 390, 768, 820, 1024, 1440, 1920]) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const variant of ["", "&assigned=1", "&invites=1", `&auth=1&invite=${"a".repeat(43)}`, "&profile=1", "&profile=1&assigned=1"]) {
+      const authVariant = `&auth=1&invite=${"a".repeat(43)}`;
+      const legacyError = width === 390 && height === 844 ? [`${authVariant}&auth_error=INVITE_INVALID`] : [];
+      for (const variant of ["", "&assigned=1", "&invites=1", authVariant,
+        `${authVariant}&auth_error=YANDEX_EMAIL_REQUIRED`, ...legacyError, "&profile=1", "&profile=1&assigned=1"]) {
         const page = await browser.newPage({ viewport: { width, height } });
         const errors = [];
         page.on("pageerror", error => errors.push(error.message));
         // Presentation checks run with all API traffic blocked.
         await page.route("**/api/**", route => route.abort());
-        const retryInvite = variant.includes("auth") && width === 390 && height === 400;
-        const errorQuery = retryInvite ? "&auth_error=YANDEX_EMAIL_REQUIRED" : "";
-        await page.goto(`${origin}/member-fixture?screen=1${variant}${errorQuery}`, { waitUntil: "domcontentloaded" });
+        await page.goto(`${origin}/member-fixture?screen=1${variant}`, { waitUntil: "domcontentloaded" });
         await page.locator(variant.includes("profile") ? ".profile-settings-dialog" : variant.includes("invites") ? "#account-invite-email" : variant.includes("auth") ? ".auth-form" : ".member-flip-board").waitFor();
         if (variant.includes("auth")) {
           const submit = page.getByRole("button", { name: "Создать с Яндекс ID" });
@@ -39,11 +40,16 @@ try {
           assert.equal(await page.locator("form button[type=submit]").count(), 1);
           assert.equal(await page.locator("form input[type=password], form input[type=email], .or, .member-flip-board").count(), 0);
           assert(await page.getByText("invited@example.com").isVisible());
-          if (retryInvite) {
+          assert(await page.getByText(/Выберите Яндекс ID, с которым будете входить/).isVisible());
+          const missingEmail = variant.includes("YANDEX_EMAIL_REQUIRED");
+          if (missingEmail) {
             assert(await page.getByText("Яндекс не передал email", { exact: true }).isVisible());
-            assert(await page.getByText(/адрес приглашения указан как основной/).isVisible());
+            assert(await page.getByText(/разрешите передать адрес почты выбранного аккаунта/).isVisible());
           }
-          const seller = width === 390 && height === 844;
+          if (legacyError.includes(variant)) {
+            assert.equal(await page.getByText("Приглашение недействительно", { exact: true }).count(), 0);
+          }
+          const seller = variant === authVariant && width === 390 && height === 844;
           if (seller) {
             await page.getByRole("radio", { name: /^Бизнес/ }).check();
             await page.getByRole("combobox", { name: "Категория бизнеса" }).click();
@@ -52,9 +58,9 @@ try {
             await page.getByRole("option", { name: "Транспорт", exact: true }).click();
             await page.locator('[data-slot="select-content"]').filter({ hasText: "Транспорт" }).waitFor({ state: "hidden" });
           }
-          if ((width === 390 || width === 1440) && height === 844) {
+          if ((width === 390 || width === 1440) && height === 844 && !legacyError.includes(variant)) {
             await page.evaluate(() => document.fonts.ready);
-            await page.screenshot({ path: `/tmp/rollapp-member-invites/${width}-yandex-registration.png`, fullPage: true, animations: "disabled" });
+            await page.screenshot({ path: `/tmp/rollapp-member-invites/${width}-yandex-registration${missingEmail ? "-email-required" : ""}.png`, fullPage: true, animations: "disabled" });
           }
           const [request] = await Promise.all([
             page.waitForRequest(request => new URL(request.url()).pathname.startsWith("/api/auth/")),
