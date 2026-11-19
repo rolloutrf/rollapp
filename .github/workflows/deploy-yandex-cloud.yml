@@ -22,6 +22,36 @@ concurrency:
   queue: max
 
 jobs:
+  build-macos:
+    name: Build Rollapp for macOS
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.verification == 'image')
+    runs-on: macos-15
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Build universal app and disk image
+        run: bash macos/build.sh
+
+      - name: Verify application and disk image
+        run: |
+          xcrun lipo dist-macos/Rollapp.app/Contents/MacOS/Rollapp -verify_arch arm64 x86_64
+          codesign --verify --strict dist-macos/Rollapp.app
+          hdiutil verify dist-macos/Rollapp.dmg
+
+      - name: Upload Rollapp.dmg
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rollapp-macos-${{ github.sha }}-${{ github.run_attempt }}
+          path: dist-macos/Rollapp.dmg
+          if-no-files-found: error
+
   audit:
     if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && inputs.verification != 'none' && inputs.verification != 'image'
     runs-on: ubuntu-24.04

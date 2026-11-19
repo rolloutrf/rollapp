@@ -49,6 +49,21 @@ user's regular browser profile, returns only the product metadata to Rollapp and
 closes the temporary tab. The extension is limited to product pages on those
 three stores, localhost and the production Rollapp origin.
 
+## macOS app
+
+Rollapp for macOS opens [the production service](https://роллапп.рф) in a standalone window with a Dock icon, native menus and its own persistent sign-in session. It requires macOS 12 or later and an internet connection. The same account and data are available in the web and macOS apps.
+
+Build the universal Apple Silicon and Intel app on a Mac with Xcode Command Line Tools:
+
+```bash
+npm run build:macos
+open dist-macos/Rollapp.dmg
+```
+
+Drag Rollapp to Applications. The build also creates `dist-macos/Rollapp.app`, which you can open directly. Local builds use an ad hoc signature. Set `ROLLAPP_MACOS_SIGNING_IDENTITY` to a Developer ID Application identity to sign a distributable build, then notarize and staple the disk image before publishing it.
+
+The macOS source lives in `macos/`. The [Test and deploy to Yandex Cloud workflow](.github/workflows/deploy-yandex-cloud.yml) builds the desktop app on macOS and the web service on Linux from the same commit. The jobs run independently. Download `Rollapp.dmg` from the `rollapp-macos-<commit>-<attempt>` artifact in the workflow run. CI builds use an ad hoc signature.
+
 ## Local development
 
 Requirements: Node.js 22+ and npm.

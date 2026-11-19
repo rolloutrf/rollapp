@@ -1,6 +1,8 @@
 node_modules
 .runtime-ots
 dist
+dist-macos
+macos
 .git
 .github
 .env*
