@@ -38,6 +38,8 @@ import { OpenRouterSettings } from "@/modules/assistant/openrouter-settings.jsx"
 import { InvitesManager } from "@/modules/auth/invites-manager.jsx";
 import { ProfileAccounts } from "@/modules/profile/profile-accounts.jsx";
 import { ProfileMcpKeys } from "@/modules/profile/profile-mcp-keys.jsx";
+import { OzonWishlistImport } from "@/modules/profile/ozon-wishlist-import.jsx";
+import { parseOzonWishlistClipboard } from "../media-import/ozon-wishlist-clipboard.js";
 import { PrivateNotesLink } from "@/components/private-notes";
 import { DiskProfileSettings } from "@/modules/profile/disk-profile-settings.jsx";
 import { useDiskSyncSettings } from "@/modules/runtime/disk-sync-settings.jsx";
@@ -87,6 +89,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
   const [importingWishlist, setImportingWishlist] = useState(null);
   const wishlistImportRequest = useRef(null);
   const [browserWishlistStatus, setBrowserWishlistStatus] = useState({});
+  const [ozonTabImportStatus, setOzonTabImportStatus] = useState("");
   const [browserWishlistExtensionError, setBrowserWishlistExtensionError] = useState("");
   useEffect(() => () => {
     wishlistImportRequest.current?.abort();
@@ -271,6 +274,25 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
     signal.throwIfAborted();
     if (!items.length) return { added: 0, skipped: 0 };
     return api.post(`/me/browser-wishlist-import/${id}`, { ownerId: user.id, items }, { signal });
+  };
+  const importOzonTab = (readClipboard) => {
+    if (busy) return;
+    return withWishlistImport("ozon-tab", async (signal) => {
+      setOzonTabImportStatus("Читаем скопированные товары…");
+      try {
+        const items = parseOzonWishlistClipboard(await readClipboard());
+        signal.throwIfAborted();
+        const { added, skipped } = await api.post("/me/browser-wishlist-import/ozon", { ownerId: user.id, items }, { signal });
+        signal.throwIfAborted();
+        setOzonTabImportStatus(added
+          ? `Добавлено в «Товары»: ${added}. Уже было в Rollapp: ${skipped}.`
+          : "Все скопированные товары уже есть в Rollapp.");
+        return added;
+      } catch (error) {
+        if (!signal.aborted) setOzonTabImportStatus(error.message);
+        return 0;
+      }
+    });
   };
   const importWishlists = (providers, kind = "save") => withWishlistImport(kind, async (signal) => {
     const results = await Promise.all(providers.map((provider) => readLinkedWishlist(provider, signal)));
@@ -472,6 +494,14 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
           <p className="text-xs text-muted-foreground">Новые позиции добавляются в «Товары» как приватные. Кнопка обновления перечитывает сохранённые ссылки.</p>
         </section>
         <Accordion className="min-w-0 rounded-xl border bg-card px-3">
+          <AccordionItem value="ozon-tab-import">
+            <AccordionTrigger headerAs="h3" className="min-h-(--layout-control-size) items-center gap-2 px-1 text-rollapp-body! hover:no-underline">
+              Импорт из открытого списка Ozon
+            </AccordionTrigger>
+            <AccordionContent className="px-1 pb-4">
+              <OzonWishlistImport disabled={Boolean(busy)} busy={importingWishlist === "ozon-tab"} importItems={importOzonTab} status={ozonTabImportStatus} />
+            </AccordionContent>
+          </AccordionItem>
           <AccordionItem value="browser-import">
             <AccordionTrigger headerAs="h3" className="min-h-(--layout-control-size) items-center gap-2 px-1 text-rollapp-body! hover:no-underline">
               Импорт из браузера
