@@ -7,9 +7,6 @@ on:
       - ".github/workflows/android.yml"
   push:
     branches: [main, codex/android-apk]
-    paths:
-      - "android/**"
-      - ".github/workflows/android.yml"
   workflow_dispatch:
 
 permissions:
