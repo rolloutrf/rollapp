@@ -15,7 +15,7 @@ import { Field, FieldError, FieldLabel, FieldGroup } from "@/components/ui/field
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { PageActionButton } from "@/components/page-action-button";
-import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./auth.js";
+import { inviteTokenFromLink, safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./auth.js";
 import { RegistrationAccountFields } from "@/modules/auth/registration-account-fields.jsx";
 import { useToast } from "../shell/toast.jsx";
 import { usePhoneOtp, PhoneOtpFields } from "../identification/phone-otp.jsx";
@@ -376,6 +376,36 @@ function YandexBackupResult({ backup, retryHref, userId }) {
   );
 }
 
+function InvitationLinkForm({ nextPath }) {
+  const inputId = useId();
+  const navigate = useNavigate();
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  const submit = event => {
+    event.preventDefault();
+    const token = inviteTokenFromLink(value, window.location.origin);
+    if (!token) {
+      setError("Вставьте полную ссылку на приглашение из письма или сообщения.");
+      return;
+    }
+    const search = new URLSearchParams({ next: nextPath });
+    const hash = new URLSearchParams({ invite: token });
+    navigate(`/register?${search}#${hash}`, { replace: true });
+    setValue("");
+    setError("");
+  };
+  return <form className="flex flex-col gap-2" onSubmit={submit} noValidate>
+    <Field data-invalid={Boolean(error)}>
+      <FieldLabel htmlFor={inputId}>Ссылка на приглашение</FieldLabel>
+      <Input id={inputId} type="url" autoComplete="off" autoCapitalize="none" spellCheck={false}
+        value={value} onChange={event => { setValue(event.target.value); setError(""); }}
+        aria-invalid={Boolean(error)} aria-describedby={error ? `${inputId}-error` : undefined} />
+      {error && <FieldError id={`${inputId}-error`}>{error}</FieldError>}
+    </Field>
+    <PageActionButton type="submit">Открыть приглашение</PageActionButton>
+  </form>;
+}
+
 export function RegisterPage() {
   const { hash, search } = useLocation();
   const invite = new URLSearchParams(hash.slice(1)).get("invite") || "";
@@ -404,12 +434,13 @@ export function RegisterPage() {
             <span className="eyebrow">Rollapp</span>
             <h1>{checking ? "Проверяем приглашение" : invalid ? "Приглашение недействительно" : "Регистрация по приглашению"}</h1>
             <p>
-              {checking ? "Подождите немного." : invalid ? "Ссылка могла истечь или быть использована. Попросите отправителя создать новую." : invite ? result?.error?.message : "Попросите приглашение у владельца Rollapp."}
+              {checking ? "Подождите немного." : invalid ? "Вставьте актуальную ссылку или попросите отправителя прислать новую." : invite ? result?.error?.message : "Вставьте ссылку из письма или сообщения."}
             </p>
           </div>
           {checking && <div className="auth-config-loading" role="status"><Spinner /><span>Проверяем ссылку…</span></div>}
+          {(!invite || invalid) && <InvitationLinkForm nextPath={nextPath} />}
           {result?.error && !invalid && <PageActionButton type="button" variant="outline" onClick={() => setAttempt((current) => current + 1)}>Проверить снова</PageActionButton>}
-          <PageActionButton to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</PageActionButton>
+          <p className="auth-switch">Уже есть аккаунт Rollapp? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></p>
         </div>
       </div>
     </div>
@@ -465,7 +496,7 @@ export function RegistrationForm({ invite, email }) {
             </Alert>
           )}
           <YandexIdButton disabled={loading} label="Создать с Яндекс ID" />
-          <p className="auth-switch">Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></p>
+          <p className="auth-switch">Уже есть аккаунт Rollapp? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></p>
         </form>
       </div>
     </div>
@@ -517,7 +548,8 @@ function SignInPage({ yandexEnabled, legacySignInEnabled }) {
   const authId = useId();
   const methodTouchedRef = useRef(false);
   const nextPath = safeNextPath(authQuery.get("next"));
-  const yandexError = yandexAuthErrorDetails(authQuery.get("auth_error"), { legacySignInEnabled });
+  const authErrorCode = authQuery.get("auth_error");
+  const yandexError = yandexAuthErrorDetails(authErrorCode, { legacySignInEnabled });
   const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
   const backup = authQuery.get("backup");
   const yandexBackup = yandexLinked && (backup === "busy" || /^[0-9a-f-]{36}$/.test(backup || "")) ? backup : "";
@@ -649,6 +681,7 @@ function SignInPage({ yandexEnabled, legacySignInEnabled }) {
                 <AlertDescription>{alert.description}</AlertDescription>
               </Alert>
             )}
+            {authErrorCode === "INVITE_REQUIRED" && <PageActionButton to={`/register?next=${encodeURIComponent(nextPath)}`}>Открыть приглашение</PageActionButton>}
             {yandexEnabled && <YandexIdButton href={yandexStartHref} />}
             <p className="auth-switch">{addingAccount ? <Link to={nextPath} replace>Отмена</Link> : "Регистрация по приглашению."}</p>
           </div>

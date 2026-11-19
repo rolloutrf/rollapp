@@ -1586,9 +1586,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
     const wantsBackup = attempt.purpose === "link-backup";
     const purpose = wantsBackup ? "link" : attempt.purpose;
     const result = await resolveYandexLogin(yandexUser, { ...attempt, purpose }, req.user, account?.data);
-    if (result.kind === "invite-required") {
-      return res.redirect(303, yandexLoginRedirect(nextPath, "INVITE_REQUIRED"));
-    }
+    if (result.kind === "invite-required") return loginError("INVITE_REQUIRED");
     if (result.kind === "invite-invalid") {
       return loginError("INVITE_INVALID");
     }

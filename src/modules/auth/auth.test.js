@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./auth.js";
+import { inviteTokenFromLink, safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./auth.js";
+
+test("a pasted invitation recovers only the token from a Rollapp registration URL", () => {
+  const origin = "https://rollapp.example";
+  const token = "a".repeat(43);
+  const signed = `v1.00000000-0000-0000-0000-000000000000.${token}`;
+  assert.equal(inviteTokenFromLink(` ${origin}/register?next=%2Flogin#invite=${token} `, origin), token);
+  assert.equal(inviteTokenFromLink(`${origin}/регистрация/#приглашение=${signed}`, origin), signed);
+  assert.equal(inviteTokenFromLink(`https://example.org/register#invite=${token}`, origin), "");
+  assert.equal(inviteTokenFromLink(`${origin}/login#invite=${token}`, origin), "");
+  assert.equal(inviteTokenFromLink(`${origin}/register?invite=${token}`, origin), "");
+  assert.equal(inviteTokenFromLink(`${origin}/register#invite=${"a".repeat(129)}`, origin), "");
+  assert.equal(inviteTokenFromLink("не ссылка", origin), "");
+});
 
 test("safeNextPath keeps only local application paths", () => {
   assert.equal(safeNextPath("/app/wishes?space=food#top"), "/app/wishes?space=food#top");

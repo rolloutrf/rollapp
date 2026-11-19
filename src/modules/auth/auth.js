@@ -1,3 +1,5 @@
+import { internalPageUrl } from "../../../shared/modules/shell/page-urls.js";
+
 export function safeNextPath(value, fallback = "/app/wishes") {
   if (typeof value !== "string" || value.length > 2_000) return fallback;
   if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\") || /[\u0000-\u001f\u007f]/.test(value)) {
@@ -12,6 +14,20 @@ export function safeNextPath(value, fallback = "/app/wishes") {
   }
 }
 
+export function inviteTokenFromLink(value, origin) {
+  try {
+    const url = new URL(value.trim());
+    if (url.origin !== origin || url.username || url.password) return "";
+    const registrationPath = internalPageUrl(`${url.pathname}${url.hash}`);
+    const [path, fragment] = registrationPath.split("#");
+    if (path !== "/register" && path !== "/register/") return "";
+    const token = new URLSearchParams(fragment).get("invite") || "";
+    return token.length <= 128 ? token : "";
+  } catch {
+    return "";
+  }
+}
+
 export function yandexAuthStartPath(nextPath, { link = false, invite = "", addAccount = false } = {}) {
   const params = new URLSearchParams();
   if (link) params.set("link", "1");
@@ -23,8 +39,8 @@ export function yandexAuthStartPath(nextPath, { link = false, invite = "", addAc
 
 const yandexAuthErrors = {
   INVITE_REQUIRED: {
-    title: "Регистрация по приглашению",
-    description: "Попросите ссылку у человека, у которого уже есть аккаунт Rollapp.",
+    title: "Этот Яндекс ID ещё не подключён к Rollapp",
+    description: "Если у вас есть приглашение, откройте ссылку из сообщения и выберите «Создать с Яндекс ID».",
     variant: "default",
   },
   INVITE_INVALID: {
