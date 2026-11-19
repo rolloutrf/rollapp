@@ -40,13 +40,25 @@ jobs:
           path: ios/build/deliverables/
           if-no-files-found: error
           retention-days: 7
+
+  smoke:
+    needs: build
+    runs-on: xcode-27
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: Rollapp-iOS
+          path: ios/build/deliverables/
       - name: Launch on iPhone and iPad simulators
         timeout-minutes: 7
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --retry 2 --max-time 20 \
             https://xn--80avakiab.xn--p1ai/api/healthz | jq -e '.ok and .service == "rollapp"'
-          app=ios/build/simulator/Build/Products/Debug-iphonesimulator/Rollapp.app
+          xcodebuild -version
+          ditto -x -k ios/build/deliverables/Rollapp-iOS-Simulator.zip ios/build/simulator
+          app=ios/build/simulator/Rollapp.app
           devices=$(xcrun simctl list -j devices available)
           mkdir -p ios/build/smoke
           for family in iPhone iPad; do
