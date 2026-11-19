@@ -85,7 +85,8 @@ test("real deployment template renders exact SHA without changing other content"
   assert.equal(rendered, template.replaceAll("__IMAGE__", config.image).replaceAll("__VERSION__", version)
     .replaceAll("__YANDEX_DISK_BACKUP_ENABLED__", "false")
     .replaceAll("__ROLLAPP_YANDEX_DISK_PROFILE_ENABLED__", "false")
-    .replaceAll("__YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID__", ""));
+    .replaceAll("__YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID__", "")
+    .replaceAll("__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__", ""));
   const withBackup = renderDeploymentCompose(template, { ...config, yandexDiskBackupEnabled: true });
   assert.equal(withBackup, rendered.replace('YANDEX_DISK_BACKUP_ENABLED: "false"', 'YANDEX_DISK_BACKUP_ENABLED: "true"'));
   const withDiskProfile = renderDeploymentCompose(template, { ...config, yandexDiskProfileEnabled: true });
@@ -96,6 +97,10 @@ test("real deployment template renders exact SHA without changing other content"
     'YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: "disk-notes-test"',
   ));
   assert.throws(() => renderDeploymentCompose(template, { ...config, yandexDiskNotesSecretId: 'injected"\nkey' }), /Invalid deployment/);
+  const withEve = renderDeploymentCompose(template, { ...config, eveNotificationSecretId: "eve-secret-test" });
+  assert.equal(withEve, rendered.replaceAll('YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: ""',
+    'YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: "eve-secret-test"'));
+  assert.throws(() => renderDeploymentCompose(template, { ...config, eveNotificationSecretId: 'injected"\nkey' }), /Invalid deployment/);
   assert.throws(() => renderDeploymentCompose("no placeholders", config));
 });
 

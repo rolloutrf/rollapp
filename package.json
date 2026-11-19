@@ -109,6 +109,7 @@
     "private-data:import": "node scripts/migrate-private-data.mjs",
     "test:private-history": "node scripts/private-history-pre-push.mjs --head",
     "test:messenger": "node scripts/messenger-smoke.mjs",
+    "test:notifications": "node scripts/messenger-smoke.mjs --notifications-only",
     "test:messenger:production": "ROLLAPP_TEST_MESSENGER=1 node --test server/messenger.integration.test.js",
     "test:offers": "node scripts/personal-offers-smoke.mjs",
     "test:offers:production": "ROLLAPP_TEST_PERSONAL_OFFERS=1 node --test server/personal-offers.integration.test.js",

@@ -650,7 +650,7 @@ html:has(.global-app-chrome):has(:is(.inline-editor__content[contenteditable="tr
     position: relative;
     inset-block-end: var(--layout-floating-add-offset);
   }
-  .planning-fab-controls :is(.assistant-fab, .messenger-fab) {
+  .planning-fab-controls :is(.notification-fab, .assistant-fab, .messenger-fab) {
     position: absolute;
     right: 0;
     pointer-events: auto;
@@ -660,5 +660,8 @@ html:has(.global-app-chrome):has(:is(.inline-editor__content[contenteditable="tr
   }
   .planning-fab-controls .assistant-fab {
     bottom: calc(var(--layout-floating-add-offset) + 2 * var(--layout-floating-control-step));
+  }
+  .planning-fab-controls .notification-fab {
+    bottom: calc(var(--layout-floating-add-offset) + 3 * var(--layout-floating-control-step));
   }
 }

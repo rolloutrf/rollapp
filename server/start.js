@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import { loadLockboxValue } from "./modules/runtime/lockbox.js";
+import { loadNotificationWorkerToken } from "./modules/notifications/worker-token.js";
 
 dotenv.config({ path: ".env.local", override: false, quiet: true });
 
@@ -128,6 +129,9 @@ await loadOpenRouterLockboxSecret();
 await loadOpenRouterProxyLockboxSecret();
 await loadUserCredentialsLockboxSecret();
 await loadMembershipTonLockboxSecret();
+if (!process.env.ROLLAPP_APPLICATION || process.env.ROLLAPP_APPLICATION === "platform") {
+  await loadNotificationWorkerToken();
+}
 
 if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
   const caddy = spawn("/usr/sbin/caddy", ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"], { stdio: "inherit" });

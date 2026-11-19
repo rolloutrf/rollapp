@@ -294,6 +294,7 @@ jobs:
           YANDEX_DISK_BACKUP_ENABLED: ${{ vars.YANDEX_DISK_BACKUP_ENABLED }}
           YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID }}
           ROLLAPP_YANDEX_DISK_PROFILE_ENABLED: ${{ vars.ROLLAPP_YANDEX_DISK_PROFILE_ENABLED }}
+          YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: ${{ vars.YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID }}
         run: node scripts/deploy-vm-metadata.mjs
 
       - name: Verify production health
@@ -320,7 +321,7 @@ jobs:
             for attempt in $(seq 1 "$max_attempts"); do
               health="$(read_health)"
               if jq -e --arg expected "$GITHUB_SHA" --argjson marketplace "$expected_marketplace" \
-                '.ok == true and .service == "rollapp" and .version == $expected and .capabilities.marketplaceSettlements == $marketplace' \
+                '.ok == true and .service == "rollapp" and .version == $expected and .capabilities.marketplaceSettlements == $marketplace and .capabilities.notifications == true and .capabilities.notificationsWorker == true' \
                 <<<"$health" >/dev/null 2>&1; then
                 return 0
               fi
@@ -343,7 +344,7 @@ jobs:
               exit 1
             elif jq -e --arg expected "$GITHUB_SHA" \
               '.ok == true and .service == "rollapp" and .version == $expected' <<<"$current_health" >/dev/null 2>&1; then
-              echo "Production is healthy at the expected SHA but protected checkout differs from the deployment template; keeping the service running" >&2
+              echo "Production is healthy at the expected SHA but protected checkout or Eve notifications did not pass verification; keeping the service running" >&2
               exit 1
             else
               echo "Production became unhealthy while deploying; refusing an automatic restart: ${current_health}" >&2
@@ -352,6 +353,11 @@ jobs:
           fi
 
           echo "Rollapp is healthy at ${PUBLIC_URL} on ${GITHUB_SHA}"
+          notification_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "${PUBLIC_URL}/api/notifications")"
+          if [ "$notification_status" != "401" ]; then
+            echo "Unauthenticated notifications returned ${notification_status}, expected 401" >&2
+            exit 1
+          fi
           mcp_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "${PUBLIC_URL}/mcp")"
           if [ "$mcp_status" != "401" ]; then
             echo "Unauthenticated MCP endpoint returned ${mcp_status}, expected 401" >&2

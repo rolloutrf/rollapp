@@ -87,8 +87,18 @@ async function accountBackupSources(client) {
     to_regclass('profile_session_slots') IS NOT NULL AS slots_ready,
     to_regclass('profile_announcements') IS NOT NULL AS announcements_ready,
     to_regclass('roll_marketplace_orders') IS NOT NULL AS marketplace_orders,
-    to_regclass('roll_marketplace_order_events') IS NOT NULL AS marketplace_events`);
+    to_regclass('roll_marketplace_order_events') IS NOT NULL AS marketplace_events,
+    to_regclass('notification_preferences') IS NOT NULL AS notification_preferences,
+    to_regclass('notification_reminders') IS NOT NULL AS notification_reminders,
+    to_regclass('user_notifications') IS NOT NULL AS user_notifications`);
   if (schema.marketplace_orders !== schema.marketplace_events) throw new Error("Incomplete marketplace settlement schema");
+  const notificationTables = [schema.notification_preferences, schema.notification_reminders, schema.user_notifications];
+  if (notificationTables.some(Boolean) && !notificationTables.every(Boolean)) throw new Error("Incomplete notification schema");
+  const notifications = notificationTables.every(Boolean) ? [
+    ["notification_preferences", owned, pick("user_id", "time_zone", "medication_reminders", "daily_overview")],
+    ["notification_reminders", owned, pick("id", "user_id", "title", "start_on", "remind_at", "repeats_daily")],
+    ["user_notifications", owned, pick("id", "user_id", "kind", "title", "scheduled_at", "local_day", "local_time", "read_at")],
+  ] : [];
   const settlements = schema.marketplace_orders ? [
     ["roll_marketplace_orders", "(t.buyer_id=$1 OR t.seller_id=$1)",
       `${strip("request_key", "gift_card_id", "gift_payment_id")} || CASE WHEN t.buyer_id=$1
@@ -108,6 +118,7 @@ async function accountBackupSources(client) {
     ...(schema.mood_ready ? [["user_mood_entries", owned, pick("user_id", "id", "level", "recorded_at")]] : []),
     ...bookings,
     ...settlements,
+    ...notifications,
     ...(schema.announcements_ready ? [["profile_announcements", "t.owner_id=$1", pick("id", "owner_id", "title", "body", "created_at")]] : []),
     ...remaining,
   ];

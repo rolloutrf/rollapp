@@ -10,6 +10,7 @@ import { registerMessengerRoutes } from "./messenger.js";
 
 import { registerAssistantWishlistSortRoute } from "./modules/assistant/assistant-wishlist-sort.js";
 import { registerMessengerAssistantRoute } from "./modules/assistant/messenger-assistant.js";
+import { registerNotificationRoutes } from "./modules/notifications/notifications.js";
 
 import { registerStoryRoutes } from "./stories.js";
 import { DiskNotesError, getYandexDiskConfig } from "./modules/runtime/yandex-disk.js";
@@ -148,6 +149,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
+const notificationToken = process.env.ROLLAPP_EVE_NOTIFICATION_TOKEN;
 const { id: applicationId, sphere: sphereApplication } = applicationRuntime(process.env);
 let profileMoodAvailable = false;
 let diskSyncAvailable = false;
@@ -453,16 +455,17 @@ async function cleanAuthenticatedUser(row) {
   if (!row) return null;
   const moodLevel = profileMoodAvailable ? row.mood_level ?? null : null;
   const profileSlug = await profileAddress(query, row.id);
+  const notificationCapability = notificationToken?.length >= 32 ? { notificationsEnabled: true } : {};
   const hasCapabilities = ["has_yandex", "can_discover_spheres"]
     .every((property) => Object.prototype.hasOwnProperty.call(row, property));
-  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug };
+  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug, ...notificationCapability };
   const capabilities = await query(
     `SELECT
        EXISTS(SELECT 1 FROM yandex_identities WHERE user_id=$1) AS has_yandex,
        EXISTS(SELECT 1 FROM default_follow_targets WHERE user_id=$1) AS can_discover_spheres`,
     [row.id],
   );
-  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug };
+  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug, ...notificationCapability };
 }
 
 function mapList(row) {
@@ -702,6 +705,7 @@ registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerProfileMoodRoutes(app, { requireAuth, transaction, asyncRoute, available: () => profileMoodAvailable });
 registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential: resolveOpenRouterApiKey });
+const notificationWorkerHealthy = registerNotificationRoutes(app, { requireAuth, asyncRoute, query, transaction, secret: notificationToken });
 registerAssistantWishlistSortRoute(app, { requireAuth, asyncRoute, transaction });
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
@@ -1702,6 +1706,8 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
     service: sphereApplication ? `rollapp-${applicationId}` : "rollapp",
     version: process.env.APP_VERSION || "development",
     capabilities: {
+      notifications: Boolean(notificationToken),
+      notificationsWorker: notificationWorkerHealthy(),
       marketplaceDirect: true,
       marketplaceSettlements: process.env.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true",
       marketplaceAi: sharedAiConfigured(),

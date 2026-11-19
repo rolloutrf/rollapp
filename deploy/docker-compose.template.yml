@@ -15,6 +15,7 @@ services:
       DEMO_MODE: "false"
       # Ordinary releases only verify the existing schema; migrations are explicit.
       ROLLAPP_DATABASE_INITIALIZATION: "verify"
+      YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: "__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__"
       # Additive need-rewards migration is applied separately before rollout.
       ROLLAPP_NEED_REWARDS_ENABLED: "true"
       ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED: "true"
@@ -95,6 +96,16 @@ services:
     volumes:
       - /var/lib/rollapp-caddy:/data
       - /var/lib/rollapp-caddy-config:/config
+
+  rollapp-eve:
+    image: "__IMAGE__"
+    restart: always
+    user: "1000:1000"
+    command: ["/sbin/tini", "-g", "--", "node24", "eve/serve.mjs"]
+    environment:
+      PORT: "3000"
+      ROLLAPP_EVE_APP_ORIGIN: "http://rollapp:8080"
+      YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: "__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__"
 
   rollapp-identity:
     <<: *sphere-service
