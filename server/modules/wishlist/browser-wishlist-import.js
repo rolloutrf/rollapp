@@ -18,15 +18,17 @@ const marketplaceProducts = new Map([
   }],
 ]);
 
+const marketplaceWishlistItems = z.array(z.object({
+  url: z.string().max(1000),
+  title: z.string().trim().min(1).max(160).refine((title) => !title.includes("\0")),
+  imageUrl: z.string().max(1000).default(""),
+  price: z.number().finite().min(0).max(999999999).nullable().default(null),
+}).strict()).max(1000);
+
 const browserWishlistPayload = z.object({
   ownerId: z.string().min(1).max(160),
   linkedUrl: z.string().min(1).max(2048).optional(),
-  items: z.array(z.object({
-    url: z.string().max(1000),
-    title: z.string().trim().min(1).max(160).refine((title) => !title.includes("\0")),
-    imageUrl: z.string().max(1000).default(""),
-    price: z.number().finite().min(0).max(999999999).nullable().default(null),
-  }).strict()).max(1000),
+  items: marketplaceWishlistItems,
 }).strict();
 
 function httpsUrl(value) {
@@ -42,13 +44,21 @@ export function marketplaceWishlistKey(provider, value) {
 }
 
 export function parseBrowserWishlist(provider, body, ownerId) {
-  const config = marketplaceProducts.get(provider);
-  if (!config) return null;
   const parsed = browserWishlistPayload.safeParse(body);
   if (!parsed.success || parsed.data.ownerId !== ownerId) return null;
+  return normalizeMarketplaceItems(provider, parsed.data.items);
+}
 
+export function parseMarketplaceWishlistItems(provider, items) {
+  const parsed = marketplaceWishlistItems.safeParse(items);
+  return parsed.success ? normalizeMarketplaceItems(provider, parsed.data) : null;
+}
+
+function normalizeMarketplaceItems(provider, products) {
+  const config = marketplaceProducts.get(provider);
+  if (!config) return null;
   const items = new Map();
-  for (const item of parsed.data.items) {
+  for (const item of products) {
     const key = marketplaceWishlistKey(provider, item.url);
     if (!key) return null;
     if (items.has(key)) continue;

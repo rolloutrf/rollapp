@@ -10,8 +10,8 @@ import { registerProductSuggestionRoutes } from "../../product-suggestions.js";
 import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
 import { publicMood } from "../profile/profile-mood.js";
 import { EXTERNAL_WISHLIST_PROVIDERS, externalWishlistLinks } from "../../../shared/modules/profile/external-wishlists.js";
-import { marketplaceWishlistKey, parseBrowserWishlist } from "../../browser-wishlist-import.js";
-import { externalWishlistReaders, insertExternalWishlistItems, WishlistImportError } from "../../external-wishlist-import.js";
+import { marketplaceWishlistKey, parseBrowserWishlist } from "./browser-wishlist-import.js";
+import { externalWishlistReaders, insertExternalWishlistItems, WishlistImportError } from "./external-wishlist-import.js";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { query, transaction } from "../../db.js";
@@ -79,7 +79,8 @@ export function registerWishlistRoutes(app, {
 
   const previewBackfillRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 6 });
 
-  const wishlistImportRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 6, key: (req) => req.user.id });
+  // Saving all four links and then refreshing them must fit in one window.
+  const wishlistImportRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 12, key: (req) => req.user.id });
 
   const marketplaceOffersRateLimit = createRateLimit({
     windowMs: 15 * 60 * 1000,
@@ -135,6 +136,13 @@ export function registerWishlistRoutes(app, {
 
   registerProductSuggestionRoutes(app, { requireAuth });
 
+  async function insertMarketplaceWishlistItems(client, userId, provider, items) {
+    if (!items.length) return 0;
+    const existing = await client.query("SELECT url FROM wishes WHERE user_id=$1 AND url<>''", [userId]);
+    const keys = new Set(existing.rows.map(({ url }) => marketplaceWishlistKey(provider, url)));
+    return insertExternalWishlistItems(client, userId, items.filter(({ key }) => !keys.has(key)));
+  }
+
   app.post("/api/me/wishlist-import/:provider", requireAuth, wishlistImportRateLimit, asyncRoute(async (req, res) => {
     const provider = EXTERNAL_WISHLIST_PROVIDERS.find(({ id }) => id === req.params.provider);
     const read = externalWishlistReaders.get(provider?.id);
@@ -147,6 +155,9 @@ export function registerWishlistRoutes(app, {
         const current = await client.query("SELECT wishlist_links FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
         if (externalWishlistLinks(current.rows[0]?.wishlist_links)[provider.id] !== url) {
           throw new WishlistImportError(409, "Ссылка изменилась во время импорта. Попробуйте снова.");
+        }
+        if (provider.id === "ozon" || provider.id === "wb") {
+          return insertMarketplaceWishlistItems(client, req.user.id, provider.id, items);
         }
         return insertExternalWishlistItems(client, req.user.id, items);
       });
@@ -169,9 +180,7 @@ export function registerWishlistRoutes(app, {
     const added = await transaction(async (client) => {
       const current = await client.query("SELECT wishlist_links FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
       if (req.body.linkedUrl && externalWishlistLinks(current.rows[0]?.wishlist_links)[provider] !== req.body.linkedUrl) return null;
-      const existing = await client.query("SELECT url FROM wishes WHERE user_id=$1 AND url<>''", [req.user.id]);
-      const keys = new Set(existing.rows.map(({ url }) => marketplaceWishlistKey(provider, url)));
-      return insertExternalWishlistItems(client, req.user.id, items.filter(({ key }) => !keys.has(key)));
+      return insertMarketplaceWishlistItems(client, req.user.id, provider, items);
     });
     if (added === null) return res.status(409).json({ error: "Ссылка изменилась во время импорта. Попробуйте снова." });
     res.set("Cache-Control", "private, no-store");

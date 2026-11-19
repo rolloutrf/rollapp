@@ -217,7 +217,7 @@ try {
     const urls = [
       'https://ohmywishes.com/users/example/lists/example',
       'https://ozon.ru/t/example?share=1',
-      'https://www.wildberries.ru/wishlist/example',
+      'https://www.wildberries.ru/wlg/example',
       'https://market.yandex.ru/cc/example?share=1',
     ];
     for (const [index, input] of inputs.entries()) {
@@ -268,39 +268,38 @@ try {
     assert.equal(await inputs[1].inputValue(), urls[1]);
     await page.evaluate(() => { window.rejectProfileSave = false; window.rejectMarketImport = true; });
     await saveWishlists();
-    assert.deepEqual(await page.evaluate(() => window.wishlistImports), ['ohmywishes', 'yandex-market']);
-    await page.getByRole('status').getByText('Добавлено в «Товары»: 1.', { exact: true }).waitFor();
+    const providers = ['ohmywishes', 'ozon', 'wb', 'yandex-market'];
+    assert.deepEqual(await page.evaluate(() => window.wishlistImports), providers);
+    const providerStatus = (provider) => wishlist.locator('[data-slot="field"]')
+      .filter({ has: page.getByRole('textbox', { name: provider, exact: true }) }).getByRole('status');
+    await providerStatus('OhMyWishes').getByText('Добавлено в «Товары»: 1.', { exact: true }).waitFor();
+    await providerStatus('WB').getByText('Добавлено в «Товары»: 1.', { exact: true }).waitFor();
+    await providerStatus('Ozon').getByText(/Ссылка Ozon не открывает вишлист/).waitFor();
     await page.getByRole('status').getByText('Не удалось прочитать список Маркета').waitFor();
     if (width === 320 || width === 1440) {
       await page.evaluate(() => {
-        window.linkedWishlistReads = [];
+        window.wishlistBridgeRequests = [];
         window.addEventListener('message', ({ data, origin, source }) => {
           if (source !== window || origin !== location.origin || data?.source !== 'rollapp-page') return;
-          const respond = (type, result) => window.postMessage({ type, result, source: 'rollapp-retailer-helper', requestId: data.requestId }, origin);
-          if (data.type === 'ROLLAPP_WISHLIST_PING') respond('ROLLAPP_WISHLIST_PONG', { linkedWishlist: true });
-          if (data.type !== 'ROLLAPP_WISHLIST_IMPORT' || !data.url) return;
-          window.linkedWishlistReads.push({ provider: data.provider, url: data.url });
-          if (data.provider === 'ozon') window.finishLinkedOzon = () => respond('ROLLAPP_WISHLIST_RESULT', { ok: false, error: 'Список Ozon недоступен' });
-          else respond('ROLLAPP_WISHLIST_RESULT', { ok: true, items: [{ url: 'https://www.wildberries.ru/catalog/12345/detail.aspx', title: 'Товар WB' }] });
+          if (data.type?.startsWith('ROLLAPP_WISHLIST_')) window.wishlistBridgeRequests.push(data.type);
         });
         window.rejectMarketImport = false;
+        window.deferOzonImport = true;
       });
       const draft = 'https://ozon.ru/t/unsaved';
       await inputs[1].fill(draft);
       const patches = await page.evaluate(() => window.profilePatches.length);
       await refresh.click();
-      await page.waitForFunction(() => Boolean(window.finishLinkedOzon));
+      await page.waitForFunction(() => Boolean(window.finishOzonImport));
       assert.equal(await refresh.getAttribute('aria-busy'), 'true');
       assert(await save.isDisabled());
-      assert.deepEqual(await page.evaluate(() => window.linkedWishlistReads), [{ provider: 'ozon', url: urls[1] }]);
-      await page.getByRole('status').getByText('Новых позиций среди прочитанных нет.').waitFor();
-      await page.evaluate(() => window.finishLinkedOzon());
-      await wishlist.getByRole('status').getByText('Список Ozon недоступен', { exact: true }).waitFor();
+      await providerStatus('WB').getByText('Новых позиций среди прочитанных нет.').waitFor();
+      await page.evaluate(() => window.finishOzonImport());
+      await providerStatus('Ozon').getByText(/Ссылка Ozon не открывает вишлист/).waitFor();
       await page.getByRole('status').getByText('Добавлено в «Товары»: 1. Сервис отдал только первую страницу списка.', { exact: true }).waitFor();
       await page.waitForFunction(() => !document.querySelector('[aria-label="Обновить все сохранённые вишлисты"]').disabled);
-      assert.deepEqual(await page.evaluate(() => window.wishlistImports), ['ohmywishes', 'yandex-market', 'ohmywishes', 'yandex-market']);
-      assert.deepEqual(await page.evaluate(() => window.linkedWishlistReads), [{ provider: 'ozon', url: urls[1] }, { provider: 'wb', url: urls[2] }]);
-      assert.deepEqual(await page.evaluate(() => window.linkedBrowserWishlistImports), ['wb']);
+      assert.deepEqual(await page.evaluate(() => window.wishlistImports), [...providers, ...providers]);
+      assert.deepEqual(await page.evaluate(() => window.wishlistBridgeRequests), []);
       assert.equal(await page.evaluate(() => window.profilePatches.length), patches);
       assert.equal(await inputs[1].inputValue(), draft);
       await inputs[1].fill(urls[1]);
@@ -317,6 +316,7 @@ try {
     const badges = page.locator('nav[aria-label="Внешние вишлисты"], a[aria-label^="Открыть вишлист "]');
     assert.equal(await badges.count(), 0, 'Saved external links must stay out of the profile');
     await page.getByText('Айтем из ohmywishes', { exact: true }).waitFor();
+    await page.getByText('Айтем из wb', { exact: true }).waitFor();
     if (width === 320 || width === 1440) await page.getByText('Айтем из yandex-market', { exact: true }).waitFor();
     await openWishlists();
     assert.equal(await inputs[1].inputValue(), urls[1]);

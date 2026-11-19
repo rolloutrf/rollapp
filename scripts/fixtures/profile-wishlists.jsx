@@ -9,7 +9,7 @@ import "../../src/index.css";
 const sharedLinks = {
   ohmywishes: "https://ohmywishes.com/users/example/lists/example",
   ozon: "https://ozon.ru/t/example?share=1",
-  wb: "https://www.wildberries.ru/wishlist/example",
+  wb: "https://www.wildberries.ru/wlg/example",
   "yandex-market": "https://market.yandex.ru/cc/example?share=1",
 };
 const params = new URLSearchParams(location.search);
@@ -52,16 +52,17 @@ api.post = async (path, body) => {
   const browserProvider = /^\/me\/browser-wishlist-import\/(ozon|wb|yandex-market)$/.exec(path)?.[1];
   if (!guest && browserProvider) {
     window.browserWishlistImports.push(body);
-    if (body.linkedUrl) {
-      if (body.linkedUrl !== profile.wishlistLinks[browserProvider]) return unexpected(path);
-      (window.linkedBrowserWishlistImports ??= []).push(browserProvider);
-    }
+    if (body.linkedUrl) return unexpected(path);
     return { added: 1, skipped: 0 };
   }
   if (!guest && path === "/wishes/backfill-previews") return { updated: 0 };
-  const provider = /^\/me\/wishlist-import\/(ohmywishes|yandex-market)$/.exec(path)?.[1];
+  const provider = /^\/me\/wishlist-import\/(ohmywishes|ozon|wb|yandex-market)$/.exec(path)?.[1];
   if (!guest && provider && profile.wishlistLinks[provider]) {
     window.wishlistImports.push(provider);
+    if (provider === "ozon") {
+      if (window.deferOzonImport) await new Promise((resolve) => { window.finishOzonImport = resolve; });
+      throw new Error("Ссылка Ozon не открывает вишлист. Скопируйте новую ссылку через «Поделиться».");
+    }
     if (provider === "yandex-market" && window.rejectMarketImport) throw new Error("Не удалось прочитать список Маркета");
     if (importedWishes.has(provider)) return { added: 0, skipped: 1 };
     importedWishes.set(provider, {
