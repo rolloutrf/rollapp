@@ -49,6 +49,10 @@ user's regular browser profile, returns only the product metadata to Rollapp and
 closes the temporary tab. The extension is limited to product pages on those
 three stores, localhost and the production Rollapp origin.
 
+## iOS
+
+The [Rollapp iOS project](ios/README.md) runs the production app on iPhone and iPad. It uses Xcode and requires iOS 17 or later.
+
 ## Local development
 
 Requirements: Node.js 22+ and npm.

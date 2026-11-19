@@ -1,0 +1,143 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+		A41000000000000000000001 /* RollappApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000001 /* RollappApp.swift */; };
+		A41000000000000000000002 /* RollappSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000002 /* RollappSession.swift */; };
+		A41000000000000000000003 /* RollappURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000003 /* RollappURL.swift */; };
+		A41000000000000000000004 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000004 /* Assets.xcassets */; };
+
+		A42000000000000000000001 /* RollappApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollappApp.swift; sourceTree = "<group>"; };
+		A42000000000000000000002 /* RollappSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollappSession.swift; sourceTree = "<group>"; };
+		A42000000000000000000003 /* RollappURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollappURL.swift; sourceTree = "<group>"; };
+		A42000000000000000000004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A42000000000000000000005 /* Rollapp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = Rollapp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A42000000000000000000006 /* Rollapp.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Rollapp.xcconfig; sourceTree = "<group>"; };
+
+		A43000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A43000000000000000000002 /* Rollapp */,
+				A42000000000000000000006 /* Rollapp.xcconfig */,
+				A43000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A43000000000000000000002 /* Rollapp */ = {
+			isa = PBXGroup;
+			children = (
+				A42000000000000000000001 /* RollappApp.swift */,
+				A42000000000000000000002 /* RollappSession.swift */,
+				A42000000000000000000003 /* RollappURL.swift */,
+				A42000000000000000000004 /* Assets.xcassets */,
+			);
+			path = Rollapp;
+			sourceTree = "<group>";
+		};
+		A43000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (A42000000000000000000005 /* Rollapp.app */);
+			name = Products;
+			sourceTree = "<group>";
+		};
+
+		A44000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A41000000000000000000001 /* RollappApp.swift in Sources */,
+				A41000000000000000000002 /* RollappSession.swift in Sources */,
+				A41000000000000000000003 /* RollappURL.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A44000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A44000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A41000000000000000000004 /* Assets.xcassets in Resources */);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		A45000000000000000000001 /* Rollapp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A47000000000000000000001 /* Build configurations for Rollapp */;
+			buildPhases = (
+				A44000000000000000000001 /* Sources */,
+				A44000000000000000000002 /* Frameworks */,
+				A44000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = Rollapp;
+			productName = Rollapp;
+			productReference = A42000000000000000000005 /* Rollapp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A45000000000000000000002 /* Project */ = {
+			isa = PBXProject;
+			attributes = { BuildIndependentTargetsInParallel = 1; };
+			buildConfigurationList = A47000000000000000000002 /* Build configurations for project */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ru;
+			hasScannedForEncodings = 0;
+			knownRegions = (ru, Base);
+			mainGroup = A43000000000000000000001;
+			productRefGroup = A43000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A45000000000000000000001 /* Rollapp */);
+		};
+
+		A46000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A46000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		A46000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A42000000000000000000006 /* Rollapp.xcconfig */;
+			buildSettings = {};
+			name = Debug;
+		};
+		A46000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A42000000000000000000006 /* Rollapp.xcconfig */;
+			buildSettings = {};
+			name = Release;
+		};
+
+		A47000000000000000000001 /* Build configurations for Rollapp */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A46000000000000000000003 /* Debug */, A46000000000000000000004 /* Release */);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A47000000000000000000002 /* Build configurations for project */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A46000000000000000000001 /* Debug */, A46000000000000000000002 /* Release */);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+	};
+	rootObject = A45000000000000000000002 /* Project */;
+}

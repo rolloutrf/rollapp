@@ -1,0 +1,62 @@
+name: Rollapp iOS build
+
+on:
+  push:
+    branches: [codex/ios-build-20261119]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Build simulator app
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -project ios/Rollapp.xcodeproj -scheme Rollapp \
+            -configuration Debug -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/build/simulator build
+          mkdir -p ios/build/deliverables
+          ditto -c -k --keepParent ios/build/simulator/Build/Products/Debug-iphonesimulator/Rollapp.app \
+            ios/build/deliverables/Rollapp-iOS-Simulator.zip
+      - name: Archive device app
+        run: |
+          set -euo pipefail
+          xcodebuild -project ios/Rollapp.xcodeproj -scheme Rollapp \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath ios/build/Rollapp.xcarchive CODE_SIGNING_ALLOWED=NO archive
+          ditto -c -k --keepParent ios/build/Rollapp.xcarchive \
+            ios/build/deliverables/Rollapp-iOS-Unsigned.xcarchive.zip
+      - name: Launch on iPhone and iPad simulators
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 2 --max-time 20 \
+            https://xn--80avakiab.xn--p1ai/api/healthz | jq -e '.ok and .service == "rollapp"'
+          app=ios/build/simulator/Build/Products/Debug-iphonesimulator/Rollapp.app
+          devices=$(xcrun simctl list -j devices available)
+          for family in iPhone iPad; do
+            sim=$(jq -er --arg family "$family" '
+              [.devices | to_entries[] | select(.key | contains(".iOS-")) |
+                .value[] | select(.name | startswith($family))] | first | .udid
+            ' <<< "$devices")
+            xcrun simctl bootstatus "$sim" -b
+            xcrun simctl install "$sim" "$app"
+            xcrun simctl launch "$sim" rf.rollapp.ios
+            sleep 12
+            xcrun simctl spawn "$sim" launchctl list | grep -F rf.rollapp.ios
+            xcrun simctl io "$sim" screenshot "ios/build/deliverables/Rollapp-${family}.png"
+            xcrun simctl shutdown "$sim"
+          done
+      - uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: Rollapp-iOS
+          path: ios/build/deliverables/
+          if-no-files-found: error
+          retention-days: 7
