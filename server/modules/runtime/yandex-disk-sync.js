@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { verifyAccountBackupSchema } from "../../account-backup.js";
-import { uploadYandexBackup } from "../profile/yandex-disk-backup.js";
+import { uploadYandexBackup, YANDEX_BACKUP_SYNC_LEASE_MS } from "../profile/yandex-disk-backup.js";
 import { authorizeYandexDisk, diskNotesFolder, readDiskNotes } from "./yandex-disk-connection.js";
 import { DiskNotesError, getYandexDiskConfig } from "./yandex-disk.js";
 
@@ -93,10 +93,10 @@ async function claimSync(transaction, clientId, leaseToken) {
           AND NOT EXISTS (SELECT 1 FROM yandex_disk_sync WHERE ${activeLease})
         ORDER BY next_at,user_id LIMIT 1 FOR UPDATE SKIP LOCKED
       )
-      UPDATE yandex_disk_sync s SET lease_token=$2, lease_until=CURRENT_TIMESTAMP+INTERVAL '12 minutes'
+      UPDATE yandex_disk_sync s SET lease_token=$2, lease_until=CURRENT_TIMESTAMP+($3::int*INTERVAL '1 millisecond')
       FROM due WHERE (s.user_id,s.oauth_client_id)=(due.user_id,due.oauth_client_id)
       RETURNING s.user_id
-    `, [clientId, leaseToken]);
+    `, [clientId, leaseToken, YANDEX_BACKUP_SYNC_LEASE_MS]);
     return job?.user_id;
   });
 }
