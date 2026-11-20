@@ -32,6 +32,7 @@ import "dotenv/config";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import express from "express";
+import { registerAndroidAssetLinks } from "./android-asset-links.js";
 import helmet from "helmet";
 import { registerTonConnectRoutes, TON_CONNECT_BRIDGE_ORIGINS } from "./modules/payments/ton-connect.js";
 import { registerTonContactCardRoutes } from "./modules/contacts/ton-contact-cards.js";
@@ -3458,6 +3459,7 @@ if (isProduction) {
   const distPath = path.resolve(__dirname, "../dist");
   const entry = sphereApplication ? `${applicationId}.html` : "index.html";
   app.get(/^\/[^/]+\.html$/i, (_req, res) => res.status(404).end());
+  if (!sphereApplication) registerAndroidAssetLinks(app, distPath);
   app.use(express.static(distPath, { maxAge: "1y", immutable: true, index: false, redirect: false }));
   app.get("/{*splat}", asyncRoute(async (req, res) => {
     const url = new URL(req.originalUrl, "https://rollapp.invalid");

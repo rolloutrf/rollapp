@@ -185,7 +185,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A42000000000000000000006 /* Rollapp.xcconfig */;
 			buildSettings = {
-				DEVELOPMENT_TEAM = 3WDRS3Y6QJ;
 			};
 			name = Debug;
 		};
@@ -193,7 +192,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A42000000000000000000006 /* Rollapp.xcconfig */;
 			buildSettings = {
-				DEVELOPMENT_TEAM = 3WDRS3Y6QJ;
 			};
 			name = Release;
 		};
