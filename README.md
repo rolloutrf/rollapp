@@ -49,6 +49,14 @@ user's regular browser profile, returns only the product metadata to Rollapp and
 closes the temporary tab. The extension is limited to product pages on those
 three stores, localhost and the production Rollapp origin.
 
+## iOS
+
+The [Rollapp iOS project](ios/README.md) runs the production app on iPhone and iPad. It uses Xcode and requires iOS 17 or later. The [iOS workflow](.github/workflows/rollapp-ios-build.yml) builds the simulator app and an unsigned device archive. The workflow can also run the simulator smoke check on demand.
+
+## Android
+
+The Android client lives in `android/` and requires Android 7.0 or later. The [Android workflow](.github/workflows/android.yml) checks the project, builds an Android App Bundle, and uploads a debug APK.
+
 ## macOS app
 
 Rollapp for macOS opens [the production service](https://роллапп.рф) in a standalone window with a Dock icon, native menus and its own persistent sign-in session. It requires macOS 12 or later and an internet connection. The same account and data are available in the web and macOS apps.
