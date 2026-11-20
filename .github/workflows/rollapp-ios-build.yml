@@ -1,0 +1,103 @@
+name: Rollapp iOS build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/rollapp-ios-build.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/rollapp-ios-build.yml"
+  workflow_dispatch:
+    inputs:
+      simulator_smoke:
+        description: "Launch the build on iPhone and iPad simulators"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Build simulator app
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -project ios/Rollapp.xcodeproj -scheme Rollapp \
+            -configuration Debug -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/build/simulator build
+          mkdir -p ios/build/deliverables
+          ditto -c -k --keepParent ios/build/simulator/Build/Products/Debug-iphonesimulator/Rollapp.app \
+            ios/build/deliverables/Rollapp-iOS-Simulator.zip
+      - name: Archive device app
+        run: |
+          set -euo pipefail
+          xcodebuild -project ios/Rollapp.xcodeproj -scheme Rollapp \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath ios/build/Rollapp.xcarchive CODE_SIGNING_ALLOWED=NO archive
+          ditto -c -k --keepParent ios/build/Rollapp.xcarchive \
+            ios/build/deliverables/Rollapp-iOS-Unsigned.xcarchive.zip
+      - name: Upload simulator package and device archive
+        uses: actions/upload-artifact@v6
+        with:
+          name: Rollapp-iOS
+          path: ios/build/deliverables/
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.simulator_smoke
+    needs: build
+    runs-on: xcode-27
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: Rollapp-iOS
+          path: ios/build/deliverables/
+      - name: Launch on iPhone and iPad simulators
+        timeout-minutes: 7
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 2 --max-time 20 \
+            https://xn--80avakiab.xn--p1ai/api/healthz | jq -e '.ok and .service == "rollapp"'
+          xcodebuild -version
+          ditto -x -k ios/build/deliverables/Rollapp-iOS-Simulator.zip ios/build/simulator
+          app=ios/build/simulator/Rollapp.app
+          devices=$(xcrun simctl list -j devices available)
+          mkdir -p ios/build/smoke
+          for family in iPhone iPad; do
+            device=$(jq -erc --arg family "$family" '
+              [.devices | to_entries | sort_by(.key) | reverse | .[] |
+                select(.key | contains(".iOS-")) | .value[] |
+                select(.name | startswith($family))] | first
+            ' <<< "$devices")
+            sim=$(jq -r .udid <<< "$device")
+            jq -r '"Booting \(.name) (\(.udid))"' <<< "$device"
+            xcrun simctl boot "$sim"
+            python3 -c 'import subprocess, sys; subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1]], check=True, timeout=150)' "$sim"
+            xcrun simctl install "$sim" "$app"
+            xcrun simctl launch "$sim" rf.rollapp.ios
+            sleep 12
+            xcrun simctl spawn "$sim" launchctl list | grep -F rf.rollapp.ios
+            xcrun simctl io "$sim" screenshot "ios/build/smoke/Rollapp-${family}.png"
+            xcrun simctl shutdown "$sim"
+          done
+      - name: Upload simulator screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: Rollapp-iOS-Smoke
+          path: ios/build/smoke/
+          if-no-files-found: ignore
+          retention-days: 7
