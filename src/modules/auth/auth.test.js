@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./auth.js";
+import { inviteTokenFromLink, safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./auth.js";
+
+test("a pasted invitation recovers only the token from a Rollapp registration URL", () => {
+  const origin = "https://rollapp.example";
+  const token = "a".repeat(43);
+  const signed = `v1.00000000-0000-0000-0000-000000000000.${token}`;
+  assert.equal(inviteTokenFromLink(` ${origin}/register?next=%2Flogin#invite=${token} `, origin), token);
+  assert.equal(inviteTokenFromLink(`${origin}/регистрация/#приглашение=${signed}`, origin), signed);
+  assert.equal(inviteTokenFromLink(`https://example.org/register#invite=${token}`, origin), "");
+  assert.equal(inviteTokenFromLink(`${origin}/login#invite=${token}`, origin), "");
+  assert.equal(inviteTokenFromLink(`${origin}/register?invite=${token}`, origin), "");
+  assert.equal(inviteTokenFromLink(`${origin}/register#invite=${"a".repeat(129)}`, origin), "");
+  assert.equal(inviteTokenFromLink("не ссылка", origin), "");
+});
 
 test("safeNextPath keeps only local application paths", () => {
   assert.equal(safeNextPath("/app/wishes?space=food#top"), "/app/wishes?space=food#top");
@@ -30,7 +43,7 @@ test("Yandex callback errors map to safe local copy", () => {
   assert.match(yandexAuthErrorDetails("YANDEX_LINK_REQUIRED").description, /настройки профиля/);
   assert.match(yandexAuthErrorDetails("YANDEX_LINK_REQUIRED", { legacySignInEnabled: true }).description, /по email/);
   assert.equal(yandexAuthErrorDetails("unknown-provider-text"), yandexAuthErrorDetails("YANDEX_PROVIDER_ERROR"));
-  assert.match(yandexAuthErrorDetails("YANDEX_EMAIL_REQUIRED", { registering: true }).description, /адрес приглашения указан как основной/);
+  assert.match(yandexAuthErrorDetails("YANDEX_EMAIL_REQUIRED", { registering: true }).description, /разрешите передать адрес почты выбранного аккаунта/);
   assert.doesNotMatch(yandexAuthErrorDetails("YANDEX_EMAIL_REQUIRED").description, /приглашени/);
   assert.equal(yandexAuthErrorDetails("constructor"), yandexAuthErrorDetails("YANDEX_PROVIDER_ERROR"));
   assert.equal(yandexAuthErrorDetails(""), null);

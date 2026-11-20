@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { EXTERNAL_WISHLIST_PROVIDERS, externalWishlistUrl } from "../shared/modules/profile/external-wishlists.js";
-import { fetchPublicHtml, fetchPublicJson } from "./modules/media-import/metadata-fetch.js";
-import { decodeHtmlEntities } from "./modules/media-import/metadata.js";
-import { OHMYWISHES_API_BASE } from "./modules/catalog-marketplace/ohmywishes-catalog.js";
+import { parse } from "parse5";
+import { EXTERNAL_WISHLIST_PROVIDERS, externalWishlistUrl } from "../../../shared/modules/profile/external-wishlists.js";
+import { marketplaceWishlistKey, parseMarketplaceWishlistItems } from "./browser-wishlist-import.js";
+import { fetchPublicHtml, fetchPublicJson } from "../media-import/metadata-fetch.js";
+import { decodeHtmlEntities } from "../media-import/metadata.js";
+import { OHMYWISHES_API_BASE } from "../catalog-marketplace/ohmywishes-catalog.js";
 
 const ohMyWishes = EXTERNAL_WISHLIST_PROVIDERS.find(({ id }) => id === "ohmywishes");
 const ohMyWishesPath = /^(?:\/(?:ru|en))?\/users\/([\w.-]{1,128})(?:\/lists\/([\w.-]{1,256}))?\/?$/i;
@@ -135,8 +137,137 @@ export async function readYandexMarketWishlist(input, { fetchHtml = fetchPublicH
   return { items: [...items.values()], partial };
 }
 
+const wbHosts = new Set(["wildberries.ru", "www.wildberries.ru", "wb.ru", "www.wb.ru"]);
+const ozonHosts = new Set(["ozon.ru", "www.ozon.ru"]);
+const isShopUrl = (url, hosts) => url?.protocol === "https:" && hosts.has(url.hostname)
+  && !url.port && !url.username && !url.password;
+const wbShareId = (url) => isShopUrl(url, wbHosts) && /^\/wlg\/([\w-]{1,128})\/?$/.exec(url.pathname)?.[1];
+const normalizeTitle = (value) => typeof value === "string" ? value.replace(/\0/g, "").trim().slice(0, 160) : "";
+
+export async function readWildberriesWishlist(input, { fetchJson = fetchPublicJson } = {}) {
+  const id = wbShareId(URL.parse(input));
+  if (!id) throw new WishlistImportError(422, "Вставьте публичную ссылку WB из меню «Поделиться» (с /wlg/).");
+  const unreadable = () => new WishlistImportError(502, "WB не отдал список. Откройте его по ссылке или скопируйте новую через «Поделиться».");
+  let page;
+  try {
+    // Use only the anonymous response for this share ID. Never persist the author or funding data.
+    page = await fetchJson(`https://wishlist.common.geo.paywb.com/wishlist/api/v2/wishlists/${id}`, {
+      timeoutMs: 8_000, maxBytes: 512_000, maxRedirects: 0,
+    });
+  } catch {
+    throw unreadable();
+  }
+  const { result, error_code } = page.json || {};
+  if (page.truncated || error_code !== "ERR_NONE" || result?.status !== "OPEN"
+    || wbShareId(URL.parse(result.sharingLink)) !== id
+    || !Array.isArray(result.collections) || result.collections.length > maxItems) throw unreadable();
+  const products = [];
+  for (const collection of result.collections) {
+    if (!collection || typeof collection !== "object") throw unreadable();
+    if (collection.product == null) continue;
+    const { id: productId } = collection.product;
+    const title = normalizeTitle(collection.title);
+    if (!Number.isSafeInteger(productId) || productId <= 0 || !title) throw unreadable();
+    products.push({ title, url: `https://www.wildberries.ru/catalog/${productId}/detail.aspx` });
+  }
+  const items = parseMarketplaceWishlistItems("wb", products);
+  if (!items) throw unreadable();
+  return { items, partial: false };
+}
+
+const ozonShortPath = /^\/t\/[\w-]{1,128}\/?$/;
+const ozonListPath = /^\/(?:selections\/view|wishlists?)\/[\w-]{1,128}\/?$/;
+
+function ozonListIdentity(url) {
+  const path = url.pathname.replace(/\/$/, "");
+  if (path === "/my/favorites/shared") {
+    const list = url.searchParams.get("list");
+    return /^[\w-]{1,256}$/.test(list || "") ? `${path}?list=${list}` : null;
+  }
+  return ozonListPath.test(path) ? path : null;
+}
+
+function* htmlNodes(root) {
+  const pending = [root];
+  while (pending.length) {
+    const node = pending.pop();
+    yield node;
+    for (let index = (node.childNodes?.length ?? 0) - 1; index >= 0; index--) {
+      pending.push(node.childNodes[index]);
+    }
+  }
+}
+
+const attribute = (node, name) => node?.attrs?.find((attr) => attr.name === name)?.value;
+const ozonListWidget = (node) => ["wishlist", "selectionProducts"].includes(attribute(node, "data-widget"));
+
+export async function readOzonWishlist(input, { fetchHtml = fetchPublicHtml } = {}) {
+  const url = URL.parse(input);
+  const validHost = isShopUrl(url, ozonHosts);
+  const identity = validHost && ozonListIdentity(url);
+  if (!identity && !(validHost && ozonShortPath.test(url.pathname))) {
+    throw new WishlistImportError(422, "Вставьте публичную ссылку на вишлист Ozon из меню «Поделиться».");
+  }
+  const wrongPage = () => new WishlistImportError(422, "Ссылка Ozon не открывает вишлист. Скопируйте новую ссылку через «Поделиться».");
+  const unreadable = () => new WishlistImportError(502, "Ozon не отдал товары по ссылке. Проверьте, открывается ли вишлист в браузере без входа.");
+  let page;
+  let targetIdentity = identity;
+  let wrongDestination = false;
+  const allowRedirect = (target) => {
+    if (!isShopUrl(target, ozonHosts)) return false;
+    const destination = ozonListIdentity(target);
+    if (destination && (!targetIdentity || targetIdentity === destination)) {
+      targetIdentity = destination;
+      return true;
+    }
+    if (!targetIdentity && target.pathname === url.pathname) return true;
+    wrongDestination = true;
+    return false;
+  };
+  try {
+    page = await fetchHtml(url.href, { timeoutMs: 10_000, maxBytes: 4 * 1024 * 1024, allowRedirect });
+  } catch {
+    throw wrongDestination ? wrongPage() : unreadable();
+  }
+  if (!isShopUrl(page.url, ozonHosts) || !ozonListIdentity(page.url)
+    || (targetIdentity && ozonListIdentity(page.url) !== targetIdentity)) throw wrongPage();
+  if (page.truncated) throw unreadable();
+
+  const document = parse(page.html);
+  const products = new Map();
+  let partial = false;
+  for (const node of htmlNodes(document)) {
+    if (!ozonListWidget(node)) continue;
+    for (const child of htmlNodes(node)) {
+      if (attribute(child, "rel") === "next" || attribute(child, "data-widget") === "pagination") partial = true;
+      if (child.tagName !== "a") continue;
+      const product = URL.parse(attribute(child, "href") || "", page.url);
+      const key = product && marketplaceWishlistKey("ozon", product.href);
+      if (!key) continue;
+      const descendants = [...htmlNodes(child)];
+      const image = descendants.find((entry) => entry.tagName === "img");
+      const imageUrl = attribute(image, "src") || "";
+      const title = normalizeTitle(attribute(child, "title")
+        || descendants.filter((entry) => entry.nodeName === "#text").map((entry) => entry.value).join(" ").trim()
+        || attribute(image, "alt"));
+      const previous = products.get(key);
+      products.set(key, {
+        url: previous?.url || product.origin + product.pathname,
+        title: previous?.title || title,
+        imageUrl: previous?.imageUrl || imageUrl.slice(0, 1000),
+      });
+      if (products.size > maxItems) throw unreadable();
+    }
+  }
+  const items = parseMarketplaceWishlistItems("ozon", [...products.values()]);
+  if (!items?.length) throw unreadable();
+  return { items, partial };
+}
+
 export const externalWishlistReaders = new Map([
   ["ohmywishes", async (url) => ({ items: await readOhMyWishes(url), partial: false })],
+  ["ozon", readOzonWishlist],
+  ["wb", readWildberriesWishlist],
   ["yandex-market", readYandexMarketWishlist],
 ]);
 

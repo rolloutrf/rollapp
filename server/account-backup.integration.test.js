@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
 import { verifyAccountBackupSchema, writeAccountBackup } from "./account-backup.js";
 
-test("Yandex Disk snapshots scope wishes, appointments, announcements and invites by account", {
+test("Yandex Disk snapshots scope wishes, appointments, announcements, invites and reminders by account", {
   skip: process.env.ROLLAPP_TEST_ACCOUNT_BACKUP !== "1",
 }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");
@@ -47,6 +47,17 @@ test("Yandex Disk snapshots scope wishes, appointments, announcements and invite
                  ($2,$3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP+INTERVAL '1 hour','Unbooked')`, [slot, unbooked, owner]);
         await client.query("INSERT INTO profile_session_bookings (id,slot_id,guest_id) VALUES ($1,$2,$3)", [booking, slot, participant]);
         await client.query("INSERT INTO profile_announcements (id,owner_id,title,body) VALUES ($1,$2,'Title','Body')", [announcement, owner]);
+      }
+      const { rows: [{ notifications }] } = await client.query("SELECT to_regclass('notification_reminders') IS NOT NULL AS notifications");
+      const reminder = randomUUID();
+      if (notifications) {
+        await client.query(`INSERT INTO notification_preferences (user_id,time_zone,medication_reminders,daily_overview)
+          VALUES ($1,'Europe/Moscow',false,true),($2,'UTC',false,false)`, [owner, participant]);
+        await client.query(`INSERT INTO notification_reminders (id,user_id,title,start_on,remind_at,repeats_daily)
+          VALUES ($1,$2,'Owner reminder','2030-01-01','08:45',true),($1,$3,'Other reminder','2030-01-01','08:45',false)`, [reminder, owner, participant]);
+        await client.query(`INSERT INTO user_notifications (id,user_id,kind,source_id,title,scheduled_at,local_day,local_time)
+          OVERRIDING SYSTEM VALUE VALUES (-1,$1,'custom',$3,'Owner notice','2030-01-01T05:45:00Z','2030-01-01','08:45'),
+                                         (-2,$2,'custom',$3,'Other notice','2030-01-01T08:45:00Z','2030-01-01','08:45')`, [owner, participant, reminder]);
       }
 
       const snapshot = async (userId) => {
@@ -93,6 +104,20 @@ test("Yandex Disk snapshots scope wishes, appointments, announcements and invite
         assert.deepEqual(outsiderSnapshot.profile_session_bookings, []);
         assert.equal(ownerSnapshot.profile_announcements[0].id, announcement);
         assert.deepEqual(memberSnapshot.profile_announcements, []);
+      }
+      if (notifications) {
+        assert.deepEqual(ownerSnapshot.notification_preferences.map(row => row.user_id), [owner]);
+        assert.deepEqual(memberSnapshot.notification_preferences.map(row => row.user_id), [participant]);
+        assert.deepEqual(ownerSnapshot.notification_reminders.map(row => row.title), ["Owner reminder"]);
+        assert.deepEqual(memberSnapshot.notification_reminders.map(row => row.title), ["Other reminder"]);
+        assert.deepEqual(ownerSnapshot.user_notifications.map(row => row.title), ["Owner notice"]);
+        assert.deepEqual(memberSnapshot.user_notifications.map(row => row.title), ["Other notice"]);
+        assert(!Object.hasOwn(ownerSnapshot.user_notifications[0], "source_id"));
+        assert(!Object.hasOwn(ownerSnapshot.notification_preferences[0], "updated_at"));
+        assert(!Object.hasOwn(ownerSnapshot.notification_reminders[0], "updated_at"));
+        for (const table of ["notification_preferences", "notification_reminders", "user_notifications"]) {
+          assert.deepEqual(outsiderSnapshot[table], []);
+        }
       }
     } finally {
       try { await client.query("ROLLBACK"); } finally { client.release(); }

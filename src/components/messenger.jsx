@@ -39,12 +39,13 @@ export function MessengerDrawer({ user, open, onOpenChange, initialConversationI
   </MessageDrawer>;
 }
 
-export function MessageDrawer({ open, onOpenChange, triggerClassName, title, triggerLabel = title, icon: Icon, initialFocus, onAfterClose, children }) {
+export function MessageDrawer({ open, onOpenChange, triggerClassName, title, triggerLabel = title, icon: Icon, hasUnread, initialFocus, onAfterClose, children }) {
   const isMobile = useIsMobile();
   return <Drawer open={open} swipeDirection={isMobile ? 'down' : 'right'} onOpenChange={onOpenChange}
     onOpenChangeComplete={nextOpen => { if (!nextOpen) onAfterClose?.(); }}>
     <DrawerTrigger render={<Button data-control-icon variant="outline" size="icon" className={triggerClassName} />} aria-label={triggerLabel} title={title}>
       <Icon aria-hidden="true" />
+      {hasUnread && <span aria-hidden="true" className="absolute end-2 top-2 size-2 rounded-full bg-primary" />}
     </DrawerTrigger>
     <DrawerContent className="messenger-drawer app-drawer--form rollapp-body" initialFocus={initialFocus}>
       {children}
@@ -54,6 +55,13 @@ export function MessageDrawer({ open, onOpenChange, triggerClassName, title, tri
 
 export function MessageDrawerClose({ label = 'Закрыть сообщения' }) {
   return <DrawerClose render={<Button data-control-icon variant="outline" size="icon" className="ml-auto" />} aria-label={label}><X aria-hidden="true" /></DrawerClose>;
+}
+
+export function MessageDrawerHeading({ heading, title, closeLabel }) {
+  return <ControlBar as="header" className="messenger-heading">
+    <DrawerTitle ref={heading} tabIndex={-1} className="text-2xl font-semibold outline-none">{title}</DrawerTitle>
+    <MessageDrawerClose label={closeLabel} />
+  </ControlBar>;
 }
 
 export function MessageDrawerBack({ onClick }) {

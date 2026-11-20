@@ -157,7 +157,9 @@ const transport={
     return {message};
   },
 };
-api.get=transport.get;api.post=transport.post;
+const { get: originalGet, post: originalPost } = api;
+api.get = (path, options) => path.startsWith('/notifications') ? originalGet(path, options) : transport.get(path, options);
+api.post = (path, body, options) => path.startsWith('/notifications') ? originalPost(path, body, options) : transport.post(path, body, options);
 // Simulate the browser speech service while using native UI input and keyboard events.
 window.SpeechRecognition = class {
   start() {
@@ -167,5 +169,6 @@ window.SpeechRecognition = class {
   stop() { this.stopRequested = true; }
   abort() { this.aborted = true; }
 };
-function Fixture(){useVisualViewport();const [id,setId]=React.useState('alice');window.messengerTest.switchAccount=setId;return <SessionContext.Provider value={{user:{id,name:'Алиса',username:id,accountType:'personal',canDiscoverSpheres:id==='alice'}}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}><MobileFormPages><GlobalAppChrome/><PlanningFab/><Routes><Route path="/app/assistant" element={<AssistantRoute/>}/><Route path="/app/messenger/:conversationId?" element={<AppShell><MessengerRoute user={{id:'alice'}}/></AppShell>}/><Route path="/app/planning" element={<AppShell><PlanningSpace/></AppShell>}/><Route path="/:username/wishes/:wishId" element={<div>Сохранённое желание</div>}/><Route path="/app/spheres/:sphereId" element={<div>Открытая сфера</div>}/><Route path="/app/wishes" element={<div className="app-layout app-layout--dark"><p>Исходная страница</p></div>}/></Routes></MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;}
+const notificationFixture = new URLSearchParams(window.location.search).has('notificationFixture');
+function Fixture(){useVisualViewport();const [id,setId]=React.useState('alice');window.messengerTest.switchAccount=setId;return <SessionContext.Provider value={{user:{id,name:'Алиса',username:id,accountType:'personal',canDiscoverSpheres:id==='alice',notificationsEnabled:notificationFixture}}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}><MobileFormPages><GlobalAppChrome/><PlanningFab/><Routes><Route path="/app/assistant" element={<AssistantRoute/>}/><Route path="/app/messenger/:conversationId?" element={<AppShell><MessengerRoute user={{id:'alice'}}/></AppShell>}/><Route path="/app/planning" element={<AppShell><PlanningSpace/></AppShell>}/><Route path="/:username/wishes/:wishId" element={<div>Сохранённое желание</div>}/><Route path="/app/spheres/:sphereId" element={<div>Открытая сфера</div>}/><Route path="/app/wishes" element={<div className="app-layout app-layout--dark"><p>Исходная страница</p></div>}/></Routes></MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;}
 createRoot(document.getElementById('root')).render(<BrowserRouter><Fixture/></BrowserRouter>);

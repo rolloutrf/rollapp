@@ -14,12 +14,20 @@ const server=await createServer({optimizeDeps:{entries:['scripts/fixtures/messen
 }]});
 await listenSmokeServer(server);const browser=instrumentSmokeBrowser(await chromium.launch(browserLaunchOptions()));
 let activePage;
+const notificationsOnly = process.argv.includes('--notifications-only');
 try{
  for(const [width,height] of [[320,844],[390,844],[767,844],[768,844],[820,844],[1024,844],[1440,844],[1920,844],[390,400],[1440,400]]){
   const page=await browser.newPage({viewport:{width,height}});const errors=[];activePage=page;let navigations=0;page.on('request',request=>{if(request.isNavigationRequest() && request.frame()===page.mainFrame())navigations++;});
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push('Unexpected production API request');return route.abort();});
   await page.route('https://example.invalid/**',route=>{errors.push('Assistant note loaded unconfirmed remote media');return route.abort();});
+  if (notificationsOnly) {
+    await checkNotifications(page, width, height);
+    assert.deepEqual(errors, []);
+    console.log(`PASS ${width}x${height}: notification rail, reminder create/edit/delete, settings and unread state`);
+    await page.close();
+    continue;
+  }
   // The first AppShell load compiles the full module graph on a cold Vite server.
   await page.goto(`${smokeOrigin(server)}/app/wishes`,{waitUntil:'networkidle',timeout:120_000});
   const launcher=await page.getByRole('button',{name:'Открыть сообщения',exact:true}).boundingBox();
@@ -526,6 +534,158 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   }
   await checkNoteTasks(page, width, height);
   console.log(`PASS assistant ${width}x${height}: shared drawer, editable presets, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
+}
+
+async function checkNotifications(page, width, height) {
+  let preferences = { timeZone: 'Europe/Moscow', medicationReminders: false, dailyOverview: false };
+  let reminders = [];
+  const notices = [{
+    id: '1', kind: 'medication', scheduledAt: '2026-11-19T05:00:00Z',
+    localDay: '2026-11-19', localTime: '08:00', read: false,
+  }];
+  await page.route('**/api/notifications**', async route => {
+    const request = route.request();
+    const { pathname } = new URL(request.url());
+    if (pathname.endsWith('/preferences')) {
+      preferences = route.request().postDataJSON();
+      return route.fulfill({ json: { preferences } });
+    }
+    if (pathname.endsWith('/read')) {
+      assert.deepEqual(route.request().postDataJSON(), { ids: ['1'] });
+      notices[0].read = true;
+      return route.fulfill({ status: 204 });
+    }
+    if (pathname.includes('/reminders')) {
+      if (request.method() === 'DELETE') {
+        reminders = [];
+        return route.fulfill({ status: 204 });
+      }
+      const draft = request.postDataJSON();
+      const reminder = { id: reminders[0]?.id, ...draft };
+      reminders = [reminder];
+      if (request.method() === 'POST') notices.push({
+        id: '2', kind: 'custom', title: draft.title, scheduledAt: `${draft.startOn}T15:30:00Z`,
+        localDay: draft.startOn, localTime: draft.remindAt, read: true,
+      });
+      return route.fulfill({ status: request.method() === 'POST' ? 201 : 200, json: { reminder } });
+    }
+    return route.fulfill({ json: { notifications: notices, preferences, reminders } });
+  });
+  await page.goto(`${smokeOrigin(server)}/app/wishes?notificationFixture=1`, { waitUntil: 'networkidle', timeout: 120_000 });
+  const unreadBell = page.getByRole('button', { name: 'Оповещения, есть непрочитанные', exact: true });
+  const bell = await unreadBell.boundingBox();
+  const assistant = await page.getByRole('button', { name: 'Ассистент Rollapp', exact: true }).boundingBox();
+  assert.equal(bell.x, assistant.x);
+  assert.equal(bell.width, 48);
+  assert.equal(bell.height, 48);
+  assert.equal(assistant.y - (bell.y + bell.height), 8);
+  assert(bell.y >= 0);
+  assert.equal(await unreadBell.locator('svg').evaluate(node => node.getBoundingClientRect().width), 20);
+  if (width === 390 && height === 844) {
+    await page.screenshot({ path: '/tmp/rollapp-notifications-rail.png', clip: {
+      x: bell.x - 8, y: bell.y - 8, width: 64, height: 232,
+    } });
+  }
+  await unreadBell.click();
+  const dialog = page.getByRole('dialog', { name: 'Оповещения', exact: true });
+  const reminder = dialog.getByRole('switch', { name: /Напоминать о приёме препаратов/ });
+  await reminder.waitFor();
+  await dialog.evaluate(async node => Promise.allSettled(node.getAnimations().map(animation => animation.finished)));
+  const bounds = await dialog.boundingBox();
+  assert.equal(bounds.width, width < 768 ? width : 576);
+  assert(bounds.y >= -1 && bounds.y + bounds.height <= height + 1);
+  const overflow = await dialog.evaluate(node => {
+    const body = node.querySelector('.messenger-directory-scroll');
+    return { width: body.clientWidth, scrollWidth: body.scrollWidth };
+  });
+  assert.equal(overflow.scrollWidth, overflow.width, 'Notification content must not scroll horizontally');
+  const footer = dialog.locator('[data-slot="drawer-footer"]');
+  const create = footer.getByRole('button', { name: 'Новое напоминание', exact: true });
+  const mark = footer.getByRole('button', { name: 'Отметить все прочитанными', exact: true });
+  const [createBox, markBox] = await Promise.all([create.boundingBox(), mark.boundingBox()]);
+  assert.equal(createBox.height, 48);
+  assert.equal(markBox.width, 48);
+  assert.equal(markBox.height, 48);
+  assert(createBox.x + createBox.width <= markBox.x || createBox.y + createBox.height <= markBox.y,
+    'The notification footer actions must fit side by side or wrap without overlap');
+  assert.equal(await footer.evaluate(node => getComputedStyle(node).backgroundColor), 'rgba(0, 0, 0, 0)');
+  await create.click();
+  const subject = page.getByRole('textbox', { name: 'О чём напомнить', exact: true });
+  await subject.fill('Полить цветы');
+  await page.getByLabel('Время', { exact: true }).fill('18:30');
+  if (width < 768) {
+    await page.getByRole('button', { name: /^Дата напоминания:/ }).click();
+    await page.getByRole('heading', { name: 'Дата напоминания' }).waitFor();
+    await page.goBack();
+    await subject.waitFor();
+    assert.equal(await subject.inputValue(), 'Полить цветы');
+  }
+  const save = page.getByRole('button', { name: 'Сохранить', exact: true });
+  if (width < 768) {
+    const back = page.locator('[data-mobile-form-page]').getByRole('button', { name: 'Назад', exact: true });
+    const [saveBox, backBox] = await Promise.all([save.boundingBox(), back.boundingBox()]);
+    assert.equal(saveBox.height, 48);
+    assert.equal(saveBox.y, backBox.y);
+    assert.equal(backBox.width, 48);
+    assert.equal(backBox.height, 48);
+    assert(saveBox.y + saveBox.height <= height);
+  }
+  await save.click();
+  const created = dialog.getByRole('button', { name: 'Редактировать напоминание Полить цветы' });
+  await created.click();
+  assert.equal(reminders[0].title, 'Полить цветы');
+  assert.equal(reminders[0].remindAt, '18:30');
+  assert.equal(reminders[0].repeatsDaily, false);
+  await subject.fill('Полить растения');
+  await page.getByRole('switch', { name: 'Повторять каждый день' }).click();
+  await save.click();
+  const edited = dialog.getByRole('button', { name: 'Редактировать напоминание Полить растения' });
+  await edited.waitFor();
+  assert.equal(reminders[0].repeatsDaily, true);
+  if ((width === 390 || width === 1440) && height === 844) {
+    await dialog.evaluate(async node => Promise.allSettled(node.getAnimations().map(animation => animation.finished)));
+    await page.screenshot({ path: `/tmp/rollapp-notifications-custom-${width}-${height}.png` });
+    const darkSurface = await dialog.evaluate(node => getComputedStyle(node).backgroundColor);
+    await page.evaluate(() => document.documentElement.classList.replace('dark', 'light'));
+    assert.notEqual(await dialog.evaluate(node => getComputedStyle(node).backgroundColor), darkSurface);
+    await dialog.evaluate(async node => {
+      await new Promise(requestAnimationFrame);
+      const transitions = node.getAnimations({ subtree: true }).filter(animation => animation instanceof CSSTransition);
+      await Promise.allSettled(transitions.map(animation => animation.finished));
+    });
+    assert.equal(await edited.isVisible(), true);
+    await page.screenshot({ path: `/tmp/rollapp-notifications-custom-light-${width}-${height}.png` });
+    await page.evaluate(() => document.documentElement.classList.replace('light', 'dark'));
+  }
+  await edited.click();
+  await page.getByRole('button', { name: 'Удалить напоминание', exact: true }).click();
+  const deletion = page.getByRole('alertdialog', { name: 'Удалить напоминание?' });
+  await deletion.getByRole('button', { name: 'Удалить напоминание', exact: true }).click();
+  await dialog.waitFor();
+  await edited.waitFor({ state: 'detached' });
+  assert.equal(reminders.length, 0);
+  await dialog.getByText('Полить цветы', { exact: true }).waitFor();
+  await reminder.click();
+  await page.waitForFunction(() => {
+    const toggle = document.querySelector('[role="switch"]');
+    return toggle?.getAttribute('aria-checked') === 'true' && !toggle.disabled;
+  });
+  assert.equal(preferences.medicationReminders, true);
+  const notice = dialog.getByRole('link', { name: /Напоминание о приёме препаратов/ });
+  await notice.waitFor();
+  if ((width === 390 || width === 1440) && height === 844) {
+    await page.screenshot({ path: `/tmp/rollapp-notifications-${width}-${height}.png` });
+  }
+  await dialog.getByRole('button', { name: 'Отметить все прочитанными' }).click();
+  await notice.getByText('Непрочитанное').waitFor({ state: 'detached' });
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  const readBell = page.getByRole('button', { name: 'Оповещения', exact: true });
+  assert(await readBell.evaluate(node => document.activeElement === node));
+  await readBell.click();
+  await notice.click();
+  await page.waitForURL(url => url.pathname === '/app/spheres/health' && url.searchParams.get('tab') === 'medications');
+  await dialog.waitFor({ state: 'hidden' });
 }
 
 async function checkAssistantPresets(page, chat, text, width, height) {

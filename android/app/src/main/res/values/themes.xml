@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="rollapp_background">#0A0A0A</color>
+    <style name="Theme.Rollapp.Base" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/rollapp_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+    <style name="Theme.Rollapp" parent="Theme.Rollapp.Base" />
+</resources>

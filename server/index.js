@@ -10,6 +10,7 @@ import { registerMessengerRoutes } from "./messenger.js";
 
 import { registerAssistantWishlistSortRoute } from "./modules/assistant/assistant-wishlist-sort.js";
 import { registerMessengerAssistantRoute } from "./modules/assistant/messenger-assistant.js";
+import { registerNotificationRoutes } from "./modules/notifications/notifications.js";
 
 import { registerStoryRoutes } from "./stories.js";
 import { DiskNotesError, getYandexDiskConfig } from "./modules/runtime/yandex-disk.js";
@@ -63,7 +64,10 @@ import { registerCalendarDeviceRoutes } from "./modules/calendar/calendar-device
 import { registerProfilePublicationRoutes } from "./modules/profile/profile-publications.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./modules/auth/email.js";
 import { sendAccountInviteEmail } from "./modules/auth/email.js";
-import { canRegisterInvitedAccount, createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, lockMembership, requireMemberNumberAccount } from "./modules/auth/invites.js";
+import {
+  accountInviteShareToken, canRegisterInvitedAccount, confirmAccountInviteDelivery, drawAvailableNumber, findActiveAccountInvite, formatMemberNumber,
+  INVITE_DELIVERY_WINDOW_MS, isAccountInviteToken, lockMembership, prepareAccountInvite, readRegistrationInvite, requireMemberNumberAccount,
+} from "./modules/auth/invites.js";
 import { startMemberTonAnchor } from "./member-ton-anchor.js";
 
 import { externalCatalogItemFromRow } from "./modules/catalog-marketplace/external-catalog.js";
@@ -145,6 +149,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
+const notificationToken = process.env.ROLLAPP_EVE_NOTIFICATION_TOKEN;
 const { id: applicationId, sphere: sphereApplication } = applicationRuntime(process.env);
 let profileMoodAvailable = false;
 let diskSyncAvailable = false;
@@ -450,16 +455,17 @@ async function cleanAuthenticatedUser(row) {
   if (!row) return null;
   const moodLevel = profileMoodAvailable && row.account_type !== "business" ? row.mood_level ?? null : null;
   const profileSlug = await profileAddress(query, row.id);
+  const notificationCapability = notificationToken?.length >= 32 ? { notificationsEnabled: true } : {};
   const hasCapabilities = ["has_yandex", "can_discover_spheres"]
     .every((property) => Object.prototype.hasOwnProperty.call(row, property));
-  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug };
+  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug, ...notificationCapability };
   const capabilities = await query(
     `SELECT
        EXISTS(SELECT 1 FROM yandex_identities WHERE user_id=$1) AS has_yandex,
        EXISTS(SELECT 1 FROM default_follow_targets WHERE user_id=$1) AS can_discover_spheres`,
     [row.id],
   );
-  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug };
+  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug, ...notificationCapability };
 }
 
 function mapList(row) {
@@ -699,6 +705,7 @@ registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerProfileMoodRoutes(app, { requireAuth, transaction, asyncRoute, available: () => profileMoodAvailable });
 registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential: resolveOpenRouterApiKey });
+const notificationWorkerHealthy = registerNotificationRoutes(app, { requireAuth, asyncRoute, query, transaction, secret: notificationToken });
 registerAssistantWishlistSortRoute(app, { requireAuth, asyncRoute, transaction });
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
@@ -1121,6 +1128,13 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
 
   const result = await withMutationLock(`yandex-auth:${yandexUser.id}`, () => transaction(async (client) => {
     await lockYandexMutation(client, yandexUser, attempt);
+    let invite;
+    if (attempt.purpose === "invite") {
+      if (!account || !attempt.invite_token_hash) return { kind: "invite-required" };
+      await lockMembership(client, isMemoryDatabase);
+      invite = await readRegistrationInvite(client, attempt.invite_token_hash);
+      if (invite.kind !== "success") return invite;
+    }
     const knownIdentity = await client.query(
       "SELECT user_id FROM yandex_identities WHERE yandex_user_id=$1",
       [yandexUser.id],
@@ -1149,14 +1163,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
     if (existingEmail.rowCount) return { kind: "link-required" };
     if (attempt.purpose === "add") return { kind: "account-not-found" };
 
-    await lockMembership(client, isMemoryDatabase);
-    if (!account || !attempt.invite_token_hash) return { kind: "invite-required" };
-    const invite = await client.query(
-      `SELECT id FROM account_invites WHERE token_hash=$1 AND recipient_email=$2
-       AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP FOR UPDATE`,
-      [attempt.invite_token_hash, yandexUser.email],
-    );
-    if (!invite.rowCount) return { kind: "invite-invalid" };
+    if (!invite) return { kind: "invite-required" };
     if (!await canRegisterInvitedAccount(client, account.accountType)) return { kind: "limit-reached" };
 
     await lockProfileUsernames(client, isMemoryDatabase);
@@ -1164,7 +1171,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
     const unusablePasswordHash = `oauth-only:${randomBytes(32).toString("base64url")}`;
     const created = await insertYandexUser(client, yandexUser, userId, unusablePasswordHash, account);
     if (created.kind === "link-required") return created;
-    await client.query("UPDATE account_invites SET consumed_by=$1,consumed_at=CURRENT_TIMESTAMP WHERE id=$2", [userId, invite.rows[0].id]);
+    await client.query("UPDATE account_invites SET consumed_by=$1,consumed_at=clock_timestamp() WHERE id=$2", [userId, invite.id]);
     await client.query(
       `INSERT INTO wishlists (id,user_id,title,description,privacy,color,share_token)
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
@@ -1476,16 +1483,17 @@ const startYandexLogin = asyncRoute(async (req, res) => {
     return res.status(503).json({ error: "Вход через Яндекс ID не настроен", code: "YANDEX_AUTH_UNAVAILABLE" });
   }
   const signingUp = req.method === "POST";
-  const inviteToken = signingUp && typeof req.body?.invite === "string" && /^[A-Za-z0-9_-]{43}$/.test(req.body.invite) ? req.body.invite : "";
+  const inviteToken = signingUp && isAccountInviteToken(req.body?.invite) ? req.body.invite : "";
   const wantsLink = !signingUp && req.query.link === "1";
   let account;
+  let invite;
   if (signingUp) {
     if (!inviteToken) return res.status(403).json(inviteRequired);
     const parsedAccount = registrationAccountSchema.safeParse(req.body);
     if (!parsedAccount.success) return res.status(400).json({ error: parsedAccount.error.issues[0].message });
     account = parsedAccount.data;
-    const invite = await query("SELECT 1 FROM account_invites WHERE token_hash=$1 AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP", [inviteTokenHash(inviteToken)]);
-    if (!invite.rowCount) return res.status(403).json(invalidInvite);
+    invite = await findActiveAccountInvite(query, inviteToken);
+    if (!invite) return res.status(403).json(invalidInvite);
   }
   const nextPath = signingUp ? yandexRegistrationReturnPath(req.body.next) : safeOauthReturnPath(req.query.next);
   const wantsAdd = !signingUp && !wantsLink && addAccountRequested(req);
@@ -1510,7 +1518,7 @@ const startYandexLogin = asyncRoute(async (req, res) => {
       authorization.attempt.purpose,
       authorization.attempt.userId,
       authorization.expiresAt,
-      inviteToken ? inviteTokenHash(inviteToken) : null,
+      invite?.token_hash ?? null,
     ],
   );
   res.cookie(
@@ -1559,7 +1567,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   const nextPath = account ? yandexRegistrationReturnPath(attempt.next_path) : safeOauthReturnPath(attempt.next_path);
 
   const authErrorRedirect = (code) => {
-    if (!/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) return yandexLoginRedirect(nextPath, code, "", undefined, addingAccount);
+    if (!isAccountInviteToken(inviteToken)) return yandexLoginRedirect(nextPath, code, "", undefined, addingAccount);
     const params = new URLSearchParams({ next: nextPath, auth_error: code });
     return localizedPageUrl(`/register?${params}#invite=${inviteToken}`);
   };
@@ -1577,11 +1585,9 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
     const wantsBackup = attempt.purpose === "link-backup";
     const purpose = wantsBackup ? "link" : attempt.purpose;
     const result = await resolveYandexLogin(yandexUser, { ...attempt, purpose }, req.user, account?.data);
-    if (result.kind === "invite-required") {
-      return res.redirect(303, yandexLoginRedirect(nextPath, "INVITE_REQUIRED"));
-    }
+    if (result.kind === "invite-required") return loginError("INVITE_REQUIRED");
     if (result.kind === "invite-invalid") {
-      return res.redirect(303, authErrorRedirect("INVITE_INVALID"));
+      return loginError("INVITE_INVALID");
     }
     if (result.kind === "link-required") {
       return loginError(addingAccount ? "YANDEX_ADD_USE_CREDENTIALS" : "YANDEX_LINK_REQUIRED");
@@ -1698,6 +1704,8 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
     service: sphereApplication ? `rollapp-${applicationId}` : "rollapp",
     version: process.env.APP_VERSION || "development",
     capabilities: {
+      notifications: Boolean(notificationToken),
+      notificationsWorker: notificationWorkerHealthy(),
       marketplaceDirect: true,
       marketplaceSettlements: process.env.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true",
       marketplaceAi: sharedAiConfigured(),
@@ -1815,68 +1823,74 @@ app.post("/api/auth/password-reset/confirm", requireLegacySignIn, authRateLimit,
 
 app.post("/api/auth/invite/validate", inviteValidationRateLimit, asyncRoute(async (req, res) => {
   res.set("Cache-Control", "no-store");
-  const token = typeof req.body?.invite === "string" ? req.body.invite : "";
-  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return res.status(403).json(invalidInvite);
-  const invite = await query(
-    `SELECT recipient_email,expires_at FROM account_invites WHERE token_hash=$1
-     AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP`,
-    [inviteTokenHash(token)],
-  );
-  if (!invite.rowCount) return res.status(403).json(invalidInvite);
-  return res.json({ valid: true, email: invite.rows[0].recipient_email, expiresAt: invite.rows[0].expires_at });
+  const invite = await findActiveAccountInvite(query, req.body?.invite);
+  if (!invite) return res.status(403).json(invalidInvite);
+  return res.json({ valid: true, email: invite.recipient_email, expiresAt: invite.expires_at });
 }));
 
 app.post("/api/auth/register", authRateLimit, (_req, res) => {
   res.status(403).json({ error: "Регистрация доступна только через Яндекс ID по приглашению", code: "YANDEX_REGISTRATION_REQUIRED" });
 });
 
+function buildAccountInviteUrl(origin, token) {
+  return new URL(localizedPageUrl(`/register#${new URLSearchParams({ invite: token })}`), origin).href;
+}
+
 app.get("/api/me/invites", requireAuth, asyncRoute(async (req, res) => {
   if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
   const result = await query(
-    `SELECT id,recipient_email,created_at,expires_at,delivery_status,consumed_at
-     FROM account_invites WHERE created_by=$1 ORDER BY created_at DESC LIMIT 100`,
-    [req.user.id],
+    `SELECT id,recipient_email,created_at,expires_at,CASE
+       WHEN consumed_by IS NOT NULL OR consumed_at IS NOT NULL THEN 'accepted'
+       WHEN expires_at<=CURRENT_TIMESTAMP THEN 'expired'
+       WHEN delivery_status='pending' AND created_at<=CURRENT_TIMESTAMP - $2::int * INTERVAL '1 millisecond' THEN 'failed'
+       ELSE delivery_status END AS status,
+       NOT EXISTS (SELECT 1 FROM account_invites accepted WHERE accepted.created_by=invite.created_by
+         AND accepted.recipient_email=invite.recipient_email AND accepted.consumed_at>=invite.created_at) AS can_resend
+     FROM account_invites invite WHERE created_by=$1 ORDER BY created_at DESC LIMIT 100`,
+    [req.user.id, INVITE_DELIVERY_WINDOW_MS],
   );
-  res.set("Cache-Control", "no-store").json({ invites: result.rows.map(row => ({
-    id: row.id, email: row.recipient_email, createdAt: row.created_at,
-    expiresAt: row.expires_at, status: row.consumed_at ? "accepted" : new Date(row.expires_at).getTime() <= Date.now() ? "expired" : row.delivery_status,
-  })) });
+  const origin = getPasswordResetOrigin();
+  res.set("Cache-Control", "private, no-store").json({ invites: result.rows.map(row => {
+    const shareToken = origin && row.status === "sent" ? accountInviteShareToken(row.id) : null;
+    return {
+      id: row.id, email: row.recipient_email, createdAt: row.created_at,
+      expiresAt: row.expires_at, status: row.status, canResend: row.can_resend,
+      ...(shareToken && { copyUrl: buildAccountInviteUrl(origin, shareToken) }),
+    };
+  }) });
 }));
 
-app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req, res) => {
-  if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
-  const parsed = z.object({ email: z.string().trim().email().max(160).transform(value => value.toLowerCase()) }).strict().safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Укажите корректный email" });
+async function deliverAccountInvite(res, { creatorId, email, previousId }) {
   const origin = getPasswordResetOrigin();
   if (!origin || !getEmailConfig().enabled) return res.status(503).json({ error: "Отправка почты не настроена" });
-  const invite = createInvite({ email: parsed.data.email, creatorId: req.user.id });
-  const created = await transaction(async client => {
-    await lockMembership(client, isMemoryDatabase);
-    if ((await client.query("SELECT 1 FROM users WHERE email=$1", [invite.email])).rowCount) return { error: "Аккаунт с таким email уже есть", status: 409 };
-    const recent = await client.query(
-      `SELECT 1 FROM account_invites WHERE created_by=$1 AND recipient_email=$2
-       AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP AND delivery_status IN ('pending','sent') LIMIT 1`,
-      [req.user.id, invite.email],
-    );
-    if (recent.rowCount) return { error: "Для этого email уже есть активный инвайт", status: 409 };
-    await client.query(
-      `INSERT INTO account_invites (id,token_hash,recipient_email,created_by,created_at,expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [invite.id, invite.tokenHash, invite.email, invite.creatorId, invite.createdAt, invite.expiresAt],
-    );
-    return { ok: true };
-  });
+  const created = await transaction(client => prepareAccountInvite(client, { creatorId, email, previousId, isMemoryDatabase }));
   if (created.error) return res.status(created.status).json({ error: created.error });
-  const inviteUrl = new URL(localizedPageUrl(`/register#${new URLSearchParams({ invite: invite.token })}`), origin);
+  const { invite, previousCreatedAt } = created;
+  const inviteUrl = buildAccountInviteUrl(origin, invite.token);
   try {
-    await sendAccountInviteEmail({ to: invite.email, inviteUrl: inviteUrl.toString(), requestId: invite.id });
-    await query("UPDATE account_invites SET delivery_status='sent' WHERE id=$1 AND delivery_status='pending'", [invite.id]);
+    await sendAccountInviteEmail({ to: invite.email, inviteUrl, requestId: invite.id });
   } catch (error) {
     await query("UPDATE account_invites SET delivery_status='failed' WHERE id=$1 AND delivery_status='pending'", [invite.id]);
     console.error(`[account-invite] Delivery failed: ${error.message}`);
     return res.status(502).json({ error: "Не удалось отправить приглашение" });
   }
+  const confirmed = await transaction(client => confirmAccountInviteDelivery(client, invite, isMemoryDatabase, previousCreatedAt));
+  if (confirmed.error) return res.status(confirmed.status).json({ error: confirmed.error });
   res.status(201).json({ id: invite.id, email: invite.email, expiresAt: invite.expiresAt });
+}
+
+app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req, res) => {
+  if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
+  const parsed = z.object({ email: z.string().trim().email().max(160).transform(value => value.toLowerCase()) }).strict().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Укажите корректный email" });
+  return deliverAccountInvite(res, { creatorId: req.user.id, email: parsed.data.email });
+}));
+
+app.post("/api/me/invites/:id/resend", requireAuth, inviteRateLimit, asyncRoute(async (req, res) => {
+  if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
+  const parsed = z.string().uuid().safeParse(req.params.id);
+  if (!parsed.success) return res.status(404).json({ error: "Приглашение не найдено" });
+  return deliverAccountInvite(res, { creatorId: req.user.id, previousId: parsed.data });
 }));
 
 app.post("/api/me/member-number/draw", requireAuth, requireMemberNumberAccount, authRateLimit, asyncRoute(async (req, res) => {

@@ -11,6 +11,14 @@ COPY contracts ./contracts
 COPY browser-extension ./browser-extension
 RUN npm run build
 
+FROM node:24-alpine AS eve-build
+WORKDIR /app/eve
+COPY eve/package.json eve/package-lock.json ./
+RUN npm ci --omit=dev --no-audit --fund=false
+COPY eve/agent ./agent
+COPY eve/serve.mjs ./serve.mjs
+RUN npm run build
+
 FROM node:22-alpine AS runtime
 
 ENV NODE_ENV=production
@@ -38,6 +46,8 @@ RUN npm ci --omit=dev --ignore-scripts \
   && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --from=build /app/dist ./dist
+COPY --from=eve-build /usr/local/bin/node /usr/local/bin/node24
+COPY --from=eve-build --chown=node:node /app/eve ./eve
 COPY server ./server
 RUN PYTHONDONTWRITEBYTECODE=1 /opt/rollapp-ots/bin/python server/reward-proof-codec-test.py
 COPY shared ./shared

@@ -3,6 +3,7 @@ import { NOTE_TASKS_REQUEST_EVENT } from "@/modules/assistant/planning-assistant
 import { AssistantNoteTasks, createNoteTaskRows } from "@/modules/assistant/assistant-note-tasks.jsx";
 import { AssistantDrawer, useAssistantChats } from "@/modules/assistant/assistant-drawer.jsx";
 import { MessengerDrawer } from "@/components/messenger";
+import { NotificationDrawer } from "@/modules/notifications/notification-drawer.jsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Columns3, X } from "lucide-react";
@@ -36,6 +37,7 @@ function PlanningControls({ user }) {
     }
   }, [location.pathname, location.search, location.hash]);
   const [open, setOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const assistant = useAssistantChats(assistantOpen);
   const { showList: showAssistantList } = assistant;
@@ -94,6 +96,7 @@ function PlanningControls({ user }) {
     const showMessages = Boolean(location.state?.messengerOpen);
     const showAssistant = !showMessages && Boolean(location.state?.assistantOpen);
     setOpen(false);
+    setNotificationsOpen(false);
     if (showAssistant) showAssistantList();
     setAssistantOpen(showAssistant);
     setMessagesOpen(showMessages);
@@ -104,6 +107,7 @@ function PlanningControls({ user }) {
     if (value) {
       setOpen(false);
       setAssistantOpen(false);
+      setNotificationsOpen(false);
     }
     else setInitialConversationId(null);
   };
@@ -112,6 +116,15 @@ function PlanningControls({ user }) {
     if (value) {
       showAssistantList();
       setOpen(false);
+      setNotificationsOpen(false);
+      setMessengerDrawerOpen(false);
+    }
+  };
+  const setNotificationDrawerOpen = value => {
+    setNotificationsOpen(value);
+    if (value) {
+      setOpen(false);
+      setAssistantOpen(false);
       setMessengerDrawerOpen(false);
     }
   };
@@ -121,6 +134,7 @@ function PlanningControls({ user }) {
       if (event.detail?.noteId !== openNoteId) return;
       setNoteRequest(event.detail);
       setOpen(false);
+      setNotificationsOpen(false);
       setMessagesOpen(false);
       setInitialConversationId(null);
       setAssistantOpen(true);
@@ -140,6 +154,8 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
+      {user.notificationsEnabled && <NotificationDrawer open={notificationsOpen} onOpenChange={setNotificationDrawerOpen}
+        canAccessHealth={canAccessPrivateSpheres(user)} />}
       <AssistantDrawer workspace={assistant} canDiscoverSpheres={canAccessPrivateSpheres(user)} noteId={openNoteId} noteRequest={noteRequest}
         onReviewNoteTasks={draft => {
           if (pendingNoteReview.current || pendingAssistantWish.current || noteTaskReview) return;
@@ -188,6 +204,7 @@ function PlanningControls({ user }) {
       setOpen(value);
       if (value) {
         setAssistantOpen(false);
+        setNotificationsOpen(false);
         setMessengerDrawerOpen(false);
       }
     }}>

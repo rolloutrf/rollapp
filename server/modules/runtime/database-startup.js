@@ -4,12 +4,17 @@ import { isReservedProfileUsername } from "../profile/profile-paths.js";
 import { verifyAccountBackupSchema } from "../../account-backup.js";
 import { profileDiskEnabled } from "../profile/yandex-disk-profile.js";
 import { verifyNoteGroupsSql } from "../planning/note-groups.js";
+import { verifyNotificationSchema } from "../notifications/notification-schema.js";
 
 // Development reconnects to an existing production database. A reconnect must
 // never run the normal schema/data migration and reservation cleanup routine.
 export async function initializeRuntimeDatabase({ environment = process.env, isMemoryDatabase, transaction, migrate }) {
   const mode = environment.ROLLAPP_DATABASE_INITIALIZATION || "migrate";
   if (!["migrate", "verify"].includes(mode)) throw new Error("ROLLAPP_DATABASE_INITIALIZATION должен быть migrate или verify.");
+  const notificationToken = environment.ROLLAPP_EVE_NOTIFICATION_TOKEN;
+  if (notificationToken && (mode !== "verify" || notificationToken.length < 32)) {
+    throw new Error("Оповещения eve требуют режим базы verify и токен длиной не менее 32 символов.");
+  }
   if (profileDiskEnabled(environment) && mode !== "verify") throw new Error("Профиль на Яндекс Диске требует режим базы verify.");
   if (environment.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true" && mode !== "verify") {
     throw new Error("Защищённые покупки требуют режим базы verify.");
@@ -35,6 +40,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT user_id,section,content_json,updated_at FROM career_content LIMIT 0");
     await client.query("SELECT wishlist_links FROM users LIMIT 0");
     await client.query("SELECT id,user_id,image_url FROM health_medications LIMIT 0");
+    if (notificationToken) await verifyNotificationSchema(client);
     await client.query("SELECT id,user_id,title,content,created_at,updated_at FROM planning_notes LIMIT 0");
     await client.query(verifyNoteGroupsSql);
     await client.query("SELECT id,user_id,tracker,entry_on,data_json,created_at,updated_at FROM health_tracker_entries LIMIT 0");

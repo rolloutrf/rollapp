@@ -4,6 +4,7 @@ import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
+import { localizedPageUrl } from "../shared/modules/shell/page-urls.js";
 
 const server = await createServer({ server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "member-invites-fixture", enforce: "pre",
@@ -23,15 +24,16 @@ await mkdir("/tmp/rollapp-member-invites", { recursive: true });
 try {
   for (const width of [320, 390, 768, 820, 1024, 1440, 1920]) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const variant of ["", "&assigned=1", "&invites=1", `&auth=1&invite=${"a".repeat(43)}`, "&profile=1", "&profile=1&assigned=1"]) {
+      const authVariant = `&auth=1&invite=${"a".repeat(43)}`;
+      const legacyError = width === 390 && height === 844 ? [`${authVariant}&auth_error=INVITE_INVALID`] : [];
+      for (const variant of ["", "&assigned=1", "&invites=1", authVariant,
+        `${authVariant}&auth_error=YANDEX_EMAIL_REQUIRED`, ...legacyError, "&profile=1", "&profile=1&assigned=1"]) {
         const page = await browser.newPage({ viewport: { width, height } });
         const errors = [];
         page.on("pageerror", error => errors.push(error.message));
         // Presentation checks run with all API traffic blocked.
         await page.route("**/api/**", route => route.abort());
-        const retryInvite = variant.includes("auth") && width === 390 && height === 400;
-        const errorQuery = retryInvite ? "&auth_error=YANDEX_EMAIL_REQUIRED" : "";
-        await page.goto(`${origin}/member-fixture?screen=1${variant}${errorQuery}`, { waitUntil: "domcontentloaded" });
+        await page.goto(`${origin}/member-fixture?screen=1${variant}`, { waitUntil: "domcontentloaded" });
         await page.locator(variant.includes("profile") ? ".profile-settings-dialog" : variant.includes("invites") ? "#account-invite-email" : variant.includes("auth") ? ".auth-form" : ".member-flip-board").waitFor();
         if (variant.includes("auth")) {
           const submit = page.getByRole("button", { name: "Создать с Яндекс ID" });
@@ -39,11 +41,16 @@ try {
           assert.equal(await page.locator("form button[type=submit]").count(), 1);
           assert.equal(await page.locator("form input[type=password], form input[type=email], .or, .member-flip-board").count(), 0);
           assert(await page.getByText("invited@example.com").isVisible());
-          if (retryInvite) {
+          assert(await page.getByText(/Выберите Яндекс ID, с которым будете входить/).isVisible());
+          const missingEmail = variant.includes("YANDEX_EMAIL_REQUIRED");
+          if (missingEmail) {
             assert(await page.getByText("Яндекс не передал email", { exact: true }).isVisible());
-            assert(await page.getByText(/адрес приглашения указан как основной/).isVisible());
+            assert(await page.getByText(/разрешите передать адрес почты выбранного аккаунта/).isVisible());
           }
-          const seller = width === 390 && height === 844;
+          if (legacyError.includes(variant)) {
+            assert.equal(await page.getByText("Приглашение недействительно", { exact: true }).count(), 0);
+          }
+          const seller = variant === authVariant && width === 390 && height === 844;
           if (seller) {
             await page.getByRole("radio", { name: /^Бизнес/ }).check();
             await page.getByRole("combobox", { name: "Категория бизнеса" }).click();
@@ -52,9 +59,9 @@ try {
             await page.getByRole("option", { name: "Транспорт", exact: true }).click();
             await page.locator('[data-slot="select-content"]').filter({ hasText: "Транспорт" }).waitFor({ state: "hidden" });
           }
-          if ((width === 390 || width === 1440) && height === 844) {
+          if ((width === 390 || width === 1440) && height === 844 && !legacyError.includes(variant)) {
             await page.evaluate(() => document.fonts.ready);
-            await page.screenshot({ path: `/tmp/rollapp-member-invites/${width}-yandex-registration.png`, fullPage: true, animations: "disabled" });
+            await page.screenshot({ path: `/tmp/rollapp-member-invites/${width}-yandex-registration${missingEmail ? "-email-required" : ""}.png`, fullPage: true, animations: "disabled" });
           }
           const [request] = await Promise.all([
             page.waitForRequest(request => new URL(request.url()).pathname.startsWith("/api/auth/")),
@@ -137,6 +144,61 @@ try {
         console.log(`PASS ${width}x${height} ${variant || "empty"}`);
         await page.close();
       }
+      const page = await browser.newPage({ viewport: { width, height } });
+      const errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      const token = width < 768 ? "a".repeat(43) : `v1.00000000-0000-0000-0000-000000000000.${"a".repeat(43)}`;
+      const expiredToken = "b".repeat(43);
+      const nextPath = "/app/wishes";
+      let validations = 0;
+      await page.route("**/api/**", route => route.abort());
+      await page.route("**/api/me", route => route.fulfill({ json: { user: null } }));
+      await page.route("**/api/auth/yandex/config", route => route.fulfill({ json: { enabled: true, legacySignInEnabled: false } }));
+      await page.route("**/api/auth/invite/validate", route => {
+        validations++;
+        const { invite } = route.request().postDataJSON();
+        if (invite === expiredToken) return route.fulfill({ status: 403, json: { code: "INVITE_INVALID" } });
+        assert.equal(invite, token);
+        return route.fulfill({ json: { valid: true, email: "invited@example.com" } });
+      });
+      await page.goto(origin + localizedPageUrl(`/login?next=${encodeURIComponent(nextPath)}&auth_error=INVITE_REQUIRED`));
+      const existingLogin = page.getByRole("link", { name: "Войти с Яндекс ID", exact: true });
+      assert.equal(await existingLogin.getAttribute("href"), `/api/auth/yandex/start?next=${encodeURIComponent(nextPath)}`);
+      await page.getByRole("link", { name: "Открыть приглашение", exact: true }).click();
+      const input = page.getByLabel("Ссылка на приглашение", { exact: true });
+      const submit = page.getByRole("button", { name: "Открыть приглашение", exact: true });
+      await input.fill(`https://example.org/register#invite=${token}`);
+      await input.press("Enter");
+      assert.equal(await input.getAttribute("aria-invalid"), "true");
+      assert.equal(validations, 0);
+      if ([390, 1440].includes(width)) {
+        await page.screenshot({ path: `/tmp/rollapp-member-invites/${width}-${height}-invite-recovery.png`, fullPage: true });
+      }
+      const geometry = await submit.evaluate(button => {
+        const rect = button.getBoundingClientRect();
+        const style = getComputedStyle(button);
+        return [rect.height, style.paddingInlineStart, style.paddingInlineEnd, rect.left >= 0, rect.right <= innerWidth];
+      });
+      assert.deepEqual(geometry, [48, "24px", "24px", true, true]);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await input.fill(origin + localizedPageUrl(`/register#invite=${expiredToken}`));
+      await submit.click();
+      await page.getByRole("heading", { name: "Приглашение недействительно", exact: true }).waitFor();
+      await input.fill(origin + localizedPageUrl(`/register#invite=${token}`));
+      await input.press("Enter");
+      const signup = page.getByRole("button", { name: "Создать с Яндекс ID", exact: true });
+      const [request] = await Promise.all([
+        page.waitForRequest(req => new URL(req.url()).pathname === "/api/auth/yandex/start"),
+        signup.click(),
+      ]);
+      assert.equal(request.method(), "POST");
+      assert.deepEqual(request.postDataJSON(), {
+        invite: token, next: nextPath, accountType: "personal", businessCategory: null, sellerSpace: null,
+      });
+      assert.equal(validations, 2);
+      assert.deepEqual(errors, []);
+      console.log(`PASS ${width}x${height} invite recovery from login`);
+      await page.close();
     }
   }
   for (const reducedMotion of ["no-preference", "reduce"]) {
