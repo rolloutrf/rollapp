@@ -18,6 +18,8 @@
     "db:tunnel:status": "node scripts/production-db-tunnel.mjs status",
     "db:tunnel:stop": "node scripts/production-db-tunnel.mjs stop",
     "db:migrate-account-invites": "node scripts/migrate-account-invites.mjs",
+    "db:migrate-place-listings": "node scripts/migrate-place-listings.mjs",
+    "place-listings:seed": "node scripts/seed-place-listings.mjs",
     "contacts:import": "node scripts/import-obsidian-contacts.mjs",
     "contacts:avatars": "node scripts/import-contact-avatars.mjs",
     "catalog:import:ohmywishes": "node scripts/import-ohmywishes-catalog.mjs",

@@ -26,6 +26,7 @@ api.get = async (path) => {
       return { accounts: [{ username: 'seller-fixture', name: 'Аккаунт продавца', avatarUrl: '', storefrontTitle: null }] };
     }
     if (path === '/wishlist-business/events/accounts') return { accounts: [] };
+    if (path === '/wishlist-business/products/places') return { places: [] };
     if (path === '/wishlist-business/food/accounts') throw new Error('Временная ошибка списка продавцов');
   }
   if (url.pathname !== '/catalog') throw new Error(`Unexpected fixture request: ${url.pathname}`);

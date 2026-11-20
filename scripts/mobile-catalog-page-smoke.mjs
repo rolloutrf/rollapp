@@ -67,9 +67,9 @@ async function checkBusinessDirectory(page, width) {
   const seller = list.getByRole('link', { name: /Аккаунт продавца/ });
   await seller.waitFor();
   assert.equal(await seller.getAttribute('href'), '/seller-fixture/products');
-  assert.deepEqual(await page.evaluate(() => [businessDirectoryTest.requests, catalogFeedTest.requests]), [
-    ['/wishlist-business/products/accounts'], [],
-  ]);
+  const directoryRequests = await page.evaluate(() => businessDirectoryTest.requests.slice().sort());
+  assert.deepEqual(directoryRequests, ['/wishlist-business/products/accounts', '/wishlist-business/products/places']);
+  assert.deepEqual(await page.evaluate(() => catalogFeedTest.requests), []);
   assert.equal(await cardCount(page), 0);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   const selector = page.getByRole('combobox', { name: 'Бизнес-аккаунты' });

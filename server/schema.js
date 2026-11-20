@@ -1,4 +1,5 @@
 import { wishlistBusinessSchema } from "./modules/wishlist/wishlist-business.js";
+import { placeListingsSchema } from "./modules/catalog-marketplace/place-listings.js";
 import { profileAliasesSchema } from "./modules/profile/profile-aliases.js";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -62,6 +63,7 @@ const schema = `
   ${profileWishlistLinksColumn};
   ${businessCategorySchema};
   ${wishlistBusinessSchema}
+  ${placeListingsSchema}
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
     ON users(phone_hash) WHERE phone_hash IS NOT NULL;
 

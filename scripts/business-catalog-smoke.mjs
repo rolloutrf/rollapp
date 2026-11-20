@@ -89,6 +89,40 @@ try {
     const initials = cards.nth(1).locator('[data-slot="avatar-fallback"]');
     assert.equal(await initials.textContent(), "НС");
     await grid.screenshot({ path: join(output, `${width}x${height}.png`), animations: "disabled" });
+    if (!sphere) {
+      const placesGrid = page.getByRole("list", { name: "Места рядом" });
+      await placesGrid.waitFor();
+      const placeCards = placesGrid.getByRole("listitem");
+      assert.equal(await placeCards.count(), 3);
+      assert.equal(await placeCards.last().getByRole("button").count(), 0);
+      assert.match(await placeCards.first().getByRole("button").textContent(), /Жду на Роллапп \(7\)/);
+      assert.match(await placeCards.nth(1).getByRole("button").textContent(), /Ждёте на Роллапп/);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      if (width === 1024) {
+        const waitButton = placeCards.first().getByRole("button", { name: /Жду на Роллапп · ХОНГ/ });
+        const completePlaceWait = () => page.evaluate(() => {
+          const complete = window.completePlaceWait;
+          window.completePlaceWait = undefined;
+          complete();
+        });
+        await waitButton.click();
+        assert.equal(await waitButton.getAttribute("aria-busy"), "true");
+        assert(await waitButton.isDisabled());
+        await completePlaceWait();
+        await placeCards.first().getByRole("alert").waitFor();
+        await waitButton.waitFor();
+        assert.match(await waitButton.textContent(), /\(7\)/);
+        await waitButton.click();
+        await completePlaceWait();
+        const waitingButton = placeCards.first().getByRole("button", { name: /Ждёте на Роллапп · ХОНГ/ });
+        await waitingButton.waitFor();
+        assert.match(await waitingButton.textContent(), /\(8\)/);
+        await waitingButton.click();
+        await completePlaceWait();
+        await waitButton.waitFor();
+        assert.deepEqual(await page.evaluate(() => window.waitCalls), [true, true, false]);
+      }
+    }
     const completeFollow = () => page.evaluate(() => {
       const complete = window.completeBusinessFollow;
       window.completeBusinessFollow = undefined;

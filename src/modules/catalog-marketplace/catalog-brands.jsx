@@ -19,7 +19,7 @@ export function brandCatalogPath(space) {
   return `${APP_WISH_CATALOG_PATH}?${new URLSearchParams({ source: "brands", tab: space })}`;
 }
 
-const BusinessCatalogContext = createContext(null);
+export const BusinessCatalogContext = createContext(null);
 const loadingState = { accounts: [], loading: true, error: null };
 
 export function BusinessCatalogProvider({ space, sphere, children }) {
