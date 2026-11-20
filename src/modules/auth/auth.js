@@ -55,7 +55,7 @@ const yandexAuthErrors = {
   },
   YANDEX_LIMIT_REACHED: {
     title: "Все места заняты",
-    description: "Лимит Rollapp — 30 000 аккаунтов.",
+    description: "Лимит личных аккаунтов Rollapp — 30 000.",
     variant: "default",
   },
   YANDEX_LINK_LOGIN_REQUIRED: {

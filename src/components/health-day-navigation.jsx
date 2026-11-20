@@ -15,7 +15,7 @@ export function HealthDayNavigation({ selected, today, onDateChange, label, addL
 
   return <ControlBar role="group" className={`daily-todo__toolbar${onAdd ? "" : " health-day-navigation--readonly"}`} aria-label={label}>
     <Button data-control-icon variant="outline" size="icon" aria-label="Предыдущий день" onClick={() => onDateChange(addCalendarDays(selected, -1))}><ChevronLeft /></Button>
-    <PlanningDatePicker value={selected} onChange={onDateChange} label={label} className="min-w-0 w-full"><span className="truncate">{compactDate.format(dateFromKey(selected))}</span></PlanningDatePicker>
+    <PlanningDatePicker appearance="navigation" value={selected} onChange={onDateChange} label={label} className="min-w-0 w-full"><span className="truncate">{compactDate.format(dateFromKey(selected))}</span></PlanningDatePicker>
     <Button data-control-icon variant="outline" size="icon" aria-label="Следующий день" onClick={() => onDateChange(addCalendarDays(selected, 1))}><ChevronRight /></Button>
     {onAdd && <Button data-control-icon variant="outline" size="icon" aria-label={addLabel} onClick={onAdd}><Plus /></Button>}
   </ControlBar>;

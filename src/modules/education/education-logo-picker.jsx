@@ -17,7 +17,7 @@ export function EducationLogoPicker({ children, label, uploading, disabled, erro
   }
 
   return <div className="flex flex-col items-start gap-2">
-    <Button
+    <Button data-content-control=""
       className="group relative size-20 shrink-0 cursor-pointer overflow-hidden rounded-xl p-0"
       variant="ghost"
       size="icon"

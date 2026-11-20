@@ -145,7 +145,6 @@ function DisbandDialog({ group, busy, itemsStayLabel, onOpenChange, onDisband })
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel>
           <AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={onDisband}>
-            {busy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}
             Расформировать
           </AlertDialogAction>
         </AlertDialogFooter>

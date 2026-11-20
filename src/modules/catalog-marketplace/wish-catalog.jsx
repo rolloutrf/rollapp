@@ -4,7 +4,7 @@ import { publicProfilePath } from "../../../shared/modules/profile/profile-links
 import { cn } from "@/lib/utils";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { merchantProductUrl } from "../../../shared/modules/catalog-marketplace/product-links.js";
-import { Heart, CalendarDays, Car, ExternalLink, Gift, X, LayoutGrid } from "lucide-react";
+import { Heart, CalendarDays, Car, Gift, X, LayoutGrid } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { WishlistSnippet } from "@/modules/card/wishlist-snippet.jsx";
@@ -32,7 +32,6 @@ import { LoadingScreen, EmptyState } from "../shell/page-feedback.jsx";
 import { wishlistSpace } from "@/modules/wishlist/wishlist-business.jsx";
 import { isBrandCatalogSearch } from "../../../shared/modules/catalog-marketplace/catalog-links.js";
 import { BusinessCatalogList } from "@/modules/catalog-marketplace/catalog-brands.jsx";
-import { SphereShareAction } from "@/modules/access/sphere-share-action.jsx";
 import { withWishReward } from "../loyalty/wish-reward.jsx";
 import { scheduleDocumentScrollUnlock } from "../shell/document-scroll.jsx";
 
@@ -170,7 +169,6 @@ export function CatalogWishDetailsContent({ item, wishlistDisabled = false, wish
               aria-busy={wishlistPending || undefined}
               onClick={() => onToggleWishlist(item)}
             >
-              {wishlistPending ? <Spinner /> : <Heart className={item.addedByMe ? "fill-current text-destructive" : ""} aria-hidden="true" />}
               {screen && isMobile ? (wishlistPending ? item.addedByMe ? "Удаляем…" : "Добавляем…" : item.addedByMe ? "Убрать" : "Добавить") : wishlistPending
                 ? item.addedByMe ? "Удаляем…" : "Добавляем…"
                 : item.addedByMe ? "Убрать из вишлиста" : "Добавить в вишлист"}
@@ -212,12 +210,12 @@ export function CatalogWishDetailsContent({ item, wishlistDisabled = false, wish
           )}
           {item.url && !["products", "food", "transport"].includes(item.space) && (
             <a href={item.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>
-              {isYandexMapsUrl(item.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" />
+              {isYandexMapsUrl(item.url) ? "Открыть в Яндекс Картах" : "Где купить"}
             </a>
           )}
           {item.fundraisingUrl && (
             <a href={item.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>
-              Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" />
+              Перейти к сбору
             </a>
           )}
 
@@ -284,7 +282,6 @@ export function WishCatalogPage() {
   if (source === "brands" && !selectedBrand) return (
     <div className="app-page app-page--collection wish-catalog-page page-stack">
       <BusinessCatalogList />
-      <SphereShareAction />
     </div>
   );
   return <CatalogItemFeed source={source} selectedSpace={selectedSpace} selectedBrand={selectedBrand} />;
@@ -549,8 +546,7 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
           {hasMore && (
             <div ref={loadMoreRef} className={showManualLoad || loadingMore ? "wish-catalog-page__more" : "h-px"}>
               {showManualLoad ? (
-                <ShadcnButton type="button" variant="outline" disabled={loadingMore || pendingWishlistIds.size > 0} onClick={loadMore}>
-                  {loadingMore && <Spinner data-icon="inline-start" />}
+                <ShadcnButton type="button" variant="outline" disabled={loadingMore || pendingWishlistIds.size > 0} onClick={loadMore} aria-busy={Boolean(loadingMore) || undefined}>
                   {catalog.error ? "Повторить" : "Показать ещё"}
                 </ShadcnButton>
               ) : loadingMore && (

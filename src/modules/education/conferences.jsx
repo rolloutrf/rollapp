@@ -3,8 +3,13 @@ import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx"
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  AlertTriangle, CalendarDays, CheckCircle2, Clock3,
-  RotateCcw, TicketCheck, Users, X,
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  TicketCheck,
+  Users,
+  X,
 } from "lucide-react";
 import { api, sessionFetch } from "@/modules/runtime/api.js";
 import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
@@ -470,8 +475,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
           </div>
 
           <DrawerFooter>
-            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid}>
-              {saving && <Spinner aria-hidden="true" />}
+            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить конференцию"}
             </Button>
             <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || logoUploading} />}>Отмена</DrawerClose>
@@ -728,7 +732,6 @@ export function Conferences() {
           <AlertDescription>{requestState.error.message}</AlertDescription>
           <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
-              <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
           </div>

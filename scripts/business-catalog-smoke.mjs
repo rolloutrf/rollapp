@@ -37,11 +37,11 @@ try {
     const follow = card.getByRole("button", { name: `Подписаться · ${name}` });
     await profile.waitFor();
     await page.evaluate(() => document.fonts.ready);
-    assert.equal(await cards.count(), 3);
+    assert.equal(await cards.count(), 4);
     assert.equal(await cards.last().getByRole("button").count(), 0);
     assert.equal(await profile.getAttribute("href"), sphere ? "/example-studio" : "/example-studio/products");
     const columns = await grid.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(" ").length);
-    assert.equal(columns, width >= 1024 ? 3 : width >= 640 ? 2 : 1);
+    assert.equal(columns, width <= 350 ? 1 : width <= 760 ? 2 : width <= 1080 ? 3 : 4);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     for (const item of await cards.all()) {
       const bounds = await item.evaluate(node => {
@@ -54,12 +54,16 @@ try {
         const actionBox = button?.getBoundingClientRect();
         const style = button && getComputedStyle(button);
         const frame = node.getBoundingClientRect();
-        const center = frame.left + frame.width / 2;
+        const footerStyle = footer && getComputedStyle(footer);
+        const footerBounds = footer?.getBoundingClientRect();
         return {
-          aligned: [avatar, title, handle, actionBox].filter(Boolean).every(box => Math.abs(box.left + box.width / 2 - center) <= 1),
+          aligned: [title, handle].every(box => Math.abs(box.left - avatar.left) <= 1),
           textAlign: getComputedStyle(identity).textAlign,
-          balanced: Math.abs(avatar.top - frame.top - (frame.bottom - (actionBox || handle).bottom)) <= 1,
+          inset: avatar.left - frame.left,
           ordered: avatar.bottom < title.top && title.bottom <= handle.top && (!actionBox || handle.bottom < actionBox.top),
+          fullWidthAction: button && Math.abs(actionBox.width + parseFloat(footerStyle.paddingLeft) + parseFloat(footerStyle.paddingRight) - footerBounds.width) <= 1,
+          accent: getComputedStyle(node).getPropertyValue("--contact-accent"),
+          background: getComputedStyle(node).backgroundImage,
           fits: node.scrollWidth <= node.clientWidth + 1,
           radius: getComputedStyle(node).borderRadius,
           avatarSize: avatar.width,
@@ -67,15 +71,23 @@ try {
           action: style && [button.offsetHeight, style.paddingInlineStart, style.paddingInlineEnd, parseFloat(style.borderRadius) >= button.offsetHeight / 2],
         };
       });
-      assert(bounds.fits && bounds.aligned && bounds.balanced && bounds.ordered, JSON.stringify(bounds));
-      assert.equal(bounds.textAlign, "center");
+      assert(bounds.fits && bounds.aligned && bounds.ordered, JSON.stringify(bounds));
+      assert.equal(bounds.textAlign, "start");
+      assert.equal(bounds.inset, width <= 560 ? 16 : 21);
+      assert.match(bounds.accent, /^#[0-9a-f]{6}$/);
+      assert.match(bounds.background, /^radial-gradient/);
       assert.equal(bounds.radius, width <= 560 ? "21px" : "24px");
       assert.equal(bounds.avatarSize, width <= 560 ? 54 : 60);
       if (bounds.action) {
-        assert.equal(bounds.divider, "0px");
-        assert.deepEqual(bounds.action, [48, "24px", "24px", true]);
+        assert(bounds.fullWidthAction);
+        assert.equal(bounds.divider, "1px");
+        assert.deepEqual(bounds.action, [48, "10px", "10px", true]);
       }
     }
+    const accents = await cards.evaluateAll(nodes => nodes.map(node => getComputedStyle(node).getPropertyValue("--contact-accent")));
+    assert(new Set(accents).size > 1);
+    const initials = cards.nth(1).locator('[data-slot="avatar-fallback"]');
+    assert.equal(await initials.textContent(), "НС");
     await grid.screenshot({ path: join(output, `${width}x${height}.png`), animations: "disabled" });
     const completeFollow = () => page.evaluate(() => {
       const complete = window.completeBusinessFollow;

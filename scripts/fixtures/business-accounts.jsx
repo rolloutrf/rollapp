@@ -39,45 +39,47 @@ function Fixture() {
 
 const root = createRoot(document.getElementById("root"));
 const params = new URLSearchParams(location.search);
-if (params.has("owner-access")) {
-  const target = params.get("owner-access");
+if (params.has("owner-catalog")) {
+  const target = params.get("owner-catalog");
   const section = params.get("section");
   const owner = { id: "test-owner", accountType: "personal", canDiscoverSpheres: true, name: "Владелец", username: "test-owner" };
-  const people = Array.from({ length: target === "wishlist" ? 52 : 3 }, (_, index) => ({
-    id: `business-${index + 1}`,
-    accountType: "business",
+  const accounts = Array.from({ length: target === "wishlist" ? 52 : 3 }, (_, index) => ({
     name: index === 1 ? "АкадемияПрофессиональнойПодготовкиИДополнительногоОбразования" : `Организация ${index + 1}`,
     username: `business-account-${index + 1}`,
-    granted: index === 0,
-    grantSection: index === 0 && target === "wishlist" ? "wishlist" : section,
+    isFollowing: false,
   }));
-  window.ownerAccessCalls = [];
+  let grants = [{ id: "business-1", ...accounts[0], grantSection: "wishlist" }];
+  window.catalogCalls = [];
   let failLoad = params.has("retry");
   let failSave = params.has("retry");
   api.get = async (path) => {
     if (path === "/me") return { user: owner };
-    const { pathname, searchParams } = new URL(path, location.origin);
-    if (pathname === "/sphere-shares/context") return { owner, isOwner: true, people: [], requests: [] };
-    if (pathname === "/sphere-shares/candidates") {
-      window.ownerAccessCalls.push(Object.fromEntries(searchParams));
+    const { pathname } = new URL(path, location.origin);
+    if (pathname === "/sphere-shares/context") return { owner, isOwner: true, people: target === "wishlist" ? grants : [], requests: [] };
+    const endpoint = target === "wishlist" ? `/wishlist-business/${section}/accounts` : `/business-catalog/${target}`;
+    if (pathname === endpoint) {
       if (failLoad) { failLoad = false; throw new Error("Повторите загрузку"); }
-      return { people: params.has("empty") ? [] : people.map(person => ({ ...person })) };
+      return { accounts: params.has("empty") ? [] : accounts.map(account => ({ ...account })) };
     }
-    if (pathname.startsWith("/business-catalog/") || pathname.endsWith("/accounts")) return { accounts: [] };
+    if (pathname === "/wishes") return { wishes: [], lists: [], groups: [], viewerId: owner.id };
+    if (pathname === "/sphere-shares/candidates") throw new Error("Unexpected private access query");
     return {};
   };
   api.post = async (path, body) => {
-    if (path !== "/sphere-shares") throw new Error(`Unexpected request: ${path}`);
-    window.ownerAccessCalls.push(body);
-    if (failSave) { failSave = false; throw new Error("Повторите изменение доступа"); }
-    await new Promise(resolve => setTimeout(resolve, 80));
-    const person = people.find(candidate => candidate.id === body.viewerId);
-    person.granted = body.granted;
-    person.grantSection = section;
-    return { granted: body.granted };
+    if (path === "/wishes/backfill-previews" && params.has("revoke")) return {};
+    window.catalogCalls.push({ path, body });
+    if (path === "/sphere-shares" && params.has("revoke")) {
+      grants = grants.filter(grant => grant.id !== body.viewerId || grant.grantSection !== body.section);
+      return { granted: false };
+    }
+    const account = accounts.find(candidate => path === `/profile/${candidate.username}/follow`);
+    if (!account) throw new Error(`Unexpected request: ${path}`);
+    if (failSave) { failSave = false; throw new Error("Повторите изменение подписки"); }
+    account.isFollowing = body.following;
+    return { following: body.following };
   };
   const catalogue = target === "wishlist" ? "/app/wishes/catalog?source=brands&tab=" : `/app/spheres/${target}/business/catalog?tab=`;
-  history.replaceState({}, "", catalogue + encodeURIComponent(section));
+  history.replaceState({}, "", (params.has("revoke") ? "/app/wishes?tab=" : catalogue) + encodeURIComponent(section));
   root.render(<BrowserRouter><App /></BrowserRouter>);
 } else if (params.has("clients")) {
   const seller = { id: "seller-account", name: "Мой магазин", username: "seller-profile", accountType: "business", businessCategory: "seller", sellerSpace: "products" };
@@ -87,10 +89,18 @@ if (params.has("owner-access")) {
   const people = [shared, pending, prospect, { id: "fourth-client", name: "Инна Крылова", username: "fourth-client" }];
   const shares = ["products", "wishlist"].map(section => ({ owner: shared, sphere: "wishlist", section }));
   let requests = [{ id: "initial-request", owner: pending, sphere: "wishlist", section: "products", status: "pending" }];
+  let accessUnavailable = params.has("access-unavailable");
+  window.restoreClientAccess = () => { accessUnavailable = false; };
   window.clientAccessCalls = [];
+  window.clientAccessReads = [];
   api.get = async (path) => {
+    window.clientAccessReads.push(path);
     if (path === "/me") return { user: seller };
-    if (path === "/business-access/requests") return { shares, requests };
+    if (path === "/sphere-shares/incoming") return { shares };
+    if (path === "/business-access/requests") {
+      if (accessUnavailable) throw new Error("Внутренняя ошибка. Мы уже разбираемся.");
+      return { shares, requests };
+    }
     if (path.startsWith("/business-access/users")) {
       const query = new URL(path, location.origin).searchParams.get("search")?.toLowerCase() || "";
       return { people: people.filter(person => `${person.name} ${person.username}`.toLowerCase().includes(query)) };

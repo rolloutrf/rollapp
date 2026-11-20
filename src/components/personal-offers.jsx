@@ -2,7 +2,10 @@ import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { FileText, Package } from "lucide-react";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/modules/runtime/api.js";
+import { sphereLink } from "@/applications/location.js";
+import { APP_WISH_OFFERS_PATH } from "@/modules/shell/app-routing.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,7 +56,7 @@ export function PersonalOfferComposer({ item, client = api }) {
     finally { lock.current = false; setBusy(false); }
   };
   if (!open) return <Button variant="outline" onClick={() => setOpen(true)}>Рекомендовать с оффером</Button>;
-  if (sent) return <div className="flex flex-col gap-4"><p role="status">Персональный счёт создан. Получатель увидит его в разделе «Роллы».</p><ControlBar><Button variant="outline" onClick={() => { setSent(false); setRecipient(null); pending.current = null; }}>Новый оффер</Button></ControlBar></div>;
+  if (sent) return <div className="flex flex-col gap-4"><p role="status">Персональный счёт создан. Получатель увидит его во вкладке «Счета» раздела «Предложения».</p><ControlBar><Button variant="outline" onClick={() => { setSent(false); setRecipient(null); pending.current = null; }}>Новый оффер</Button></ControlBar></div>;
   return <form className="flex min-w-0 flex-col gap-4" onSubmit={submit} aria-label={`Оффер: ${item.title}`}>
     <Field><FieldLabel htmlFor={`offer-person-${item.id}`}>Получатель</FieldLabel>
       {recipient ? <div className="flex min-w-0 flex-wrap items-center gap-2"><span className="min-w-0 wrap-anywhere">{recipient.name} · @{recipient.username}</span><Button type="button" variant="outline" disabled={busy} onClick={() => setRecipient(null)}>Изменить</Button></div> : <>
@@ -120,7 +123,7 @@ export function BusinessPersonalOffers({ client = api, user }) {
   const empty = !loading && !error && !items.length && !creatingItem;
   return <section className="page-stack min-w-0" aria-labelledby="business-offers-title">
     {empty ? <h2 id="business-offers-title" className="sr-only">Рекомендовать товар</h2> : <header className="typeset typeset-rollapp"><h2 id="business-offers-title">Рекомендовать товар</h2>
-      <p>Выберите товар, получателя, персональную цену и срок. Созданные счета доступны в разделе «Роллы».</p></header>}
+      <p>Выберите товар, получателя, персональную цену и срок. Созданные счета доступны в <Link to={sphereLink(`${APP_WISH_OFFERS_PATH}?view=invoices`, window.location)}>разделе «Предложения»</Link>.</p></header>}
     {loading && <p role="status">Загружаем товары…</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></AlertDescription></Alert>}
     {empty && <EmptyState compact icon={Package} title="У вашего бизнеса пока нет активных товаров или услуг." text="Добавьте товар, чтобы отправить персональное предложение." />}
@@ -131,7 +134,7 @@ export function BusinessPersonalOffers({ client = api, user }) {
   </section>;
 }
 
-export function PersonalOffers({ user, sphere, onPaid, client = api }) {
+export function PersonalOffers({ user, sphere, client = api }) {
   const [offers, setOffers] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -212,7 +215,6 @@ export function PersonalOffers({ user, sphere, onPaid, client = api }) {
     setOperationResult({ id: offer.id, title: offer.title, refunded: Boolean(purchase.refundedAt) });
     setSelected(null);
     setRevision(value => value + 1);
-    onPaid?.();
   }
   const empty = !loading && !error && !offers.length && !pending.length && !operationResult;
   return <section ref={offerSection} tabIndex={-1} className="flex min-w-0 flex-col gap-4" aria-labelledby="personal-offers-title">

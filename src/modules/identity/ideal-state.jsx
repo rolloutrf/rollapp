@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 
@@ -42,7 +41,7 @@ function IdealStateItemEditor({ topics, onClose, onSave }) {
             <Field><FieldLabel htmlFor={`${id}-text`}>Желаемое состояние</FieldLabel><Textarea id={`${id}-text`} required maxLength={20_000} rows={6} placeholder="Как выглядит ваше идеальное состояние?" value={text} onChange={(event) => setText(event.target.value)} /></Field>
           </FieldGroup>
         </div>
-        <DrawerFooter><Button type="submit" disabled={busy || !text.trim() || (topicId === "new" && !topicTitle.trim())}>{busy && <Spinner />}Добавить</Button></DrawerFooter>
+        <DrawerFooter><Button type="submit" disabled={busy || !text.trim() || (topicId === "new" && !topicTitle.trim())} aria-busy={Boolean(busy) || undefined}>Добавить</Button></DrawerFooter>
       </form>
     </DrawerContent>
   </Drawer>;

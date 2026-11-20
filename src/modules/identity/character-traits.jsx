@@ -1,6 +1,6 @@
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { RotateCcw, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { CareerContentError } from "@/modules/career/career-content.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,6 @@ import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, Dr
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Spinner } from "@/components/ui/spinner";
 import { PERSONAL_CHARACTER_TRAIT_GROUPS, PERSONAL_CHARACTER_TRAITS } from "@/modules/identity/personal-character-traits.js";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
 import { IdentitySelectionFeedback, useIdentitySelection } from "./identity-selection.jsx";
@@ -97,7 +96,7 @@ function CharacterTraitDetails({ trait, readOnly, onClose, onSave }) {
           <Field><FieldLabel htmlFor={`${fieldId}-description`}>Как эта черта проявляется у вас</FieldLabel><Textarea id={`${fieldId}-description`} rows={6} maxLength={20_000} value={description} onChange={(event) => setDescription(event.target.value)} readOnly={readOnly} disabled={busy} /></Field>
         </div>
         <DrawerFooter>
-          {!readOnly && <Button type="submit" disabled={busy || !label.trim()}>{busy && <Spinner data-icon="inline-start" aria-hidden="true" />}{busy ? "Сохраняем" : "Сохранить"}</Button>}
+          {!readOnly && <Button type="submit" disabled={busy || !label.trim()} aria-busy={Boolean(busy) || undefined}>{busy ? "Сохраняем" : "Сохранить"}</Button>}
           <DrawerClose render={<Button variant="outline" type="button" disabled={busy} />}>{readOnly ? "Закрыть" : "Отмена"}</DrawerClose>
         </DrawerFooter>
       </form>
@@ -231,7 +230,7 @@ export function CharacterTraits() {
       <footer className="flex flex-col items-start justify-between gap-4 border-t pt-6 sm:flex-row sm:items-center">
         <p className="m-0 max-w-(--layout-text-width) text-sm text-muted-foreground">Выберите качества, которые чаще всего проявляются в ваших решениях, общении и работе.</p>
         {!readOnly && <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" type="button" disabled={selectedCount === 0 || editingDisabled} onClick={reset}><RotateCcw data-icon="inline-start" aria-hidden="true" />Снять выбор</Button>
+          <Button variant="ghost" type="button" disabled={selectedCount === 0 || editingDisabled} onClick={reset}>Снять выбор</Button>
         </div>}
       </footer>
     </div>

@@ -3,7 +3,6 @@ import { api, bindApiAccount } from "../runtime/api.js";
 import { refreshSession } from "./session-refresh.js";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button as ShadcnButton } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../shell/toast.jsx";
 
@@ -39,7 +38,7 @@ export function SessionProvider({ children }) {
             setRetrying(true);
             try { await refresh(); } catch { /* Keep the error visible for another retry. */ }
             finally { setRetrying(false); }
-          }}>{retrying && <Spinner data-icon="inline-start" />}Повторить</ShadcnButton>
+          }}>Повторить</ShadcnButton>
         </div>
       </div>
     </div>;

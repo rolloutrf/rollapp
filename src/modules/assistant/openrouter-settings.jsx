@@ -202,7 +202,6 @@ export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onB
         aria-busy={busy || undefined}
         aria-label={saveLabel}
       >
-        {busy && <Spinner data-icon="inline-start" />}
         <span className="hidden sm:inline">{saveLabel}</span>
         <span className="sm:hidden">{settings.configured ? "Сохранить" : "Подключить"}</span>
       </Button>}

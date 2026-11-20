@@ -72,7 +72,7 @@ try{
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push(`Unexpected API request: ${route.request().method()} ${new URL(route.request().url()).pathname}`);return route.abort();});
-  for(const variant of ['text','overflow','collection','contacts-real','identity-nav','education-nav','health-nav','wishlist-real','report','wishlist','narrow','short','icons','icon-labels','edit','dynamic','nested']){
+  for(const variant of ['text','overflow','collection','contacts-real','identity-nav','education-nav','health-nav','wishlist-real','report','wishlist','narrow','short','icons','mixed','edit','dynamic','nested']){
    await page.goto(`${origin}/__action-rails?variant=${variant}`);
    const rail=page.locator('.page-actions.horizontal-action-scroller,.identity-report-manager__actions.horizontal-action-scroller');
    await rail.waitFor();await page.evaluate(()=>document.fonts.ready);
@@ -87,6 +87,11 @@ try{
    let metrics=await measure();
    const textActions=await rail.locator('[data-page-action]').evaluateAll(elements=>elements.map(element=>{const s=getComputedStyle(element);return {left:s.paddingLeft,right:s.paddingRight,radii:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius],height:element.getBoundingClientRect().height};}));
    for(const action of textActions){assert.equal(action.left,'24px',`${variant}: shared left padding`);assert.equal(action.right,'24px',`${variant}: shared right padding`);assert(action.height>=48);assert(action.radii.every(radius=>parseFloat(radius)>=24),`${variant}: text actions must be pills`);}
+   assert.equal(await rail.locator('[data-page-action] svg').count(),0,`${variant}: text actions use labels alone`);
+   if(variant==='mixed'){
+    assert.equal(textActions.length,2);
+    assert.equal(await rail.getByRole('button',{name:'Быстро добавить'}).locator('svg').count(),1);
+   }
    if(variant==='collection'){
     assert.equal(textActions.length,0,'Collection settings live on the tiles');
     assert.equal(await page.getByRole('button',{name:/^Настройки списка «/}).count(),2);

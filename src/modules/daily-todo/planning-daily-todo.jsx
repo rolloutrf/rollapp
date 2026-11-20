@@ -56,7 +56,7 @@ function TodoRow({ task, displayTime, onSave, onEdit, onReview }) {
   };
   return <li className="daily-todo__item" data-completed={task.completed || Boolean(outcome) || undefined}>
     {!canReview && <Checkbox aria-label={`Выполнено: ${task.title}`} checked={task.completed} disabled={busy} onCheckedChange={toggle} />}
-    <Button variant="ghost" className="daily-todo__task font-normal"
+    <Button data-content-control="" variant="ghost" className="daily-todo__task font-normal"
       aria-label={canReview ? actionName : undefined}
       aria-describedby={canReview && context ? contextId : undefined} onClick={() => (canReview ? onReview : onEdit)(task)} disabled={busy}>
       {canReview && <ReviewIcon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />}
@@ -115,7 +115,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onReview, on
       <div className="daily-todo__content">
         {mobile ? <ControlBar className="daily-todo__toolbar" role="group" aria-label="Выбор дня">
           <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий день" onClick={() => setDate(addCalendarDays(selected, -1))}><ChevronLeft aria-hidden="true" /></Button>
-          <PlanningDatePicker value={selected} onChange={setDate} label="Выбрать дату" className="w-full"><span className="truncate">{compactDateLabel(selected)}</span></PlanningDatePicker>
+          <PlanningDatePicker appearance="navigation" value={selected} onChange={setDate} label="Выбрать дату" className="w-full"><span className="truncate">{compactDateLabel(selected)}</span></PlanningDatePicker>
           <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Следующий день" onClick={() => setDate(addCalendarDays(selected, 1))}><ChevronRight aria-hidden="true" /></Button>
         </ControlBar> : <>
         {error && <p className="daily-todo__error" role="alert">{error}</p>}

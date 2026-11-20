@@ -3,8 +3,14 @@ import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx"
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
-  AlertTriangle, Ban, CalendarDays, CheckCircle2, Clock3, MapPin,
-  RotateCcw, Video, X,
+  AlertTriangle,
+  Ban,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  MapPin,
+  Video,
+  X,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { CollectionSnippetLink } from "@/modules/card/collection-snippet-link.jsx";
@@ -398,8 +404,7 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
           </div>
 
           <DrawerFooter>
-            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving}>
-              {saving && <Spinner aria-hidden="true" />}
+            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить сессию"}
             </Button>
             <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>
@@ -654,7 +659,6 @@ export function CoachingSessions() {
           <AlertDescription>{requestState.error.message}</AlertDescription>
           <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
-              <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
           </div>

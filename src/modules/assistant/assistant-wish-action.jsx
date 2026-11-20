@@ -1,7 +1,6 @@
 import { definePrimitive } from '@ui-sdk/core';
 import { createAgent } from '@ui-sdk/react/agent';
 import { createParts } from '@ui-sdk/react/primitive';
-import { ArrowUpRight } from 'lucide-react';
 import { useId, useState } from 'react';
 import { PageActionButton } from '../../components/page-action-button';
 
@@ -47,7 +46,7 @@ export function AssistantWishAction({ value, onReview }) {
     {value.searchResult && value.price === null && <p>Цена требует проверки в магазине</p>}
     {value.listName && <p>Список «{value.listName}»</p>}
     <PageActionButton type="button" variant="outline" disabled={busy} onClick={review}>
-      Проверить желание <ArrowUpRight aria-hidden="true" />
+      Проверить желание
     </PageActionButton>
     {error && <p role="alert">{error}</p>}
   </WishDraft>;

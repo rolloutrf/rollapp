@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
-import { AlertTriangle, FileText, Pencil, Plus, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, FileText, Pencil, X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/modules/career/career-icon-action.jsx";
@@ -79,7 +79,6 @@ export function CareerContentError({ error, onRetry }) {
       <AlertDescription>{error}</AlertDescription>
       <div className="col-start-2 flex flex-wrap gap-2 pt-2">
         <Button variant="outline" size="sm" type="button" onClick={onRetry}>
-          <RotateCcw data-icon="inline-start" aria-hidden="true" />
           Повторить
         </Button>
       </div>
@@ -199,8 +198,7 @@ export function MarkdownEditorDrawer({
             </Field>
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 text-base" type="submit" aria-label="Сохранить изменения" disabled={busy}>
-              {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
+            <Button className="min-h-12 text-base" type="submit" aria-label="Сохранить изменения" disabled={busy} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : isMobile ? "Сохранить" : "Сохранить изменения"}
             </Button>
             {onDelete
@@ -309,8 +307,7 @@ function LifeStrategyPeriodCreator({ onOpenChange, onSave, open }) {
             </Field>
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 text-base" type="submit" disabled={saving}>
-              {saving ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Plus data-icon="inline-start" aria-hidden="true" />}
+            <Button className="min-h-12 text-base" type="submit" disabled={saving} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Создаём" : "Создать период"}
             </Button>
             <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={saving} />}>

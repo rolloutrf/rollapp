@@ -13,7 +13,7 @@ export const moodSaveSchema = z.strictObject({
 }).refine(({ entry, published }) => entry !== undefined || published !== undefined);
 
 export function publicMood(row) {
-  return row?.mood_public === true ? highlightedMood(row.mood_level)?.level ?? null : null;
+  return row?.mood_public === true && row.account_type !== "business" ? highlightedMood(row.mood_level)?.level ?? null : null;
 }
 
 export async function checkProfileMoodSchema(client) {
@@ -88,8 +88,9 @@ export async function saveProfileMood(client, userId, { published, entry }) {
 
 export function registerProfileMoodRoutes(app, { requireAuth, asyncRoute, transaction, available }) {
   const privateResponse = (res) => { res.set("Cache-Control", "private, no-store"); res.vary("Cookie"); };
-  const requireMood = (_req, res, next) => {
+  const requireMood = (req, res, next) => {
     privateResponse(res);
+    if (req.user.account_type !== "personal") return res.status(403).json({ error: "Настроение доступно личным аккаунтам" });
     if (!available()) return res.status(503).json({ error: "Журнал настроения пока недоступен: схема базы данных не установлена." });
     next();
   };

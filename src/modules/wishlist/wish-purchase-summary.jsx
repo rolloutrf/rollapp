@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, ClipboardList, Pencil, Share2 } from "lucide-react";
+import { ChevronRight, ClipboardList, Pencil, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { localDateKey } from "../../../shared/modules/planning/planning.js";
@@ -23,7 +23,7 @@ function PurchaseList({ title, plans, onOpen, onEditNeed, onCollaborate, overdue
     <h3 className="text-2xl leading-8 font-semibold">{title}</h3>
     {plans.length ? <ul id={listId} className="grid min-w-0 gap-1">
       {visible.map((plan, index) => <li key={plan.id} className="flex min-w-0 items-center gap-2">
-        <Button type="button" variant="ghost" aria-label={`Пересмотреть покупку: ${plan.title}`}
+        <Button data-content-control="" type="button" variant="ghost" aria-label={`Пересмотреть покупку: ${plan.title}`}
           aria-describedby={`${listId}-details-${index}`}
           onClick={() => onOpen(plan)} className="h-auto min-h-12 w-full min-w-0 flex-1 justify-between gap-3 rounded-xl px-2 py-2 text-left whitespace-normal font-normal">
           <span className="grid min-w-0 gap-1">
@@ -43,7 +43,7 @@ function PurchaseList({ title, plans, onOpen, onEditNeed, onCollaborate, overdue
     </ul> : null}
     {plans.length > previewCount && <Button type="button" variant="ghost" aria-expanded={expanded} aria-controls={listId}
       className="min-h-12 justify-self-start rounded-full" onClick={() => setExpanded(!expanded)}>
-      {expanded ? "Свернуть" : `Ещё ${plans.length - previewCount}`}<ChevronDown aria-hidden="true" className={expanded ? "rotate-180" : undefined} />
+      {expanded ? "Свернуть" : `Ещё ${plans.length - previewCount}`}
       <span className="sr-only"> · {title}</span>
     </Button>}
   </div>;

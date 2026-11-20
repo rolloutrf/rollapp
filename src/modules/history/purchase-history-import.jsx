@@ -1,12 +1,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { FileUp, LockKeyhole } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
 import { Drawer, DrawerBack, DrawerContent, DrawerFooter, DrawerSectionHeader } from "@/components/form-surface";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PURCHASE_HISTORY_MAX_CHARS, PURCHASE_HISTORY_MAX_ITEMS, parsePurchaseHistory } from "../../../shared/modules/history/purchase-history.js";
@@ -191,8 +190,7 @@ export function PurchaseHistoryImport({ onClose, onSaved, returnFocusRef }) {
                   ? "В личном кабинете Т‑Банка откройте «Операции», выберите период и скачайте выгрузку."
                   : "Выберите чек или выгрузку с товарами. Можно также вставить текст."}</p>
                 {isBank && <a href={BANK_HELP} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-4">Инструкция Т‑Банка</a>}
-                {!isBank && <Button type="button" variant="outline" className="min-h-12 rounded-full" disabled={reading} onClick={() => fileInput.current?.click()}>
-                  {reading ? <Spinner /> : <FileUp aria-hidden="true" />}
+                {!isBank && <Button type="button" variant="outline" className="min-h-12 rounded-full" disabled={reading} onClick={() => fileInput.current?.click()} aria-busy={Boolean(reading) || undefined}>
                   {reading ? "Читаем файл…" : "Выбрать файл"}
                 </Button>}
                 <p className="text-xs text-muted-foreground">{isBank ? "CSV, XLSX, TSV или текстовый PDF" : "TXT, CSV, TSV, JSON или текстовый PDF"} · до 5 МБ</p>
@@ -246,10 +244,9 @@ export function PurchaseHistoryImport({ onClose, onSaved, returnFocusRef }) {
           </div>
           <DrawerFooter>
             {review || !isBank ? <Button type="submit" disabled={reading || saving || (review ? !destination || !lists || !selected.length || missingTitle || exceedsLimit : !text.trim())} aria-busy={saving || undefined}>
-              {saving && <Spinner />}
               {review ? `Создать карточки${selected.length ? ` · ${selected.length}` : ""}` : "Найти товары"}
-            </Button> : <Button type="button" disabled={reading} onClick={() => fileInput.current?.click()}>
-              {reading ? <Spinner /> : <FileUp aria-hidden="true" />}{reading ? "Читаем файл…" : "Выбрать файл"}
+            </Button> : <Button type="button" disabled={reading} onClick={() => fileInput.current?.click()} aria-busy={Boolean(reading) || undefined}>
+              {reading ? "Читаем файл…" : "Выбрать файл"}
             </Button>}
           </DrawerFooter>
         </form>

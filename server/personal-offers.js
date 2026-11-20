@@ -88,9 +88,13 @@ async function lockPersonalOfferItem(client, businessId, itemId, wishlist) {
   return item;
 }
 
-async function lockPersonalOfferConsent(client, recipientId, businessId, wishlistSpace) {
+async function lockPersonalOfferSubscription(client, recipientId, businessId) {
   const subscription = await client.query("SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2 FOR SHARE", [recipientId, businessId]);
-  if (subscription.rowCount) return true;
+  return subscription.rowCount > 0;
+}
+
+async function lockPersonalOfferPaymentConsent(client, recipientId, businessId, wishlistSpace) {
+  if (await lockPersonalOfferSubscription(client, recipientId, businessId)) return true;
   if (!wishlistSpace) return false;
   const grants = await client.query(`SELECT 1 FROM sphere_section_shares
     WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist' AND section IN ($3,'wishlist')
@@ -108,7 +112,7 @@ async function lockPersonalOfferPaymentAccess(client, offer, recipientId) {
   const wishlist = Boolean(offer.wishlist_item_id);
   const item = await lockPersonalOfferItem(client, offer.business_user_id, offer.wishlist_item_id || offer.item_id, wishlist);
   if (!business || !item || !personalOfferItemAllowed(business, item, wishlist) ||
-      !await lockPersonalOfferConsent(client, recipientId, business.id, wishlist && item.space)) {
+      !await lockPersonalOfferPaymentConsent(client, recipientId, business.id, wishlist && item.space)) {
     throw new RollsError("Предложение больше недоступно", "OFFER_ACCESS_REVOKED", 403);
   }
 }
@@ -157,7 +161,7 @@ export async function createPersonalOffer(client, businessId, input) {
   }
   const recipient = await client.query("SELECT id FROM users WHERE id=$1 AND account_type='personal'", [data.recipientId]);
   if (!recipient.rowCount) throw new RollsError("Пользователь не найден", "RECIPIENT_NOT_FOUND", 404);
-  if (!await lockPersonalOfferConsent(client, data.recipientId, businessId, wishlist && item.space)) {
+  if (!await lockPersonalOfferSubscription(client, data.recipientId, businessId)) {
     throw new RollsError("Получатель не подписан на ваш бизнес", "OFFER_CONSENT_REQUIRED", 403);
   }
   const id = randomUUID();

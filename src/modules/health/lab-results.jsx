@@ -2,7 +2,11 @@ import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  FileUp,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
@@ -269,7 +273,6 @@ export function LabResults() {
         <AlertDescription>{requestState.error.message}</AlertDescription>
         <div className="col-start-2 flex flex-wrap gap-2 pt-2">
           <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
-            <RotateCcw data-icon="inline-start" aria-hidden="true" />
             Повторить
           </Button>
         </div>
@@ -368,7 +371,6 @@ export function LabResults() {
                 aria-busy={deleteState.busy || undefined}
                 onClick={deleteReport}
               >
-                {deleteState.busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
                 Удалить
               </AlertDialogAction>
             </AlertDialogFooter>

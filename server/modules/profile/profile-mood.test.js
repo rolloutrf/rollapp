@@ -14,6 +14,8 @@ test("visitors see only valid, non-neutral levels with public visibility", () =>
     assert.equal(publicMood({ mood_level, mood_public: true }), null);
   }
   assert.equal(publicMood({ mood_level: 5, mood_public: "true" }), null);
+  assert.equal(publicMood({ account_type: "personal", mood_level: 5, mood_public: true }), 5);
+  assert.equal(publicMood({ account_type: "business", mood_level: 5, mood_public: true }), null);
 });
 
 test("journal requests cannot select or submit another owner or an authored timestamp", () => {
@@ -51,15 +53,16 @@ test("missing mood schema is explicit in development and prevents production sta
   await assert.rejects(verifyProfileMoodAvailability(async () => { throw new Error("connection lost"); }, { required: false }), /connection lost/);
 });
 
-test("journal routes reject guests and forged owner parameters before opening a transaction", async () => {
+test("journal routes reject guests, business accounts and forged owner parameters before opening a transaction", async () => {
   const app = express();
   let available = true;
   let transactions = 0;
   app.use(express.json());
   registerProfileMoodRoutes(app, {
     requireAuth(req, res, next) {
-      if (req.get("X-Test-Session") !== "owner") return res.sendStatus(401);
-      req.user = { id: "owner" };
+      const session = req.get("X-Test-Session");
+      if (session !== "owner" && session !== "business") return res.sendStatus(401);
+      req.user = { id: session, account_type: session === "owner" ? "personal" : "business" };
       next();
     },
     asyncRoute: (handler) => (req, res, next) => handler(req, res).catch(next),
@@ -77,13 +80,17 @@ test("journal routes reject guests and forged owner parameters before opening a 
     const endpoint = `http://127.0.0.1:${server.address().port}/api/me/mood`;
     const options = { signal: AbortSignal.timeout(5000) };
     const session = { ...options, headers: { "X-Test-Session": "owner", "Content-Type": "application/json" } };
+    const business = { ...session, headers: { ...session.headers, "X-Test-Session": "business" } };
     const requests = await Promise.all([
       fetch(endpoint, options),
       fetch(endpoint, { ...options, method: "PATCH" }),
+      fetch(endpoint, business),
+      fetch(endpoint, { ...business, method: "PATCH", body: JSON.stringify({ entry: { requestId: randomUUID(), level: 5 } }) }),
       fetch(`${endpoint}?owner=another-user`, session),
       fetch(endpoint, { ...session, method: "PATCH", body: JSON.stringify({ published: true, userId: "another-user" }) }),
     ]);
-    assert.deepEqual(requests.map((response) => response.status), [401, 401, 400, 400]);
+    assert.deepEqual(requests.map((response) => response.status), [401, 401, 403, 403, 400, 400]);
+    assert(requests.slice(2, 4).every((response) => response.headers.get("cache-control") === "private, no-store"));
     await Promise.all(requests.map((response) => response.text()));
     available = false;
     const unavailable = await fetch(endpoint, session);

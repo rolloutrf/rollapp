@@ -2,7 +2,7 @@ import { InlineTableGrowth } from "@/modules/rich-documents/inline-table-growth.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ScreenPortal } from "@/components/ui/screen-portal";
 import { TableMap } from "@tiptap/pm/tables";
-import { Copy, GripVertical, GripHorizontal, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Plus, Trash2, Palette, Rows3, Columns3 } from "lucide-react";
+import { GripVertical, GripHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ControlBar } from "@/components/control-bar";
 import { Popover, PopoverContent } from "@/components/ui/popover";
@@ -125,15 +125,15 @@ export function InlineTableHandles({ editor, suspended, onVisibilityChange, onCe
     <Popover open={Boolean(menu)} onOpenChange={value => { if (!value) close(); }}>
       <PopoverContent anchor={menu?.anchor} sticky positionMethod="fixed" collisionBoundary={boundary} collisionPadding={16} collisionAvoidance={{side:"shift",align:"shift"}} side="bottom" align="start"
         className="inline-editor__block-menu rollapp-body" aria-label={`Действия ${noun}`} finalFocus={() => { if (!handingOff.current && !editor.isDestroyed && editor.isEditable) editor.view.focus();return false; }}>
-        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu} onClick={() => { selectTableAxis(editor,menu.position,menu.axis,menu.index);close(); }}>{row ? <Rows3 aria-hidden="true"/> : <Columns3 aria-hidden="true"/>}Выделить {row ? "строку" : "столбец"}</Button>
-        <Button variant="ghost" className="w-full justify-start" disabled={!move(-1,true)} onClick={() => { move(-1);close(); }}>{row ? <ArrowUp aria-hidden="true"/> : <ArrowLeft aria-hidden="true"/>}Переместить {row ? "строку выше" : "столбец влево"}</Button>
-        <Button variant="ghost" className="w-full justify-start" disabled={!move(1,true)} onClick={() => { move(1);close(); }}>{row ? <ArrowDown aria-hidden="true"/> : <ArrowRight aria-hidden="true"/>}Переместить {row ? "строку ниже" : "столбец вправо"}</Button>
-        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu} onClick={() => apply(row ? "rowAbove" : "columnLeft")}><Plus aria-hidden="true"/>Добавить {row ? "строку выше" : "столбец слева"}</Button>
-        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu} onClick={() => apply(row ? "rowBelow" : "columnRight")}><Plus aria-hidden="true"/>Добавить {row ? "строку ниже" : "столбец справа"}</Button>
-        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu || !applyTableAction(editor,menu.position,row ? "duplicateRow" : "duplicateColumn",true)} onClick={() => apply(row ? "duplicateRow" : "duplicateColumn")}><Copy aria-hidden="true"/>Дублировать {row ? "строку" : "столбец"}</Button>
-        {menu?.index === 0 && <Button variant="ghost" className="w-full justify-start" aria-pressed={validMenu ? headerEnabled(editor.state,menu.position,menu.axis) : false} onClick={() => apply(row ? "headerRow" : "headerColumn")}>{row ? <Rows3 aria-hidden="true"/> : <Columns3 aria-hidden="true"/>}{row ? "Строка заголовков" : "Столбец заголовков"}</Button>}
-        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu} onClick={event => { if (selectTableAxis(editor,menu.position,menu.axis,menu.index)) { handingOff.current = true;onCellColors(menu.position,event); }close(); }}><Palette aria-hidden="true"/>Цвет ячеек</Button>
-        <Button variant="destructive" className="w-full justify-start" disabled={!validMenu} onClick={() => apply(row ? "deleteRow" : "deleteColumn")}><Trash2 aria-hidden="true"/>Удалить {row ? "строку" : "столбец"}</Button>
+        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu} onClick={() => { selectTableAxis(editor,menu.position,menu.axis,menu.index);close(); }}>Выделить {row ? "строку" : "столбец"}</Button>
+        <Button variant="ghost" className="w-full justify-start" disabled={!move(-1,true)} onClick={() => { move(-1);close(); }}>Переместить {row ? "строку выше" : "столбец влево"}</Button>
+        <Button variant="ghost" className="w-full justify-start" disabled={!move(1,true)} onClick={() => { move(1);close(); }}>Переместить {row ? "строку ниже" : "столбец вправо"}</Button>
+        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu} onClick={() => apply(row ? "rowAbove" : "columnLeft")}>Добавить {row ? "строку выше" : "столбец слева"}</Button>
+        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu} onClick={() => apply(row ? "rowBelow" : "columnRight")}>Добавить {row ? "строку ниже" : "столбец справа"}</Button>
+        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu || !applyTableAction(editor,menu.position,row ? "duplicateRow" : "duplicateColumn",true)} onClick={() => apply(row ? "duplicateRow" : "duplicateColumn")}>Дублировать {row ? "строку" : "столбец"}</Button>
+        {menu?.index === 0 && <Button variant="ghost" className="w-full justify-start" aria-pressed={validMenu ? headerEnabled(editor.state,menu.position,menu.axis) : false} onClick={() => apply(row ? "headerRow" : "headerColumn")}>{row ? "Строка заголовков" : "Столбец заголовков"}</Button>}
+        <Button variant="ghost" className="w-full justify-start" disabled={!validMenu} onClick={event => { if (selectTableAxis(editor,menu.position,menu.axis,menu.index)) { handingOff.current = true;onCellColors(menu.position,event); }close(); }}>Цвет ячеек</Button>
+        <Button variant="destructive" className="w-full justify-start" disabled={!validMenu} onClick={() => apply(row ? "deleteRow" : "deleteColumn")}>Удалить {row ? "строку" : "столбец"}</Button>
       </PopoverContent>
     </Popover>
   </>;

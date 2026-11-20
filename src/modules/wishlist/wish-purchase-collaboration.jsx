@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { ChevronRight, ExternalLink, X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export function WishPurchaseCollaborations({ records, onOpen }) {
     <h3 className="text-2xl leading-8 font-semibold">Общие покупки и запросы</h3>
     <ul className="grid min-w-0 gap-1">
       {records.map((record) => <li key={record.id} className="min-w-0">
-        <Button type="button" variant="ghost" aria-label={`Общая покупка: ${record.title}`} onClick={() => onOpen({ id: record.id })}
+        <Button data-content-control="" type="button" variant="ghost" aria-label={`Общая покупка: ${record.title}`} onClick={() => onOpen({ id: record.id })}
           className="h-auto min-h-12 w-full min-w-0 justify-between gap-2 rounded-xl px-2 py-2 text-left whitespace-normal font-normal">
           <span className="grid min-w-0 gap-1"><span className="wrap-anywhere">{record.title}</span>
             <span className="text-xs text-muted-foreground">{record.role === "owner" ? `Приглашено: ${record.recipients.length} · Предложений: ${record.recipients.filter(({ offer }) => offer).length}`
@@ -84,7 +84,7 @@ function OwnerDetails({ record, busy, submit, onReview }) {
             {record.neededBy && <Badge variant="secondary">{offer.deliveryOn <= record.neededBy ? "К нужной дате" : "Позже нужной даты"}</Badge>}
           </div>
           <a href={offer.url} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), "min-h-12 justify-self-start rounded-full")}>
-            Предложение @{username} <ExternalLink aria-hidden="true" />
+            Предложение @{username}
           </a>
         </li>)}
       </ul>

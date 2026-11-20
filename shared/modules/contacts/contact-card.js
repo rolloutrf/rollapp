@@ -1,4 +1,5 @@
 import { publicProfilePath } from "../profile/profile-links.js";
+import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../shell/applications.js";
 
 // Deliberate allowlist: never serialize a session/profile object directly.
 export function publicContactCard(profile, origin) {
@@ -8,6 +9,15 @@ export function publicContactCard(profile, origin) {
   const base = new URL(origin);
   if (!["https:", "http:"].includes(base.protocol)) throw new Error("Недопустимый адрес профиля");
   return { format: "rollapp-contact-card", version: 1, name, username, url: new URL(publicProfilePath(profile), base.origin).href };
+}
+
+export function contactCardDisplayUrl(url) {
+  const { protocol, hostname, port, pathname } = new URL(url);
+  const sphere = Object.values(SPHERE_APPLICATIONS).find(({ host }) => host === hostname);
+  const platformLabel = "роллапп.рф";
+  const label = sphere ? `${sphere.title.toLocaleLowerCase("ru-RU")}.${platformLabel}`
+    : hostname === PLATFORM_HOST ? platformLabel : hostname;
+  return `${protocol}//${label}${port ? `:${port}` : ""}${decodeURI(pathname)}`;
 }
 
 const escapeText = (value) => String(value).replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\n").replace(/;/g, "\\;").replace(/,/g, "\\,");

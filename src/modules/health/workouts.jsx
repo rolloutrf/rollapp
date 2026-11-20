@@ -3,8 +3,22 @@ import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx"
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
-  Activity, AlertTriangle, Bike, CalendarDays, CheckCircle2, CircleMinus, Clock3,
-  Dumbbell, Flame, Footprints, Gauge, RotateCcw, Route, Timer, Trash2, Trophy, Waves, X,
+  Activity,
+  AlertTriangle,
+  Bike,
+  CalendarDays,
+  CheckCircle2,
+  CircleMinus,
+  Clock3,
+  Dumbbell,
+  Flame,
+  Footprints,
+  Gauge,
+  Route,
+  Timer,
+  Trophy,
+  Waves,
+  X,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
@@ -410,8 +424,7 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
           </div>
 
           <DrawerFooter>
-            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || !form.workoutOn}>
-              {saving && <Spinner aria-hidden="true" />}
+            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || !form.workoutOn} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : workout ? "Сохранить изменения" : "Добавить тренировку"}
             </Button>
             <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>
@@ -600,7 +613,6 @@ export function Workouts() {
           <AlertDescription>{requestState.error.message}</AlertDescription>
           <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
-              <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
           </div>
@@ -706,7 +718,6 @@ export function Workouts() {
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deleteState.busy}>Отмена</AlertDialogCancel>
               <AlertDialogAction variant="destructive" disabled={deleteState.busy} aria-busy={deleteState.busy || undefined} onClick={deleteWorkout}>
-                {deleteState.busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
                 Удалить
               </AlertDialogAction>
             </AlertDialogFooter>

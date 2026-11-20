@@ -1,17 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
+import { APP_BUSINESS_ACCESS_PATH } from "./app-routing.js";
 import { APP_HOME } from "./home-path.jsx";
 import { sphereLink } from "../../applications/location.js";
-import { Avatar } from "@/modules/profile/profile-avatar.jsx";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Building2 } from "lucide-react";
-import { api } from "../runtime/api.js";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { serviceSwitcherItemsForUser } from "./service-navigation.js";
-import { sphereSectionPath } from "../../../shared/modules/access/sphere-sharing.js";
 import { useSession } from "../auth/session.jsx";
 import { SERVICE_SWITCHER_ITEMS, activeServiceFromPath } from "./service-menu.jsx";
-import { businessSectionLabel } from "../access/sphere-access.jsx";
 
 export function LogoMark({ className = "logo__mark" }) {
   return (
@@ -47,7 +44,6 @@ export function SphereSwitcher({ docked = false }) {
   const { pathname } = location;
   const { user } = useSession();
   const [open, setOpen] = useState(false);
-  const [incomingShares, setIncomingShares] = useState([]);
   const activeService = activeServiceFromPath(pathname);
   const serviceHref = path => window.Telegram?.WebApp?.initData
     ? path
@@ -56,22 +52,9 @@ export function SphereSwitcher({ docked = false }) {
   const visibleServices = [
     ...serviceSwitcherItemsForUser(SERVICE_SWITCHER_ITEMS, user),
     ...(user?.accountType === "business"
-      ? [{ id: "business-access", label: "Клиенты", path: "/app/business/access", icon: Building2, color: "#8b7cf6" }]
+      ? [{ id: "business-access", label: "Клиенты", path: APP_BUSINESS_ACCESS_PATH, icon: Building2, color: "#8b7cf6" }]
       : []),
   ];
-  useEffect(() => {
-    if (user?.accountType !== "business") {
-      setIncomingShares([]);
-      return undefined;
-    }
-    let current = true;
-    api.get("/sphere-shares/incoming").then(({ shares }) => {
-      if (current) setIncomingShares(shares || []);
-    }).catch(() => {
-      if (current) setIncomingShares([]);
-    });
-    return () => { current = false; };
-  }, [user?.accountType, user?.id, open]);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -87,7 +70,7 @@ export function SphereSwitcher({ docked = false }) {
         </svg>
       </PopoverTrigger>
       <PopoverContent
-        className="sphere-switcher__panel app-navigation-popup !gap-3 !rounded-3xl !p-2 max-[560px]:!rounded-2xl"
+        className="sphere-switcher__panel app-navigation-popup !rounded-3xl !p-2 max-[560px]:!rounded-2xl"
         align="start"
         side={docked ? "top" : "bottom"}
         sideOffset={10}
@@ -96,7 +79,7 @@ export function SphereSwitcher({ docked = false }) {
           {visibleServices.map(({ id, label, path, icon: Icon }) => {
             const active = id === activeService && !sharedOwner;
             return (
-              <Link
+              <Link data-content-control=""
                 key={id}
                 to={serviceHref(path)}
                 className={buttonVariants({
@@ -115,36 +98,6 @@ export function SphereSwitcher({ docked = false }) {
             );
           })}
         </nav>
-        {incomingShares.length > 0 && <>
-          <div className="sphere-switcher__shared-heading">
-            <strong>Доступно мне</strong>
-            <span>Разделы других людей</span>
-          </div>
-          <nav className="sphere-switcher__list" aria-label="Разделы, доступные для чтения">
-            {incomingShares.map((share) => {
-              const path = sphereSectionPath({ owner: share.owner, sphere: share.sphere, section: share.section });
-              const active = `${location.pathname}${location.search}` === path;
-              return (
-                <Link
-                  key={`${share.owner.id}:${share.sphere}:${share.section}`}
-                  to={serviceHref(path)}
-                  className={buttonVariants({
-                    variant: active ? "secondary" : "ghost",
-                    className: "sphere-switcher__item !h-auto !min-h-12 !justify-start !gap-4 !font-normal !whitespace-normal !rounded-xl !px-4 !py-3",
-                  })}
-                  aria-current={active ? "page" : undefined}
-                  onClick={() => setOpen(false)}
-                >
-                  <Avatar user={share.owner} size="sm" />
-                  <span className="sphere-switcher__shared-copy">
-                    <span>{share.sphere === "wishlist" && share.section !== "wishlist" ? `Вишлист · ${businessSectionLabel(share.section)}` : businessSectionLabel(share.section)}</span>
-                    <small>{share.owner.name}</small>
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-        </>}
       </PopoverContent>
     </Popover>
   );

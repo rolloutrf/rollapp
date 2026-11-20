@@ -7,7 +7,7 @@ import { useSession } from "./session.jsx";
 import { LoadingScreen } from "../shell/page-feedback.jsx";
 import { LogoMark } from "../shell/brand.jsx";
 import { useId, useState, useLayoutEffect, useRef, useEffect } from "react";
-import { CheckCircle2, LoaderCircle, Mail, Phone, Send } from "lucide-react";
+import { CheckCircle2, LoaderCircle, Send } from "lucide-react";
 import { api } from "../runtime/api.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
@@ -31,10 +31,6 @@ function YandexIdButton({ href, disabled, label = "Войти с Яндекс ID
   const action = href ? { href } : { type: "submit", disabled };
   return (
     <Component className="yandex-id-button" {...action}>
-      <svg className="yandex-id-button__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <circle cx="12" cy="12" r="12" fill="#fc3f1d" />
-        <path fill="#fff" d="M15.24 16.2h-1.68V8.04h-1.2c-1.637 0-2.52.818-2.52 2.045 0 1.39.597 2.047 1.843 2.87l1.017.676-2.903 4.57H7.92l2.676-3.913C9.08 13.18 8.16 12.11 8.16 10.016c0-2.24 1.554-3.696 4.306-3.696h2.774v9.88Z" />
-      </svg>
       <span>{label}</span>
     </Component>
   );
@@ -129,8 +125,7 @@ function TelegramWaitlistPage() {
             />
             {error && <FieldError id={`${inputId}-error`} role="alert">{error}</FieldError>}
           </Field>
-          <ShadcnButton type="submit" className="auth-submit rounded-full" disabled={loading}>
-            {loading && <Spinner data-icon="inline-start" />}
+          <ShadcnButton type="submit" className="auth-submit rounded-full" disabled={loading} aria-busy={Boolean(loading) || undefined}>
             Записаться в список
           </ShadcnButton>
         </>
@@ -192,7 +187,6 @@ function ForgotPasswordPage() {
             />
           </Field>
           <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>
-            {loading && <Spinner data-icon="inline-start" />}
             Отправить ссылку
           </ShadcnButton>
         </>}
@@ -327,7 +321,6 @@ function ResetPasswordPage() {
         </Field>
       </FieldGroup>
       <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>
-        {loading && <Spinner data-icon="inline-start" />}
         Сохранить новый пароль
       </ShadcnButton>
       <p className="auth-switch">Ссылка не работает? <Link to="/forgot-password">Запросить новую</Link></p>
@@ -741,7 +734,7 @@ function SignInPage({ yandexEnabled, legacySignInEnabled }) {
           {connectingCurrentUser
             ? telegramAuth.status === "unlinked"
               ? <>
-                <ShadcnButton type="submit" className="auth-submit" disabled={loading}>{loading && <Spinner data-icon="inline-start" />}Привязать к @{user.username}</ShadcnButton>
+                <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={Boolean(loading) || undefined}>Привязать к @{user.username}</ShadcnButton>
                 <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={loading} onClick={() => navigate(nextPath)}>Не сейчас</ShadcnButton>
               </>
               : <ShadcnButton variant="link" className="auth-method-switch" type="button" onClick={() => navigate(nextPath)}>Вернуться в Rollapp</ShadcnButton>
@@ -755,11 +748,10 @@ function SignInPage({ yandexEnabled, legacySignInEnabled }) {
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete="current-password" placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
               {!addingAccount && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
-              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
+              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
             </>}
           {!connectingCurrentUser && phoneConfigLoaded && phoneEnabled && (
             <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
-              {usingPhone ? <Mail aria-hidden="true" /> : <Phone aria-hidden="true" />}
               <span>{usingPhone ? "Войти по email и паролю" : "Войти по номеру телефона"}</span>
             </ShadcnButton>
           )}

@@ -86,9 +86,7 @@ export function FriendsPage() {
             }}
           >
             {Object.entries(friendSections).map(([key, item]) => {
-              const Icon = item.icon;
               return <ToggleGroupItem key={key} value={key} className="h-12 grow gap-2 px-3 hover:bg-muted/50 aria-pressed:hover:bg-muted">
-                <Icon aria-hidden="true" />
                 {item.label}
               </ToggleGroupItem>;
             })}

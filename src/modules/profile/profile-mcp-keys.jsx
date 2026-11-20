@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Copy, KeyRound } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api } from "@/modules/runtime/api.js";
 import { ControlBar } from "@/components/control-bar";
@@ -135,7 +134,7 @@ export function ProfileMcpKeys({ onBusyChange }) {
             <FieldDescription>Скопируйте ключ сейчас и укажите его только в настройках клиента или в скрытом вводе терминала.</FieldDescription>
             <Input id="mcp-issued-key" readOnly value={issuedKey.token} spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} />
             <Button type="button" variant="outline" className="min-h-12 w-fit rounded-full" onClick={copyKey}>
-              <Copy aria-hidden="true" />Скопировать ключ
+              Скопировать ключ
             </Button>
             {copyStatus && <p role="status">{copyStatus}</p>}
           </Field>}
@@ -163,7 +162,7 @@ export function ProfileMcpKeys({ onBusyChange }) {
     </ScrollArea>
     <DrawerFooter>
       <Button type="submit" disabled={!keys || issuing || revoking} aria-busy={issuing || undefined}>
-        {issuing ? <Spinner data-icon="inline-start" /> : <KeyRound data-icon="inline-start" aria-hidden="true" />}Создать ключ
+        Создать ключ
       </Button>
     </DrawerFooter>
   </form>;

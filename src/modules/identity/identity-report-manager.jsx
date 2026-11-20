@@ -1,6 +1,6 @@
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FileUp, RotateCcw } from "lucide-react";
+import { FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
 import { PageActionButton } from "@/components/page-action-button";
@@ -111,7 +111,7 @@ export function IdentityReportStatus({ mode, error, onRetry }) {
     <Alert variant="destructive" className="identity-report-error not-typeset rollapp-body">
       <AlertTitle>Не удалось загрузить отчёт</AlertTitle>
       <AlertDescription>{error}</AlertDescription>
-      <Button variant="outline" onClick={onRetry}><RotateCcw data-icon="inline-start" aria-hidden="true" />Повторить</Button>
+      <Button variant="outline" onClick={onRetry}>Повторить</Button>
     </Alert>
   );
 }

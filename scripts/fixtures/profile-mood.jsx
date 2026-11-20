@@ -42,7 +42,9 @@ api.get = async (path) => {
   if (path === "/me") {
     const { level, publicMood } = snapshot();
     const visitor = params.has("visitor") ? { id: "visitor", name: "Посетитель", username: "visitor", moodLevel: 1 } : null;
-    return { user: guest ? visitor : { ...userBase, moodLevel: level, publicMood } };
+    return { user: guest ? visitor : params.has("business")
+      ? { ...userBase, accountType: "business", moodLevel: 5, publicMood: 5 }
+      : { ...userBase, moodLevel: level, publicMood } };
   }
   if (guest && path === "/profile/mood-owner") return {
     profile: { ...userBase, ...(params.has("published") && { publicMood: Number(params.get("published")) || 5 }) },

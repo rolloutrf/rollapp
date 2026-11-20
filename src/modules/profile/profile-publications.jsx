@@ -1,7 +1,7 @@
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useId, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, Megaphone, X } from "lucide-react";
+import { CalendarDays, Megaphone, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
@@ -177,7 +177,7 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
       {intro && <>
         <div className="not-typeset flex flex-wrap gap-2">
           <PageActionButton nativeButton={false} role="link" variant="outline" render={<Link to={returnTo || profilePath} />}>
-            <ArrowLeft className="size-5" aria-hidden="true" />{returnTo ? "К Вишлисту" : "К профилю"}
+            {returnTo ? "К Вишлисту" : "К профилю"}
           </PageActionButton>
         </div>
         <header className="min-w-0 wrap-anywhere" data-typeset-group>

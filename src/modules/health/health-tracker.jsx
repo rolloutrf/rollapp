@@ -121,7 +121,7 @@ function EntryForm({ tracker, entry, date, onClose, onSave, canEdit }) {
           </>}
           <Field><FieldLabel htmlFor={`${id}-notes`}>Заметки</FieldLabel><Textarea id={`${id}-notes`} rows={3} maxLength={4000} value={draft.notes} onChange={event => update("notes", event.target.value)} /></Field>
         </fieldset>
-        <DrawerFooter><Button type="submit" disabled={busy || !canEdit}>{busy && <Spinner />}{busy ? "Сохраняем" : "Сохранить"}</Button><DrawerClose render={<Button type="button" variant="outline" disabled={busy} />}>Отмена</DrawerClose></DrawerFooter>
+        <DrawerFooter><Button type="submit" disabled={busy || !canEdit} aria-busy={Boolean(busy) || undefined}>{busy ? "Сохраняем" : "Сохранить"}</Button><DrawerClose render={<Button type="button" variant="outline" disabled={busy} />}>Отмена</DrawerClose></DrawerFooter>
       </form>
     </DrawerContent>
   </Drawer>;

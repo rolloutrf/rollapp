@@ -6,11 +6,9 @@ import {
   Clapperboard,
   EyeOff,
   Image,
-  ListPlus,
   LoaderCircle,
   LockKeyhole,
   MapPin,
-  Sparkles,
   UtensilsCrossed,
 } from "lucide-react";
 import { api, sessionFetch } from "../runtime/api.js";
@@ -149,7 +147,6 @@ export function ListModal({ list = null, listsCount = 0, space = "products", onC
               disabled={loading || deleting}
               aria-busy={loading || undefined}
             >
-              {loading && <Spinner data-icon="inline-start" />}
               {editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : "Создать список"}
             </ShadcnButton>
             {editing && <ShadcnButton
@@ -172,7 +169,7 @@ export function ListModal({ list = null, listsCount = 0, space = "products", onC
     {deleteOpen && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
       <AlertDialogContent>
         <AlertDialogHeader><AlertDialogTitle>Удалить «{list.title}»?</AlertDialogTitle><AlertDialogDescription>Желания из этого списка останутся в вашем общем списке. Отменить удаление списка не получится.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={deleting} aria-busy={deleting || undefined} onClick={remove}>{deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</AlertDialogAction></AlertDialogFooter>
+        <AlertDialogFooter><AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={deleting} aria-busy={deleting || undefined} onClick={remove}>Удалить</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>}
   </>;
@@ -655,8 +652,7 @@ export function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = nu
               <Field className="wish-editor__field wish-editor__field--link grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-2">
                 <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>{isPlaces ? "Ссылка из Яндекс Карт" : isFood ? "Ссылка на продукт" : "Ссылка"}</FieldLabel>
                 <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing && canAutofocusForm()} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : isFood ? "https://lenta.com/product/…" : isTransport ? "https://auto.ru/cars/used/sale/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
-                <ShadcnButton className="wish-editor__link-action col-start-2 row-start-1 justify-self-end" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
-                  {metadata.status === "loading" ? <LoaderCircle className="spin" /> : <Sparkles />}
+                <ShadcnButton className="wish-editor__link-action col-start-2 row-start-1 justify-self-end" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)} aria-busy={Boolean(metadata.status === "loading") || undefined}>
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
                 </ShadcnButton>
                 {isPlaces && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><MapPin size={14} aria-hidden="true" /> Ссылка на место из Яндекс Карт — подставим название и адрес</p>}
@@ -711,7 +707,7 @@ export function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = nu
                 <legend className="visually-hidden">Списки желания</legend>
                 <div className="wish-editor__lists-head">
                   <strong>Списки</strong>
-                  <ShadcnButton ref={listCreatorTriggerRef} type="button" variant="ghost" disabled={loading || deleting} onClick={() => { if (!mutationRef.current) setListCreatorOpen(true); }}><ListPlus /> Новый список</ShadcnButton>
+                  <ShadcnButton ref={listCreatorTriggerRef} type="button" variant="ghost" disabled={loading || deleting} onClick={() => { if (!mutationRef.current) setListCreatorOpen(true); }}> Новый список</ShadcnButton>
                 </div>
                 {listsLoading ? <LoadingScreen compact /> : <div className="wish-editor__list-rows">
                   {visibleLists.length ? visibleLists.map((list) => {
@@ -736,7 +732,7 @@ export function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = nu
 
           <MobileFormFooter className="wish-editor-screen__footer">
             <ShadcnButton type="submit" disabled={loading || deleting || imageUploading || assistantListPending} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
-              {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
+              {editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
             {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
           </MobileFormFooter>

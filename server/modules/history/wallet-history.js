@@ -3,7 +3,7 @@ import { readMarketplaceOrderAttention } from "./marketplace-order-attention.js"
 import { ensureRollWallet } from "../payments/rolls.js";
 import { readRollAccountingSources, readRollBalanceBreakdown, rollWalletEntries } from "../payments/roll-accounting.js";
 
-export function rollTransactionFromRow(row) {
+function rollTransactionFromRow(row) {
   return {
     id: row.id,
     kind: row.kind,

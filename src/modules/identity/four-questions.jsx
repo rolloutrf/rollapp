@@ -9,7 +9,6 @@ import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/form-surface";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
@@ -97,8 +96,7 @@ function FourQuestionEditor({ onOpenChange, onSave, open, question, questionInde
             </FieldGroup>
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 text-base" type="submit" disabled={saving}>
-              {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
+            <Button className="min-h-12 text-base" type="submit" disabled={saving} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : "Сохранить изменения"}
             </Button>
             <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={saving} />}>

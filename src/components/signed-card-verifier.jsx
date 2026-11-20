@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { FileCheck } from "lucide-react";
 import { tonCardRequest } from "@/lib/ton-card-api";
 import { ControlBar } from "@/components/control-bar";
 import { Input } from "@/components/ui/input";
@@ -32,7 +31,7 @@ export function SignedCardVerifier({ profile, onUpdate }) {
   }
   return <section className="flex min-w-0 flex-col gap-2" aria-label="Проверка подписанной визитки">
     <Input ref={input} hidden type="file" accept=".json,application/json" aria-label="Файл подписанной визитки" onChange={verifyFile} />
-    <ControlBar className="flex flex-col gap-2"><Button type="button" variant="outline" disabled={state.busy} onClick={() => input.current?.click()}><FileCheck aria-hidden="true" />Проверить файл</Button></ControlBar>
+    <ControlBar className="flex flex-col gap-2"><Button type="button" variant="outline" disabled={state.busy} onClick={() => input.current?.click()}>Проверить файл</Button></ControlBar>
     {state.busy && <p role="status">Проверяем подпись…</p>}
     {state.error && <p role="alert">{state.error}</p>}
     {state.verified && <div className="flex min-w-0 flex-col gap-2 break-words">

@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Bot, Mic, Plus, Square } from 'lucide-react';
+import { Bot, Mic, Plus, Square } from 'lucide-react';
 import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_PRODUCT_EXAMPLE, parseAssistantAction } from '../../../shared/modules/assistant/messenger-assistant.js';
 import { NOTE_TASKS_PROMPT } from '../../../shared/modules/assistant/assistant-note-tasks.js';
 import { NoteTasksSource } from './assistant-note-tasks.jsx';
@@ -174,7 +174,7 @@ function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview
       {draftDate && <p>{date(`${draftDate}T12:00:00`)}{value.startTime && ` · ${value.startTime} · ${value.durationMinutes} мин`}</p>}
       <Link to={path} state={type === 'open_section' ? undefined : { assistantDraft: draftDate ? { type, value: { ...value, dueOn: draftDate } } : action }}
         className={cn(buttonVariants({ variant: 'outline' }), 'h-auto min-h-12 rounded-full whitespace-normal text-start')}>
-        {label}<ArrowUpRight aria-hidden="true" />
+        {label}
       </Link>
     </div>;
   });

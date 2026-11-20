@@ -1,7 +1,7 @@
 import { definePrimitive } from '@ui-sdk/core';
 import { createAgent } from '@ui-sdk/react/agent';
 import { createParts } from '@ui-sdk/react/primitive';
-import { ArrowRight, ListChecks } from 'lucide-react';
+import { ListChecks } from 'lucide-react';
 import { useId, useLayoutEffect, useRef } from 'react';
 import { wishCountNoun } from '../categories/list-navigation.js';
 import { api } from '../runtime/api.js';
@@ -119,7 +119,6 @@ export function AssistantWishlistSort({ value, review, onUpdate, onApplied }) {
       </ul>
       <Button type="submit" disabled={pending || !moves.length} className="h-auto min-h-12 min-w-0 max-w-full justify-self-start rounded-full px-6 py-2 text-start whitespace-normal">
         <span>{pending ? 'Переносим…' : `Перенести выбранные${moves.length ? ` (${moves.length})` : ''}`}</span>
-        <ArrowRight aria-hidden="true" />
       </Button>
     </form>}
     {moved > 0 && <p role="status">Перенесено {moved} {wishCountNoun(moved)}.</p>}

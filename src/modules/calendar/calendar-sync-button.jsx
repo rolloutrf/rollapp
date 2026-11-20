@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { CalendarSync, Copy, Download, Power, X } from "lucide-react";
+import { CalendarSync, Power, X } from "lucide-react";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { planningApi } from "@/modules/planning/planning-api.js";
@@ -52,11 +52,11 @@ function CalendarConnection({ spaceId, transport, onClose, onUpdate }) {
           <p className="text-muted-foreground">{connection.title || "Выбранный календарь"} · {connection.deviceName || (connection.connected ? "Ожидаем устройство" : "Устройство не подключено")}</p>
           {connection.lastSyncedAt && <p role="status">Последнее обновление: {new Intl.DateTimeFormat("ru", { dateStyle: "short", timeStyle: "short" }).format(new Date(connection.lastSyncedAt))}. Событий: {connection.eventCount}.</p>}
           <p>На Mac скачайте и откройте Rollapp Calendar. Затем откройте подключение, выберите нужные календари и подтвердите передачу их событий в Rollapp.</p>
-          <Button variant="outline" nativeButton={false} role="link" render={<a href="/api/planning/calendar-device/macos" download />}><Download aria-hidden="true" />Приложение для Mac</Button>
+          <Button variant="outline" nativeButton={false} role="link" render={<a href="/api/planning/calendar-device/macos" download />}>Приложение для Mac</Button>
           <p className="text-muted-foreground">На iPhone требуется установленная iOS-версия Rollapp Calendar. Публикация этой версии ещё не выполнена. Кнопка в браузере сама по себе не включает доступ к календарям iPhone.</p>
           {code && <>
             <Field><FieldLabel htmlFor={id}>Код подключения устройства</FieldLabel><Input ref={link} id={id} value={code} readOnly onFocus={event => event.target.select()} /></Field>
-            <Button variant="outline" onClick={copy}><Copy aria-hidden="true" />Копировать код</Button>
+            <Button variant="outline" onClick={copy}>Копировать код</Button>
             <p className="text-muted-foreground">Этот код разрешает выбранному устройству загружать события только в этот календарь Rollapp. Сохраните его для своего приложения.</p>
             <Button variant="outline" disabled={busy} onClick={() => { setRetry(value => value + 1); onUpdate?.(); }}>Проверить обновление</Button>
           </>}
@@ -66,7 +66,7 @@ function CalendarConnection({ spaceId, transport, onClose, onUpdate }) {
         {code ? <>
           <Button nativeButton={false} role="link" render={<a href={code} rel="noreferrer" />} disabled={busy} aria-label="Открыть Rollapp Calendar">{isMobile ? "Открыть" : "Открыть приложение"}</Button>
           <Button data-control-icon variant="destructive" size="icon" aria-label="Отключить устройство" title="Отключить устройство" disabled={busy} onClick={() => { setError(""); setConfirm(true); }}><Power aria-hidden="true" /></Button>
-        </> : <Button aria-label="Подключить" disabled={loading || busy || !connection} onClick={() => change(false)}>{busy && <Spinner />}Подключить</Button>}
+        </> : <Button aria-label="Подключить" disabled={loading || busy || !connection} onClick={() => change(false)} aria-busy={Boolean(busy) || undefined}>Подключить</Button>}
       </DrawerFooter>
     </DrawerContent>
   </Drawer>

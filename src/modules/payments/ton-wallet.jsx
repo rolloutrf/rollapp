@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import TonConnect, { CHAIN, toUserFriendlyAddress } from "@tonconnect/sdk";
 import QRCode from "qrcode";
-import { ArrowLeft, ArrowUpRight, Copy, Unplug, Wallet } from "lucide-react";
+import { ArrowUpRight, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -178,13 +178,13 @@ export function TonWallet({ userId, onPaid }) {
         <Button type="button" variant="outline" onClick={async () => {
           try { await navigator.clipboard.writeText(address); toast.success("Адрес скопирован"); }
           catch { setError("Не удалось скопировать адрес. Выделите его и скопируйте вручную."); }
-        }}><Copy aria-hidden="true" />Копировать</Button>
-        <Button type="button" variant="ghost" disabled={busy} onClick={disconnect}>{busy ? <Spinner /> : <Unplug aria-hidden="true" />}Отключить</Button>
+        }}>Копировать</Button>
+        <Button type="button" variant="ghost" disabled={busy} onClick={disconnect} aria-busy={Boolean(busy) || undefined}>Отключить</Button>
       </div>
     </> : <>
       <p>Подключите свой кошелёк. Криптовалюта остаётся у вас, а подключение сохраняется на этом устройстве.</p>
-      <Button ref={connectButton} type="button" className="w-full sm:w-auto sm:self-start" disabled={!ready || busy} onClick={() => { setError(""); setOpen(true); }}>
-        {!ready && !error ? <Spinner /> : <Wallet aria-hidden="true" />}{!ready && !error ? "Проверяем подключение…" : "Подключить кошелёк"}
+      <Button ref={connectButton} type="button" className="w-full sm:w-auto sm:self-start" disabled={!ready || busy} onClick={() => { setError(""); setOpen(true); }} aria-busy={Boolean(!ready && !error) || undefined}>
+        {!ready && !error ? "Проверяем подключение…" : "Подключить кошелёк"}
       </Button>
     </>}
     <TonTopup userId={userId} wallet={wallet} connector={runtime.current} onPaid={onPaid} />
@@ -199,11 +199,11 @@ export function TonWallet({ userId, onPaid }) {
           {link ? <>
             {qr ? <img src={qr} width="288" height="288" className="h-auto max-w-full rounded-xl" alt="QR-код для подключения кошелька к РОЛЛАПП" /> : <Spinner />}
             <p className="text-center">Откройте кошелёк или отсканируйте QR-код в приложении кошелька.</p>
-            <Button nativeButton={false} render={<a href={link} onClick={openWallet} target="_blank" rel="noopener noreferrer" />} className="w-full"><ArrowUpRight aria-hidden="true" />Открыть кошелёк</Button>
+            <Button nativeButton={false} render={<a href={link} onClick={openWallet} target="_blank" rel="noopener noreferrer" />} className="w-full">Открыть кошелёк</Button>
           </> : <p className="flex items-center gap-2" role="status"><Spinner />{selected.injected || selected.embedded ? "Ожидаем подтверждения в кошельке" : "Проверяем подключение…"}</p>}
-          <Button type="button" variant="ghost" className="w-full" onClick={cancelPending}><ArrowLeft aria-hidden="true" />Выбрать другой кошелёк</Button>
+          <Button type="button" variant="ghost" className="w-full" onClick={cancelPending}>Выбрать другой кошелёк</Button>
         </div> : <div className="flex flex-col gap-2">
-          {wallets.map((item) => <Button key={item.appName} type="button" variant="outline" className="h-auto min-h-16 justify-start gap-3 py-3" onClick={() => connect(item)}>
+          {wallets.map((item) => <Button data-content-control="" key={item.appName} type="button" variant="outline" className="h-auto min-h-16 justify-start gap-3 py-3" onClick={() => connect(item)}>
             <img src={item.imageUrl} className="size-8 rounded-lg" alt="" /><span>{item.name}</span><ArrowUpRight className="ml-auto" aria-hidden="true" />
           </Button>)}
           {!wallets.length && <p>Нет доступных кошельков. Закройте окно и обновите страницу.</p>}

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { UserPlus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { ControlBar } from "@/components/control-bar";
 import { PageActionButton } from "@/components/page-action-button";
@@ -56,7 +56,7 @@ export function WishParticipantField({ participants, onChange, spaceLabel, disab
       </li>)}
     </ul>}
     <PageActionButton ref={addButtonRef} type="button" variant="outline" className="w-fit max-w-full" aria-expanded={open} aria-controls={open ? id : undefined} disabled={atLimit || disabled} onClick={() => setOpen(!open)}>
-      <UserPlus aria-hidden="true" /> Добавить участника
+       Добавить участника
     </PageActionButton>
     {open && !atLimit && <Field id={id} className="gap-2">
       <FieldLabel htmlFor={`${id}-search`}>Имя или @username</FieldLabel>

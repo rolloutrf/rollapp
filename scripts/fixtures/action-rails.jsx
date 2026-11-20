@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { PlanningDayRibbon } from '@/components/planning-day-ribbon';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, MemoryRouter } from 'react-router-dom';
-import { Plus, ArrowRight, Store } from 'lucide-react';
+import { Plus, Store } from 'lucide-react';
 import { PageActionButton } from '@/components/page-action-button';
 import { ProfileSectionNavigation } from '@/modules/shell/profile-section-navigation.jsx';
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { EducationListNavigation, EducationSectionHeader } from '@/modules/education/education-lists.jsx';
 import { WishesProfileControls, WishesPage, AppShell, ProfileEditorProvider, SessionContext, ToastContext } from '../../src/App.jsx?action-rails-export';
 import { api } from '@/modules/runtime/api.js';
@@ -105,8 +105,9 @@ function Actions(){
  return <>
  <div className={`${railClass} ${['text','wishlist','narrow','icons','edit','dynamic'].includes(variant)?'wishes-page__hero-actions':''} horizontal-action-scroller`} aria-label="Действия">
   {variant==='overflow'&&Array.from({length:20},(_,i)=><PageActionButton key={i} variant="outline">Действие {i+1}</PageActionButton>)}
-  {!icons&&variant!=='edit'&&<PageActionButton>{variant==='icon-labels'&&<Plus data-icon="inline-start"/>}Добавить</PageActionButton>}
-  {!icons&&variant!=='short'&&<PageActionButton variant="outline">Редактировать{variant==='icon-labels'&&<ArrowRight data-icon="inline-end"/>}</PageActionButton>}
+  {variant==='mixed'&&<Button className="size-12 rounded-full" size="icon" variant="outline" aria-label="Быстро добавить"><Plus aria-hidden="true" /></Button>}
+  {!icons&&variant!=='edit'&&<PageActionButton>Добавить</PageActionButton>}
+  {!icons&&variant!=='short'&&<PageActionButton variant="outline">Редактировать</PageActionButton>}
   {variant!=='short'&&<Link aria-label="Открыть магазин за роллы" data-control-icon className={buttonVariants({variant:'outline',size:'icon'})} to="/app/spheres/career/business/store"><Store aria-hidden="true" /></Link>}
  </div>
  {variant==='dynamic'&&<button onClick={()=>setEditing(!editing)} data-toggle-actions>Изменить набор действий</button>}

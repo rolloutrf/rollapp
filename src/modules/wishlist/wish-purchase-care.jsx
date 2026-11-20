@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { Download, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -36,7 +36,7 @@ function ReceiptField({ purchaseId, receipt, file, onFile, onUpload, onRemove, b
       <p className="wrap-anywhere">{receipt.filename}</p>
       <div className="flex flex-wrap gap-2">
         <a href={`/api${historyPath(purchaseId)}/receipt`} download={receipt.filename}
-          className={cn(buttonVariants({ variant: "outline" }), "min-h-12 rounded-full")}><Download aria-hidden="true" />Скачать чек</a>
+          className={cn(buttonVariants({ variant: "outline" }), "min-h-12 rounded-full")}>Скачать чек</a>
         {!confirm && <Button variant="destructive" className="min-h-12 rounded-full" type="button" disabled={busy}
           onClick={() => setConfirm(true)}>Удалить чек</Button>}
       </div>
@@ -183,7 +183,7 @@ function CareForm({ data, onData, purchaseId, onClose, onChanged, busy, setBusy 
       </>}
     </div>
     {careAvailable && <DrawerFooter>
-      <Button type="submit" disabled={!dirty || busy || Boolean(file)}>{busy && <Spinner />}Сохранить</Button>
+      <Button type="submit" disabled={!dirty || busy || Boolean(file)} aria-busy={Boolean(busy) || undefined}>Сохранить</Button>
     </DrawerFooter>}
   </form>;
 }

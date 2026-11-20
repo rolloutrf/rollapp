@@ -3,11 +3,12 @@ import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
-import { APP_ORDERS_PATH } from "../src/modules/shell/app-routing.js";
+import { APP_BUSINESS_ACCESS_PATH, APP_ORDERS_PATH } from "../src/modules/shell/app-routing.js";
 
 const salesOnly = process.argv.includes("--sales-only");
 const announcementsOnly = process.argv.includes("--announcements-only");
 const storefrontOnly = process.argv.includes("--storefront-only");
+const profileSectionsOnly = process.argv.includes("--profile-sections-only");
 const cover = { name: "cover.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOo6D6IFTEMpAQAyI5UwfdZU4cAAAAASUVORK5CYII=", "base64") };
 const cacheDir = announcementsOnly ? "node_modules/.vite-announcements-entry" : salesOnly ? "node_modules/.vite-wish-sales" : "node_modules/.vite-business-profile";
 const server = await createServer({ cacheDir, server: { host: "127.0.0.1", port: 0, hmr: false, watch: null }, plugins: [{
@@ -152,7 +153,7 @@ async function checkWishSale(width, height) {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await page.screenshot({ path: `/tmp/rollapp-wish-sale-${width}-${height}.png` });
     if (width < 768) await page.goBack();
-    else await editor.getByRole("button", { name: "Отмена", exact: true }).click();
+    else await editor.getByRole("button", { name: "Закрыть редактор", exact: true }).click();
     await page.waitForFunction(() => !new URLSearchParams(location.search).has("wish") && !new URLSearchParams(location.search).has("formScreen"));
     await page.getByText("Объявлений пока нет").waitFor();
     const salesPage = page.getByRole("region", { name: "Мои продажи · Товары" });
@@ -236,7 +237,7 @@ async function checkDirectSale(width, height) {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await page.screenshot({ path: `/tmp/rollapp-direct-sale-${width}-${height}.png` });
     if (width < 768) await page.goBack();
-    else await editor.getByRole("button", { name: "Отмена", exact: true }).click();
+    else await editor.getByRole("button", { name: "Закрыть редактор", exact: true }).click();
     await editor.waitFor({ state: "hidden" });
     await add.click();
     await title.fill("Кофемашина Dedica");
@@ -334,8 +335,175 @@ async function checkAnnouncementsEntry(width, height) {
 }
 
 
+async function checkBusinessCategory(page, label) {
+  const chrome = page.getByRole("banner", { name: "Панель приложения" });
+  const category = chrome.locator(".global-business-category");
+  await category.getByText(label, { exact: true }).waitFor();
+  assert.equal(await page.locator(".global-service-select").count(), 0);
+  assert.equal(await chrome.getByRole("combobox").count(), 0);
+  assert.equal(await category.evaluate((element) => element.tabIndex), -1);
+  assert.equal(await category.locator("a, button, [aria-haspopup], [tabindex]").count(), 0);
+  const geometry = await category.evaluate((element) => {
+    const { left, right, width, height } = element.getBoundingClientRect();
+    const header = element.parentElement.getBoundingClientRect();
+    const brand = element.previousElementSibling.getBoundingClientRect();
+    const share = element.parentElement.querySelector(".global-app-chrome__actions")?.getBoundingClientRect();
+    const name = element.lastElementChild;
+    const icon = element.querySelector("svg").getBoundingClientRect();
+    return { left, right, width, height, headerLeft: header.left, headerRight: header.right,
+      brandRight: brand.right, shareLeft: share?.left, nameFits: name.scrollWidth <= name.clientWidth + 1,
+      iconWidth: icon.width, iconHeight: icon.height };
+  });
+  assert.equal(geometry.height, 48);
+  assert.equal(geometry.iconWidth, 20);
+  assert.equal(geometry.iconHeight, 20);
+  assert(geometry.nameFits && geometry.width > 0);
+  assert(geometry.left >= geometry.brandRight && geometry.right <= (geometry.shareLeft ?? geometry.headerRight));
+  assert(Math.abs(geometry.left + geometry.right - geometry.headerLeft - geometry.headerRight) < 2);
+}
+
+async function checkPersistentBusinessProfile(width, height) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
+  const fixture = `${smokeOrigin(server)}/__business-profile?profile-sections&public&offers&seller`;
+  const hero = page.getByRole("region", { name: "Мастерская подарков и хорошего настроения" });
+  const links = hero.getByRole("group", { name: "Действия с бизнес-профилем" });
+  const clients = page.getByRole("heading", { name: "Доступ к пространствам клиентов" });
+  const announcement = page.getByRole("heading", { name: "Объявление профиля", exact: true });
+  const item = page.getByRole("button", { name: "Открыть «Товар мастерской»", exact: true });
+
+  try {
+    const slowSession = width === 320;
+    await page.goto(`${fixture}&owner${slowSession ? "&hold-profile-session" : ""}`);
+    if (slowSession) {
+      await page.waitForFunction(() => Boolean(giftHarness.releaseSession));
+      assert.equal(await page.locator(".global-service-select").count(), 0);
+      await page.evaluate(() => giftHarness.releaseSession());
+    }
+    await item.waitFor();
+    await page.evaluate(() => document.fonts.ready);
+    await hero.getByRole("button", { name: /^Редактировать профиль/ }).click();
+    const profileSections = page.getByRole("navigation", { name: "Разделы профиля" });
+    await profileSections.waitFor();
+    assert.equal(await profileSections.getByRole("button", { name: "Внешние вишлисты", exact: true }).count(), 0);
+    assert.equal(await profileSections.getByRole("button", { name: "Настроение", exact: true }).count(), 0);
+    if (width === 320 || width === 1440) {
+      await page.screenshot({ path: `/tmp/rollapp-business-settings-no-mood-${width}.png` });
+    }
+    await profileSections.getByRole("button", { name: "Персональная информация", exact: true }).click();
+    const profileForm = page.locator("#profile-editor-form");
+    await profileForm.getByRole("textbox", { name: "Название бизнеса" }).waitFor();
+    assert.equal(await profileForm.getByRole("heading", { name: "Номер участника", exact: true }).count(), 0);
+    assert.equal(await profileForm.getByRole("button", { name: "Получить номер", exact: true }).count(), 0);
+    assert.equal(await profileForm.locator(".member-flip-board").count(), 0);
+    if (width === 320 || width === 1440) {
+      await page.screenshot({ path: `/tmp/rollapp-business-personal-information-${width}.png` });
+    }
+    await page.getByRole("button", { name: "Назад", exact: true }).click();
+    await profileSections.waitFor();
+    await page.getByRole("button", { name: width < 768 ? "Назад" : "Закрыть", exact: true }).click();
+    await profileSections.waitFor({ state: "hidden" });
+    const original = await hero.elementHandle();
+    const verify = async (active) => {
+      assert(await hero.evaluate((element, initial) => element === initial, original), "The same profile hero stays mounted");
+      assert(await hero.getByRole("button", { name: /^Редактировать профиль/ }).isVisible());
+      assert(await hero.getByText("Делаем подарки для особых случаев.", { exact: true }).isVisible());
+      assert.equal(await hero.getByText("Бизнес-аккаунт", { exact: true }).count(), 0);
+      await checkBusinessCategory(page, "Товары");
+      assert.deepEqual(await links.getByRole("link").evaluateAll(items => items.map(item => item.getAttribute("aria-label") || item.textContent)), [
+        "Клиенты", "Витрина", "Календарь", "Доска объявлений",
+      ]);
+      assert.equal(await links.getByRole("link", { name: active, exact: true }).getAttribute("aria-current"), "page");
+      assert.equal(await links.locator('[aria-current="page"]').count(), 1);
+      const row = await links.evaluate(element => [...element.children].map(child => {
+        const { top, height } = child.getBoundingClientRect();
+        return [top, height];
+      }));
+      assert(row.every(([top, height]) => top === row[0][0] && height === 48));
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    };
+    const open = async (label) => {
+      const link = links.getByRole("link", { name: label, exact: true });
+      await revealInPageScroll(link);
+      await link.click();
+    };
+
+    await verify("Витрина");
+    await open("Клиенты");
+    assert.equal(new URL(page.url()).pathname, APP_BUSINESS_ACCESS_PATH);
+    await clients.waitFor();
+    await page.getByText("Загружаем доступы и запросы…", { exact: true }).waitFor();
+    await verify("Клиенты");
+    assert.equal(await page.getByRole("link", { name: "Моя страница", exact: true }).count(), 0);
+    await page.evaluate(() => giftHarness.releaseAccess());
+    await page.getByText("У вас пока нет открытых разделов", { exact: true }).waitFor();
+    if (width === 390 && height > 400 || width === 1440) {
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await page.screenshot({ path: `/tmp/rollapp-business-profile-clients-${width}.png` });
+    }
+    await open("Календарь");
+    await page.getByRole("article", { name: "Календарь" }).waitFor();
+    await verify("Календарь");
+    await open("Доска объявлений");
+    await announcement.waitFor();
+    await verify("Доска объявлений");
+    await open("Витрина");
+    await item.waitFor();
+    await verify("Витрина");
+    await page.goBack();
+    await announcement.waitFor();
+    await verify("Доска объявлений");
+    await page.goForward();
+    await item.waitFor();
+    await verify("Витрина");
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+    assert.deepEqual(errors, []);
+    await original.dispose();
+
+    if (width === 390 && height > 400) {
+      await page.goto(`${fixture}&owner&direct`);
+      await clients.waitFor();
+      assert.equal(await links.getByRole("link", { name: "Витрина", exact: true }).getAttribute("href"), "/studio/places");
+      await checkBusinessCategory(page, "Товары");
+      await page.goto(`${fixture}&guest&direct`);
+      await page.waitForURL(url => url.pathname === "/login");
+      assert.equal(new URL(page.url()).searchParams.get("next"), `${APP_BUSINESS_ACCESS_PATH}?tab=places`);
+      await page.goto(`${fixture}&direct`);
+      await page.waitForURL(url => url.pathname === "/app/wishes");
+      assert.equal(await clients.count(), 0);
+    }
+    if (width === 320 || width === 1440) {
+      await page.goto(`${fixture}&owner&member-number`);
+      await page.waitForURL(url => url.pathname === "/studio/products");
+      await item.waitFor();
+      assert.equal(await page.getByRole("main", { name: "Получение номера участника" }).count(), 0);
+      assert(await page.evaluate(() => !giftHarness.reads.some(path => path.startsWith("/me/member-number"))));
+      await page.goto(`${fixture}&owner&business-category=career-consultant`);
+      await checkBusinessCategory(page, "Карьерный консультант");
+      await page.screenshot({ path: `/tmp/rollapp-business-category-${width}.png` });
+      await page.goto(`${fixture}&owner&seller-space=transport`);
+      await checkBusinessCategory(page, "Транспорт");
+      await page.goto(fixture.replace("&seller", "") + "&owner");
+      await hero.waitFor();
+      assert.equal(await page.locator(".global-business-category, .global-service-select").count(), 0);
+      await page.goto(fixture);
+      await hero.waitFor();
+      await page.getByRole("combobox", { name: "Раздел сервиса Вишлист" }).waitFor();
+      assert.equal(await page.locator(".global-business-category").count(), 0);
+    }
+    console.log(`PASS business profile sections ${width}x${height}`);
+  } finally { await page.close(); }
+}
+
+
 try {
   for (const [width, height] of [[320,844],[390,844],[768,900],[820,450],[1024,900],[1440,900],[1920,900],[390,400]]) {
+    if (profileSectionsOnly) {
+      await checkPersistentBusinessProfile(width, height);
+      continue;
+    }
     if (announcementsOnly) {
       await checkAnnouncementsEntry(width, height);
       continue;
@@ -346,6 +514,7 @@ try {
       await checkDirectSale(width, height);
       if (salesOnly) continue;
       await checkAnnouncementsEntry(width, height);
+      await checkPersistentBusinessProfile(width, height);
     }
     for (const mode of ["owner", "dashboard", "guest", "buyer", "empty", "owner-empty", "listing-error", "personal", "other-space", "legacy-storefront"]) {
       const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
@@ -366,10 +535,10 @@ try {
         await page.getByText("Добавьте то, что действительно порадует.").or(page.getByText("Загляните чуть позже — новая мечта наверняка появится.")).waitFor();
         assert.equal(await page.getByText("Бизнес-аккаунт", { exact: true }).count(), 0);
       } else {
-        await page.getByText("Бизнес-аккаунт", { exact: true }).waitFor();
         const profileHeading = page.getByRole("heading", { level: 1 });
         assert.equal(await profileHeading.textContent(), "Мастерская подарков и хорошего настроения");
         const hero = page.locator(".public-collection-page__hero");
+        assert.equal(await hero.getByText("Бизнес-аккаунт", { exact: true }).count(), 0);
         assert.equal(await hero.getByText("Делаем подарки для особых случаев.", { exact: true }).count(), 1);
         assert.equal(await page.getByText("Делаем подарки для особых случаев.", { exact: true }).count(), 1);
         assert.equal(await page.getByText(/Старое (название|описание) витрины/).count(), 0);
@@ -393,12 +562,12 @@ try {
           await add.waitFor();
           assert.equal(await page.locator("[data-add-fab]").count(), 1);
           assert.equal(await add.evaluate(button => button.offsetWidth), 48);
-          await settings.waitFor();
+          assert.equal(await settings.count(), 0);
           if (mode === "owner-empty") {
             await add.click();
             const editor = page.locator("[data-wishlist-item-editor]");
             await editor.getByRole("heading", { name: "Добавить товар", exact: true }).waitFor();
-            await editor.getByRole("button", { name: width < 768 ? "Назад" : "Отмена", exact: true }).click();
+            await editor.getByRole("button", { name: width < 768 ? "Назад" : "Закрыть редактор", exact: true }).click();
             await editor.waitFor({ state: "hidden" });
           }
           assert(await page.evaluate(() => giftHarness.reads.includes("/wishlist-business/products/page")));
@@ -415,7 +584,7 @@ try {
         const editor = page.locator("[data-wishlist-item-editor]");
         const title = editor.getByRole("combobox", { name: "Название", exact: true });
         const footer = editor.locator("[data-native-form-actions], .app-form-actions");
-        const back = footer.getByRole("button", { name: width < 768 ? "Назад" : "Отмена", exact: true });
+        const back = editor.getByRole("button", { name: width < 768 ? "Назад" : "Закрыть редактор", exact: true });
         const submit = footer.locator("button[type=submit]");
         if (width < 768) {
           await page.evaluate(() => window.scrollTo({ top: 260, behavior: "instant" }));
@@ -426,7 +595,22 @@ try {
         assert.equal(new URL(page.url()).pathname, "/studio/products");
         assert.equal(await editor.getByRole("heading", { name: "Добавить товар", exact: true }).count(), 1);
         assert.equal(await editor.getByRole("button", { name: /Добавить фото/ }).count(), 1);
-        assert.equal(await submit.textContent(), mode === "owner" ? "Опубликовать" : "Добавить");
+        assert.equal(await submit.textContent(), "Опубликовать");
+        assert.equal(await footer.getByRole("button").count(), width < 768 ? 2 : 1);
+        assert.equal(await footer.getByRole("button", { name: "Отмена", exact: true }).count(), 0);
+        if (width >= 768) {
+          assert.deepEqual(await back.evaluate(node => {
+            const glyph = node.querySelector("svg").getBoundingClientRect();
+            return [Boolean(node.closest('[data-slot="drawer-header"]')), node.offsetWidth, glyph.width, glyph.height];
+          }), [true, 48, 20, 20]);
+          assert(await submit.evaluate(node => {
+            const footer = node.parentElement;
+            const style = getComputedStyle(footer);
+            return Math.abs(node.offsetWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) - footer.clientWidth) <= 1;
+          }));
+        } else {
+          assert.equal(await editor.getByRole("button", { name: "Закрыть редактор", exact: true }).count(), 0);
+        }
         for (const button of [back, submit]) {
           const geometry = await button.evaluate((element) => {
             const css = getComputedStyle(element);
@@ -461,14 +645,6 @@ try {
         } else {
           await back.click();
           await editor.waitFor({ state: "hidden" });
-          await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
-          await settings.click();
-          const publish = page.getByRole("checkbox", { name: "Опубликовать витрину" });
-          await publish.waitFor();
-          assert.equal(await page.getByRole("textbox").count(), 0);
-          await publish.check();
-          await page.getByRole("button", { name: width < 768 ? "Назад" : "Закрыть настройки витрины", exact: true }).click();
-          await publish.waitFor({ state: "hidden" });
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           await add.click();
           await title.fill("Кофемашина Dedica");
@@ -514,13 +690,17 @@ try {
           }
           await coverImage.waitFor();
           await coverImage.evaluate((node) => node.decode());
-          await editor.getByRole("switch", { name: "Показывать на витрине" }).click();
-          assert.equal(await submit.textContent(), "Сохранить скрытым");
+          assert.equal(await editor.getByRole("heading", { name: "Видимость", exact: true }).count(), 0);
+          assert.equal(await editor.getByRole("switch").count(), 0);
+          assert.equal(await submit.textContent(), "Опубликовать");
           await editor.getByRole("button", { name: "Предпросмотр", exact: true }).click();
           const preview = editor.locator('[aria-label="Предпросмотр карточки"]');
           await preview.getByRole("heading", { name: "Кофемашина Dedica" }).waitFor();
           await preview.getByText("12 900 ₽", { exact: true }).waitFor();
           const previewAppearance = await snippetAppearance(preview.locator("[data-wishlist-snippet]"));
+          if (width === 390 || width === 1440) {
+            await page.screenshot({ path: `/tmp/rollapp-storefront-preview-${width}-${height}.png` });
+          }
           assert.deepEqual(await page.evaluate(() => giftHarness.calls), [], "Previews must remain local");
           await submit.click();
           await editor.getByText(/Фото временно недоступно/).waitFor();
@@ -538,18 +718,22 @@ try {
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           assert.equal(new URL(page.url()).pathname, "/studio/products");
           const sellerCard = page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true }).locator("..");
-          await sellerCard.getByText("Скрыт", { exact: true }).waitFor();
+          await sellerCard.waitFor();
+          assert.equal(await sellerCard.getByText("Скрыт", { exact: true }).count(), 0);
+          await page.getByRole("button", { name: "Открыть «Товар мастерской»", exact: true })
+            .locator("..").getByText("Скрыт", { exact: true }).waitFor();
           assert.deepEqual(await snippetAppearance(sellerCard), previewAppearance, "Preview and seller page must use the same appearance");
           assert(await sellerCard.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
           const calls = await page.evaluate(() => giftHarness.calls);
           assert.deepEqual(calls.map((call) => call.path), ["/uploads/images", "/uploads/images", "/wishlist-business/products/items", "/wishlist-business/products/items"]);
           assert.deepEqual(calls[2].payload, calls[3].payload);
-          assert.equal(calls[2].payload.active, false);
+          assert.equal(calls[2].payload.active, true);
           assert.match(calls[2].payload.requestId, /^[0-9a-f-]{36}$/);
           assert.equal(await page.evaluate(() => giftHarness.sellerItems.filter((item) => item.title === "Кофемашина Dedica").length), 1);
           await page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true }).click();
           await page.getByRole("button", { name: "Редактировать товар", exact: true }).click();
           await editor.getByRole("heading", { name: "Редактировать товар", exact: true }).waitFor();
+          assert.equal(await submit.textContent(), "Сохранить");
           assert.equal(await title.inputValue(), "Кофемашина Dedica");
           await title.fill("Кофемашина Dedica EC685");
           await title.press("Tab");
@@ -558,16 +742,22 @@ try {
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           await page.getByRole("button", { name: "Открыть «Кофемашина Dedica EC685»", exact: true }).waitFor();
           assert.equal(await page.evaluate(() => giftHarness.calls.at(-1).payload.title), "Кофемашина Dedica EC685");
-          await settings.click();
-          await publish.waitFor();
-          assert(await publish.isChecked());
-          await page.getByRole("button", { name: "Сохранить витрину", exact: true }).click();
-          await publish.waitFor({ state: "hidden" });
-          assert.equal(new URL(page.url()).pathname, "/studio/products");
-          assert.deepEqual(await page.evaluate(() => giftHarness.calls.at(-1)), {
-            path: "/wishlist-business/products/page", payload: { published: true },
-          });
-          await page.getByRole("button", { name: "Открыть «Кофемашина Dedica EC685»", exact: true }).waitFor();
+          assert.equal(await settings.count(), 0);
+          const olderItem = page.getByRole("button", { name: "Открыть «Товар мастерской»", exact: true });
+          await olderItem.click();
+          await page.getByRole("button", { name: "Редактировать товар", exact: true }).click();
+          await editor.getByRole("heading", { name: "Редактировать товар", exact: true }).waitFor();
+          assert.equal(await submit.textContent(), "Опубликовать");
+          const callsBeforePublish = await page.evaluate(() => giftHarness.calls.length);
+          assert.equal(await page.evaluate(() => giftHarness.sellerItems.find((item) => item.id === "seller-item").active), false);
+          await submit.click();
+          await editor.waitFor({ state: "hidden" });
+          await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
+          await olderItem.waitFor();
+          assert.equal(await olderItem.locator("..").getByText("Скрыт", { exact: true }).count(), 0);
+          const publicationCalls = await page.evaluate((from) => giftHarness.calls.slice(from), callsBeforePublish);
+          assert.deepEqual(publicationCalls.map((call) => call.path), ["/wishlist-business/products/items/seller-item"]);
+          assert.equal(publicationCalls[0].payload.active, true);
           await page.getByRole("button", { name: "Редактировать профиль Мастерская подарков и хорошего настроения", exact: false }).click();
           await page.getByRole("button", { name: "Персональная информация", exact: true }).click();
           const name = page.getByLabel("Название бизнеса", { exact: true });

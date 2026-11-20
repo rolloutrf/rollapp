@@ -259,7 +259,7 @@ try {
       await openOrders();
       await page.waitForURL(ordersUrl);
       const drawer = page.getByRole("dialog", { name: "Заказы", exact: true });
-      const close = drawer.getByRole("button", { name: "Закрыть заказы" });
+      const back = drawer.locator(".app-drawer-section-header").getByRole("button", { name: "Назад", exact: true });
       await drawer.getByRole("status", { name: "Загрузка заказов" }).waitFor();
       await page.evaluate(() => {
         window.ordersDrawerFixture.mode = "populated";
@@ -279,8 +279,10 @@ try {
         const header = getComputedStyle(node.parentElement);
         return [title.fontSize, title.fontWeight, header.paddingInlineStart, header.borderBottomWidth, header.backgroundColor];
       }), ["24px", "600", "16px", "1px", "rgba(0, 0, 0, 0)"]);
-      assert((await heading.boundingBox()).x < (await close.boundingBox()).x);
-      assert.deepEqual(await close.evaluate((el) => {
+      const backBox = await back.boundingBox();
+      assert.equal((await heading.boundingBox()).x - (backBox.x + backBox.width), 8);
+      assert.equal(await back.locator("svg.lucide-arrow-left").count(), 1);
+      assert.deepEqual(await back.evaluate((el) => {
         const style = getComputedStyle(el);
         const icon = el.querySelector("svg");
         return [el.offsetWidth, el.offsetHeight, icon.clientWidth, icon.clientHeight,
@@ -295,13 +297,16 @@ try {
       }), []);
       if ([320, 1440].includes(width) || height === 400) await page.screenshot({ path: join(screenshots, `${width}x${height}.png`) });
 
-      const closeBefore = await close.boundingBox();
       await lastOrder.scrollIntoViewIfNeeded();
-      assert.deepEqual(await close.boundingBox(), closeBefore);
+      assert.deepEqual(await back.boundingBox(), backBox);
       const returnedOrder = drawer.locator('[data-order-status="refunded"]');
       await returnedOrder.getByText("возвращены на подарочную карту").waitFor();
       const originReceipt = returnedOrder.getByRole("button", { name: "Квитанция", exact: true });
       await originReceipt.scrollIntoViewIfNeeded();
+      assert(await originReceipt.evaluate(button => {
+        const row = button.closest("[data-order-actions]");
+        return row && row.querySelectorAll("button").length === 1 && button.offsetWidth === row.offsetWidth;
+      }));
       const ordersBody = drawer.getByRole("region", { name: "Список заказов" });
       const orderScroll = await ordersBody.evaluate(node => node.scrollTop);
       const originalOrdersUrl = page.url();
@@ -361,6 +366,28 @@ try {
       });
       assert.equal(await page.evaluate(() => scrollY), storeScroll);
       const refund = drawer.getByRole("button", { name: "Вернуть товар", exact: true }).last();
+      const orderActions = refund.locator("xpath=..");
+      assert.deepEqual(await orderActions.evaluate(row => {
+        const buttons = [...row.querySelectorAll("button")];
+        const [first, second] = buttons.map(button => button.getBoundingClientRect());
+        const rail = row.getBoundingClientRect();
+        return {
+          widths: Math.abs(first.width - second.width) <= 1,
+          aligned: first.top === second.top && first.height === 48 && second.height === 48,
+          gap: Math.round(second.left - first.right),
+          fullWidth: Math.abs(first.left - rail.left) <= 1 && Math.abs(second.right - rail.right) <= 1,
+          iconCount: row.querySelectorAll("svg").length,
+          radii: buttons.map(button => {
+            const style = getComputedStyle(button);
+            return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+          }),
+          textFits: buttons.every(button => button.scrollWidth <= button.clientWidth + 1),
+        };
+      }), { widths: true, aligned: true, gap: 8, fullWidth: true, iconCount: 0, radii: [Array(4).fill("24px"), Array(4).fill("24px")], textFits: true });
+      if (width === 320 || width === 1440) {
+        await orderActions.scrollIntoViewIfNeeded();
+        await orderActions.screenshot({ path: join(screenshots, `actions-${width}x${height}.png`) });
+      }
       await refund.click();
       const confirmation = page.getByRole("alertdialog");
       await confirmation.getByRole("button", { name: "Оставить заказ" }).waitFor();
@@ -369,7 +396,7 @@ try {
       assert(await drawer.isVisible());
       await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Вернуть товар");
 
-      await close.click();
+      await back.click();
       await page.waitForURL(store);
       await drawer.waitFor({ state: "hidden" });
       await profile.waitFor();
@@ -381,6 +408,11 @@ try {
       await page.goBack();
       await drawer.waitFor({ state: "hidden" });
       assert.equal(page.url(), store);
+
+      await page.goto(ordersUrl);
+      await back.press("Enter");
+      await page.waitForURL(storeUrl);
+      await drawer.waitFor({ state: "hidden" });
 
       await page.goto(ordersUrl);
       await drawer.getByRole("status", { name: "Загрузка заказов" }).waitFor();

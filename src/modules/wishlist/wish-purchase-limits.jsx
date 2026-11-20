@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { api } from "@/modules/runtime/api";
 import { useAsync } from "@/modules/shell/use-async";
@@ -110,8 +109,8 @@ export function WishPurchaseLimitEditor({ month, limits, monthCurrencies, return
             </Field>
           </FieldGroup>
         </div>
-        <DrawerFooter><Button type="submit" variant={hasLimit && !amount.trim() ? "destructive" : "default"} disabled={busy || !valid}>
-          {busy && <Spinner />}{hasLimit && !amount.trim() ? "Убрать лимит" : "Сохранить"}
+        <DrawerFooter><Button type="submit" variant={hasLimit && !amount.trim() ? "destructive" : "default"} disabled={busy || !valid} aria-busy={Boolean(busy) || undefined}>
+          {hasLimit && !amount.trim() ? "Убрать лимит" : "Сохранить"}
         </Button></DrawerFooter>
       </form>
     </DrawerContent>

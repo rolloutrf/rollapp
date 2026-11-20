@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, INVITE_LIFETIME_MS, MEMBER_LIMIT, membershipHasCapacity } from "./invites.js";
+import { canRegisterInvitedAccount, createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, INVITE_LIFETIME_MS, MEMBER_LIMIT, requireMemberNumberAccount } from "./invites.js";
 
 test("invites are opaque, bound to a normalized email, and expire after ten days", () => {
   const now = new Date("2026-11-06T00:00:00.000Z");
@@ -23,8 +23,25 @@ test("member draw skips occupied numbers and formats the full range", () => {
   assert.equal(drawAvailableNumber(new Set(Array.from({ length: MEMBER_LIMIT }, (_, index) => index + 1))), null);
 });
 
-test("the thirtieth thousand account is the final available slot", () => {
-  assert.equal(membershipHasCapacity("29999"), true);
-  assert.equal(membershipHasCapacity("30000"), false);
-  assert.equal(membershipHasCapacity("30001"), false);
+test("only personal registration uses the thirty thousand membership slots", async () => {
+  const queryWithCount = (count) => ({ query: async (sql) => {
+    assert.match(sql, /WHERE account_type='personal'/);
+    return { rows: [{ count }] };
+  } });
+  assert.equal(await canRegisterInvitedAccount(queryWithCount("29999"), "personal"), true);
+  assert.equal(await canRegisterInvitedAccount(queryWithCount("30000"), "personal"), false);
+  assert.equal(await canRegisterInvitedAccount(queryWithCount("30001"), "personal"), false);
+  assert.equal(await canRegisterInvitedAccount({}, "business"), true);
+});
+
+test("membership routes pass only a personal account to the handler", () => {
+  const res = {
+    status: (status) => {
+      assert.equal(status, 403);
+      return { json: (body) => body.code };
+    },
+  };
+  const next = () => "handler";
+  assert.equal(requireMemberNumberAccount({ user: { account_type: "personal" } }, res, next), "handler");
+  assert.equal(requireMemberNumberAccount({ user: { account_type: "business" } }, res, next), "MEMBER_NUMBER_PERSONAL_ONLY");
 });

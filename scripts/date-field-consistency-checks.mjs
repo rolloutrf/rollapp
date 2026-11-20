@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 
+function fieldAppearance(element) {
+  const css = getComputedStyle(element);
+  return [
+    element.offsetHeight, css.fontSize, css.fontWeight, css.lineHeight, css.borderTopLeftRadius,
+    css.borderTopRightRadius, css.borderBottomRightRadius, css.borderBottomLeftRadius,
+    css.borderTopColor, css.borderTopWidth, css.backgroundColor, css.paddingInlineStart, css.paddingInlineEnd,
+  ];
+}
+
 // Real unsaved forms. Read effects are rejected without replacement; every
 // mutation fails the check. Selection only changes the owning React draft.
 export async function runDateFieldConsistencyChecks(browser, origin, widths) {
@@ -26,6 +35,47 @@ export async function runDateFieldConsistencyChecks(browser, origin, widths) {
     await trigger(labels[0]).waitFor();
     assert.equal(await page.locator('input[type="date"]').count(),0,`${form}: native date input remains`);
     const draft=page.getByRole('textbox').first();
+    const input = page.locator('input[data-slot="input"]:not(.sr-only, [type="file"]):visible').first();
+    await input.waitFor();
+    await input.evaluate(async (element) => {
+      const dialog = element.closest('[role="dialog"]');
+      await Promise.allSettled(dialog?.getAnimations().map(animation => animation.finished) ?? []);
+      element.blur();
+      // Flush the focus change before waiting for its border transition.
+      getComputedStyle(element).borderTopColor;
+      await Promise.allSettled(element.getAnimations().map(animation => animation.finished));
+    });
+    const expectedAppearance = await input.evaluate(fieldAppearance);
+    for (const label of labels) {
+      const field = trigger(label);
+      assert.equal(await field.getAttribute("data-date-field"), "");
+      assert.deepEqual(await field.evaluate(fieldAppearance), expectedAppearance, `${form} ${width}: date field appearance`);
+      assert(await field.evaluate(element => {
+        const parent = element.closest('[data-slot="field"]').getBoundingClientRect();
+        const button = element.getBoundingClientRect();
+        return Math.abs(button.left - parent.left) <= 1 && Math.abs(button.right - parent.right) <= 1;
+      }), `${form} ${width}: date field does not fill its column`);
+    }
+    if (form === "birthday") {
+      const date = trigger(labels[0]);
+      assert(await date.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        const form = element.form;
+        const fields = form.querySelectorAll('#settings-profile-name, [data-slot="input-group"], #settings-profile-bio');
+        return fields.length === 3 && [...fields].every(field => {
+          const other = field.getBoundingClientRect();
+          return Math.abs(box.left - other.left) <= 1 && Math.abs(box.right - other.right) <= 1;
+        });
+      }), `${width}: birthday does not share the profile field rail`);
+      if ([390, 1440].includes(width)) {
+        await date.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `/tmp/rollapp-date-field-birthday-${width}.png`, animations: "disabled" });
+        await page.evaluate(() => document.documentElement.classList.remove("dark"));
+        assert.deepEqual(await date.evaluate(fieldAppearance), await input.evaluate(fieldAppearance), `${width}: light theme field appearance`);
+        await page.screenshot({ path: `/tmp/rollapp-date-field-birthday-light-${width}.png`, animations: "disabled" });
+        await page.evaluate(() => document.documentElement.classList.add("dark"));
+      }
+    }
     await draft.fill('Черновик даты');
     const sourceUrl=page.url();
     await trigger(labels[0]).click();

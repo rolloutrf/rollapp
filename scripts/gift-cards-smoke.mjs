@@ -28,6 +28,22 @@ try {
     await page.evaluate(() => document.fonts.ready);
     const box = await trigger.boundingBox(); assert.equal(box.width, 48); assert.equal(box.height, 48);
     await trigger.click();
+    const draftFace = page.getByRole("article", { name: /^Предпросмотр сертификата/ });
+    await draftFace.getByText("Предпросмотр", { exact: true }).waitFor();
+    assert.equal(await draftFace.getByText("Остаток", { exact: true }).count(), 0);
+    const faceGeometry = await draftFace.evaluate(node => {
+      const box = node.getBoundingClientRect();
+      const body = node.closest(".app-drawer-body").getBoundingClientRect();
+      return { left: box.left - body.left, right: body.right - box.right, top: box.top - body.top,
+        width: box.width, height: box.height, viewportWidth: innerWidth };
+    });
+    assert(faceGeometry.left >= 0 && faceGeometry.right >= 0 && Math.abs(faceGeometry.left - faceGeometry.right) <= 1);
+    assert(faceGeometry.top >= 0 && faceGeometry.top <= 24);
+    assert(faceGeometry.width <= Math.min(416, faceGeometry.viewportWidth) && faceGeometry.height >= faceGeometry.width / 1.71);
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+    if ((width === 390 && height >= 800) || width === 1440) {
+      await page.screenshot({ path: `/tmp/rollapp-gift-certificate-preview-${width}x${height}.png`, animations: "disabled" });
+    }
     const check = page.getByRole("button", { name: "Проверить результат", exact: true });
     const posted = () => page.evaluate(() => window.giftHarness.calls);
     const issueLost = width === 320 || height < 500;
@@ -41,6 +57,9 @@ try {
       assert.deepEqual(await posted(), issueCalls);
       assert.deepEqual(await page.evaluate(() => window.giftHarness.giftChecks), [{ kind: "issue", key: issueCalls[0].payload.idempotencyKey }]);
     }
+    const issuedFace = page.getByRole("article", { name: /^Сертификат: .*номер заканчивается на/ });
+    await issuedFace.getByText("0 роллов", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("group", { name: "Мои карты этого бизнеса" }).count(), 0);
     await page.getByLabel("Сколько роллов добавить").fill("25");
     const retryTopup = height < 500 || width === 1440;
     await page.evaluate(mode => { window.giftHarness.nextGiftLoss = mode; }, retryTopup ? "missing" : "posted");
@@ -62,6 +81,12 @@ try {
       await retry.click();
     }
     await page.getByText("Карта пополнена на 25 роллов", { exact: true }).waitFor();
+    await issuedFace.getByText("25 роллов", { exact: true }).waitFor();
+    if (width === 1440) {
+      await issuedFace.scrollIntoViewIfNeeded();
+      await issuedFace.screenshot({ path: "/tmp/rollapp-gift-certificate-face.png", animations: "disabled" });
+      await page.screenshot({ path: "/tmp/rollapp-gift-certificate-issued-1440x900.png", animations: "disabled" });
+    }
     assert.deepEqual(await posted(), retryTopup ? [...beforeCheck, beforeCheck.at(-1)] : beforeCheck);
     assert.deepEqual(await page.evaluate(() => giftHarness.giftChecks.at(-1)), {
       kind: "topup", key: beforeCheck.at(-1).payload.idempotencyKey,
@@ -174,8 +199,9 @@ try {
     const errors = []; page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__gift-cards?offers&public`);
-    await page.getByRole("button", { name: /^Выпустить подарочную карту/ }).waitFor();
     const actions = page.locator(".public-collection-page__hero .horizontal-action-scroller");
+    const giftAction = actions.getByRole("button", { name: /^Выпустить подарочную карту/ });
+    await giftAction.waitFor();
     await page.evaluate(() => document.fonts.ready);
     assert.deepEqual(await actions.locator("[data-page-action]").allTextContents(), ["Подписаться", "Визитка"]);
     const publicationLinks = actions.locator(":scope > a[data-control-icon]");
@@ -194,8 +220,8 @@ try {
       element.scrollLeft = 0;
       return { left, right, controls, gutter, overflow, lastRight };
     });
-    assert.equal(rail.controls.length, 4);
-    assert(rail.controls.every(({ top, height }) => top === rail.controls[0].top && height === 48), `${width}: all four actions share one 48px row`);
+    assert.equal(rail.controls.length, 5);
+    assert(rail.controls.every(({ top, height }) => top === rail.controls[0].top && height === 48), `${width}: all five actions share one 48px row`);
     if (width <= 390) assert(rail.overflow, `${width}: the profile actions must scroll`);
     if (rail.overflow) {
       assert(Math.abs(rail.controls[0].left - rail.left - rail.gutter) < 1);
@@ -203,12 +229,13 @@ try {
     } else {
       assert(Math.abs(rail.controls[0].left + rail.lastRight - rail.left - rail.right) < 1, `${width}: fitting row must be centered`);
     }
-    const order = await page.evaluate(() => {
-      const avatar = document.querySelector(".wishes-page__hero-avatar").getBoundingClientRect();
-      const gift = document.querySelector('[aria-label^="Выпустить подарочную карту"]').getBoundingClientRect();
-      const heading = document.getElementById("public-profile-name").getBoundingClientRect();
-      return avatar.bottom <= gift.top && gift.bottom <= heading.top;
-    }); assert(order, "Gift icon belongs directly below the real business avatar");
+    const giftBox = await giftAction.boundingBox();
+    assert.equal(giftBox.x, rail.controls[0].left);
+    assert.equal(giftBox.width, 48);
+    assert.equal((await giftAction.locator("svg").boundingBox()).width, 20);
+    if (width === 390 || width === 1440) {
+      await actions.screenshot({ path: `/tmp/rollapp-gift-profile-action-row-${width}.png` });
+    }
     const certificates = page.getByRole("region", { name: "Сертификаты" });
     const issue = certificates.getByRole("button", { name: "Выпустить и подарить" });
     await issue.waitFor();
@@ -217,7 +244,7 @@ try {
     const section = await certificates.boundingBox();
     const offers = await page.getByRole("region", { name: "Товары и предложения бизнеса" }).boundingBox();
     assert.equal(Math.round(offers.y - section.y - section.height), 24);
-    await issue.click();
+    await giftAction.click();
     const form = page.locator('[data-mobile-form-page]:visible, [data-slot="drawer-popup"]:visible');
     await form.getByRole("heading", { name: "Подарочная карта", exact: true }).waitFor();
     if (width < 768) {
@@ -247,7 +274,7 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({path:`/tmp/rollapp-business-profile-${width}.png`,fullPage:true});
     assert.deepEqual(errors, []);
-    console.log(`PASS business profile ${width}: real avatar/gift order, offers, own-business card payment, replay`);
+    console.log(`PASS business profile ${width}: single action row, gift entry, offers, own-business card payment, replay`);
     await page.close();
   }
   for (const [width, missing] of [[390, false], [1440, false], [390, true], [1440, true]]) {
@@ -295,11 +322,23 @@ try {
     const recipient = page.getByLabel("Кому подарить", { exact: true });
     const chooseFriend = page.getByRole("button", { name: "Получатель подарочной карты · @friend", exact: true });
     const giftDetails = page.getByRole("region", { name: "Детали подарка", exact: true });
+    const assertContentWidth = async (locator) => {
+      const edges = await locator.evaluate((element) => {
+        const body = element.closest(".app-drawer-body");
+        const bounds = element.getBoundingClientRect();
+        const bodyLeft = body.getBoundingClientRect().left + body.clientLeft;
+        const { paddingLeft, paddingRight } = getComputedStyle(body);
+        return [bounds.left - bodyLeft - parseFloat(paddingLeft),
+          bodyLeft + body.clientWidth - parseFloat(paddingRight) - bounds.right];
+      });
+      assert(edges.every((edge) => Math.abs(edge) < 1), `${width}×${height}: expected drawer content edges, got ${edges}`);
+    };
     const assertGiftDetails = async (balance) => {
       await page.getByRole("heading", { name: "Подтвердите подарок", exact: true }).waitFor();
       await giftDetails.getByText("Получатель подарочной карты", { exact: true }).waitFor();
       await giftDetails.getByText("@friend", { exact: true }).waitFor();
       await giftDetails.getByText(`${balance} роллов`, { exact: true }).waitFor();
+      await assertContentWidth(giftDetails);
       assert.equal(await recipient.isVisible(), false);
       assert(await submitGift.isEnabled());
     };
@@ -353,6 +392,17 @@ try {
     const readsBefore = await page.evaluate(() => giftHarness.reads.length);
     await page.evaluate(() => { giftHarness.walletUnavailable = false; });
     await page.getByRole("button", { name: "Повторить загрузку кошелька", exact: true }).click();
+    const balance = page.getByText(/^Ваш баланс: \d/);
+    await balance.waitFor();
+    await assertContentWidth(balance);
+    await assertContentWidth(amount);
+    const amountHint = page.locator("#gift-amount-hint");
+    await assertContentWidth(amountHint);
+    assert.deepEqual(await amountHint.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [style.fontSize, style.lineHeight];
+    }), ["13px", "16px"]);
+    if (width === 1440 || height === 400) await page.screenshot({ path: `/tmp/rollapp-gift-topup-form-${width}x${height}.png` });
     await amount.fill("12");
     assert.deepEqual(await page.evaluate((from) => giftHarness.reads.slice(from), readsBefore), ["/rolls"]);
     await back.click();
@@ -376,6 +426,7 @@ try {
     assert.equal(await amount.isVisible(), false);
     assert.equal(await submitGift.count(), 0);
     await recipient.fill("friend");
+    await assertContentWidth(recipient);
     await chooseFriend.click();
     await assertGiftDetails(25);
     assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
@@ -418,6 +469,7 @@ try {
       }
       await page.getByRole("heading", { name: "Карта пополнена", exact: true }).waitFor();
       await topupResult.getByText("10 роллов", { exact: true }).waitFor();
+      await assertContentWidth(topupResult);
       assert.equal(await amount.isVisible(), false);
       assert.equal(await recipient.isVisible(), false);
       await footerGeometry();
@@ -485,12 +537,29 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.route("**/api/**", (route) => route.abort());
   await page.goto(`${smokeOrigin(server)}/__gift-cards?public&owner`);
+  const ownerActions = page.getByRole("group", { name: "Действия с бизнес-профилем" });
+  const ownerGift = ownerActions.getByRole("button", { name: /^Выпустить подарочную карту/ });
+  const clients = ownerActions.getByRole("link", { name: "Клиенты" });
+  await clients.waitFor();
+  assert.equal((await ownerGift.boundingBox()).y, (await clients.boundingBox()).y);
   const ownerCertificates = page.getByRole("region", { name: "Сертификаты" });
   await ownerCertificates.getByRole("button", { name: "Выпустить и подарить" }).click();
   await page.getByRole("button", { name: "Выпустить карту", exact: true }).click();
   await page.getByLabel("Сколько роллов добавить").waitFor();
   assert.equal(await page.evaluate(() => giftHarness.calls[0].payload.businessId), "business");
+  await page.goto(`${smokeOrigin(server)}/__gift-cards?cards`);
+  await page.getByRole("button", { name: /^Выпустить подарочную карту/ }).click();
+  const multiCardFace = page.getByRole("article", { name: /^Сертификат:/ });
+  await multiCardFace.getByText("25 роллов", { exact: true }).waitFor();
+  const multiCardList = page.getByRole("group", { name: "Мои карты этого бизнеса" });
+  await multiCardList.getByRole("button", { name: /50 роллов$/ }).click();
+  await multiCardFace.getByText("50 роллов", { exact: true }).waitFor();
+  assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
   await page.goto(`${smokeOrigin(server)}/__gift-cards?public&guest`);
+  const guestGift = page.getByRole("group", { name: "Действия с бизнес-профилем" })
+    .getByRole("link", { name: "Войти и выпустить подарочную карту" });
+  assert.equal(await guestGift.getAttribute("href"), "/login?next=%2Fstudio");
+  assert.equal((await guestGift.boundingBox()).width, 48);
   const signIn = page.getByRole("region", { name: "Сертификаты" }).getByRole("link", { name: "Войти и подарить" });
   assert.equal(await signIn.getAttribute("href"), "/login?next=%2Fstudio");
   await page.goto(`${smokeOrigin(server)}/__gift-cards?guest`);
@@ -498,6 +567,7 @@ try {
   await page.goto(`${smokeOrigin(server)}/__gift-cards?error`);
   await page.getByRole("button", { name: /^Выпустить подарочную карту/ }).click();
   await page.getByRole("button", { name: "Повторить загрузку" }).waitFor();
+  await page.getByRole("article", { name: /^Предпросмотр сертификата/ }).waitFor();
   assert(await page.getByRole("button", { name: "Выпустить карту", exact: true }).isDisabled());
   await page.close();
 } finally { await browser.close(); await server.close(); }

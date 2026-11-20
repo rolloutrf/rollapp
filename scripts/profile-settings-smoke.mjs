@@ -343,14 +343,14 @@ try {
     const fundraiserCards = page.getByRole("region", { name: "Карты сборов" });
     await fundraiserCards.getByText("Карта сбора", { exact: true }).waitFor();
     await fundraiserCards.getByText("150 роллов · тестовый баланс", { exact: true }).waitFor();
-    await page.getByRole("heading", { name: "Персональные офферы" }).waitFor();
+    assert.equal(await page.getByRole("region", { name: "Персональные офферы" }).count(), 0);
+    assert.equal(await page.evaluate(() => window.personalOfferReads || 0), 0);
     assert.equal(await page.getByRole("region", { name: "Подарочные карты" }).count(), 0);
     assert.equal(await page.evaluate(() => window.giftCardReads || 0), 0);
     const wallet = page.locator(".rolls-page--embedded:visible");
     const tabs = page.getByRole("tablist", { name: "Разделы финансов" });
     const walletTab = tabs.getByRole("tab", { name: "Кошелёк", exact: true });
     const purchasesTab = tabs.getByRole("tab", { name: "Покупки", exact: true });
-    const activityTab = tabs.getByRole("tab", { name: "Операции", exact: true });
     assert.equal(await walletTab.getAttribute("aria-selected"), "true");
     assert.equal(await wallet.getByRole("region", { name: "Покупки", exact: true }).count(), 0);
     const tabMetrics = await tabs.getByRole("tab").evaluateAll(nodes => nodes.map(node => {
@@ -358,7 +358,7 @@ try {
       return { height: box.height, left: box.left, right: box.right, scroll: node.scrollWidth, width: node.clientWidth,
         color: css.color, background: css.backgroundColor, size: css.fontSize, leading: css.lineHeight };
     }));
-    assert.equal(tabMetrics.length, 3);
+    assert.equal(tabMetrics.length, 2);
     assert(tabMetrics.every(({ height, left, right, scroll, width: client, size, leading }) => height === 48
       && left >= 0 && right <= width && scroll <= client + 1 && size === "18px" && leading === "28px"));
     assert.notEqual(tabMetrics[0].color, tabMetrics[0].background);
@@ -383,8 +383,8 @@ try {
     assert.equal(await purchasesTab.getAttribute("aria-selected"), "true");
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Настроить лимит");
     await page.screenshot({ path: `/tmp/rollapp-profile-purchases-${width}x${height}.png` });
-    await activityTab.click();
-    await tabs.getByRole("tab", { name: "Операции", selected: true }).waitFor();
+    await walletTab.click();
+    await balance.getByText(/23\s999\s870/).waitFor();
     await purchases.waitFor({ state: "hidden" });
     await wallet.getByRole("heading", { name: "Операции с роллами", exact: true }).waitFor();
 
@@ -405,6 +405,10 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.screenshot({ path: `/tmp/rollapp-profile-finances-${width}x${height}.png` });
     const lastTransaction = page.locator("[data-rolls-transaction]").last();
+    const transactionTitle = await lastTransaction.getByText("Начисление роллов", { exact: true }).boundingBox();
+    const transactionAmount = await lastTransaction.getByText("+1 000 000 000 роллов", { exact: true }).boundingBox();
+    assert(transactionTitle.height <= 56, "A wide amount must leave room for a readable operation title");
+    if (width <= 390) assert(transactionAmount.y >= transactionTitle.y + transactionTitle.height, "Amount follows the title in the narrow journal");
     const scrolled = await wallet.evaluate((element, mobile) => {
       const viewport = mobile ? document.scrollingElement : element.closest('[data-slot="scroll-area-viewport"]');
       viewport.scrollTo({ top: viewport.scrollHeight, behavior: "instant" });
@@ -415,7 +419,10 @@ try {
     assert(lastBox.y + lastBox.height <= (mobile ? backBox.y : height));
     assert.deepEqual(await back.boundingBox(), backBox);
     await page.screenshot({ path: `/tmp/rollapp-profile-operations-${width}x${height}.png` });
-    await walletTab.click();
+    await wallet.evaluate((element, mobile) => {
+      const viewport = mobile ? document.scrollingElement : element.closest('[data-slot="scroll-area-viewport"]');
+      viewport.scrollTo({ top: 0, behavior: "instant" });
+    }, mobile);
     await balance.getByText(/23\s999\s870/).waitFor();
     await page.screenshot({ path: `/tmp/rollapp-profile-wallet-${width}x${height}.png` });
     const sendRolls = button("Отправить роллы");
@@ -468,7 +475,18 @@ try {
     assert.equal(await page.getByRole("group", { name: "Мои карты этого бизнеса" }).count(), 0);
     assert.equal(await page.getByLabel("Сколько роллов добавить").isVisible(), false);
     assert.equal(await page.getByLabel("Кому подарить", { exact: true }).isVisible(), false);
-    await page.getByRole("link", { name: "Перейти в магазин", exact: true }).waitFor();
+    const shopLink = page.getByRole("link", { name: "Перейти в магазин", exact: true });
+    const usage = page.getByText("Действует только в этом магазине. При оплате роллами выберите подарочную карту.", { exact: true });
+    await shopLink.waitFor();
+    assert.equal(await usage.evaluate((element) => getComputedStyle(element).textAlign), "center");
+    const usageBox = await usage.boundingBox();
+    const shopBox = await shopLink.boundingBox();
+    assert(shopBox.y >= usageBox.y + usageBox.height, "Store action belongs below the certificate instructions");
+    assert(Math.abs(shopBox.x + shopBox.width / 2 - usageBox.x - usageBox.width / 2) < 1, "Store action and instructions share a center");
+    assert.deepEqual(await shopLink.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [element.offsetHeight, style.paddingInlineStart, style.paddingInlineEnd];
+    }), [48, "24px", "24px"]);
     await page.screenshot({ path: `/tmp/rollapp-profile-certificate-detail-${width}x${height}.png` });
     await back.click();
     await card.waitFor({ state: "hidden" });
@@ -774,6 +792,19 @@ try {
     await revoke.waitFor({ state: "detached" });
     await back.click();
     await menu.waitFor();
+    if (width === 320 || width === 390 || width === 1440) {
+      await page.goto(`${origin}/__profile-settings?state=business-card`);
+      await menu.getByRole("button", { name: "Визитка и QR-код", exact: true }).click();
+      const cardBody = page.locator("[data-contact-card-body]");
+      const address = cardBody.getByRole("link", { name: `${origin}/пример-бизнеса`, exact: true });
+      await address.waitFor();
+      assert.equal(await address.getAttribute("href"), new URL("/пример-бизнеса", origin).href);
+      await cardBody.getByRole("img", { name: "QR-код профиля Пример бизнеса", exact: true }).waitFor();
+      assert(await cardBody.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+      await page.screenshot({ path: `/tmp/rollapp-business-card-address-${width}x${height}.png` });
+      await back.click();
+      await menu.waitFor();
+    }
     const result = mobile ? "permission" : "complete";
     await page.clock.install();
     await page.goto(`${origin}/login?state=backup-result&auth_success=YANDEX_LINKED&backup=f589bf34-5586-4456-aea6-83223dbbd052&result=${result}`);

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Cloud, Download } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "@/modules/runtime/api.js";
 import { EditableTextBlock } from "@/modules/rich-documents/editable-text-block.jsx";
@@ -32,7 +31,7 @@ export function PrivateNotesLink({ onNavigate }) {
       event.preventDefault();
       onNavigate(PRIVATE_NOTES_PATH);
     }} />}>
-    <Cloud aria-hidden="true" />Личные заметки на Диске
+    Личные заметки на Диске
   </PageActionButton>;
 }
 
@@ -53,7 +52,7 @@ function DownloadDraft({ markdown }) {
     link.download = "Личные заметки — черновик.md";
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }}><Download aria-hidden="true" />Скачать черновик</PageActionButton>;
+  }}>Скачать черновик</PageActionButton>;
 }
 
 function NoteEditor({ ownerId, note, onReconnect, connecting, notesApi }) {
@@ -85,7 +84,7 @@ function NoteEditor({ ownerId, note, onReconnect, connecting, notesApi }) {
         disabled={connecting}>Подключить Диск снова</PageActionButton>}
       {failure === "DISK_NOTE_CONFLICT" && <PageActionButton variant="outline" nativeButton={false} role="link"
         render={<Link to={PRIVATE_NOTES_PATH} target="_blank" rel="noopener noreferrer" />}>
-        Версия с Диска<ArrowUpRight aria-hidden="true" />
+        Версия с Диска
       </PageActionButton>}
     </div>}
   </>;
@@ -149,7 +148,7 @@ export function PrivateNotes({ ownerId, notesApi = api }) {
       {load.status === "error"
         ? <PageActionButton type="button" variant="outline" onClick={() => setAttempt(value => value + 1)}>Повторить загрузку</PageActionButton>
         : <PageActionButton type="button" onClick={connect} disabled={connecting}>
-          <Cloud aria-hidden="true" />{load.status === "reconnect" ? "Подключить Диск снова" : "Подключить Яндекс Диск"}
+          {load.status === "reconnect" ? "Подключить Диск снова" : "Подключить Яндекс Диск"}
         </PageActionButton>}
       {offlineDraft !== null && <DownloadDraft markdown={offlineDraft} />}
     </div>}

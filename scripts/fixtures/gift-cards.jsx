@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { ControlBar } from "@/components/control-bar";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { BusinessGiftAction, ProfileGiftCards } from "@/modules/loyalty/gift-cards.jsx";
 import App from "@/App";
@@ -38,15 +39,37 @@ state.sales = params.has("sale-buyer")
   : [];
 window.giftHarness = state;
 const sellerPage = { title: "Старое название витрины", description: "Старое описание витрины.", published: params.has("owner") || !params.has("dashboard") };
+function publishSellerItem(item) {
+  if (!item.active || sellerPage.published || !state.sellerItems.includes(item)) return;
+  for (const previous of state.sellerItems) if (previous !== item) previous.active = false;
+  sellerPage.published = true;
+}
 const clone = (value) => JSON.parse(JSON.stringify(value));
 // Explicit UI transport. Real API and production writes are forbidden here.
 api.get = async (path) => {
   state.reads.push(path);
   if (params.has("error")) throw new Error("Не удалось загрузить карты");
-  const seller = params.has("seller");
+  const businessCategory = params.get("business-category") || (params.has("seller") ? "seller" : null);
+  const seller = businessCategory === "seller";
+  const sellerSpace = seller ? params.get("seller-space") || "products" : null;
   const owner = params.has("owner") || params.has("dashboard");
-  if (path === "/me") return { user: params.has("guest") ? null : owner ? { ...business, accountType: "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null } : { ...user, username: "owner", accountType: "personal" } };
+  if (path === "/me") {
+    if (params.has("hold-profile-session") && !state.sessionReleased) await new Promise(resolve => {
+      state.releaseSession = () => { state.sessionReleased = true; resolve(); };
+    });
+    return { user: params.has("guest") ? null : owner ? { ...business, accountType: "business", businessCategory, sellerSpace } : { ...user, username: "owner", accountType: "personal" } };
+  }
   if (path === "/sphere-shares/incoming") return { shares: [] };
+  if (params.has("profile-sections")) {
+    if (path === "/business-access/requests") {
+      if (!state.accessReleased) await new Promise(resolve => {
+        state.releaseAccess = () => { state.accessReleased = true; resolve(); };
+      });
+      return { shares: [], requests: [] };
+    }
+    if (path === "/business-access/users") return { people: [] };
+    if (path === "/profile/studio/calendar") return { profile: business, isOwner: true, slots: [] };
+  }
   if (params.has("brand-certificates") && path === "/catalog/brands?space=products") {
     return { brands: [{ id: "brand", label: "BORK", slug: "bork.ru" }] };
   }
@@ -60,7 +83,7 @@ api.get = async (path) => {
   if (path === "/dashboard" && params.has("sales")) return { profile: personal, lists: [], wishes, groups: [] };
   if (path === "/dashboard" && params.has("classifieds")) return { profile: personal, lists: [], wishes: [], groups: [] };
   if (path === "/gift-suggestions" && params.has("classifieds")) return { items: [] };
-  if (params.has("classifieds") && (path === "/profile/owner/announcements" || path === "/profile/studio/announcements")) {
+  if ((params.has("classifieds") || params.has("profile-sections")) && (path === "/profile/owner/announcements" || path === "/profile/studio/announcements")) {
     return { profile: owner ? business : personal, isOwner: true, announcements: [
       { id: "profile-announcement", createdAt: "2026-11-14T10:00:00Z", title: "Объявление профиля", body: "Текст объявления" },
     ] };
@@ -69,7 +92,7 @@ api.get = async (path) => {
   if (path.startsWith("/wishlist-business/products/sales")) {
     const wishId = new URL(path, location.origin).searchParams.get("wish");
     const editor = wishId ? state.sales.find(item => item.id === `wish-sale:${wishId}`) || { ...wishes[0], id: undefined, active: false } : null;
-    return clone({ items: state.sales, editor, published: true });
+    return clone({ items: state.sales, editor });
   }
   if (/^\/wishlist-business\/[^/]+\/store(?:\?|$)/.test(path) && params.has("store-only")) {
     return { items: [...state.sellerItems, { id: "wish-sale:peer", title: "Товар участника", active: true, personalSale: true, business: friend }], pages: [{ title: "Витрина продавца", username: "studio" }] };
@@ -77,7 +100,7 @@ api.get = async (path) => {
   if (path === "/wishlist-business/products/store" && (params.has("sales") || params.has("sale-buyer"))) {
     return clone({ items: state.sales.filter(item => item.active), pages: [] });
   }
-  if (path === "/profile/studio") return { profile: { ...business, accountType: params.has("personal") ? "personal" : "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null }, lists: [], wishes: [], groups: [], isOwner:owner, followersCount:0, followingCount:0 };
+  if (path === "/profile/studio") return { profile: { ...business, accountType: params.has("personal") ? "personal" : "business", businessCategory, sellerSpace }, lists: [], wishes: [], groups: [], isOwner:owner, followersCount:0, followingCount:0 };
   if (path === "/business-profiles/studio/offers" && params.has("empty")) return { items: [] };
   if (path === "/business-profiles/studio/offers") return { items: [{ id:"offer", sphere:"career", kind:"store", itemType:"service", title:"Консультация", description:"Описание услуги", priceRolls:20, business }] };
   if (path === "/wishlist-business/products/profiles/studio") {
@@ -86,7 +109,7 @@ api.get = async (path) => {
   }
   if (path === "/wishlist-business/products/page") {
     if (!owner || !seller) throw new Error("Запрос владельца недоступен");
-    return clone({ items: state.sellerItems, page: sellerPage });
+    return clone({ items: state.sellerItems.map(item => ({ ...item, active: item.active && sellerPage.published })), page: sellerPage });
   }
   if (path === "/wishlist-business/places/profiles/studio") return { items: [], pages: [] };
   if (path === "/wishlist-business/products/buyers") return { buyers: [] };
@@ -140,6 +163,7 @@ api.patch = async (path, payload) => {
     || state.sales.find((item) => path === `/wishlist-business/products/sales/${encodeURIComponent(item.id)}`);
   if (!item) throw new Error(`Unexpected fixture mutation: ${path}`);
   Object.assign(item, payload);
+  publishSellerItem(item);
   return { id: item.id, item: clone(item) };
 };
 api.post = async (path, payload) => {
@@ -156,15 +180,13 @@ api.post = async (path, payload) => {
     state.sales.push({ ...fields, id, space: "products", personalSale: true, business: personal });
     throw new Error("Ответ сервера потерян");
   }
-  if (path === "/wishlist-business/products/page") {
-    Object.assign(sellerPage, payload);
-    return { saved: true };
-  }
   if (path === "/wishlist-business/products/items") {
     const { requestId, ...fields } = payload;
     const existing = state.sellerItems.find((item) => item.id === requestId);
     if (existing) return { id: requestId, item: clone(existing), replayed: true };
-    state.sellerItems.unshift({ ...fields, id: requestId, space: "products", business });
+    const item = { ...fields, id: requestId, space: "products", business };
+    state.sellerItems.unshift(item);
+    publishSellerItem(item);
     await new Promise((resolve) => { state.completeItemSave = resolve; });
     throw new Error("Ответ сервера потерян");
   }
@@ -210,11 +232,21 @@ api.post = async (path, payload) => {
 function Fixture() {
   useVisualViewport();
   return <div className="app-layout app-layout--dark"><main className="app-main app-main--wishes"><div className="app-page page-stack rollapp-body">
-    {params.has("offers") ? <BusinessMarketplacePage businessUsername="studio" kind="store" user={user} /> : <section className="flex flex-col items-center gap-4"><div className="size-24 rounded-full bg-muted" aria-label="Аватар бизнеса" /><BusinessGiftAction business={business} user={params.has("guest") ? null : user} /><h1>{business.name}</h1></section>}
+    {params.has("offers") ? <BusinessMarketplacePage businessUsername="studio" kind="store" user={user} /> : (
+      <section className="flex flex-col items-center gap-4">
+        <div className="size-24 rounded-full bg-muted" aria-label="Аватар бизнеса" />
+        <h1>{business.name}</h1>
+        <ControlBar>
+          <BusinessGiftAction business={business} user={params.has("guest") ? null : user} />
+        </ControlBar>
+      </section>
+    )}
     {!params.has("guest") && <ProfileGiftCards user={user} />}
   </div></main></div>;
 }
 if (params.has("public")) history.replaceState({}, "", params.has("legacy-storefront") ? "/app/wishes/business?tab=products" : params.has("other-space") ? "/studio/places" : params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");
+if (params.has("profile-sections") && params.has("direct")) history.replaceState({}, "", "/app/business/access?tab=places");
+if (params.has("profile-sections") && params.has("member-number")) history.replaceState({}, "", "/app/member-number");
 if (params.has("sales")) history.replaceState({}, "", params.get("sales") === "direct" ? "/app/wishes/sales?tab=products" : "/app/wishes?tab=products");
 if (params.has("sale-buyer")) history.replaceState({}, "", "/app/wishes/listings?tab=products");
 if (params.has("store-only")) {

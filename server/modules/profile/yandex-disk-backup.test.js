@@ -89,11 +89,14 @@ test("refused Disk access and shared or public folders do not read account data"
   }
 });
 
-test("scheduled backups replace the latest archive and confirm both bytes and private notes", async () => {
+async function checkLatestBackup(t, { lostResponse = false } = {}) {
   const folder = "app:/rollapp-notes-fixture";
   let archive;
+  let uploads = 0;
+  let readsAfterUpload = 0;
   const filename = await uploadYandexBackup({
     accessToken: token, userId: "owner", folder, latest: true, minimumFreeBytes: 0, privateNotes: "# Личное\n",
+    signal: t.signal,
     transaction: (read) => {
       let record;
       return read({
@@ -113,24 +116,38 @@ test("scheduled backups replace the latest archive and confirm both bytes and pr
           assert.equal(url.searchParams.get("overwrite"), "true");
           return Response.json({ href: uploader, method: "PUT" });
         }
-        return archive
-          ? Response.json({ type: "file", size: archive.length, sha256: createHash("sha256").update(archive).digest("hex") })
-          : Response.json({ type: "file", size: 1, sha256: "old" });
+        if (!archive) return Response.json({ type: "file", size: 1, sha256: "old" });
+        readsAfterUpload++;
+        if (lostResponse && readsAfterUpload === 1) return Response.json({ type: "file", size: archive.length, sha256: "old" });
+        if (lostResponse && readsAfterUpload === 2) return new Response(null, { status: 503 });
+        return Response.json({ type: "file", size: archive.length, sha256: createHash("sha256").update(archive).digest("hex") });
       }
       assert.equal(url.href, uploader);
       assert.equal(options.headers.Authorization, undefined);
+      uploads++;
       const chunks = [];
       for await (const chunk of options.body) chunks.push(chunk);
       archive = Buffer.concat(chunks);
+      if (lostResponse) throw new DOMException("Response timed out", "TimeoutError");
       return new Response(null, { status: 202 });
     },
   });
   assert.equal(filename, "rollapp-latest.json.gz");
+  assert.equal(uploads, 1);
+  assert.equal(readsAfterUpload, lostResponse ? 3 : 1);
   const data = JSON.parse(gunzipSync(archive));
   assert.deepEqual(data.privateNotes, { markdown: "# Личное\n" });
   assert.deepEqual(data.tables.users, [{ id: "owner" }]);
   assert.equal("yandex_disk_notes" in data.tables, false);
   assert.equal("yandex_disk_sync" in data.tables, false);
+}
+
+test("scheduled backups replace the latest archive and confirm both bytes and private notes", { timeout: 10_000 }, async (t) => {
+  await checkLatestBackup(t);
+});
+
+test("scheduled backups confirm an upload that completed after the PUT timed out", { timeout: 10_000 }, async (t) => {
+  await checkLatestBackup(t, { lostResponse: true });
 });
 
 test("jobs stay owned, coalesce duplicates, and leave a database connection for app requests", async () => {

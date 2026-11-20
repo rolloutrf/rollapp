@@ -8,7 +8,6 @@ export const modules = [
   ["08", "Платежи", "payments--balance", "/app/rolls"],
   ["09", "Чекаут", "checkout--delivery", "/app/store"],
   ["10", "История операций", "history--entries", "/app/orders"],
-  ["11", "PFM", "pfm--summary", "/app/rolls"],
   ["12", "Лояльность", "loyalty--gift-cards", "/app/wishes"],
   ["13", "Ассистент", "assistant--results", "/app/wishes"],
   ["14", "Доступ и выдача прав", "access--request", "/app/friends"],

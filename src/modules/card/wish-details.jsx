@@ -16,7 +16,6 @@ import {
   ListPlus,
   LockKeyhole,
   MoreHorizontal,
-  PackageCheck,
   Pencil,
   Plus,
   RotateCcw,
@@ -44,7 +43,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { isGeneralList, listDisplayTitle } from "../categories/list-navigation.js";
 import { publicWishPath } from "../../../shared/modules/profile/profile-links.js";
@@ -185,9 +183,9 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
           >
             {sharedBy ? <ShadcnButton type="button" className="min-w-0 flex-1" variant="destructive" disabled={busy} onClick={leave}>Убрать с доски</ShadcnButton> : <>
             {primaryAction ?? <>
-            {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : !mobilePage && <Gift />}{reservationText}</ShadcnButton>}
+            {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{reservationText}</ShadcnButton>}
             {!owner && !mobilePage && <ShadcnButton data-control-icon className={`size-12 shrink-0 ${wish.likedByMe ? "" : "text-destructive"}`} variant={wish.likedByMe ? "default" : "outline"} size="icon" disabled={busy || wish.likedByMe} aria-label={wish.likedByMe ? "Желание уже в вашем общем списке" : "Лайкнуть и добавить в общий список"} title={wish.likedByMe ? "Уже в вашем списке" : "Добавить к себе"} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /></ShadcnButton>}
-            {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant={screen && !mobilePage ? "outline" : "default"} disabled={busy} aria-label={mobilePage && wish.status !== "fulfilled" ? "Исполнить желание: отметить исполненным" : fulfillmentLabel} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{fulfillmentText}</ShadcnButton>}
+            {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant={screen && !mobilePage ? "outline" : "default"} disabled={busy} aria-label={mobilePage && wish.status !== "fulfilled" ? "Исполнить желание: отметить исполненным" : fulfillmentLabel} aria-busy={busy || undefined} onClick={fulfilled}>{fulfillmentText}</ShadcnButton>}
             </>}
             {!screen && owner && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить желание" title="Удалить желание" aria-haspopup="dialog" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
             <DropdownMenu open={menuOpen} onOpenChange={(open) => {
@@ -287,7 +285,7 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
                   setListsOpen(open);
                   if (open) setMenuOpen(false);
                 }}>
-                  <DropdownMenuTrigger
+                  <DropdownMenuTrigger data-content-control=""
                     render={<ShadcnButton variant="outline" className="h-12 min-w-0 flex-1 justify-between" />}
                     aria-label={`Изменить списки желания. Сейчас: ${listTitleText}`}
                   >
@@ -317,8 +315,8 @@ export function WishDetailsModal({ wish, screen = false, owner = false, profile,
 
           {["products", "food", "transport"].includes(resolvedSpace) && <MarketplaceOffers wish={offerWish} owner={owner} formatPrice={formatMoney} compactAction={marketplacePrimary} renderAction={marketplacePrimary ? renderActions : undefined} />}
 
-          {merchantProductUrl(wish.url) && (sharedBy || !["products", "food"].includes(resolvedSpace)) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
-          {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {merchantProductUrl(wish.url) && (sharedBy || !["products", "food"].includes(resolvedSpace)) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} </a>}
+          {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору </a>}
 
           {screen && !marketplacePrimary && renderActions()}
 

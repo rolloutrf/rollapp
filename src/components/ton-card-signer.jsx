@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import TonConnect from "@tonconnect/sdk";
 import QRCode from "qrcode";
-import { ArrowUpRight, Download, Wallet } from "lucide-react";
 import { CONTACT_CARD_NETWORK, signedContactCardDownload } from "../../shared/modules/contacts/ton-contact-card.js";
 import { loadTonConfig } from "@/modules/payments/ton-connect.js";
 import { downloadContactFile, tonCardRequest } from "@/lib/ton-card-api";
@@ -111,13 +110,13 @@ export default function TonCardSigner({ profile, previous = null }) {
     <p className="text-muted-foreground">Кошелёк подпишет имя и ссылку. Подписанный JSON также содержит публичный адрес кошелька и подписи. Это подтверждает контроль кошелька, а не личность человека.</p>
     {state.loading && <p role="status" className="flex items-center gap-2"><Spinner />Проверяем подключение…</p>}
     <ControlBar className="flex flex-col gap-2">
-      {!state.wallet && state.wallets.map((wallet) => <Button key={wallet.appName} type="button" variant="outline" disabled={state.busy} onClick={() => connect(wallet)}><Wallet aria-hidden="true" />{wallet.name}</Button>)}
+      {!state.wallet && state.wallets.map((wallet) => <Button key={wallet.appName} type="button" variant="outline" disabled={state.busy} onClick={() => connect(wallet)}>{wallet.name}</Button>)}
       {state.wallet && <Button type="button" variant="outline" disabled={state.busy} onClick={() => run(async () => { await runtime.current.disconnect({ signal: signal() }); return { wallet: null, verified: null, signed: null, prepared: null, registration: null }; })}>Выбрать другой кошелёк</Button>}
       {(state.error || !state.wallets.length && !state.loading) && <Button type="button" variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить подключение</Button>}
     </ControlBar>
     {state.link && <div className="flex flex-col items-center gap-2">
       {state.qr && <img className="aspect-square w-[clamp(8rem,calc(var(--app-visual-height,100dvh)-16rem),16rem)] max-w-full rounded-xl" src={state.qr} alt="QR подключения Testnet-кошелька" />}
-      <ControlBar className="flex w-full flex-col gap-2"><Button nativeButton={false} render={<a href={state.link} target="_blank" rel="noopener noreferrer" />}><ArrowUpRight aria-hidden="true" />Открыть кошелёк</Button><Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Отменить подключение</Button></ControlBar>
+      <ControlBar className="flex w-full flex-col gap-2"><Button nativeButton={false} render={<a href={state.link} target="_blank" rel="noopener noreferrer" />}>Открыть кошелёк</Button><Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Отменить подключение</Button></ControlBar>
       <p role="status">Подтвердите подключение в Testnet-кошельке.</p>
     </div>}
     {state.verified && <>
@@ -135,7 +134,7 @@ export default function TonCardSigner({ profile, previous = null }) {
       <ControlBar className="flex flex-col gap-2"><Button type="button" disabled={state.busy} onClick={() => run(() => {
         const bundle = state.prepared ? { ...state.signed, registry: { address: state.prepared.address, network: CONTACT_CARD_NETWORK, codeHash: state.prepared.codeHash } } : state.signed;
         downloadContactFile(signedContactCardDownload(bundle)); return {};
-      })}><Download aria-hidden="true" />Скачать подпись</Button></ControlBar>
+      })}>Скачать подпись</Button></ControlBar>
       <label className="flex flex-col gap-2">Адрес кошелька восстановления Testnet<Input value={recovery} disabled={state.busy} autoComplete="off" spellCheck={false} placeholder="kQ… или 0:…" onChange={(event) => { setRecovery(event.target.value); update({ prepared: null, submitted: false, registration: null }); }} /></label>
       <p className="text-muted-foreground">Укажите отдельный кошелёк, которым вы управляете. Восстановление владельца потребует семи дней ожидания. Seed-фразы и приватные ключи не нужны.</p>
       <ControlBar className="flex flex-col gap-2"><Button type="button" variant="outline" disabled={state.busy || !recovery.trim()} onClick={() => run(async () => {

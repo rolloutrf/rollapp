@@ -42,38 +42,6 @@ test("public seller profile scopes published products to the exact username and 
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
-test("a visibility-only save preserves storefront metadata and still requires the seller's space", async () => {
-  const calls = [];
-  const app = express();
-  app.use(express.json());
-  registerWishlistBusinessRoutes(app, {
-    requireAuth: (req, _res, next) => {
-      req.user = { id: "seller", name: "Business profile", account_type: "business", business_category: "seller", seller_space: "products" };
-      next();
-    },
-    query: async (sql, params) => { calls.push({ sql, params }); return { rows: [], rowCount: 1 }; },
-  });
-  const server = app.listen(0, "127.0.0.1");
-  await new Promise(resolve => server.once("listening", resolve));
-  const origin = `http://127.0.0.1:${server.address().port}`;
-  const save = (space, body) => fetch(`${origin}/api/wishlist-business/${space}/page`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  try {
-    assert.equal((await save("places", { published: true })).status, 403);
-    assert.equal((await save("products", { published: "true" })).status, 400);
-    assert.equal(calls.length, 0);
-    const response = await save("products", { published: true });
-    assert.deepEqual(await response.json(), { saved: true });
-    const [visibility] = calls;
-    assert.deepEqual(visibility.params, ["seller", "products", "Business profile", true]);
-    assert.match(visibility.sql, /DO UPDATE SET published=\$4,updated_at=CURRENT_TIMESTAMP$/);
-    const legacy = await save("products", { title: "Old client title", description: "Old client description", published: false });
-    assert.deepEqual(await legacy.json(), { saved: true });
-    assert.deepEqual(calls[1].params, ["seller", "products", "Old client title", "Old client description", false]);
-  } finally { await new Promise(resolve => server.close(resolve)); }
-});
-
 test("direct sale creation retries in the same owner and space, while wish sales still require a fulfilled source", async () => {
   const app = express();
   app.use(express.json());
@@ -91,6 +59,7 @@ test("direct sale creation retries in the same owner and space, while wish sales
       }
       if (sql.includes("FROM wishes w") || sql.includes("FROM wish_images")) return { rows: [], rowCount: 0 };
       if (sql.startsWith("INSERT INTO wishlist_business_pages")) return { rowCount: 1 };
+      if (sql.startsWith("SELECT 1 FROM wishlist_business_pages")) return { rowCount: 0 };
       if (sql.startsWith("INSERT INTO wishlist_business_items")) {
         if (items.has(id)) return { rowCount: 0 };
         items.set(id, { id, business_user_id: owner, space, title, description, brand, image_url: imageUrl, action_url: actionUrl, price, active });
