@@ -16,6 +16,9 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     throw new Error("Оповещения eve требуют режим базы verify и токен длиной не менее 32 символов.");
   }
   if (profileDiskEnabled(environment) && mode !== "verify") throw new Error("Профиль на Яндекс Диске требует режим базы verify.");
+  if (environment.ROLLAPP_ANDROID_AUTH_ENABLED === "true" && mode !== "verify") {
+    throw new Error("Вход Rollapp для Android требует режим базы verify.");
+  }
   if (environment.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true" && mode !== "verify") {
     throw new Error("Защищённые покупки требуют режим базы verify.");
   }
@@ -35,6 +38,9 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT member_number,can_invite FROM users LIMIT 0");
     await client.query("SELECT token_hash,recipient_email,expires_at,delivery_status,consumed_by FROM account_invites LIMIT 0");
     await client.query("SELECT invite_token_hash FROM yandex_oauth_attempts LIMIT 0");
+    if (environment.ROLLAPP_ANDROID_AUTH_ENABLED === "true") {
+      await client.query("SELECT state_hash,code_verifier,next_path,purpose,user_id,expires_at FROM yandex_oauth_attempts LIMIT 0");
+    }
     await client.query("SELECT receipt_hash,chain_status,chain_boc,chain_seqno,chain_valid_until FROM membership_receipts LIMIT 0");
     await client.query("SELECT user_id,section,content_json,updated_at FROM identity_content LIMIT 0");
     await client.query("SELECT user_id,section,content_json,updated_at FROM career_content LIMIT 0");

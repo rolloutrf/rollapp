@@ -1,21 +1,54 @@
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
-	classes = {};
+	classes = {
+	};
 	objectVersion = 56;
 	objects = {
+
+/* Begin PBXBuildFile section */
 		A41000000000000000000001 /* RollappApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000001 /* RollappApp.swift */; };
 		A41000000000000000000002 /* RollappSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000002 /* RollappSession.swift */; };
 		A41000000000000000000003 /* RollappURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000003 /* RollappURL.swift */; };
 		A41000000000000000000004 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000004 /* Assets.xcassets */; };
+		A41000000000000000000005 /* RollappAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000007 /* RollappAPI.swift */; };
+		A41000000000000000000006 /* RollappWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000008 /* RollappWebView.swift */; };
+		A41000000000000000000007 /* WishlistData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000009 /* WishlistData.swift */; };
+		A41000000000000000000008 /* WishlistScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4200000000000000000000A /* WishlistScreen.swift */; };
+		A41000000000000000000009 /* WishlistComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4200000000000000000000B /* WishlistComponents.swift */; };
+		A4100000000000000000000C /* FriendsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4200000000000000000000F /* FriendsScreen.swift */; };
+		A4100000000000000000000A /* Geist.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A4200000000000000000000C /* Geist.ttf */; };
+		A4100000000000000000000B /* Geist-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A4200000000000000000000D /* Geist-OFL.txt */; };
+/* End PBXBuildFile section */
 
+/* Begin PBXFileReference section */
 		A42000000000000000000001 /* RollappApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollappApp.swift; sourceTree = "<group>"; };
 		A42000000000000000000002 /* RollappSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollappSession.swift; sourceTree = "<group>"; };
 		A42000000000000000000003 /* RollappURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollappURL.swift; sourceTree = "<group>"; };
 		A42000000000000000000004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A42000000000000000000005 /* Rollapp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = Rollapp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A42000000000000000000006 /* Rollapp.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Rollapp.xcconfig; sourceTree = "<group>"; };
+		A42000000000000000000007 /* RollappAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollappAPI.swift; sourceTree = "<group>"; };
+		A42000000000000000000008 /* RollappWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollappWebView.swift; sourceTree = "<group>"; };
+		A42000000000000000000009 /* WishlistData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WishlistData.swift"; sourceTree = "<group>"; };
+		A4200000000000000000000A /* WishlistScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WishlistScreen.swift"; sourceTree = "<group>"; };
+		A4200000000000000000000B /* WishlistComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WishlistComponents.swift"; sourceTree = "<group>"; };
+		A4200000000000000000000F /* FriendsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FriendsScreen.swift"; sourceTree = "<group>"; };
+		A4200000000000000000000C /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Resources/Geist.ttf"; sourceTree = "<group>"; };
+		A4200000000000000000000D /* Geist-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/Geist-OFL.txt"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		A44000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
 		A43000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
@@ -31,18 +64,87 @@
 				A42000000000000000000001 /* RollappApp.swift */,
 				A42000000000000000000002 /* RollappSession.swift */,
 				A42000000000000000000003 /* RollappURL.swift */,
+				A42000000000000000000007 /* RollappAPI.swift */,
+				A42000000000000000000008 /* RollappWebView.swift */,
 				A42000000000000000000004 /* Assets.xcassets */,
+				A42000000000000000000009 /* WishlistData.swift */,
+				A4200000000000000000000A /* WishlistScreen.swift */,
+				A4200000000000000000000B /* WishlistComponents.swift */,
+				A4200000000000000000000F /* FriendsScreen.swift */,
+				A4200000000000000000000C /* Geist.ttf */,
+				A4200000000000000000000D /* Geist-OFL.txt */,
 			);
 			path = Rollapp;
 			sourceTree = "<group>";
 		};
 		A43000000000000000000003 /* Products */ = {
 			isa = PBXGroup;
-			children = (A42000000000000000000005 /* Rollapp.app */);
+			children = (
+				A42000000000000000000005 /* Rollapp.app */,
+			);
 			name = Products;
 			sourceTree = "<group>";
 		};
+/* End PBXGroup section */
 
+/* Begin PBXNativeTarget section */
+		A45000000000000000000001 /* Rollapp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A47000000000000000000001 /* Build configuration list for PBXNativeTarget "Rollapp" */;
+			buildPhases = (
+				A44000000000000000000001 /* Sources */,
+				A44000000000000000000002 /* Frameworks */,
+				A44000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Rollapp;
+			productName = Rollapp;
+			productReference = A42000000000000000000005 /* Rollapp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A45000000000000000000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+			};
+			buildConfigurationList = A47000000000000000000002 /* Build configuration list for PBXProject "Rollapp" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ru;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				ru,
+				Base,
+			);
+			mainGroup = A43000000000000000000001;
+			productRefGroup = A43000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A45000000000000000000001 /* Rollapp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A44000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A41000000000000000000004 /* Assets.xcassets in Resources */,
+				A4100000000000000000000A /* Geist.ttf in Resources */,
+				A4100000000000000000000B /* Geist-OFL.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
 		A44000000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -50,52 +152,18 @@
 				A41000000000000000000001 /* RollappApp.swift in Sources */,
 				A41000000000000000000002 /* RollappSession.swift in Sources */,
 				A41000000000000000000003 /* RollappURL.swift in Sources */,
+				A41000000000000000000005 /* RollappAPI.swift in Sources */,
+				A41000000000000000000006 /* RollappWebView.swift in Sources */,
+				A41000000000000000000007 /* WishlistData.swift in Sources */,
+				A41000000000000000000008 /* WishlistScreen.swift in Sources */,
+				A41000000000000000000009 /* WishlistComponents.swift in Sources */,
+				A4100000000000000000000C /* FriendsScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A44000000000000000000002 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = ();
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A44000000000000000000003 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (A41000000000000000000004 /* Assets.xcassets in Resources */);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+/* End PBXSourcesBuildPhase section */
 
-		A45000000000000000000001 /* Rollapp */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A47000000000000000000001 /* Build configurations for Rollapp */;
-			buildPhases = (
-				A44000000000000000000001 /* Sources */,
-				A44000000000000000000002 /* Frameworks */,
-				A44000000000000000000003 /* Resources */,
-			);
-			buildRules = ();
-			dependencies = ();
-			name = Rollapp;
-			productName = Rollapp;
-			productReference = A42000000000000000000005 /* Rollapp.app */;
-			productType = "com.apple.product-type.application";
-		};
-		A45000000000000000000002 /* Project */ = {
-			isa = PBXProject;
-			attributes = { BuildIndependentTargetsInParallel = 1; };
-			buildConfigurationList = A47000000000000000000002 /* Build configurations for project */;
-			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = ru;
-			hasScannedForEncodings = 0;
-			knownRegions = (ru, Base);
-			mainGroup = A43000000000000000000001;
-			productRefGroup = A43000000000000000000003 /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
-			targets = (A45000000000000000000001 /* Rollapp */);
-		};
-
+/* Begin XCBuildConfiguration section */
 		A46000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -116,28 +184,41 @@
 		A46000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A42000000000000000000006 /* Rollapp.xcconfig */;
-			buildSettings = {};
+			buildSettings = {
+				DEVELOPMENT_TEAM = 3WDRS3Y6QJ;
+			};
 			name = Debug;
 		};
 		A46000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A42000000000000000000006 /* Rollapp.xcconfig */;
-			buildSettings = {};
+			buildSettings = {
+				DEVELOPMENT_TEAM = 3WDRS3Y6QJ;
+			};
 			name = Release;
 		};
+/* End XCBuildConfiguration section */
 
-		A47000000000000000000001 /* Build configurations for Rollapp */ = {
+/* Begin XCConfigurationList section */
+		A47000000000000000000001 /* Build configuration list for PBXNativeTarget "Rollapp" */ = {
 			isa = XCConfigurationList;
-			buildConfigurations = (A46000000000000000000003 /* Debug */, A46000000000000000000004 /* Release */);
+			buildConfigurations = (
+				A46000000000000000000003 /* Debug */,
+				A46000000000000000000004 /* Release */,
+			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A47000000000000000000002 /* Build configurations for project */ = {
+		A47000000000000000000002 /* Build configuration list for PBXProject "Rollapp" */ = {
 			isa = XCConfigurationList;
-			buildConfigurations = (A46000000000000000000001 /* Debug */, A46000000000000000000002 /* Release */);
+			buildConfigurations = (
+				A46000000000000000000001 /* Debug */,
+				A46000000000000000000002 /* Release */,
+			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+/* End XCConfigurationList section */
 	};
-	rootObject = A45000000000000000000002 /* Project */;
+	rootObject = A45000000000000000000002 /* Project object */;
 }

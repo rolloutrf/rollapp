@@ -120,6 +120,7 @@ import {
 import { isReservedProfileUsername, legacyProfileTarget, profileUsernameCandidates } from "./modules/profile/profile-paths.js";
 import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./modules/auth/security.js";
 import { createAccountSessions, requireExpectedAccount, savedSessionsCookie, sessionCookie } from "./modules/auth/account-sessions.js";
+import { registerAndroidAuthRoutes } from "./modules/auth/android-auth.js";
 import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./modules/runtime/trusted-origins.js";
 import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/modules/access/sphere-sharing.js";
 import { BUSINESS_CATEGORIES, BUSINESS_OFFER_SPHERES, businessCategoryForSection, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
@@ -1555,7 +1556,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   }
   const consumed = await query(
     `DELETE FROM yandex_oauth_attempts
-     WHERE state_hash=$1 AND expires_at>$2 AND purpose <> 'disk-notes'
+     WHERE state_hash=$1 AND expires_at>$2 AND purpose IN ('login', 'link', 'link-backup', 'add', 'invite')
      RETURNING code_verifier,next_path,purpose,user_id,invite_token_hash`,
     [stateHash, new Date()],
   );
@@ -1958,6 +1959,17 @@ app.post("/api/auth/demo", requireLegacySignIn, asyncRoute(async (req, res) => {
 }));
 
 registerAccountRoutes(app, { requireAuth, asyncRoute });
+registerAndroidAuthRoutes(app, {
+  enabled: isProduction && process.env.ROLLAPP_ANDROID_AUTH_ENABLED === "true",
+  limit: authRateLimit,
+  asyncRoute,
+  requireAuth,
+  parseForm: express.urlencoded({ extended: false, limit: "2kb", parameterLimit: 4 }),
+  query,
+  transaction,
+  createSessionRecord,
+  setSession: setAuthenticatedSession,
+});
 if (domainCookies && !sphereApplication) {
   app.get("/api/auth/sphere-session", asyncRoute(async (req, res) => {
     res.set("Cache-Control", "private, no-store");

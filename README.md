@@ -51,11 +51,11 @@ three stores, localhost and the production Rollapp origin.
 
 ## iOS
 
-The [Rollapp iOS project](ios/README.md) runs the production app on iPhone and iPad. It uses Xcode and requires iOS 17 or later. The [iOS workflow](.github/workflows/rollapp-ios-build.yml) builds the simulator app and an unsigned device archive. The workflow can also run the simulator smoke check on demand.
+The [Rollapp iOS project](ios/README.md) provides a native SwiftUI wishlist and friends screens on iPhone and iPad. It uses Xcode and requires iOS 17 or later. The [iOS workflow](.github/workflows/rollapp-ios-build.yml) builds the simulator app and an unsigned device archive. The workflow can also run the simulator smoke check on demand.
 
 ## Android
 
-The Android client lives in `android/` and requires Android 7.0 or later. The [Android workflow](.github/workflows/android.yml) checks the project, builds an Android App Bundle, and uploads a debug APK.
+The [Android client](android/README.md) uses Jetpack Compose. The [Android workflow](.github/workflows/android.yml) checks the project, builds an Android App Bundle, and uploads a debug APK.
 
 ## macOS app
 
