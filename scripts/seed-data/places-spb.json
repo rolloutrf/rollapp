@@ -1,0 +1,4854 @@
+{
+ "space": "places",
+ "source": "shozhu",
+ "places": [
+  {
+   "slug": "shozhu-0001",
+   "name": "AF Brew",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "пивоварня и тапрум",
+   "description": "Пивоварня и тапрум.",
+   "addresses": [
+    "Курляндская ул., 48"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/afbrew.taproom"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0002",
+   "name": "AT 8/10",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://at810bar.ru"
+    },
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/at810.bistro.bar"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0003",
+   "name": "BALLZ (БОЛЗ ДВА)",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бильярдная",
+   "description": "Бильярдная. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Средний пр. В.О., 14/45"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0004",
+   "name": "Бар Альберта Барабанова",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Гражданская ул., 13-14"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0005",
+   "name": "Blackchops",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "паб",
+   "description": "Паб.",
+   "addresses": [
+    "наб. реки Фонтанки, 5/2"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/blackchopspub"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0006",
+   "name": "BOBO (Bourgeois Bohemians)",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар-ресторан",
+   "description": "Бар-ресторан. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://bobospb.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0007",
+   "name": "БЮРО",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бургерная",
+   "description": "Бургерная. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Жуковского 29",
+    "Рыбацкая 4",
+    "Средний пр. В.О. 53",
+    "Садовая 13-15"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0008",
+   "name": "«Вчера и навсегда»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Казанская ул."
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0009",
+   "name": "«Горький»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Гороховая ул., 49Б"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0010",
+   "name": "«Гостиная на Казанской»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Казанская ул."
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0011",
+   "name": "Goose Goose",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://goosegoose.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0012",
+   "name": "Дом Бита / Kiks",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар с летним кинотеатром",
+   "description": "Бар с летним кинотеатром. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/kiks_bi"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0013",
+   "name": "«Ипполит»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "рюмочная",
+   "description": "Рюмочная. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0014",
+   "name": "«Координата»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0015",
+   "name": "«Косула»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0016",
+   "name": "«Машараби»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бары из подборок",
+   "description": "Бары из подборок. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0017",
+   "name": "Dizengof/99",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бары из подборок",
+   "description": "Бары из подборок. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0018",
+   "name": "Kuta",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бары из подборок",
+   "description": "Бары из подборок. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0019",
+   "name": "Lu.Co",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бары из подборок",
+   "description": "Бары из подборок. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0020",
+   "name": "Gaijin",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бары из подборок",
+   "description": "Бары из подборок. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0021",
+   "name": "«Мачты»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0022",
+   "name": "«Маяковка»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [
+    "Невский пр., 20"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://pl.spb.ru/events/"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0023",
+   "name": "«МВП» (Министерство Вкусовой Промышленности)",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "русская рюмочная",
+   "description": "Русская рюмочная.",
+   "addresses": [
+    "Ординарная ул., 4"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/mvp.bar.spb"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/mvpbarspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0024",
+   "name": "«Мишка»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [
+    "Конногвардейский б-р"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/mishkacrew"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0025",
+   "name": "Nola (Nola Jazz Bar)",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "джаз-бар",
+   "description": "Джаз-бар. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0026",
+   "name": "On the Bones",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "пивоварня",
+   "description": "Пивоварня. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/toxidre/1705"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0027",
+   "name": "«Перекаты»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бильярдный клуб",
+   "description": "Бильярдный клуб.",
+   "addresses": [
+    "Каменноостровский пр., 12"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/perekatybilliard"
+    },
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/perekaty_"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0028",
+   "name": "«Рекорд»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0029",
+   "name": "Rockets & Bishops",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Гороховая ул., 26"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0030",
+   "name": "«Сайгон»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Жуковского ул., 19"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0031",
+   "name": "«Современник»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Некрасова ул., 1/38"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0032",
+   "name": "«Сообщество»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар-пространство в Новой Голландии",
+   "description": "Бар-пространство в Новой Голландии (языковые клубы). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://www.newhollandsp.ru/community/"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0033",
+   "name": "Soul Babe",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0034",
+   "name": "Spaghetti Incident",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "спагетти-бар",
+   "description": "Спагетти-бар. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Севкабель Порт"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0035",
+   "name": "«Среда»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0036",
+   "name": "SUBZERO",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "пивные точки на Московском рынке",
+   "description": "Пивные точки на Московском рынке. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0037",
+   "name": "ОНТАП",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "пивные точки на Московском рынке",
+   "description": "Пивные точки на Московском рынке. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0038",
+   "name": "«Тепло»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0039",
+   "name": "«У Ларисы»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0040",
+   "name": "Choice",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "лаунж-бар",
+   "description": "Лаунж-бар. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0041",
+   "name": "CASAUMA",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар-гостиная",
+   "description": "Бар-гостиная. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Измайловский б-р"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0042",
+   "name": "Хоуми (Homie bar)",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар со стендапом",
+   "description": "Бар со стендапом.",
+   "addresses": [
+    "Литейный пр., 17-19"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/homiebarspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0043",
+   "name": "«Чуфан»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Казанская ул."
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0044",
+   "name": "«Шалман»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар в доме Мурузи",
+   "description": "Бар в доме Мурузи.",
+   "addresses": [
+    "Пестеля ул., 27"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/brodsky.shalman"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0045",
+   "name": "ШУМ (Кабаре «ШУМ»)",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "кабаре",
+   "description": "Кабаре.",
+   "addresses": [
+    "Маяковского ул., 52"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/SHUM2008"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0046",
+   "name": "Юнион",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар с двором",
+   "description": "Бар с двором.",
+   "addresses": [
+    "Литейный пр., 55"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://unionbar.ru"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/unionbarspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0047",
+   "name": "«Зара 90-х»",
+   "category": "bar",
+   "categoryLabel": "Бар",
+   "subcategory": "бар",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0048",
+   "name": "AGA",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Добролюбова ул., 16к2"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0049",
+   "name": "Animals",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0050",
+   "name": "«Ателье» (Atelier TAPAS & BAR)",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/atelier.tapas.bar"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0051",
+   "name": "B-Side",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "бистро в Новой Голландии",
+   "description": "Бистро в Новой Голландии.",
+   "addresses": [
+    "наб. Адмиралтейского канала, 2",
+    "лит. М"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/bside.bistrot"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0052",
+   "name": "Bambina Cafe by Duo Band",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "итальянская кафешка",
+   "description": "Итальянская кафешка (команда Lavraki).",
+   "addresses": [
+    "вид на Спасо-Преображенский собор"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/bambina.cafe"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0053",
+   "name": "Baski&Monegaski",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Провиантская ул., 3/6"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/baski.monegaski"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0054",
+   "name": "«Бао Баоцзы»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "китайское бистро",
+   "description": "Китайское бистро.",
+   "addresses": [
+    "Большой пр. В.О., 24"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/bao_baozi"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0055",
+   "name": "«Бистротека»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "бистро",
+   "description": "Бистро.",
+   "addresses": [
+    "наб. реки Карповки, 31"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/meet_bistroteka"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0056",
+   "name": "«Брод»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "сыры",
+   "description": "Сыры. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "сыроварня и пекарня"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0057",
+   "name": "Brasserie by Academia",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://brasserie.academia-rest.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0058",
+   "name": "Chang",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "азиатская сеть",
+   "description": "Азиатская сеть.",
+   "addresses": [
+    "Бол. пр. П.С. 86",
+    "Бол. Конюшенная 9",
+    "Невский 97",
+    "Некрасова 1/38"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/changcafe"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0059",
+   "name": "Closer",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Таврическая ул., 31-33"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/closer_restaurant"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0060",
+   "name": "D.K.",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "китайская",
+   "description": "Китайская. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Василеостровский рынок",
+    "2 этаж"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0061",
+   "name": "«Дачный клуб Суббота» (ДК «Суббота»)",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан и отель в Комарово",
+   "description": "Ресторан и отель в Комарово.",
+   "addresses": [
+    "виниловые вечера каждые выходные"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/dk.subbota"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0062",
+   "name": "«Денисов»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "кафе",
+   "description": "",
+   "addresses": [
+    "Московский пр., 71/3"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/cafe.denisov"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0063",
+   "name": "«ЕМ»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "наб. реки Мойки, 84"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0064",
+   "name": "Forest Hill",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "Мистолово",
+   "description": "Мистолово. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "ул. Людмилы Кедриной, 2"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0065",
+   "name": "Frangipani",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "азиатская",
+   "description": "Азиатская.",
+   "addresses": [
+    "Кирочная ул., 9"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/frangipani.bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0066",
+   "name": "FRESA",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "средиземноморская",
+   "description": "Средиземноморская.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/antoniofresarest_live"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0067",
+   "name": "Frutteto",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "итальянское бистро",
+   "description": "Итальянское бистро.",
+   "addresses": [
+    "Морской пр., 29"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/frutteto.bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0068",
+   "name": "«Гард»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "карельская",
+   "description": "Карельская. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Сортавала"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0069",
+   "name": "Gaby bistro",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "наб. реки Карповки, 31к1"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/gaby__bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0070",
+   "name": "«География»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0071",
+   "name": "Giallo",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "итальянская",
+   "description": "Итальянская.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/giallo.bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0072",
+   "name": "Gills",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "японское кафе",
+   "description": "Японское кафе (вторая точка открывается зимой). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Жуковского"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0073",
+   "name": "«Горизонты»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "панорамный ресторан",
+   "description": "Панорамный ресторан. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Торговый пер., 3"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0074",
+   "name": "«Гребешки»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0075",
+   "name": "ХОНГ",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "лапшичная",
+   "description": "Лапшичная.",
+   "addresses": [
+    "8-я Советская ул."
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/hong.spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0076",
+   "name": "Itameshi",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "итало-японская",
+   "description": "Итало-японская.",
+   "addresses": [
+    "Ташкентская ул., 6"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/itameshi.restaurant"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0077",
+   "name": "jidai",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "японская",
+   "description": "Японская.",
+   "addresses": [
+    "наб. Адм. Лазарева, 22"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://jidai.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0078",
+   "name": "Juan",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "испано-мексиканская в особняке Мясникова",
+   "description": "Испано-мексиканская в особняке Мясникова. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0079",
+   "name": "Kaiju",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "азиатская",
+   "description": "Азиатская.",
+   "addresses": [
+    "Кирочная ул., 12"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/kaijuspb"
+    },
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/kaiju.bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0080",
+   "name": "KIRA",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "средиземноморская",
+   "description": "Средиземноморская.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://kirarest.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0081",
+   "name": "KOI",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "роллы",
+   "description": "Роллы.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://koi-project.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0082",
+   "name": "Kuznyahouse",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан и тусовка",
+   "description": "Ресторан и тусовка.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/kuznyahouse"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0083",
+   "name": "La Biga",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "итальянское бистро",
+   "description": "Итальянское бистро.",
+   "addresses": [
+    "Гороховая ул., 16/71"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/labiga.italianbistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0084",
+   "name": "Lavraki",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "рыбный",
+   "description": "Рыбный (отсюда выросла команда Bambina).",
+   "addresses": [
+    "Академика Павлова, 5Б"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/lavrakibistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0085",
+   "name": "«Лодочная станция»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Петровский пр., 9Л"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/boatstation.rest"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0086",
+   "name": "Maison Rouge",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Конюшенная пл., 2Г"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/maisonrouge_spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0087",
+   "name": "«Майтри»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "мыса Кюренниеми",
+   "description": "Мыса Кюренниеми.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://mytree.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0088",
+   "name": "«Мама Тата»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "грузинская",
+   "description": "Грузинская.",
+   "addresses": [
+    "Большой пр. П.С., 56"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/mamatata_gshot"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0089",
+   "name": "«Маргаретти»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "пиццерия",
+   "description": "Пиццерия (ТЦ «Пик»).",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/pizza.margaretti"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0090",
+   "name": "Meat Сoin",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "гриль в Комарово",
+   "description": "Гриль в Комарово.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/meat_coin"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0091",
+   "name": "«Мечтатели»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "наб. реки Фонтанки, 11"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/followdreamers"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0092",
+   "name": "Mill",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "итальянское бистро",
+   "description": "Итальянское бистро.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/millitalianbistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0093",
+   "name": "MOA",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Маяковского ул., 44"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/moa.spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0094",
+   "name": "Mon ChouChou",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0095",
+   "name": "«Мурманчане»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "северная",
+   "description": "Северная.",
+   "addresses": [
+    "Большая Зеленина, 2/42"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/murmanchane_51"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0096",
+   "name": "«На волне»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "Зеленогорск",
+   "description": "Зеленогорск.",
+   "addresses": [
+    "ЖК «Морская ривьера»"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/na_volne_rest"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0097",
+   "name": "«Общество чистых тарелок» («Тарелки»)",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Владимирский пр., 13",
+    "Гороховая"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/tarelok"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0098",
+   "name": "«Огородники»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0099",
+   "name": "Paloma Cantina",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "мексиканская",
+   "description": "Мексиканская (интерьер Ксении Смирновой). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0100",
+   "name": "«Палкин»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0101",
+   "name": "«Перемена»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "русская",
+   "description": "Русская.",
+   "addresses": [
+    "Петроградская ул., 20"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/peremenabyduo"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0102",
+   "name": "«Пища династии Минь»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "китайская",
+   "description": "Китайская.",
+   "addresses": [
+    "Короленко ул., 14"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://mingfood.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0103",
+   "name": "POOOL Bistro",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "бистро с шампань-баром",
+   "description": "Бистро с шампань-баром.",
+   "addresses": [
+    "Фонтанная ул., 1"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/poool_bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0104",
+   "name": "«Прошуттерия»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "итальянская",
+   "description": "Итальянская.",
+   "addresses": [
+    "Озерной пер., 7",
+    "Большая Пушкарская, 34"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/prosciutteria.spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0105",
+   "name": "RAP",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "стритфуд-сэндвичи",
+   "description": "Стритфуд-сэндвичи.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/rapnekrasova"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0106",
+   "name": "Saigo Izakaya",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "японская",
+   "description": "Японская. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "наб. кан. Грибоедова, 5"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0107",
+   "name": "Salone pasta&bar",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "наб. реки Фонтанки, 30"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/salonepastabar"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0108",
+   "name": "Salty",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Миргородская ул., 20"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/salty.bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0109",
+   "name": "«Санта-Глория»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан на корабле",
+   "description": "Ресторан на корабле.",
+   "addresses": [
+    "Мытинская наб., 6"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/santagloriaspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0110",
+   "name": "Saro",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "ресторан",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/saro_restaurant"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0111",
+   "name": "Saviv",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Большая Конюшенная, 9"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/saviv.bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0112",
+   "name": "Sea, Signora",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "морепродукты",
+   "description": "Морепродукты. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0113",
+   "name": "Smoke BBQ",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "барбекю",
+   "description": "Барбекю. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0114",
+   "name": "ТАО",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "азиатская",
+   "description": "Азиатская. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "от команды «БЮРО»"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0115",
+   "name": "Tel Aviv by Saviv",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "израильская в Новой Голландии",
+   "description": "Израильская в Новой Голландии.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/antoniofresarest_live"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0116",
+   "name": "Tony",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "бистро",
+   "description": "Бистро.",
+   "addresses": [
+    "Озерной пер., 7"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/tony.bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0117",
+   "name": "Tondo",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "итальянская",
+   "description": "Итальянская.",
+   "addresses": [
+    "Корпусная ул., 9"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/tondo.italian.restaurant.bar"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0118",
+   "name": "VAKH",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Большая Зеленина, 34"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/vakh.rest"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0119",
+   "name": "Villa Madelina Garden Bistro",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "средиземноморская",
+   "description": "Средиземноморская.",
+   "addresses": [
+    "наб. Обводного канала, 114к3"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/villa.madelina.bistro"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0120",
+   "name": "«Футурист»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Барочная ул., 6"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/futurist.restaurant"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0121",
+   "name": "«Юкари»",
+   "category": "restaurant",
+   "categoryLabel": "Ресторан",
+   "subcategory": "рамен",
+   "description": "Рамен.",
+   "addresses": [
+    "Полтавская ул., 10"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/yukari_ramen"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0122",
+   "name": "Aster",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "сеть",
+   "description": "Сеть.",
+   "addresses": [
+    "Маяковского 23",
+    "Римского-Корсакова 22",
+    "Рыбацкая 2"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/hello.aster"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0123",
+   "name": "Avgvst (Avgvst Кофе)",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "сеть кофеен",
+   "description": "Сеть кофеен (кофе-маршрут). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0124",
+   "name": "Багетная мастерская Анны Красовской",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Малый пр. В.О., 54к2"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/anna_krasovskaia"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0125",
+   "name": "Casper («Кафе на Хлебозаводе»)",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Барочная ул., 4А"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/cafenahlebozavode"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0126",
+   "name": "dwntwn coffee",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Казанская ул."
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0127",
+   "name": "frame is",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кофейня",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0128",
+   "name": "«Готча»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кофейня",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0129",
+   "name": "«Грошики»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "Обуховской обороны пр.",
+   "description": "Обуховской обороны пр.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/groshiki_cafe"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0130",
+   "name": "«Круч» (кафе Марины Круч)",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "выпечка и завтраки в бутик-отеле Glinz",
+   "description": "Выпечка и завтраки в бутик-отеле Glinz. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Петроградская наб."
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0131",
+   "name": "Kona",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Большой пр. П.С., 13/4"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/kona_spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0132",
+   "name": "Kos",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Аптекарский пр., 5"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/kos.place"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0133",
+   "name": "«Мечта»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Малый пр. П.С., 71"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/mechta.cafe"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0134",
+   "name": "MET (Mad Espresso Team)",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "сеть",
+   "description": "Сеть.",
+   "addresses": [
+    "2-я Советская",
+    "Бол. пр. В.О. 16",
+    "Римского-Корсакова 3"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/madespressoteam"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0135",
+   "name": "Mere",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кафе-кондитерская",
+   "description": "Кафе-кондитерская.",
+   "addresses": [
+    "Лодейнопольская ул., 7 ст1"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/mere.everyday"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0136",
+   "name": "«Нежно»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Большая Зеленина, 21"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/nuzhnonezhno"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0137",
+   "name": "«Парадокс» (PARADOX BOOKS)",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кофейня и книжный",
+   "description": "Кофейня и книжный.",
+   "addresses": [
+    "Гастелло ул., 7"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/paradoxbookshop"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0138",
+   "name": "«Пенка»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кофейня",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0139",
+   "name": "«Подписные булочки»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Литейный пр., 57"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/podpisniebulochki"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0140",
+   "name": "Prosa Breakfast Bar",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "завтраки",
+   "description": "Завтраки. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "наб. кан. Грибоедова, 5"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0141",
+   "name": "«Прибой»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "открывается в ЦК «Курица»",
+   "description": "Открывается в ЦК «Курица». (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0142",
+   "name": "«РиД»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кафе",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0143",
+   "name": "«Свет»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Свечной пер., 5"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/svetcafee"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0144",
+   "name": "«Смена»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "поп-ап кофейня-бар",
+   "description": "Поп-ап кофейня-бар. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0145",
+   "name": "«Старт»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кофейня",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0146",
+   "name": "«Сцепка Coffee»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "наб. Миклухо-Маклая, 3к1"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/scepkacoffee"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0147",
+   "name": "Tagliatella Caffè",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кофейня",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0148",
+   "name": "«Текстура»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "пекарня-булочная",
+   "description": "Пекарня-булочная.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/bakerytekstura"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0149",
+   "name": "«Вихри»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Тележная ул., 21"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/vihri_cafe"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0150",
+   "name": "YNGЯНГ",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кофейня в «Парадоксе»",
+   "description": "Кофейня в «Парадоксе». (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Гастелло ул., 7"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0151",
+   "name": "«Характер кофе»",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "наб. реки Фонтанки, 109"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/characterofcoffee"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0152",
+   "name": "Ôpetit Friedlander",
+   "category": "cafe",
+   "categoryLabel": "Кофейня",
+   "subcategory": "кафе в аптеке Пеля",
+   "description": "Кафе в аптеке Пеля (закрылось). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0153",
+   "name": "ÇAVA DISCO",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "вечеринки",
+   "description": "Вечеринки.",
+   "addresses": [
+    "резиденты К-30 и AF Brew"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/cavadisco"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0154",
+   "name": "Co-Op Garage",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "бар-гараж",
+   "description": "Бар-гараж. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Гороховая ул., 47"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0155",
+   "name": "Cruise by Kuznyahouse",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "тусовочный круиз",
+   "description": "Тусовочный круиз.",
+   "addresses": [
+    "Английская наб., 56А"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://cruise1.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0156",
+   "name": "Factory 3 («Фактор 3»)",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "клуб",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0157",
+   "name": "GAMMA X / Центр Курёхина",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "концертная площадка феста",
+   "description": "Концертная площадка феста. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://gammafestival.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0158",
+   "name": "Дом Радио",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "концертная площадка",
+   "description": "Концертная площадка. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Невский пр., 62"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0159",
+   "name": "Клуб «Грибоедов»",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Воронежская ул."
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/griboedov.club"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/griboedovclub"
+    },
+    {
+     "type": "other",
+     "url": "https://griboedov.ticketscloud.org"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0160",
+   "name": "K-30",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "клуб Roots United",
+   "description": "Клуб Roots United.",
+   "addresses": [
+    "Красного Текстильщика ул., 10-12"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://planetak30.com"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/k30space"
+    },
+    {
+     "type": "other",
+     "url": "https://dzen.ru/k30space"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0161",
+   "name": "«Морская»",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "гранд-вечеринки в Севкабеле",
+   "description": "Гранд-вечеринки в Севкабеле.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://morskaya.sevcableport.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0162",
+   "name": "«Ритмы»",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "клуб",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0163",
+   "name": "ROOF FEST",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "концертная крыша",
+   "description": "Концертная крыша.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://roofmusicgroup.ru"
+    },
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/roof_fest"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0164",
+   "name": "СТВОЛ",
+   "category": "club",
+   "categoryLabel": "Клуб и площадка",
+   "subcategory": "серия вечеринок",
+   "description": "Серия вечеринок (5 лет). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://stvol.tv"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0165",
+   "name": "Ай Класс",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "образовательный центр",
+   "description": "Образовательный центр (поступление за рубеж). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Ординарная ул., 20В"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://iclass-news.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0166",
+   "name": "Билик-база",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "детская ритмика",
+   "description": "Детская ритмика. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/bilik_baza"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0167",
+   "name": "Kafedra school",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "медиа-школа",
+   "description": "Медиа-школа. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://kafedra.school"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0168",
+   "name": "LAB Atelier",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "ювелирные курсы",
+   "description": "Ювелирные курсы.",
+   "addresses": [
+    "наб. реки Смоленки, 19-21"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/lab.atelier.spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0169",
+   "name": "«Мода на воду»",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "школа плавания",
+   "description": "Школа плавания (с открытым небом, сауна, хаммам).",
+   "addresses": [
+    "бассейн Аничкового дворца и Крестовский"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/modanavodu"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0170",
+   "name": "Papers (Paper Agency)",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "курсы мобильной фотографии",
+   "description": "Курсы мобильной фотографии. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://paperagency.team/mobilephoto"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0171",
+   "name": "«Проба» (Страдариум)",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "гуманитарные программы",
+   "description": "Гуманитарные программы.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://proba.stradarium.ru"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/probastradarium"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0172",
+   "name": "«Синхронизация»",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "арт-лекции",
+   "description": "Арт-лекции. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://online.synchronize.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0173",
+   "name": "Упсала-Цирк",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "цирковая школа",
+   "description": "Цирковая школа.",
+   "addresses": [
+    "Свердловская наб., 44Ю"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://upsalacircus.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0174",
+   "name": "Школа кунг-фу «Джук Лум»",
+   "category": "school",
+   "categoryLabel": "Школа и курсы",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://jooklum.ru"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/jook_lum"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0175",
+   "name": "Bulthaup",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "дизайн-галерея",
+   "description": "Дизайн-галерея. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/designgallerybulthaup"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0176",
+   "name": "«Временно»",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "винтаж-пространство",
+   "description": "Винтаж-пространство.",
+   "addresses": [
+    "Сытный рынок",
+    "место 53"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/vremenno_stnr"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/vremennostnr"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0177",
+   "name": "DiDi Gallery",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://didigallery.com"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0178",
+   "name": "«Ларёк»",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "галерея у Спортивной",
+   "description": "Галерея у Спортивной (держит Дима Щербачёв). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0179",
+   "name": "Myth gallery",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://mythgallery.art"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0180",
+   "name": "Sobo Gallery",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://sobo.gallery"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0181",
+   "name": "ТЕТА",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "дизайн-галерея",
+   "description": "Дизайн-галерея. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/tetadesigngallery"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0182",
+   "name": "IRNBY ART",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "арт-пространство/галерея",
+   "description": "Арт-пространство/галерея. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0183",
+   "name": "«Фабрика Лимонной Кислоты»",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://cccx.gallery"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0184",
+   "name": "Галерея Елены Абрамовой",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Красногвардейская пл., 3Е"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://abramovagallery.art"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0185",
+   "name": "«Пространство А»",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Дивенская ул., 2/13",
+    "кв. 14"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/a_space_spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0186",
+   "name": "САХ",
+   "category": "gallery",
+   "categoryLabel": "Галерея",
+   "subcategory": "стрит-арт-хранилище",
+   "description": "Стрит-арт-хранилище (маркеты 31 художника). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0187",
+   "name": "47 Store",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Большой пр. П.С., 47"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/designstore47"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0188",
+   "name": "«Академия»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "книжный + кафе",
+   "description": "Книжный + кафе. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0189",
+   "name": "Bilingua Ladies",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "шоурум одежды",
+   "description": "Шоурум одежды. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Столярный пер., 7"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0190",
+   "name": "commanotdot",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "японские товары",
+   "description": "Японские товары. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/commanotdot"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0191",
+   "name": "Culture",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "одежда",
+   "description": "Одежда (точка закрывается).",
+   "addresses": [
+    "Малый пр. П.С., 55В"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://culturetm.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0192",
+   "name": "«Вокруг пальца»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "обручальные кольца",
+   "description": "Обручальные кольца. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Восстания ул., 25"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0193",
+   "name": "Дело",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "дизайн-шоурум",
+   "description": "Дизайн-шоурум.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/delodesign"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0194",
+   "name": "Fjordcloth (Fjord)",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "винтаж-одежда",
+   "description": "Винтаж-одежда. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0195",
+   "name": "HUMANIST",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "селективный магазин",
+   "description": "Селективный магазин. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/humanist_talks"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0196",
+   "name": "It's my!bike",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "веломагазин",
+   "description": "Веломагазин.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/itsmybikestore"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0197",
+   "name": "KIXBOX",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "стритстайл",
+   "description": "Стритстайл.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://sale.kixbox.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0198",
+   "name": "«Коробка Винила»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "винил",
+   "description": "Винил. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://korobkavinyla.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0199",
+   "name": "«Легко-Легко»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "благотворительный магазин + мастерские",
+   "description": "Благотворительный магазин + мастерские.",
+   "addresses": [
+    "Бармалеева ул., 3"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/legkolegko"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0200",
+   "name": "Lime / LIMÉ",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "магазин",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://limestore.com"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0201",
+   "name": "On The Shelf",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "фотокниги",
+   "description": "Фотокниги. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0202",
+   "name": "«Паштет»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "гастро-лавка",
+   "description": "Гастро-лавка (открытие в декабре). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "третья точка на Радищева, 39"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0203",
+   "name": "Petshop",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "зоомаркет",
+   "description": "Зоомаркет.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://petshop.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0204",
+   "name": "«Подписные издания»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "книжный",
+   "description": "Книжный. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://podpisnie.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0205",
+   "name": "Posterpoint",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "постеры",
+   "description": "Постеры.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://posterpoint.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0206",
+   "name": "RADIUS",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "оптика",
+   "description": "Оптика.",
+   "addresses": [
+    "Большой пр. П.С., 28/1"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://radius.vision"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0207",
+   "name": "«Сашин шкаф»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "винтаж",
+   "description": "Винтаж.",
+   "addresses": [
+    "район Горьковской"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/sashinshkaf"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0208",
+   "name": "«Спасибо!»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "благотворительный секонд",
+   "description": "Благотворительный секонд (пункт приёма на Василеостровском рынке). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0209",
+   "name": "Tururoom",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "детская одежда",
+   "description": "Детская одежда.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://tururoom.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0210",
+   "name": "«Как ни крути»",
+   "category": "shop",
+   "categoryLabel": "Магазин и шоурум",
+   "subcategory": "винил",
+   "description": "Винил. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/knkrecords"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0211",
+   "name": "ARS",
+   "category": "market",
+   "categoryLabel": "Рынок и маркет",
+   "subcategory": "ярмарка искусства в «Казармах на Фонтанке»",
+   "description": "Ярмарка искусства в «Казармах на Фонтанке».",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/market_ars"
+    },
+    {
+     "type": "site",
+     "url": "https://ars-art.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0212",
+   "name": "Василеостровский рынок",
+   "category": "market",
+   "categoryLabel": "Рынок и маркет",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/vomskmrkt"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0213",
+   "name": "Garage Sail",
+   "category": "market",
+   "categoryLabel": "Рынок и маркет",
+   "subcategory": "винтажный маркет в Севкабеле",
+   "description": "Винтажный маркет в Севкабеле.",
+   "addresses": [
+    "Кожевенная линия, 40"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://garagesail.ru"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/garagesailinport"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0214",
+   "name": "«Маркет у моря»",
+   "category": "market",
+   "categoryLabel": "Рынок и маркет",
+   "subcategory": "Севкабель УКТ",
+   "description": "Севкабель УКТ.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://marketumorya.ru"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/marketmum"
+    },
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/market_u_morya"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0215",
+   "name": "Московский рынок",
+   "category": "market",
+   "categoryLabel": "Рынок и маркет",
+   "subcategory": "площадка",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0216",
+   "name": "«Сдобный» рынок",
+   "category": "market",
+   "categoryLabel": "Рынок и маркет",
+   "subcategory": "рынок выходного дня",
+   "description": "Рынок выходного дня. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0217",
+   "name": "«Фонарь»",
+   "category": "market",
+   "categoryLabel": "Рынок и маркет",
+   "subcategory": "благотворительный книжный маркет",
+   "description": "Благотворительный книжный маркет. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/fonarmarket/1005"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0218",
+   "name": "Arny Praht",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "сумки",
+   "description": "Сумки. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "аксессуары"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0219",
+   "name": "A Secret Knowledge",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "сумки",
+   "description": "Сумки. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/asecretknowledge_ask"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0220",
+   "name": "«Берегите птиц»",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "одежда",
+   "description": "Одежда.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://beregiteptits.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0221",
+   "name": "«Больше Кофе Ростерс»",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "обжарка кофе",
+   "description": "Обжарка кофе.",
+   "addresses": [
+    "сеть кофеен"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://bolshecoffee.ru/roasting"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/BOLSHECOFFEEROASTERS"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0222",
+   "name": "Home People Club",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "свечи",
+   "description": "Свечи.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://homepeopleclub.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0223",
+   "name": "Honest",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "авторские украшения из серебра",
+   "description": "Авторские украшения из серебра.",
+   "addresses": [
+    "Маяковского ул., 23/6"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/honest.925"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0224",
+   "name": "Indivizual",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "апсайкл-одежда",
+   "description": "Апсайкл-одежда. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Чкаловский пр., 15Г"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/indivizual_upcycle"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0225",
+   "name": "КОТОК",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "коллаборация alvaar",
+   "description": "Коллаборация alvaar. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://alvaar.one"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0226",
+   "name": "ЛУЧ",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "украшения",
+   "description": "Украшения. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0227",
+   "name": "Moonswoon",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "украшения",
+   "description": "Украшения (Урал).",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/moonswoon"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0228",
+   "name": "nebitoe",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "кастомные винтажные тарелки",
+   "description": "Кастомные винтажные тарелки.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/nebitoe"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0229",
+   "name": "Оля Долотина",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "шапки",
+   "description": "Шапки. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/mk_kukla_olly"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0230",
+   "name": "Paste",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "одежда",
+   "description": "Одежда.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/pastetowear"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0231",
+   "name": "pépites",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "сумки",
+   "description": "Сумки.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/pepites.brand"
+    },
+    {
+     "type": "site",
+     "url": "https://pepites.shop"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0232",
+   "name": "POÈME",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "домашняя одежда и бельё",
+   "description": "Домашняя одежда и бельё.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://poemestore.com"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0233",
+   "name": "«Поведай»",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "посуда и керамика",
+   "description": "Посуда и керамика (переезд).",
+   "addresses": [
+    "студия на Гатчинской 31-33"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://povedaii.com"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0234",
+   "name": "«Самосвет»",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "натуральная косметика",
+   "description": "Натуральная косметика.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://camocvet.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0235",
+   "name": "«Свечичная»",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "свечи",
+   "description": "Свечи.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "vk",
+     "url": "https://vk.com/svechichnaya"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0236",
+   "name": "THEKINDERGARTEN",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "керамика и декор",
+   "description": "Керамика и декор.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "vk",
+     "url": "https://vk.ru/thekindergarten"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0237",
+   "name": "Токсовская сидрерия",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "сидр",
+   "description": "Сидр. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "производство в Тярлево"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0238",
+   "name": "Yakumar",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "одежда в японской эстетике",
+   "description": "Одежда в японской эстетике.",
+   "addresses": [
+    "шоурум на Кожевенной линии, 30"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://yakumar.ru"
+    },
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/yakumar_clothing"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/yakumar_clothing"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0239",
+   "name": "ZIMA Jewelry",
+   "category": "brand",
+   "categoryLabel": "Бренд",
+   "subcategory": "ювелирка",
+   "description": "Ювелирка. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0240",
+   "name": "APARTURA",
+   "category": "hotel",
+   "categoryLabel": "Отель и глэмпинг",
+   "subcategory": "апартаменты-лофт",
+   "description": "Апартаменты-лофт. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0241",
+   "name": "Glinz",
+   "category": "hotel",
+   "categoryLabel": "Отель и глэмпинг",
+   "subcategory": "бутик-отель на Петроградской наб.",
+   "description": "Бутик-отель на Петроградской наб (внутри кафе «Круч»). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0242",
+   "name": "Hideout Residence",
+   "category": "hotel",
+   "categoryLabel": "Отель и глэмпинг",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Римского-Корсакова пр., 22"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0243",
+   "name": "«Метрополис»",
+   "category": "hotel",
+   "categoryLabel": "Отель и глэмпинг",
+   "subcategory": "иммерсивный отель",
+   "description": "Иммерсивный отель.",
+   "addresses": [
+    "Невский пр., 5"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://welcometometropolis.com"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0244",
+   "name": "VALO",
+   "category": "hotel",
+   "categoryLabel": "Отель и глэмпинг",
+   "subcategory": "апарт-отель",
+   "description": "Апарт-отель. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Салова ул., 61"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0245",
+   "name": "Well",
+   "category": "hotel",
+   "categoryLabel": "Отель и глэмпинг",
+   "subcategory": "апарт-отель",
+   "description": "Апарт-отель. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Измайловский б-р, 1к2"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0246",
+   "name": "WE LODGE",
+   "category": "hotel",
+   "categoryLabel": "Отель и глэмпинг",
+   "subcategory": "глэмпинг у Медного озера",
+   "description": "Глэмпинг у Медного озера.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://welodge.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0247",
+   "name": "alvaar",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "сад-артпространство"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://alvaar.one"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0248",
+   "name": "ALP (Art Love Place)",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Газовая ул., 10Н"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://artloveplace.com"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/artloveplace"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0249",
+   "name": "Анненкирхе",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "кирха-площадка",
+   "description": "Кирха-площадка. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0250",
+   "name": "«Брусницын»",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "лофт",
+   "description": "Лофт (кают-компания, лазерный каток зимой). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://brusnitsyn.spb.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0251",
+   "name": "Дворец Кваренги",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "концерты",
+   "description": "Концерты. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Казанская ул., 7"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0252",
+   "name": "Завод Разин",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Курляндская ул., 48"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/Razinlive"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0253",
+   "name": "«Казармы на Фонтанке»",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "площадка",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0254",
+   "name": "ЛХЗ (Ленинградский хлебозавод)",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "музей хлеба + арт-пространство",
+   "description": "Музей хлеба + арт-пространство.",
+   "addresses": [
+    "Барочная ул., 4А"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://levashovsky.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0255",
+   "name": "«Мануфактура 10|12»",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "площадка феста",
+   "description": "Площадка феста. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Красного Текстильщика ул., 10-12"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0256",
+   "name": "«Мох(сад)»",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "сад в Сестрорецке"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/mox.cad"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0257",
+   "name": "Новая Голландия",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://www.newhollandsp.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0258",
+   "name": "Оранжерея Таврического сада",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "площадка",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0259",
+   "name": "Особняк Мясникова",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "ресторан-усадьба и арт-площадка",
+   "description": "Ресторан-усадьба и арт-площадка.",
+   "addresses": [
+    "Восстания ул., 45"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://osobnyak-myasnikova.ru/afisha/"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0260",
+   "name": "«Пламя» (Колпино)",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "мультиплейс",
+   "description": "Мультиплейс. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0261",
+   "name": "Севкабель Порт",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Кожевенная линия, 40"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://sevcableport.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0262",
+   "name": "Склад (Выборг)",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Прогонная ул., 8"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/viipurinkatu/1596"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0264",
+   "name": "«Станция»",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://sturmgroup.art"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0265",
+   "name": "Центр Курёхина (ЦСИ)",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "площадка фестов",
+   "description": "Площадка фестов. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0266",
+   "name": "«Транзитная Зона»",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://transit.artmolodost.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0267",
+   "name": "«Ясная Поляна»",
+   "category": "artspace",
+   "categoryLabel": "Арт-пространство",
+   "subcategory": "коворкинг на Петроградке",
+   "description": "Коворкинг на Петроградке (месяц маркетинга). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/vse_yap"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0268",
+   "name": "9am Running Club",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "раннинг-клуб",
+   "description": "Раннинг-клуб. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0269",
+   "name": "Amby",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "массаж",
+   "description": "Массаж. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0270",
+   "name": "«Баня друга»",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "дер. Новосаратовка, 90/2"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/banyadruga"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0271",
+   "name": "BROOMS",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "банный комплекс",
+   "description": "Банный комплекс.",
+   "addresses": [
+    "Лермонтовский пр., 43к1"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://broomssteam.ru"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/Brooms_spa"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0272",
+   "name": "«Камыши»",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "баня",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0273",
+   "name": "«Комета»",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "падел-клуб",
+   "description": "Падел-клуб. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0274",
+   "name": "Movements Hands",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "массажный дом",
+   "description": "Массажный дом.",
+   "addresses": [
+    "Марата 26/11",
+    "Лизы Чайкиной 26Б",
+    "Московский пр. 183-185А к4"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://movements-hands.com"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0275",
+   "name": "No Mad People",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "йога-студия",
+   "description": "Йога-студия (Намыв).",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/no.madpeople"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0276",
+   "name": "parna baenka",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "баня",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/parnabaenka"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0277",
+   "name": "«Сила ветра»",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "парусный клуб и яхт-комьюнити",
+   "description": "Парусный клуб и яхт-комьюнити.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/silavetraspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0278",
+   "name": "SMSTRETCHING",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "студия растяжки",
+   "description": "Студия растяжки.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/smstretching_spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0279",
+   "name": "Ubud",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "йога-студия",
+   "description": "Йога-студия. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/ubudyogaspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0280",
+   "name": "Hot Yoga 36",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "йога-студия",
+   "description": "Йога-студия (вечеринки с живой электроникой). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0281",
+   "name": "«Шишкин пар»",
+   "category": "sport",
+   "categoryLabel": "Баня, спорт, фитнес",
+   "subcategory": "баня",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0282",
+   "name": "«Конюшенный музей» (KGallery)",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://kgallery.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0283",
+   "name": "Ленинградский хлебозавод",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "см. «Арт-пространства»",
+   "description": "См. «Арт-пространства».",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0284",
+   "name": "«Манеж»",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Исаакиевская пл., 1"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://manege.spb.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0285",
+   "name": "Музей Фаберже",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://makovskys.fabergemuseum.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0286",
+   "name": "Музей-квартира Куинджи",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0287",
+   "name": "Музей ОБЭРИУ",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://oberiumuseum.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0288",
+   "name": "«Пенаты»",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "музей-усадьба Репина в Репино",
+   "description": "Музей-усадьба Репина в Репино. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0289",
+   "name": "Российский этнографический музей",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Инженерная ул., 4/1"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0290",
+   "name": "Царское Село",
+   "category": "museum",
+   "categoryLabel": "Музей",
+   "subcategory": "музей-заповедник",
+   "description": "Музей-заповедник. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://tzar.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0291",
+   "name": "Александринский театр",
+   "category": "theatre",
+   "categoryLabel": "Театр",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://alexandrinsky.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0292",
+   "name": "Балтийский дом",
+   "category": "theatre",
+   "categoryLabel": "Театр",
+   "subcategory": "театр",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0293",
+   "name": "«Мастерская»",
+   "category": "theatre",
+   "categoryLabel": "Театр",
+   "subcategory": "театр",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0294",
+   "name": "«Морфеус»",
+   "category": "theatre",
+   "categoryLabel": "Театр",
+   "subcategory": "иммерсивный театр",
+   "description": "Иммерсивный театр.",
+   "addresses": [
+    "наб. реки Мойки, 28"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/morpheushow"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0295",
+   "name": "«Невидимый театр»",
+   "category": "theatre",
+   "categoryLabel": "Театр",
+   "subcategory": "театр",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0296",
+   "name": "Такой театр",
+   "category": "theatre",
+   "categoryLabel": "Театр",
+   "subcategory": "",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://takoy-teatr.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0297",
+   "name": "Театр «27»",
+   "category": "theatre",
+   "categoryLabel": "Театр",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Комсомола ул., 2"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0298",
+   "name": "Театр «Зазеркалье»",
+   "category": "theatre",
+   "categoryLabel": "Театр",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Рубинштейна ул., 13"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0299",
+   "name": "Community print",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "шелкография",
+   "description": "Шелкография.",
+   "addresses": [
+    "мастер-классы"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://community-print.ru/workshops/"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/communityprint"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0300",
+   "name": "«Двери с помоек»",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "реставрация мебели",
+   "description": "Реставрация мебели.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/mmmsuupra"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0301",
+   "name": "F5",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "кассетные эксперименты и шум",
+   "description": "Кассетные эксперименты и шум. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/f5_noisegraph"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0302",
+   "name": "«Зорка»",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "студия керамики",
+   "description": "Студия керамики.",
+   "addresses": [
+    "Севкабель Порт",
+    "Кожевенная линия, 34а"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://zorcaceramica.ru"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/zorca_ceramica"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0303",
+   "name": "Катя Салденик",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "керамика",
+   "description": "Керамика. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/katya.saldenik"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0304",
+   "name": "«Пилим и пилим»",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "столярная студия в Севкабеле",
+   "description": "Столярная студия в Севкабеле.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/pilim.i.pilim"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0305",
+   "name": "«Своя Форма»",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "ювелирные ретриты",
+   "description": "Ювелирные ретриты. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/svoyaformaa"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0306",
+   "name": "Statement",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "фотостудия",
+   "description": "Фотостудия. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0307",
+   "name": "UU («Бутылка»)",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "фотоателье",
+   "description": "Фотоателье.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://reservation.uuphotostudio.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0308",
+   "name": "«Шипр»",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "фотоателье",
+   "description": "Фотоателье.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/shipr_photo"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0309",
+   "name": "«ЮГ 7»",
+   "category": "workshop",
+   "categoryLabel": "Мастерская и студия",
+   "subcategory": "веломастерская и прокат",
+   "description": "Веломастерская и прокат.",
+   "addresses": [
+    "м. Парк Победы"
+   ],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/yg7garage"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0310",
+   "name": "«Аврора»",
+   "category": "cinema",
+   "categoryLabel": "Кино",
+   "subcategory": "кинотеатр",
+   "description": "",
+   "addresses": [
+    "Невский пр., 60"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0311",
+   "name": "Великан Парк",
+   "category": "cinema",
+   "categoryLabel": "Кино",
+   "subcategory": "кинотеатр",
+   "description": "",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://velikan-park.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0312",
+   "name": "«Ленфильм»",
+   "category": "cinema",
+   "categoryLabel": "Кино",
+   "subcategory": "киностудия",
+   "description": "Киностудия.",
+   "addresses": [
+    "экскурсии и крыша"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://lenfilm.ru/service/Ekskursii-lenfilm/"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0313",
+   "name": "Michèle",
+   "category": "cinema",
+   "categoryLabel": "Кино",
+   "subcategory": "кинотеатр",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0314",
+   "name": "Out Cinema",
+   "category": "cinema",
+   "categoryLabel": "Кино",
+   "subcategory": "кинопоказы",
+   "description": "Кинопоказы. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0315",
+   "name": "«Родина»",
+   "category": "cinema",
+   "categoryLabel": "Кино",
+   "subcategory": "кинотеатр",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0316",
+   "name": "«Художественный»",
+   "category": "cinema",
+   "categoryLabel": "Кино",
+   "subcategory": "кинотеатр",
+   "description": "",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0317",
+   "name": "«Вулкан Варио»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "экотропа на курорте «Ялгора»",
+   "description": "Экотропа на курорте «Ялгора» (Карелия).",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://vvario.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0318",
+   "name": "«Гэнгъ»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "реставрационный проект",
+   "description": "Реставрационный проект. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://kraevedgang.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0319",
+   "name": "«К черту на кулички»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "карельский кэмп",
+   "description": "Карельский кэмп.",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://kchertunakulichki.ru"
+    },
+    {
+     "type": "telegram",
+     "url": "https://t.me/karelkemp"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0320",
+   "name": "Caffè Letterario",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "итальянский книжный клуб",
+   "description": "Итальянский книжный клуб. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/iicspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0321",
+   "name": "«Открытый город»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "экскурсии",
+   "description": "Экскурсии. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://открытыйгород.рф"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0322",
+   "name": "Петербургский центр подологии",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "сеть",
+   "description": "Сеть. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "8 адресов"
+   ],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://podolog78.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0323",
+   "name": "«Петербург глазами инженера»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "архитектурные экскурсии",
+   "description": "Архитектурные экскурсии. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://spb.engineer-history.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0324",
+   "name": "«Петербургский салон у Марфы»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "лекции и экскурсии",
+   "description": "Лекции и экскурсии. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/salonmarfa"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0325",
+   "name": "Петрикирхе",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "смотровая площадка на башне",
+   "description": "Смотровая площадка на башне. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0326",
+   "name": "Планетарий (СПб)",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "",
+   "description": "",
+   "addresses": [
+    "Александровский парк, 4"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0327",
+   "name": "«Планетарий №1»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "иммерсивный планетарий",
+   "description": "Иммерсивный планетарий. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "наб. Обводного канала, 74Ц"
+   ],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0328",
+   "name": "Rep Chess",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "шахматный клуб",
+   "description": "Шахматный клуб. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0329",
+   "name": "«Русские музыкальные сезоны»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "концерты",
+   "description": "Концерты. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://rmseasons.com"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0330",
+   "name": "Sexy English Breakfast Club",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "языковой клуб",
+   "description": "Языковой клуб. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": []
+  },
+  {
+   "slug": "shozhu-0331",
+   "name": "SayYes Club",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "языковой клуб",
+   "description": "Языковой клуб. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/sayyesspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0332",
+   "name": "Excuse My French",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "языковой клуб",
+   "description": "Языковой клуб. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "site",
+     "url": "https://www.excusemyfrench.ru"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0333",
+   "name": "«Теплота»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "салон красоты",
+   "description": "Салон красоты. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Гражданская ул., 16",
+    "Большая Посадская, 12"
+   ],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/teplota.spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0334",
+   "name": "Flotti",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "завтраки на катере",
+   "description": "Завтраки на катере. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/flotti_spb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0335",
+   "name": "«Ходим дома»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "экскурсии",
+   "description": "Экскурсии. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "telegram",
+     "url": "https://t.me/localtourspb"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0336",
+   "name": "«Низина»",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "зины и фотокниги",
+   "description": "Зины и фотокниги (проект, выставка в «Маяковке»). (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [],
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/nizinafest"
+    }
+   ]
+  },
+  {
+   "slug": "shozhu-0337",
+   "name": "Яани Кирик",
+   "category": "other",
+   "categoryLabel": "Место",
+   "subcategory": "концертная кирха",
+   "description": "Концертная кирха. (упомянуто в канале «Схожу, пожалуй»)",
+   "addresses": [
+    "Декабристов ул., 54А"
+   ],
+   "links": []
+  }
+ ]
+}

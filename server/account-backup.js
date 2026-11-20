@@ -26,6 +26,7 @@ const sources = [
     "identity_generated_reports", "planning_tasks", "planning_spaces", "planning_boards",
     "reservations", "roll_wallets", "roll_wish_rewards", "planning_notes", "planning_note_layouts",
     "health_lab_content", "health_tracker_entries", "reward_need_entries", "messenger_reads",
+    "place_waitlist",
   ].map((table) => [table, owned]),
   ["wishlists", owned, pick("id", "user_id", "title", "description", "privacy", "occasion_date", "color", "created_at", "space")],
   ["wish_participants", `(${owned} OR ${ownedWish})`, pick("wish_id", "user_id", "created_at")],

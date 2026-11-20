@@ -52,6 +52,7 @@ import { registerRollsRoutes } from "./modules/payments/rolls-routes.js";
 import { registerCdekRoutes } from "./modules/delivery/cdek-routes.js";
 import { registerPersonalOfferRoutes } from "./personal-offers.js";
 import { registerBusinessMarketplaceRoutes } from "./modules/catalog-marketplace/business-marketplace.js";
+import { registerPlaceListingRoutes } from "./modules/catalog-marketplace/place-listings.js";
 import { registerNeedRewardsRoutes, startNeedRewardSettlementWorker } from "./modules/loyalty/need-rewards.js";
 import { checkRewardProofRuntime, startRewardProofWorker } from "./modules/loyalty/reward-proof-queue.js";
 
@@ -700,6 +701,7 @@ registerTonContactCardRoutes(app, { requireAuth, rateLimit: contactCardRateLimit
 registerTonRollsRoutes(app, { requireAuth, query, transaction });
 registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
+registerPlaceListingRoutes(app, { requireAuth, query, transaction });
 registerPersonalOfferRoutes(app, { requireAuth, query, transaction });
 registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });

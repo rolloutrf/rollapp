@@ -32,6 +32,7 @@ import { LoadingScreen, EmptyState } from "../shell/page-feedback.jsx";
 import { wishlistSpace } from "@/modules/wishlist/wishlist-business.jsx";
 import { isBrandCatalogSearch } from "../../../shared/modules/catalog-marketplace/catalog-links.js";
 import { BusinessCatalogList } from "@/modules/catalog-marketplace/catalog-brands.jsx";
+import { PlaceListingsList } from "@/modules/catalog-marketplace/place-listings.jsx";
 import { SphereShareAction } from "@/modules/access/sphere-share-action.jsx";
 import { withWishReward } from "../loyalty/wish-reward.jsx";
 import { scheduleDocumentScrollUnlock } from "../shell/document-scroll.jsx";
@@ -284,6 +285,7 @@ export function WishCatalogPage() {
   if (source === "brands" && !selectedBrand) return (
     <div className="app-page wish-catalog-page page-stack">
       <BusinessCatalogList />
+      <PlaceListingsList />
       <SphereShareAction />
     </div>
   );
