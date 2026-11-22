@@ -370,7 +370,7 @@ async function checkPersistentBusinessProfile(width, height) {
   const fixture = `${smokeOrigin(server)}/__business-profile?profile-sections&public&offers&seller`;
   const hero = page.getByRole("region", { name: "Мастерская подарков и хорошего настроения" });
   const links = hero.getByRole("group", { name: "Действия с бизнес-профилем" });
-  const clients = page.getByRole("heading", { name: "Доступ к пространствам клиентов" });
+  const clients = page.getByRole("heading", { name: "Клиенты", exact: true });
   const announcement = page.getByRole("heading", { name: "Объявление профиля", exact: true });
   const item = page.getByRole("button", { name: "Открыть «Товар мастерской»", exact: true });
 
@@ -434,11 +434,12 @@ async function checkPersistentBusinessProfile(width, height) {
     await open("Клиенты");
     assert.equal(new URL(page.url()).pathname, APP_BUSINESS_ACCESS_PATH);
     await clients.waitFor();
-    await page.getByText("Загружаем доступы и запросы…", { exact: true }).waitFor();
+    await page.getByText("Загружаем ранее открытые разделы…", { exact: true }).waitFor();
     await verify("Клиенты");
     assert.equal(await page.getByRole("link", { name: "Моя страница", exact: true }).count(), 0);
     await page.evaluate(() => giftHarness.releaseAccess());
-    await page.getByText("У вас пока нет открытых разделов", { exact: true }).waitFor();
+    await page.getByText("Загружаем ранее открытые разделы…", { exact: true }).waitFor({ state: "hidden" });
+    assert.equal(await page.getByRole("region", { name: "Ранее открытые разделы" }).count(), 0);
     if (width === 390 && height > 400 || width === 1440) {
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
       await page.screenshot({ path: `/tmp/rollapp-business-profile-clients-${width}.png` });

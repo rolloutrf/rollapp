@@ -1,5 +1,5 @@
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
-import { FileText, Package } from "lucide-react";
+import { FileText, Package, Trash2 } from "lucide-react";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -13,14 +13,44 @@ import { PageActionButton } from "@/components/page-action-button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { PersonalOfferOperationDialog, readPendingPersonalOffers } from "@/modules/checkout/personal-offer-operation.jsx";
+import { fulfillmentLabel, PersonalOfferOperationDialog, readPendingPersonalOffers } from "@/modules/checkout/personal-offer-operation.jsx";
 import { ControlBar } from "@/components/control-bar";
 import { BUSINESS_CATEGORIES, canBusinessAccessSection } from "../../shared/modules/catalog-marketplace/business-accounts.js";
 import { SPHERE_SECTIONS } from "../../shared/modules/access/sphere-sharing.js";
 import { formatRolls } from "../../shared/modules/payments/rolls.js";
+import { publicSpacePath } from "../../shared/modules/profile/profile-links.js";
+import { formatEventDate } from "@/modules/wishlist/wish-form-data.jsx";
 
 export const durations = [["1", "1 час"], ["24", "24 часа"], ["72", "3 дня"], ["168", "7 дней"], ["720", "30 дней"]];
 const itemSpheres = BUSINESS_CATEGORIES.filter(({ sphere }) => sphere !== "wishlist").map(({ sphere, sphereLabel }) => [sphere, sphereLabel]);
+const offerExpiryFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" });
+
+export function RecipientPurchaseNeeds({ recipientId, client = api }) {
+  const [revision, setRevision] = useState(0);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    let active = true;
+    client.get(`/personal-offers/recipients/${encodeURIComponent(recipientId)}/needs`).then(({ needs }) => {
+      if (active) setResult({ recipientId, revision, needs });
+    }).catch(error => {
+      if (active) setResult({ recipientId, revision, error });
+    });
+    return () => { active = false; };
+  }, [recipientId, client, revision]);
+  if (result?.recipientId !== recipientId || result.revision !== revision) return <p role="status">Загружаем потребности…</p>;
+  if (result.error) return <Alert variant="destructive">
+    <AlertDescription>{result.error.message}</AlertDescription>
+    <Button type="button" variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button>
+  </Alert>;
+  if (!result.needs.length) return <p className="text-muted-foreground">Активных потребностей пока нет</p>;
+  return <ul className="grid min-w-0 gap-2" aria-label="Активные потребности покупателя">
+    {result.needs.map(need => <li key={need.id} className="grid gap-1 rounded-xl border p-3 wrap-anywhere">
+      <strong>{need.title}</strong>
+      {need.criteria && <span className="whitespace-pre-wrap">{need.criteria}</span>}
+      {need.neededBy && <span className="text-muted-foreground">Получить к <time dateTime={need.neededBy}>{formatEventDate(need.neededBy)}</time></span>}
+    </li>)}
+  </ul>;
+}
 
 export function PersonalOfferComposer({ item, client = api }) {
   const [open, setOpen] = useState(false);
@@ -29,6 +59,7 @@ export function PersonalOfferComposer({ item, client = api }) {
   const [recipient, setRecipient] = useState(null);
   const [price, setPrice] = useState(String(item.priceRolls || ""));
   const [hours, setHours] = useState("24");
+  const [fulfillmentTerms, setFulfillmentTerms] = useState("");
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,7 +79,7 @@ export function PersonalOfferComposer({ item, client = api }) {
     event.preventDefault();
     if (!recipient || lock.current) return;
     lock.current = true; setBusy(true); setError("");
-    const terms = { itemId: item.id, recipientId: recipient.id, priceRolls: Number(price), durationHours: Number(hours) };
+    const terms = { itemId: item.id, recipientId: recipient.id, priceRolls: Number(price), durationHours: Number(hours), fulfillmentTerms: fulfillmentTerms.trim() };
     const signature = JSON.stringify(terms);
     if (pending.current?.signature !== signature) pending.current = { signature, payload: { ...terms, idempotencyKey: crypto.randomUUID() } };
     try { await client.post("/personal-offers", pending.current.payload); setSent(true); }
@@ -56,19 +87,21 @@ export function PersonalOfferComposer({ item, client = api }) {
     finally { lock.current = false; setBusy(false); }
   };
   if (!open) return <Button variant="outline" onClick={() => setOpen(true)}>Рекомендовать с оффером</Button>;
-  if (sent) return <div className="flex flex-col gap-4"><p role="status">Персональный счёт создан. Получатель увидит его во вкладке «Счета» раздела «Предложения».</p><ControlBar><Button variant="outline" onClick={() => { setSent(false); setRecipient(null); pending.current = null; }}>Новый оффер</Button></ControlBar></div>;
+  if (sent) return <div className="flex flex-col gap-4"><p role="status">Предложение отправлено. Получатель увидит товар или услугу в разделе «Предложения».</p><ControlBar><Button variant="outline" onClick={() => { setSent(false); setRecipient(null); pending.current = null; }}>Новый оффер</Button></ControlBar></div>;
   return <form className="flex min-w-0 flex-col gap-4" onSubmit={submit} aria-label={`Оффер: ${item.title}`}>
     <Field><FieldLabel htmlFor={`offer-person-${item.id}`}>Получатель</FieldLabel>
       {recipient ? <div className="flex min-w-0 flex-wrap items-center gap-2"><span className="min-w-0 wrap-anywhere">{recipient.name} · @{recipient.username}</span><Button type="button" variant="outline" disabled={busy} onClick={() => setRecipient(null)}>Изменить</Button></div> : <>
         <Input id={`offer-person-${item.id}`} placeholder="Имя или username" value={search} onChange={e => { setSearch(e.target.value); setPeople([]); }} />
         <div className="flex max-h-60 min-w-0 flex-col gap-2 overflow-y-auto" role="group" aria-label="Пользователи">{people.map(person => <Button type="button" className="h-auto min-w-0 whitespace-normal wrap-anywhere" variant="outline" key={person.id} onClick={() => setRecipient(person)}>{person.name} · @{person.username}</Button>)}</div>
-        {!people.length && !error && <p className="text-muted-foreground">Предложения можно отправить подписчикам вашего бизнеса.</p>}
+        {!people.length && !error && <p className="text-muted-foreground">Здесь появятся покупатели, которые разрешили предложения вашему бренду.</p>}
       </>}
     </Field>
+    {recipient && <RecipientPurchaseNeeds recipientId={recipient.id} client={client} />}
     <Field><FieldLabel htmlFor={`offer-price-${item.id}`}>Цена в роллах</FieldLabel><Input id={`offer-price-${item.id}`} type="number" inputMode="numeric" min="1" max="1000000" step="1" required disabled={busy} value={price} onChange={e => setPrice(e.target.value)} /></Field>
-    <Field><FieldLabel htmlFor={`offer-hours-${item.id}`}>Срок с момента создания</FieldLabel><Select value={hours} onValueChange={setHours} disabled={busy}><SelectTrigger id={`offer-hours-${item.id}`} className="w-full"><SelectValue>{() => durations.find(([value]) => value === hours)?.[1]}</SelectValue></SelectTrigger><SelectContent>{durations.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
+    <Field><FieldLabel htmlFor={`offer-fulfillment-${item.id}`}>{fulfillmentLabel(item.itemType)}</FieldLabel><Input id={`offer-fulfillment-${item.id}`} value={fulfillmentTerms} maxLength={240} required disabled={busy} onChange={e => setFulfillmentTerms(e.target.value)} placeholder="Например, в течение 3 дней после оплаты" /></Field>
+    <Field><FieldLabel htmlFor={`offer-hours-${item.id}`}>Срок действия цены</FieldLabel><Select value={hours} onValueChange={setHours} disabled={busy}><SelectTrigger id={`offer-hours-${item.id}`} className="w-full"><SelectValue>{() => durations.find(([value]) => value === hours)?.[1]}</SelectValue></SelectTrigger><SelectContent>{durations.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <ControlBar className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>Отмена</Button><Button type="submit" disabled={!recipient || busy}>{busy ? "Создаём…" : "Создать счёт"}</Button></ControlBar>
+    <ControlBar className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>Отмена</Button><Button type="submit" disabled={!recipient || busy || !fulfillmentTerms.trim()}>{busy ? "Отправляем…" : "Отправить предложение"}</Button></ControlBar>
   </form>;
 }
 
@@ -123,7 +156,7 @@ export function BusinessPersonalOffers({ client = api, user }) {
   const empty = !loading && !error && !items.length && !creatingItem;
   return <section className="page-stack min-w-0" aria-labelledby="business-offers-title">
     {empty ? <h2 id="business-offers-title" className="sr-only">Рекомендовать товар</h2> : <header className="typeset typeset-rollapp"><h2 id="business-offers-title">Рекомендовать товар</h2>
-      <p>Выберите товар, получателя, персональную цену и срок. Созданные счета доступны в <Link to={sphereLink(`${APP_WISH_OFFERS_PATH}?view=invoices`, window.location)}>разделе «Предложения»</Link>.</p></header>}
+      <p>Выберите товар, получателя, персональную цену и срок исполнения. Отправленные позиции доступны в <Link to={sphereLink(APP_WISH_OFFERS_PATH, window.location)}>разделе «Предложения»</Link>.</p></header>}
     {loading && <p role="status">Загружаем товары…</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></AlertDescription></Alert>}
     {empty && <EmptyState compact icon={Package} title="У вашего бизнеса пока нет активных товаров или услуг." text="Добавьте товар, чтобы отправить персональное предложение." />}
@@ -134,7 +167,22 @@ export function BusinessPersonalOffers({ client = api, user }) {
   </section>;
 }
 
-export function PersonalOffers({ user, sphere, client = api }) {
+function OfferCard({ title, attribution, price, itemType, fulfillmentTerms, imageUrl, children }) {
+  return <article className="relative flex min-w-0 flex-col gap-3 rounded-2xl border p-4">
+    <div className="flex min-w-0 items-start gap-4">
+      {imageUrl && <img src={imageUrl} alt="" loading="lazy" className="size-20 shrink-0 rounded-xl object-cover" />}
+      <div className="grid min-w-0 flex-1 gap-2 wrap-anywhere">
+        <header className="typeset typeset-rollapp"><h3>{title}</h3></header>
+        <p className="text-muted-foreground">{attribution}</p>
+        <p><strong>{price}</strong></p>
+        <p>{fulfillmentLabel(itemType)}: {fulfillmentTerms || "уточняется у продавца"}</p>
+      </div>
+    </div>
+    {children}
+  </article>;
+}
+
+export function PersonalOffers({ user, sphere, wishlistSpace, client = api }) {
   const [offers, setOffers] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -146,6 +194,8 @@ export function PersonalOffers({ user, sphere, client = api }) {
   const [now, setNow] = useState(Date.now());
   const [nextOffset, setNextOffset] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [legacy, setLegacy] = useState({ items: [], loading: Boolean(wishlistSpace), error: "" });
+  const [dismissing, setDismissing] = useState(null);
   const paginated = useRef(false);
   const moreLock = useRef(false);
   const mounted = useRef(false);
@@ -180,6 +230,28 @@ export function PersonalOffers({ user, sphere, client = api }) {
     }, 30000);
     return () => clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (!wishlistSpace) return;
+    let active = true;
+    client.get(`/wishlist-business/${wishlistSpace}/offers`).then(({ items }) => {
+      if (active) setLegacy({ items: items.filter(item => !item.personalOffer), loading: false, error: "" });
+    }).catch(e => {
+      if (active) setLegacy(previous => ({ ...previous, loading: false, error: e.message }));
+    });
+    return () => { active = false; };
+  }, [wishlistSpace, client, revision]);
+  async function dismissRecommendation(item) {
+    setDismissing(item.id);
+    try {
+      await client.delete(`/wishlist-business/${wishlistSpace}/offers/${encodeURIComponent(item.offerId)}`);
+      setLegacy(previous => ({ ...previous, items: previous.items.filter(entry => entry.id !== item.id) }));
+      setRevision(value => value + 1);
+    } catch (e) {
+      setLegacy(previous => ({ ...previous, error: e.message }));
+    } finally {
+      setDismissing(null);
+    }
+  }
   const loadMore = async () => {
     if (nextOffset == null || moreLock.current) return;
     const sourceUser = user.id;
@@ -216,58 +288,53 @@ export function PersonalOffers({ user, sphere, client = api }) {
     setSelected(null);
     setRevision(value => value + 1);
   }
-  const empty = !loading && !error && !offers.length && !pending.length && !operationResult;
-  return <section ref={offerSection} tabIndex={-1} className="flex min-w-0 flex-col gap-4" aria-labelledby="personal-offers-title">
-    {empty ? <h2 id="personal-offers-title" className="sr-only">Персональные офферы</h2> : <header className="typeset typeset-rollapp"><h2 id="personal-offers-title">Персональные офферы</h2></header>}
-    {pending.length > 0 && <div className="grid gap-2" role="group" aria-label="Счета, ожидающие проверки">
-      {pending.map(({ offer, action }) => <div key={`${offer.id}:${action}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border p-4">
-        <p className="min-w-0 wrap-anywhere">{action === "refund" ? "Возврат" : "Оплата"} · {offer.title} · {formatRolls(offer.priceRolls)}</p>
-        <PageActionButton variant="outline" onClick={(event) => openOperation(event, offer, action)}>Открыть проверку</PageActionButton>
-      </div>)}
-    </div>}
+  const empty = !loading && !legacy.loading && !error && !legacy.error && !offers.length && !legacy.items.length && !pending.length && !operationResult;
+  const title = wishlistSpace ? "Предложения" : "Персональные офферы";
+  return <section ref={offerSection} tabIndex={-1} className="flex min-w-0 flex-col gap-4" aria-label={empty ? title : undefined} aria-labelledby={empty ? undefined : "personal-offers-title"}>
+    {!empty && <header className="typeset typeset-rollapp"><h2 id="personal-offers-title">{title}</h2></header>}
+    {pending.filter(({ offer }) => !offers.some(({ id }) => id === offer.id)).map(({ offer, action }) => (
+      <OfferCard key={`${offer.id}:${action}`} {...offer} price={formatRolls(offer.priceRolls)} attribution={offer.business.name}>
+        <PageActionButton className="self-start" variant="outline" onClick={(event) => openOperation(event, offer, action)}>Открыть проверку</PageActionButton>
+      </OfferCard>
+    ))}
     {operationResult && !offers.some(({ id }) => id === operationResult.id) && <p role="status" className="wrap-anywhere">
       {operationResult.refunded ? `По счёту «${operationResult.title}» роллы возвращены.` : `Счёт «${operationResult.title}» оплачен.`}
     </p>}
-    {loading && <p role="status">Загружаем счета…</p>}
+    {(loading || legacy.loading) && <p role="status">{wishlistSpace ? "Загружаем предложения…" : "Загружаем счета…"}</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" disabled={loadingMore} onClick={refreshOffers}>Повторить</Button></AlertDescription></Alert>}
-    {empty && <EmptyState compact={!sphere} icon={FileText} title="Персональных предложений пока нет" text="Здесь появятся персональные счета от бизнеса." />}
+    {legacy.error && <Alert variant="destructive"><AlertDescription>{legacy.error}<Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></AlertDescription></Alert>}
+    {empty && <EmptyState compact={!sphere && !wishlistSpace} icon={FileText} title={wishlistSpace ? "Предложений пока нет" : "Персональных предложений пока нет"} text={wishlistSpace ? "Здесь появятся товары и услуги, предложенные вам продавцами." : "Здесь появятся персональные счета от бизнеса."} />}
     {offers.map(offer => {
       const expired = offer.status === "expired" || new Date(offer.expiresAt).getTime() <= now;
       const outgoing = offer.business.id === user.id;
-      return <article key={offer.id} className="flex min-w-0 flex-col gap-3 rounded-2xl border p-4">
-        <div className="typeset typeset-rollapp"><h3 className="break-words">{offer.title}</h3>
-        <p>{outgoing ? `Для: ${offer.recipient.name}` : `От: ${offer.business.name}`}</p>
-        <p><strong>{formatRolls(offer.priceRolls)}</strong></p>
-        <p className="text-muted-foreground">Действует до <time dateTime={offer.expiresAt}>{new Date(offer.expiresAt).toLocaleString("ru-RU")}</time></p></div>
-        {offer.status === "refunded" ? <p role="status">Роллы возвращены</p>
+      const recovery = pending.find(entry => entry.offer.id === offer.id);
+      return <OfferCard key={offer.id} {...offer} price={formatRolls(offer.priceRolls)} attribution={outgoing ? `Для: ${offer.recipient.name}` : offer.business.name}>
+        {!expired && offer.status === "active" && <p className="text-muted-foreground">Цена действует до <time dateTime={offer.expiresAt}>{offerExpiryFormat.format(new Date(offer.expiresAt))}</time></p>}
+        {recovery ? <ControlBar><Button variant="outline" aria-haspopup="dialog" onClick={(event) => openOperation(event, recovery.offer, recovery.action)}>Открыть проверку</Button></ControlBar>
+          : offer.status === "refunded" ? <p role="status">Роллы возвращены</p>
           : offer.status === "paid" ? <>
             <p role="status">Оплачен</p>
             {outgoing && <ControlBar><Button variant="outline" onClick={(event) => openOperation(event, offer, "refund")}>Вернуть роллы</Button></ControlBar>}
-          </> : expired ? <p>Срок истёк</p> : offer.status === "unavailable" ? <p role="status">Оплата сейчас недоступна</p> : outgoing ? <p>Ожидает оплаты</p> : <ControlBar><Button onClick={(event) => openOperation(event, offer, "pay")}>Оплатить</Button></ControlBar>}
-      </article>;
+          </> : expired ? <p>Срок истёк</p> : offer.status === "unavailable" ? <p role="status">Оплата сейчас недоступна</p> : outgoing ? <p>Ожидает оплаты</p>
+            : <ControlBar><Button aria-haspopup="dialog" className={wishlistSpace ? "after:absolute after:inset-0 after:rounded-2xl" : undefined} onClick={(event) => openOperation(event, offer, "pay")}>{wishlistSpace ? "К оформлению" : "Оплатить"}</Button></ControlBar>}
+      </OfferCard>;
     })}
+    {legacy.items.map(item => (
+      <OfferCard key={`recommendation:${item.id}`} {...item} price={item.price || "Цена по запросу"} attribution={item.business.name} itemType={wishlistSpace === "products" ? "product" : undefined}>
+        <ControlBar className="flex flex-wrap gap-2">
+          {item.actionUrl
+            ? <Button variant="outline" nativeButton={false} render={<a href={item.actionUrl} target="_blank" rel="noopener noreferrer" />}>Открыть у продавца</Button>
+            : <PageActionButton variant="outline" to={publicSpacePath(item.business, wishlistSpace)}>Страница продавца</PageActionButton>}
+          <Button variant="destructive" size="icon" data-control-icon disabled={dismissing !== null} aria-label="Отклонить предложение" onClick={() => dismissRecommendation(item)}><Trash2 aria-hidden="true" /></Button>
+        </ControlBar>
+      </OfferCard>
+    ))}
     {(nextOffset != null || paginated.current) && <ControlBar className="flex flex-wrap gap-2">
-      {nextOffset != null && <Button variant="outline" disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Загружаем…" : "Показать ещё счета"}</Button>}
-      {paginated.current && <Button variant="outline" disabled={loadingMore} onClick={refreshOffers}>Обновить счета</Button>}
+      {nextOffset != null && <Button variant="outline" disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Загружаем…" : wishlistSpace ? "Показать ещё" : "Показать ещё счета"}</Button>}
+      {paginated.current && <Button variant="outline" disabled={loadingMore} onClick={refreshOffers}>{wishlistSpace ? "Обновить предложения" : "Обновить счета"}</Button>}
     </ControlBar>}
     {selected?.userId === user.id && <PersonalOfferOperationDialog userId={user.id} offer={selected.offer} action={selected.action}
       client={client} returnFocus={() => operationOpener.current?.isConnected ? operationOpener.current : offerSection.current}
       onDone={completeOperation} onClose={() => setSelected(null)} />}
   </section>;
-}
-
-export function OfferPaymentAction({ offer, userId, onPaid }) {
-  const [open, setOpen] = useState(false);
-  const [outcome, setOutcome] = useState(null);
-  const opener = useRef(null);
-  const pending = readPendingPersonalOffers(userId).some((entry) => entry.action === "pay" && entry.offer.id === offer.id);
-  if (!pending && (offer.status === "refunded" || outcome === "refunded")) return <span role="status">Роллы возвращены</span>;
-  if (!pending && (offer.status === "paid" || outcome === "paid")) return <span role="status">Оплачен</span>;
-  if (!pending && (offer.status === "expired" || new Date(offer.expiresAt).getTime() <= Date.now())) return <span>Срок истёк</span>;
-  return <>
-    <Button ref={opener} className="min-w-0 flex-1" onClick={() => setOpen(true)}>{pending ? "Открыть проверку" : "Оплатить"}</Button>
-    {open && <PersonalOfferOperationDialog userId={userId} offer={{ ...offer, recipient: offer.recipient ?? { id: userId } }} action="pay" returnFocus={opener}
-      onDone={(purchase) => { setOutcome(purchase.refundedAt ? "refunded" : "paid"); setOpen(false); onPaid?.(); }}
-      onClose={() => setOpen(false)} />}
-  </>;
 }

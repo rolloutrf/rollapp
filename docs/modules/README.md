@@ -23,7 +23,7 @@
 | 10 | [История операций](10-history.md) | История роллов, заказы, подборки действий и просмотр квитанций | [Клиент](../../src/modules/history/) · [Сервер](../../server/modules/history/) · [Общий код](../../shared/modules/history/) |
 | 12 | [Лояльность](12-loyalty.md) | Приветствие, сертификаты в профиле, выпуск карт и восстановление операций, награды за потребности | [Клиент](../../src/modules/loyalty/) · [Сервер](../../server/modules/loyalty/) |
 | 13 | [Ассистент](13-assistant.md) | Рекомендации подарков, поиск предложений, OpenRouter | [Клиент](../../src/modules/assistant/) · [Сервер](../../server/modules/assistant/) |
-| 14 | [Доступ и выдача прав](14-access.md) | Приватность списков, ссылки, бизнес-запросы и отзыв доступа из личных разделов | [Клиент](../../src/modules/access/) · [Сервер](../../server/modules/access/) · [Общий код](../../shared/modules/access/) |
+| 14 | [Доступ и выдача прав](14-access.md) | Приватность списков, ссылки и отзыв прежнего доступа в каталоге | [Клиент](../../src/modules/access/) · [Сервер](../../server/modules/access/) · [Общий код](../../shared/modules/access/) |
 | 15 | [Вишлист](15-wishlist.md) | Желания, списки, группы, резерв, покупки и бюджеты, архив, заметки, предложения и счета | [Клиент](../../src/modules/wishlist/) · [Сервер](../../server/modules/wishlist/) |
 | 16 | [Каталог и витрины](16-catalog-marketplace.md) | Бренды, транспорт, ассортимент, магазины | [Клиент](../../src/modules/catalog-marketplace/) · [Сервер](../../server/modules/catalog-marketplace/) · [Общий код](../../shared/modules/catalog-marketplace/) |
 | 17 | [Друзья и подписки](17-social.md) | Подписки, подписчики, поиск людей и дни рождения | [Клиент](../../src/modules/social/) · [Сервер](../../server/modules/social/) |

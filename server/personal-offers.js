@@ -7,6 +7,7 @@ import { RollsError, transferPersonalOfferRolls } from "./modules/payments/rolls
 import { canManageWishlistSpace } from "../shared/modules/wishlist/wishlist-business.js";
 import { BUSINESS_OFFER_SPHERES, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { SPHERE_SECTIONS } from "../shared/modules/access/sphere-sharing.js";
+import { brandOfferScope, lockBrandOfferConsent } from "./modules/access/brand-offer-consent.js";
 
 export const personalOffersSchema = `
   CREATE TABLE IF NOT EXISTS business_personal_offers (
@@ -16,6 +17,7 @@ export const personalOffersSchema = `
     item_id TEXT REFERENCES business_marketplace_items(id),
     wishlist_item_id TEXT REFERENCES wishlist_business_items(id),
     item_title VARCHAR(160) NOT NULL,
+    fulfillment_terms VARCHAR(240) NOT NULL DEFAULT '',
     price_rolls BIGINT NOT NULL CHECK (price_rolls BETWEEN 1 AND 1000000),
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
@@ -30,12 +32,15 @@ export const personalOffersSchema = `
     ON business_personal_offers(recipient_id, created_at DESC);
 `;
 
+export const personalOfferFulfillmentSchema = z.string().trim().max(240).default("");
+
 export const createPersonalOfferSchema = z.object({
   itemId: z.string().trim().min(1).max(200),
   itemSource: z.enum(["marketplace", "wishlist"]).default("marketplace"),
   recipientId: z.string().trim().min(1).max(200),
   priceRolls: z.number().int().min(1).max(1000000),
   durationHours: z.number().int().min(1).max(720),
+  fulfillmentTerms: personalOfferFulfillmentSchema,
   idempotencyKey: z.string().uuid(),
 }).strict();
 
@@ -94,6 +99,7 @@ async function lockPersonalOfferSubscription(client, recipientId, businessId) {
 }
 
 async function lockPersonalOfferPaymentConsent(client, recipientId, businessId, wishlistSpace) {
+  if (await lockBrandOfferConsent(client, recipientId, businessId)) return true;
   if (await lockPersonalOfferSubscription(client, recipientId, businessId)) return true;
   if (!wishlistSpace) return false;
   const grants = await client.query(`SELECT 1 FROM sphere_section_shares
@@ -119,7 +125,7 @@ async function lockPersonalOfferPaymentAccess(client, offer, recipientId) {
 
 function readPersonalOfferAvailability(row) {
   const wishlist = Boolean(row.wishlist_item_id);
-  return Boolean(row.current_item_id && row.current_item_live && (row.subscribed || (wishlist && row.wishlist_consent)) &&
+  return Boolean(row.current_item_id && row.current_item_live && (row.offer_consent || row.subscribed || (wishlist && row.wishlist_consent)) &&
     personalOfferItemAllowed(row, { space: row.current_space, sphere: row.current_sphere }, wishlist));
 }
 
@@ -129,10 +135,13 @@ export function personalOfferStatus(row, available = true) {
 }
 
 export function personalOfferFromRow(row) {
+  const available = readPersonalOfferAvailability(row);
   return { id: row.id, itemId: row.wishlist_item_id || row.item_id, itemSource: row.wishlist_item_id ? "wishlist" : "marketplace", title: row.item_title,
     priceRolls: Number(row.price_rolls), expiresAt: row.expires_at,
+    fulfillmentTerms: row.fulfillment_terms || "", itemType: row.current_item_type,
+    ...(available && { imageUrl: row.current_item_image_url, description: row.current_item_description }),
     createdAt: row.created_at, purchaseId: row.purchase_id,
-    status: personalOfferStatus(row, readPersonalOfferAvailability(row)),
+    status: personalOfferStatus(row, available),
     business: { id: row.business_user_id, name: row.business_name },
     recipient: { id: row.recipient_id, name: row.recipient_name } };
 }
@@ -148,7 +157,7 @@ export async function createPersonalOffer(client, businessId, input) {
   const previous = await client.query("SELECT *, EXTRACT(EPOCH FROM (expires_at-created_at))/3600 AS duration_hours FROM business_personal_offers WHERE business_user_id=$1 AND idempotency_key=$2", [businessId, data.idempotencyKey]);
   if (previous.rowCount) {
     const row = previous.rows[0];
-    if ((data.itemSource === "wishlist" ? row.wishlist_item_id : row.item_id) !== data.itemId || row.recipient_id !== data.recipientId || Number(row.price_rolls) !== data.priceRolls || Number(row.duration_hours) !== data.durationHours) {
+    if ((data.itemSource === "wishlist" ? row.wishlist_item_id : row.item_id) !== data.itemId || row.recipient_id !== data.recipientId || Number(row.price_rolls) !== data.priceRolls || Number(row.duration_hours) !== data.durationHours || (row.fulfillment_terms || "") !== data.fulfillmentTerms) {
       throw new RollsError("Ключ уже использован для другого оффера", "IDEMPOTENCY_CONFLICT", 409);
     }
     return { id: row.id, replayed: true };
@@ -161,14 +170,26 @@ export async function createPersonalOffer(client, businessId, input) {
   }
   const recipient = await client.query("SELECT id FROM users WHERE id=$1 AND account_type='personal'", [data.recipientId]);
   if (!recipient.rowCount) throw new RollsError("Пользователь не найден", "RECIPIENT_NOT_FOUND", 404);
-  if (!await lockPersonalOfferSubscription(client, data.recipientId, businessId)) {
-    throw new RollsError("Получатель не подписан на ваш бизнес", "OFFER_CONSENT_REQUIRED", 403);
+  if (!await lockBrandOfferConsent(client, data.recipientId, businessId)) {
+    throw new RollsError("Покупатель не разрешил предложения вашему бренду", "OFFER_CONSENT_REQUIRED", 403);
   }
   const id = randomUUID();
-  await client.query(`INSERT INTO business_personal_offers
-    (id,business_user_id,recipient_id,item_id,item_title,price_rolls,created_at,expires_at,idempotency_key,wishlist_item_id)
-    SELECT $1,$2,$3,$4,$5,$6,t,t+($7 * INTERVAL '1 hour'),$8,$9 FROM (SELECT clock_timestamp() AS t) now`,
-  [id, businessId, data.recipientId, wishlist ? null : data.itemId, item.title, data.priceRolls, data.durationHours, data.idempotencyKey, wishlist ? data.itemId : null]);
+  const values = [id, businessId, data.recipientId, wishlist ? null : data.itemId, item.title, data.priceRolls,
+    data.durationHours, data.idempotencyKey, wishlist ? data.itemId : null];
+  // Omitted terms keep existing clients compatible with the previous schema.
+  const termsColumn = data.fulfillmentTerms ? ",fulfillment_terms" : "";
+  const termsValue = data.fulfillmentTerms ? ",$10" : "";
+  if (data.fulfillmentTerms) values.push(data.fulfillmentTerms);
+  try {
+    await client.query(`INSERT INTO business_personal_offers
+      (id,business_user_id,recipient_id,item_id,item_title,price_rolls,created_at,expires_at,idempotency_key,wishlist_item_id${termsColumn})
+      SELECT $1,$2,$3,$4,$5,$6,t,t+($7 * INTERVAL '1 hour'),$8,$9${termsValue} FROM (SELECT clock_timestamp() AS t) now`, values);
+  } catch (error) {
+    if (data.fulfillmentTerms && error.code === "42703") {
+      throw new RollsError("Сохранение срока исполнения пока недоступно", "OFFER_FULFILLMENT_UNAVAILABLE", 503);
+    }
+    throw error;
+  }
   return { id, replayed: false };
 }
 
@@ -198,6 +219,7 @@ export async function payPersonalOffer(client, recipientId, offerId, { expectedP
   const delivery = {
     provider: "business", personalOfferId: offer.id, paymentTransactionId: payment.id,
     marketplaceItemId: offer.item_id, wishlistItemId: offer.wishlist_item_id, business: { id: offer.business_user_id },
+    ...(offer.fulfillment_terms && { fulfillmentTerms: offer.fulfillment_terms }),
   };
   await client.query(`INSERT INTO roll_store_purchases
     (id,user_id,product_id,product_title,amount,idempotency_key,delivery)
@@ -223,15 +245,15 @@ export function registerPersonalOfferRoutes(app, { requireAuth, query, transacti
   }));
   app.get("/api/personal-offers/items", requireAuth, handle(async (req, res) => {
     if (req.user.account_type !== "business") throw new RollsError("Нужен бизнес-аккаунт", "BUSINESS_REQUIRED", 403);
-    const result = await query("SELECT id,title,price_rolls FROM business_marketplace_items WHERE business_user_id=$1 AND active=TRUE ORDER BY title,id", [req.user.id]);
-    res.set("Cache-Control", "private, no-store").json({ items: result.rows.map(row => ({ id: row.id, title: row.title, priceRolls: row.price_rolls == null ? null : Number(row.price_rolls) })) });
+    const result = await query("SELECT id,title,price_rolls,item_type FROM business_marketplace_items WHERE business_user_id=$1 AND active=TRUE ORDER BY title,id", [req.user.id]);
+    res.set("Cache-Control", "private, no-store").json({ items: result.rows.map(row => ({ id: row.id, title: row.title, itemType: row.item_type, priceRolls: row.price_rolls == null ? null : Number(row.price_rolls) })) });
   }));
   app.get("/api/personal-offers/recipients", requireAuth, handle(async (req, res) => {
     if (req.user.account_type !== "business") throw new RollsError("Нужен бизнес-аккаунт", "BUSINESS_REQUIRED", 403);
     const search = String(req.query.search || "").trim().slice(0, 80).toLowerCase();
-    const { rows } = await query(`SELECT u.id,u.name,u.username FROM follows f
-      JOIN users u ON u.id=f.follower_id AND u.account_type='personal'
-      WHERE f.following_id=$1 AND ($2='' OR strpos(lower(u.name),$2)>0 OR strpos(lower(u.username),$2)>0)
+    const { rows } = await query(`SELECT u.id,u.name,u.username FROM sphere_section_shares s
+      JOIN users u ON u.id=s.owner_user_id AND u.account_type='personal'
+      WHERE s.viewer_user_id=$1 AND ${brandOfferScope} AND ($2='' OR strpos(lower(u.name),$2)>0 OR strpos(lower(u.username),$2)>0)
       ORDER BY lower(u.name),u.username LIMIT 50`, [req.user.id, search]);
     res.json({ people: rows });
   }));
@@ -242,7 +264,11 @@ export function registerPersonalOfferRoutes(app, { requireAuth, query, transacti
     const result = await query(`SELECT o.*,b.name AS business_name,r.name AS recipient_name,b.account_type,b.business_category,b.seller_space,
       o.expires_at <= clock_timestamp() AS expired,p.refunded_at,
       COALESCE(i.id,w.id) AS current_item_id,i.sphere AS current_sphere,w.space AS current_space,
+      COALESCE(i.item_type, CASE WHEN w.space='products' THEN 'product' END) AS current_item_type,
+      COALESCE(i.image_url,w.image_url) AS current_item_image_url,COALESCE(i.description,w.description) AS current_item_description,
       CASE WHEN o.wishlist_item_id IS NULL THEN i.active ELSE w.active AND storefront.published END AS current_item_live,
+      EXISTS(SELECT 1 FROM sphere_section_shares grants WHERE grants.owner_user_id=o.recipient_id AND grants.viewer_user_id=o.business_user_id
+        AND ${brandOfferScope}) AS offer_consent,
       EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=o.recipient_id AND f.following_id=o.business_user_id) AS subscribed,
       EXISTS(SELECT 1 FROM sphere_section_shares s WHERE s.owner_user_id=o.recipient_id AND s.viewer_user_id=o.business_user_id
         AND s.sphere='wishlist' AND s.section IN (w.space,'wishlist')) AS wishlist_consent

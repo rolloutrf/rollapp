@@ -19,7 +19,7 @@ const reject = (operation, code) => assert.rejects(operation, e => e.code === co
 
 test("offer terms require integer rolls, bounded duration and a stable request key", () => {
   assert(createPersonalOfferSchema.safeParse(input()).success);
-  for (const changes of [{ priceRolls: 0 }, { priceRolls: 1.5 }, { priceRolls: 1000001 }, { durationHours: 0 }, { durationHours: 721 }, { durationHours: 1.2 }, { idempotencyKey: "bad" }, { purchaseId: "forged" }]) {
+  for (const changes of [{ priceRolls: 0 }, { priceRolls: 1.5 }, { priceRolls: 1000001 }, { durationHours: 0 }, { durationHours: 721 }, { durationHours: 1.2 }, { fulfillmentTerms: "x".repeat(241) }, { idempotencyKey: "bad" }, { purchaseId: "forged" }]) {
     assert.equal(createPersonalOfferSchema.safeParse({ ...input(), ...changes }).success, false);
   }
 });
@@ -30,22 +30,28 @@ test("creation rejects personal sellers, self offers, unavailable or another bus
   const foreign = scripted([[/account_type='business'/, [{ id: "seller" }]], [/idempotency_key/, []], [/business_user_id=\$2 AND active=TRUE FOR SHARE/, []]]);
   await reject(createPersonalOffer(foreign, "seller", input()), "PRODUCT_NOT_FOUND"); foreign.done();
 });
-test("creating an offer requires the recipient's subscription and freezes the terms", async () => {
+test("creating an offer requires explicit brand consent and freezes the terms", async () => {
   const steps = [[/account_type='business'/, [{ id: "seller", account_type: "business" }]], [/idempotency_key/, []], [/FROM business_marketplace_items/, [{ title: "Original title", sphere: "education" }]], [/account_type='personal'/, [{ id: "buyer" }]]];
-  const unsubscribed = scripted([...steps, [/FROM follows.*FOR SHARE/, []]]);
+  const unsubscribed = scripted([...steps, [/FROM sphere_section_shares.*brand-offers.*FOR SHARE/s, []]]);
   await reject(createPersonalOffer(unsubscribed, "seller", input()), "OFFER_CONSENT_REQUIRED"); unsubscribed.done();
-  const client = scripted([...steps, [/FROM follows.*FOR SHARE/, [{ one: 1 }]], [/INSERT INTO business_personal_offers/, []]]);
+  const client = scripted([...steps, [/FROM sphere_section_shares.*brand-offers.*FOR SHARE/s, [{ one: 1 }]], [/INSERT INTO business_personal_offers/, []]]);
   const data = input(); const result = await createPersonalOffer(client, "seller", data);
   assert.equal(result.replayed, false);
   assert.deepEqual(client.calls.at(-2).params, ["buyer", "seller"]);
   assert.deepEqual(client.calls.at(-1).params.slice(1), ["seller", "buyer", "item", "Original title", 50, 24, data.idempotencyKey, null]);
   assert.match(client.calls.at(-1).sql, /clock_timestamp/); client.done();
+
+  const withTerms = scripted([...steps, [/FROM sphere_section_shares.*brand-offers.*FOR SHARE/s, [{ one: 1 }]], [/INSERT INTO business_personal_offers.*fulfillment_terms/s, []]]);
+  await createPersonalOffer(withTerms, "seller", { ...data, fulfillmentTerms: " В течение 3 дней " });
+  assert.equal(withTerms.calls.at(-1).params.at(-1), "В течение 3 дней");
+  withTerms.done();
 });
 test("creation retries preserve the original expiry and reject different terms", async () => {
-  const data = input(); const row = { id: randomUUID(), item_id: data.itemId, recipient_id: data.recipientId, price_rolls: "50", duration_hours: "24" };
-  for (const changed of [false, true]) {
+  const data = { ...input(), fulfillmentTerms: "За три дня" };
+  const row = { id: randomUUID(), item_id: data.itemId, recipient_id: data.recipientId, price_rolls: "50", duration_hours: "24", fulfillment_terms: data.fulfillmentTerms };
+  for (const changes of [{}, { priceRolls: 51 }, { fulfillmentTerms: "За неделю" }]) {
     const client = scripted([[/FOR UPDATE/, [{ id: "seller" }]], [/idempotency_key/, [row]]]);
-    if (changed) await reject(createPersonalOffer(client, "seller", { ...data, priceRolls: 51 }), "IDEMPOTENCY_CONFLICT");
+    if (Object.keys(changes).length) await reject(createPersonalOffer(client, "seller", { ...data, ...changes }), "IDEMPOTENCY_CONFLICT");
     else assert.deepEqual(await createPersonalOffer(client, "seller", data), { id: row.id, replayed: true });
     client.done();
   }
@@ -69,6 +75,7 @@ test("status keeps paid and expired history when payment access changes", () => 
   const unpaid = { ...row, purchase_id: null, expired: false, current_item_id: "item",
     current_item_live: true, current_sphere: "education", account_type: "business" };
   assert.equal(personalOfferFromRow({ ...unpaid, subscribed: true }).status, "active");
+  assert.equal(personalOfferFromRow({ ...unpaid, offer_consent: true }).status, "active");
   assert.equal(personalOfferFromRow({ ...unpaid, subscribed: false }).status, "unavailable");
   assert.equal(personalOfferFromRow({ ...unpaid, subscribed: true, current_item_live: false }).status, "unavailable");
   assert.equal(personalOfferFromRow({ ...unpaid, subscribed: true, business_category: "doctor" }).status, "unavailable");
@@ -85,11 +92,11 @@ test("payment rechecks expiry after wallet locks and stores a single purchase wi
   for (const expiresDuringTransfer of [true, false]) {
     const id = randomUUID();
     const steps = [
-      [/recipient_id=\$2 FOR UPDATE/, [{ id, item_id: "item", item_title: "Frozen", price_rolls: "50", business_user_id: "seller" }]],
+      [/recipient_id=\$2 FOR UPDATE/, [{ id, item_id: "item", item_title: "Frozen", price_rolls: "50", business_user_id: "seller", fulfillment_terms: "В течение недели" }]],
       [/expires_at > clock_timestamp/, [{ id }]],
       [/ORDER BY id FOR SHARE/, [{ id: "buyer", account_type: "personal" }, { id: "seller", account_type: "business", business_category: "teacher" }]],
       [/FROM business_marketplace_items.*FOR SHARE/, [{ id: "item", sphere: "education" }]],
-      [/FROM follows.*FOR SHARE/, [{ one: 1 }]],
+      [/FROM sphere_section_shares.*brand-offers.*FOR SHARE/s, [{ one: 1 }]],
       [/SELECT id FROM users/, [{ id: "seller" }]],
       // ensureRollWallet locks in sorted order: buyer, seller.
       ...["buyer", "seller"].flatMap(() => [[/INSERT INTO roll_wallets/, []], [/FOR UPDATE/, []], [/INSERT INTO roll_transactions/, []]]),
@@ -110,6 +117,7 @@ test("payment rechecks expiry after wallet locks and stores a single purchase wi
       const delivery = JSON.parse(inserted.params[6]);
       assert.equal(delivery.personalOfferId, id);
       assert.equal(delivery.paymentTransactionId, transfer.params[0]);
+      assert.equal(delivery.fulfillmentTerms, "В течение недели");
     }
     client.done();
   }

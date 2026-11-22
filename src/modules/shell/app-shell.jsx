@@ -10,12 +10,9 @@ import { APP_WISH_CATALOG_PATH } from "./app-routing.js";
 import { SphereSharingProvider, sphereScopeFromLocation } from "../access/sphere-sharing.jsx";
 import { useSession } from "../auth/session.jsx";
 import { isFriendsDirectoryPath, SERVICE_TABS } from "./service-menu.jsx";
-import { SphereAccessRequestBanner } from "../access/sphere-access.jsx";
-import { SphereShareAction } from "../access/sphere-share-action.jsx";
 import { WishlistSectionNavigation } from "../wishlist/wish-navigation.jsx";
 import { PrivateSphereNavigation } from "./private-sphere-navigation.jsx";
 import { PersistentProfileHero } from "../profile/profile-hero.jsx";
-import { APP_HOME } from "./home-path.jsx";
 
 export function AppProfileButton({ user, compact = false }) {
   const { openProfileEditor } = useProfileEditor();
@@ -56,15 +53,12 @@ export function AppShell({ children, friendsContext = false, collectionChrome = 
   const planningLayout = notesRoute ? "app-layout--planning-notes" : planningRoute ? "app-layout--planning" : "";
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS)
     || (wishesRoute && user?.accountType === "personal" ? { sphere: "wishlist", section: wishlistSpace(location.search) } : null);
-  const personalSectionPage = location.pathname === APP_HOME || /^\/app\/spheres\/[^/]+$/.test(location.pathname);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
           {wishlistChrome ? <PersistentProfileHero user={user} wishlistChrome sectionNavigation={<WishlistSectionNavigation user={user} />} /> : !collectionChrome && !catalogRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero user={user} sectionNavigation={<PrivateSphereNavigation user={user} />} />}
-          <SphereAccessRequestBanner />
-          {personalSectionPage && <SphereShareAction />}
           {children}
         </main>
       </div>

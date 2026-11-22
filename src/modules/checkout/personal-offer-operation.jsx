@@ -42,6 +42,12 @@ export function readPendingPersonalOffers(userId) {
   return results;
 }
 
+export function fulfillmentLabel(itemType) {
+  if (itemType === "product") return "Срок доставки";
+  if (itemType === "service") return "Срок оказания услуги";
+  return "Срок исполнения";
+}
+
 export function PersonalOfferOperationDialog({ userId, offer, action, client, returnFocus, onDone, onClose }) {
   const storageKey = keyFor(userId, offer.id, action);
   const [reviewInvalid, setReviewInvalid] = useState(false);
@@ -77,6 +83,7 @@ export function PersonalOfferOperationDialog({ userId, offer, action, client, re
     event.preventDefault();
     if (recovery.pending) recovery.check();
     else recovery.send({ userId, action, offer: { id: offer.id, title: offer.title, priceRolls: offer.priceRolls,
+      itemType: offer.itemType, fulfillmentTerms: offer.fulfillmentTerms,
       expiresAt: offer.expiresAt, business: { id: offer.business.id, name: offer.business.name },
       recipient: { id: offer.recipient.id, name: offer.recipient.name } }, requestKey: crypto.randomUUID() });
   };
@@ -87,10 +94,12 @@ export function PersonalOfferOperationDialog({ userId, offer, action, client, re
   }}>
     <AlertDialogContent className="rollapp-body" finalFocus={returnFocus}>
       <AlertDialogHeader>
-        <AlertDialogTitle>{refunding ? "Вернуть роллы покупателю?" : "Оплатить персональный счёт?"}</AlertDialogTitle>
+        <AlertDialogTitle>{refunding ? "Вернуть роллы покупателю?" : "Оформление покупки"}</AlertDialogTitle>
       </AlertDialogHeader>
       <div className="grid min-h-0 min-w-0 gap-2 overflow-y-auto overscroll-contain px-px">
         <AlertDialogDescription className="wrap-anywhere">{description}</AlertDialogDescription>
+        {!refunding && <p className="wrap-anywhere">{fulfillmentLabel(review.itemType)}: {review.fulfillmentTerms || "уточняется у продавца"}</p>}
+        {!recovery.pending && !refunding && offer.description && <p className="whitespace-pre-wrap wrap-anywhere">{offer.description}</p>}
         {recovery.error && <Alert variant="destructive"><AlertDescription>{recovery.error}</AlertDescription></Alert>}
         {recovery.pending && recovery.result !== "conflict" && <p role="status">Операция ожидает проверки.</p>}
         {recovery.result === "missing" && <>

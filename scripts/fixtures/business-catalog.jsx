@@ -9,10 +9,10 @@ import "../../src/index.css";
 const query = new URLSearchParams(location.search);
 if (query.has("light")) document.documentElement.classList.remove("dark");
 const accounts = [
-  { username: "example-studio", storefrontTitle: query.has("sphere") ? undefined : "Витрина студии", name: "Студия", avatarUrl: "/favicon.png", isFollowing: false },
-  { username: "very-long-business-account-name-for-the-smallest-screen", name: "Независимая студия городских пространств и архитектуры", isFollowing: true },
-  { username: "light-workshop", name: "Мастерская света", isFollowing: false },
-  { username: "read-only-shop", name: "Магазин без подписки", isFollowing: null },
+  { username: "example-studio", storefrontTitle: query.has("sphere") ? undefined : "Витрина студии", name: "Студия", avatarUrl: "/favicon.png", offerConsent: false },
+  { username: "very-long-business-account-name-for-the-smallest-screen", name: "Независимая студия городских пространств и архитектуры", offerConsent: true },
+  { username: "light-workshop", name: "Мастерская света", offerConsent: false },
+  { username: "read-only-shop", name: "Магазин без подписки", offerConsent: null },
 ];
 let attempts = 0;
 api.get = async (path) => {
@@ -24,11 +24,11 @@ api.get = async (path) => {
 const calls = [];
 window.followCalls = calls;
 api.post = async (path, body) => {
-  if (path !== "/profile/example-studio/follow") throw Error(`Unexpected POST ${path}`);
-  calls.push(body.following);
+  if (path !== "/brand-offer-consents/example-studio") throw Error(`Unexpected POST ${path}`);
+  calls.push(body.granted);
   await new Promise(resolve => { window.completeBusinessFollow = resolve; });
   if (calls.length === 1) throw Error("Не удалось изменить подписку. Попробуйте ещё раз.");
-  return { following: body.following };
+  return { granted: body.granted };
 };
 const places = [
   { slug: "hong", name: "ХОНГ", category: "restaurant", categoryLabel: "Ресторан", subcategory: "лапшичная", description: "Лапшичная в контейнере «Третьего кластера».", addresses: ["8-я Советская ул."], links: [], waitCount: 7, isWaiting: false },

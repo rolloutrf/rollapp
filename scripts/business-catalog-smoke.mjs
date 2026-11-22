@@ -34,7 +34,8 @@ try {
     const cards = grid.getByRole("listitem");
     const card = cards.first();
     const profile = card.getByRole("link", { name: `Открыть профиль ${name} (@example-studio)`, exact: true });
-    const follow = card.getByRole("button", { name: `Подписаться · ${name}` });
+    const allow = card.getByRole("button", { name: `Открыть потребности · ${name}`, exact: true });
+    const block = card.getByRole("button", { name: `Закрыть потребности · ${name}`, exact: true });
     await profile.waitFor();
     await page.evaluate(() => document.fonts.ready);
     assert.equal(await cards.count(), 4);
@@ -49,26 +50,21 @@ try {
         const identity = node.querySelector(".business-catalog-card__identity");
         const title = identity.querySelector("strong").getBoundingClientRect();
         const handle = identity.querySelector("span").getBoundingClientRect();
-        const footer = node.querySelector("footer");
-        const button = footer?.querySelector("button");
-        const actionBox = button?.getBoundingClientRect();
-        const style = button && getComputedStyle(button);
+        const trigger = node.querySelector("button");
+        const button = trigger?.getBoundingClientRect();
         const frame = node.getBoundingClientRect();
-        const footerStyle = footer && getComputedStyle(footer);
-        const footerBounds = footer?.getBoundingClientRect();
         return {
           aligned: [title, handle].every(box => Math.abs(box.left - avatar.left) <= 1),
           textAlign: getComputedStyle(identity).textAlign,
           inset: avatar.left - frame.left,
-          ordered: avatar.bottom < title.top && title.bottom <= handle.top && (!actionBox || handle.bottom < actionBox.top),
-          fullWidthAction: button && Math.abs(actionBox.width + parseFloat(footerStyle.paddingLeft) + parseFloat(footerStyle.paddingRight) - footerBounds.width) <= 1,
+          ordered: avatar.bottom < title.top && title.bottom <= handle.top,
           accent: getComputedStyle(node).getPropertyValue("--contact-accent"),
           background: getComputedStyle(node).backgroundImage,
           fits: node.scrollWidth <= node.clientWidth + 1,
           radius: getComputedStyle(node).borderRadius,
           avatarSize: avatar.width,
-          divider: footer && getComputedStyle(footer).borderBlockStartWidth,
-          action: style && [button.offsetHeight, style.paddingInlineStart, style.paddingInlineEnd, parseFloat(style.borderRadius) >= button.offsetHeight / 2],
+          action: button && [button.height, parseFloat(getComputedStyle(trigger).borderRadius) >= 24, trigger.scrollWidth <= trigger.clientWidth + 1],
+          actionFits: !button || (button.top >= handle.bottom && button.left >= frame.left && button.right <= frame.right),
         };
       });
       assert(bounds.fits && bounds.aligned && bounds.ordered, JSON.stringify(bounds));
@@ -79,9 +75,8 @@ try {
       assert.equal(bounds.radius, width <= 560 ? "21px" : "24px");
       assert.equal(bounds.avatarSize, width <= 560 ? 54 : 60);
       if (bounds.action) {
-        assert(bounds.fullWidthAction);
-        assert.equal(bounds.divider, "1px");
-        assert.deepEqual(bounds.action, [48, "10px", "10px", true]);
+        assert(bounds.actionFits, JSON.stringify(bounds));
+        assert(bounds.action[0] >= 48 && bounds.action[1] && bounds.action[2], JSON.stringify(bounds));
       }
     }
     const accents = await cards.evaluateAll(nodes => nodes.map(node => getComputedStyle(node).getPropertyValue("--contact-accent")));
@@ -128,16 +123,27 @@ try {
       window.completeBusinessFollow = undefined;
       complete();
     });
-    await follow.click();
-    assert.equal(await follow.getAttribute("aria-busy"), "true");
-    assert(await follow.isDisabled());
+    await profile.click({ modifiers: ["Control"] });
+    await page.waitForFunction(() => document.activeElement?.textContent === "Открыть потребности");
+    assert.deepEqual(await page.evaluate(() => window.followCalls), []);
+    assert.equal(await page.locator("[data-location]").textContent(), "/");
+    await allow.press("Enter");
+    await page.waitForFunction(() => Boolean(window.completeBusinessFollow));
+    assert.equal(await allow.getAttribute("aria-busy"), "true");
+    assert(await allow.isDisabled());
     await completeFollow();
     await card.getByRole("alert").waitFor();
-    await follow.click();
+    await allow.click();
+    await page.waitForFunction(() => Boolean(window.completeBusinessFollow));
     await completeFollow();
-    await card.getByRole("button", { name: `Отписаться · ${name}` }).click();
+    await block.waitFor();
+    if ([320, 1440].includes(width)) {
+      await grid.screenshot({ path: join(output, `${width}x${height}-granted.png`), animations: "disabled" });
+    }
+    await block.click();
+    await page.waitForFunction(() => Boolean(window.completeBusinessFollow));
     await completeFollow();
-    await follow.waitFor();
+    await allow.waitFor();
     assert.deepEqual(await page.evaluate(() => window.followCalls), [true, true, false]);
     assert.equal(await page.locator("[data-location]").textContent(), "/");
     await page.keyboard.press("Tab");
@@ -152,7 +158,7 @@ try {
     await page.waitForFunction(() => document.querySelector("[data-location]").textContent.startsWith("/very-long-business-account"));
     assert.deepEqual(errors, []);
     await page.close();
-    console.log(`PASS ${width}x${height}: card geometry, profile, subscription, retry, read-only, keyboard`);
+    console.log(`PASS ${width}x${height}: direct consent, Ctrl-click focus, keyboard, retry and revoke`);
   }
   const page = await browser.newPage();
   await page.route("**/api/**", route => route.abort());

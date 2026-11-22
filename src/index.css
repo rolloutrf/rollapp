@@ -516,10 +516,10 @@
     white-space: normal;
   }
 
-  :is(.contacts-sphere__search, .business-access-page__search) [data-slot="input-group-control"] {
+  .contacts-sphere__search [data-slot="input-group-control"] {
     padding-inline: 0 0.5rem;
   }
-  :is(.contacts-sphere__search, .business-access-page__search) input[type="search"]::-webkit-search-cancel-button {
+  .contacts-sphere__search input[type="search"]::-webkit-search-cancel-button {
     -webkit-appearance: none;
     appearance: none;
     display: none;

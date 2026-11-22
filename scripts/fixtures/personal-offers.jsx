@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { BusinessAccessPage, SessionContext, ToastContext } from "../../src/App.jsx?personal-offers-test-export";
 import App from "../../src/App.jsx";
 import { MobileFormPages } from "../../src/components/mobile-form-pages";
-import { WishlistBusinessManager, WishlistBusinessListing } from "../../src/modules/wishlist/wishlist-business.jsx";
+import { WishlistBusinessManager } from "../../src/modules/wishlist/wishlist-business.jsx";
 import { RollsWallet } from "../../src/modules/payments/rolls-wallet.jsx";
 import { APP_WISH_OFFERS_PATH } from "../../src/modules/shell/app-routing.js";
 import { api } from "../../src/modules/runtime/api.js";
@@ -17,7 +17,8 @@ const base = { ...item, priceRolls: 50, business: { id: "seller", name: "Биз�
 const params = new URLSearchParams(location.search);
 const scenario = params.get("case");
 const catalog = scenario === "sphere-catalog";
-const offersRoute = params.get("surface") === "offers";
+const wishlistBuyerScenario = scenario === "wishlist-buyer" || scenario === "wishlist-recorded";
+const offersRoute = params.get("surface") === "offers" || wishlistBuyerScenario;
 const sphere = params.get("sphere") || "health";
 const section = { health: "sport", career: "contacts", identity: "identity-reports", education: "courses" }[sphere];
 let subscribed = false;
@@ -31,7 +32,6 @@ let refunded = false;
 let refundFailed = false;
 const recording = ["payment-recorded", "payment-archived", "seller-recorded", "wishlist-recorded"].includes(scenario);
 const sellerScenario = scenario === "seller" || scenario === "seller-recorded";
-const wishlistBuyerScenario = scenario === "wishlist-buyer" || scenario === "wishlist-recorded";
 const fixtureKey = `test-offer-recording:${scenario}`;
 const savedFixture = recording ? JSON.parse(sessionStorage.getItem(fixtureKey)) : null;
 if (savedFixture) ({ paid, refunded } = savedFixture);
@@ -43,6 +43,10 @@ function persistFixture() {
 }
 const rollbackError = (message, code) => Object.assign(new Error(message), { status: 409, code });
 const wishlistItem = { id:"wishlist-item",title:"Wishlist товар",description:"Описание товара",price:"999 RUB",active:true,brand:"Бренд",business:{id:"seller",name:"Продавец",username:"seller",pageTitle:"Магазин"} };
+const deliveryTerms = "В течение 3 дней после оплаты";
+const wishlistOffer = { ...base, id: "wishlist-invoice", itemId: wishlistItem.id, title: wishlistItem.title,
+  priceRolls: 75, itemType: "product", fulfillmentTerms: deliveryTerms, business: wishlistItem.business };
+const recommendation = { ...wishlistItem, id: "legacy-item", offerId: "legacy-offer", title: "Рекомендация продавца" };
 const client = {
   async get(path) {
     if (path.startsWith("/personal-offers")) window.offerReads.push(path);
@@ -59,7 +63,7 @@ const client = {
       if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, owner: user, requests: [], people: [] };
     }
     if (catalog) {
-      if (path === `/business-catalog/${sphere}`) return { accounts: [{ username: "brand", name: "Партнёр сферы", isFollowing: subscribed }] };
+      if (path === `/business-catalog/${sphere}`) return { accounts: [{ username: "brand", name: "Партнёр сферы", offerConsent: subscribed }] };
       if (path === `/personal-offers?sphere=${sphere}`) return { offers: subscribed ? [{ ...base, id: "brand-offer", title: "Предложение партнёра", status: "active" }] : [] };
       if (path === "/health/workouts") return { workouts: [], lists: [] };
       if (path === "/education/courses") return { courses: [], lists: [], groups: [] };
@@ -67,8 +71,15 @@ const client = {
       if (path === "/identity/reports/gallup") return { mode: "empty" };
       return { contacts: [], items: [], requests: [] };
     }
+    if (path === "/personal-offers/recipients/buyer/needs") return {
+      needs: [{ id: "open-need", title: "Нужна настольная лампа", criteria: "Тёплый свет", neededBy: "2026-12-01" }],
+    };
     if(path.endsWith("/buyers"))return {buyers:[{id:"buyer",name:"Получатель",username:"buyer"}]};
-    if(path.startsWith("/wishlist-business/")) return path.endsWith("/page")?{page:{title:"Магазин",description:"",published:true},items:[wishlistItem]}:{items:[{...wishlistItem,personalOffer:{id:"wishlist-invoice",title:wishlistItem.title,priceRolls:75,expiresAt:base.expiresAt,status:paid?"paid":"active",business:wishlistItem.business}}]};
+    if (path.startsWith("/wishlist-business/")) {
+      if (path.endsWith("/page")) return { page: { title: "Магазин", description: "", published: true }, items: [wishlistItem] };
+      const position = { ...wishlistItem, personalOffer: { ...wishlistOffer, status: paid ? "paid" : "active" } };
+      return { items: offersRoute && !scenario ? [position, recommendation] : [position] };
+    }
     if (scenario === "pagination" && path.startsWith("/personal-offers")) {
       const first = { ...base, id: "first-page", title: "Первый счёт", status: "paid" };
       const older = { ...base, id: "older-offer", title: "Ранний счёт", status: paid ? "paid" : "active" };
@@ -86,21 +97,28 @@ const client = {
       { kind: "dispute", count: 1, amount: "20", reviewUntil: null },
       { kind: "fulfill", count: 1, amount: "40", reviewUntil: null },
     ] : [] };
-    if (path === "/business-access/requests") return { requests: [] };
+    if (path === "/sphere-shares/incoming") return { shares: [] };
     if (path === "/personal-offers/items") return { items: scenario === "business-page" ? [item] : createdItem ? [createdItem] : [] };
     if (path.startsWith("/business-access/users") || path.startsWith("/personal-offers/recipients")) return { people: [{ id: "buyer", name: scenario === "long-recipient" ? "И".repeat(80) : "Получатель", username: scenario === "long-recipient" ? "w".repeat(32) : "buyer" }] };
     if (scenario === "empty" || (scenario === "payment-archived" && paid)) return { offers: [] };
     if (scenario === "unavailable") return { offers: [{ ...base, id: "unavailable", title: "Счёт с закрытым доступом", status: "unavailable" }] };
     if (scenario === "error") throw new Error("Не удалось загрузить счета");
     if (scenario === "loading") return new Promise(() => {});
-    return { offers: [ { ...base, id: "active", title: "Активный оффер", status: paid ? "paid" : "active" }, { ...base, id: "expired", title: "Истёкший оффер", status: "expired", expiresAt: new Date(0).toISOString() }, { ...base, id: "paid", title: "Оплаченный оффер", status: refunded ? "refunded" : "paid" } ] };
+    if (wishlistBuyerScenario) return { offers: [{ ...wishlistOffer, status: paid ? "paid" : "active" }] };
+    const offers = [
+      { ...base, id: "active", title: "Активный оффер", status: paid ? "paid" : "active", itemType: "service", fulfillmentTerms: "На следующей неделе" },
+      { ...base, id: "expired", title: "Истёкший оффер", status: "expired", expiresAt: new Date(0).toISOString() },
+      { ...base, id: "paid", title: "Оплаченный оффер", status: refunded ? "refunded" : "paid" },
+    ];
+    if (offersRoute && !scenario) offers.unshift({ ...wishlistOffer, description: wishlistItem.description, status: "active" });
+    return { offers };
   },
   async post(path, body) {
     window.offerCalls.push({ path, body });
-    if (catalog && path === "/profile/brand/follow") {
+    if (catalog && path === "/brand-offer-consents/brand") {
       if (!followFailed) { followFailed = true; throw new Error("Повторите подписку"); }
-      subscribed = body.following;
-      return { following: subscribed };
+      subscribed = body.granted;
+      return { granted: subscribed };
     }
     if(path.startsWith("/wishlist-business/")){if(!creationFailed){creationFailed=true;throw new Error("Повторите рекомендацию");}return{sent:true,personalOfferId:"wishlist-invoice"};}
     if (path === "/personal-offers/items") { if (!itemFailed) { itemFailed = true; throw new Error("Повторите сохранение"); } createdItem = { id: "new-item", title: body.title }; return { item: createdItem }; }
@@ -136,7 +154,7 @@ const businessUser = sellerScenario || scenario === "business-page";
 const user = { id: businessUser ? "seller" : "buyer", name: "Пользователь", username: "fixture",
   accountType: businessUser ? "business" : "personal", ...(sellerScenario ? { businessCategory: "seller", sellerSpace: "products" } : {}) };
 const showToast = () => {};
-const content = scenario === "wishlist-manager" ? <main className="app-page rollapp-body"><WishlistBusinessManager user={{id:"seller",accountType:"business",businessCategory:"seller",sellerSpace:"products"}} space="products" /></main> : wishlistBuyerScenario ? <main className="app-page rollapp-body"><WishlistBusinessListing space="products" offers viewerId={user.id} /></main> : scenario === "business-page" ? <BusinessAccessPage /> : scenario === "wallet-page" ? <RollsWallet user={user} /> : <main className="app-page rollapp-body page-stack">{scenario === "business" ? <BusinessPersonalOffers client={client} /> : <>{(!scenario || scenario === "long-recipient") && <PersonalOfferComposer item={item} client={client} />}<PersonalOffers user={{ id: sellerScenario ? "seller" : "buyer" }} client={client} /></>}</main>;
+const content = scenario === "wishlist-manager" ? <main className="app-page rollapp-body"><WishlistBusinessManager user={{id:"seller",accountType:"business",businessCategory:"seller",sellerSpace:"products"}} space="products" /></main> : scenario === "business-page" ? <BusinessAccessPage /> : scenario === "wallet-page" ? <RollsWallet user={user} /> : <main className="app-page rollapp-body page-stack">{scenario === "business" ? <BusinessPersonalOffers client={client} /> : <>{(!scenario || scenario === "long-recipient") && <PersonalOfferComposer item={item} client={client} />}<PersonalOffers user={{ id: sellerScenario ? "seller" : "buyer" }} client={client} /></>}</main>;
 if (catalog) history.replaceState({}, "", `/app/spheres/${sphere}?tab=${section}`);
 if (offersRoute) {
   const query = new URLSearchParams({ tab: "products" });

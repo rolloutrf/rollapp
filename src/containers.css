@@ -59,7 +59,6 @@
   }
   .settings-form { width: 100%; max-width: var(--layout-form-width); }
   .app-layout--dark .settings-form { max-width: var(--layout-form-width); }
-  .sphere-access-requests { width: min(var(--layout-collection-width), calc(100% - 2 * var(--layout-page-inset))); }
   .business-access-page__header { max-width: var(--layout-text-width); }
 
   /* A drawer's axis still comes from shadcn. Only its product width is chosen

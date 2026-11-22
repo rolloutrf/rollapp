@@ -63,6 +63,7 @@ if (routing) {
     if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, requests: [] };
     if (path.startsWith("/catalog?")) return { items: [], total: 0 };
     if (path === "/wishlist-business/media/accounts") return { accounts: [] };
+    if (path === "/personal-offers") return { offers: [], nextOffset: null };
     if (path === "/wishlist-business/media/offers" || path === "/wishlist-business/media/sales") return { items: [] };
     if (path === "/profile/host/calendar" || path === "/profile/host/announcements") return { ...snapshot, isOwner: routing !== "booking" };
     throw new Error(`Unexpected GET ${path}`);

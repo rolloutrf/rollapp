@@ -48,19 +48,19 @@ async function checkSphereCatalog(page, sphere, section) {
   await catalog.click();
   await page.waitForURL(url => url.pathname.endsWith("/business/catalog") && url.searchParams.get("tab") === section);
   await rail.locator('a[aria-current="page"][title="Каталог брендов"]').waitFor();
-  const subscribe = page.getByRole("button", { name: "Подписаться · Партнёр сферы" });
-  const unsubscribe = page.getByRole("button", { name: "Отписаться · Партнёр сферы" });
-  await subscribe.click();
+  const allow = page.getByRole("button", { name: "Открыть потребности · Партнёр сферы", exact: true });
+  const block = page.getByRole("button", { name: "Закрыть потребности · Партнёр сферы", exact: true });
+  await allow.click();
   await page.getByText("Повторите подписку").waitFor();
-  await subscribe.click();
-  await unsubscribe.waitFor();
+  await allow.click();
+  await block.waitFor();
   await page.getByRole("link", { name: "Предложения", exact: true }).click();
   await page.getByRole("heading", { name: "Предложение партнёра" }).waitFor();
   assert.equal(await rail.getByRole("link", { name: "Предложения", exact: true }).getAttribute("aria-current"), "page");
   await catalog.click();
-  await unsubscribe.click();
-  await subscribe.waitFor();
-  assert.deepEqual(await page.evaluate(() => window.offerCalls), [true, true, false].map(following => ({ path: "/profile/brand/follow", body: { following } })));
+  await block.click();
+  await allow.waitFor();
+  assert.deepEqual(await page.evaluate(() => window.offerCalls), [true, true, false].map(granted => ({ path: "/brand-offer-consents/brand", body: { granted } })));
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.getByRole("link", { name: /^К сфере/ }).click();
   await page.waitForURL(url => url.pathname.endsWith(`/${sphere}`) && url.searchParams.get("tab") === section);
@@ -80,10 +80,8 @@ async function checkRecordedOperations() {
     const offerId = refunding ? "paid" : wishlist ? "wishlist-invoice" : "active";
     const posted = [{ path: `/personal-offers/${offerId}/${action}`, body: { expectedPriceRolls: wishlist ? 75 : 50 } }];
     const popup = page.getByRole("alertdialog");
-    const openWishlist = () => page.getByRole("button", { name: 'Открыть «Wishlist товар»' }).click();
     await page.goto(operationUrl);
-    if (wishlist) await openWishlist();
-    await page.getByRole("button", { name: refunding ? "Вернуть роллы" : "Оплатить", exact: true }).click();
+    await page.getByRole("button", { name: refunding ? "Вернуть роллы" : "К оформлению", exact: true }).click();
     await popup.getByRole("button", { name: refunding ? "Подтвердить возврат" : "Подтвердить оплату" }).click();
     await popup.getByText(/Ответ потерян/).waitFor();
     assert.deepEqual(await page.evaluate(() => window.offerCalls), posted);
@@ -91,7 +89,6 @@ async function checkRecordedOperations() {
     await popup.getByRole("button", { name: "Позже", exact: true }).click();
     await popup.waitFor({ state: "hidden" });
     await page.goto(operationUrl);
-    if (wishlist) await openWishlist();
     const resume = page.getByRole("button", { name: "Открыть проверку", exact: true });
     await resume.click();
     const check = popup.getByRole("button", { name: "Проверить результат", exact: true });
@@ -102,12 +99,8 @@ async function checkRecordedOperations() {
     assert.deepEqual(await page.evaluate(() => window.offerChecks), []);
     await check.click();
     await popup.waitFor({ state: "hidden" });
-    if (wishlist) {
-      await page.waitForURL(url => !url.searchParams.has("formScreen"));
-      await openWishlist();
-    }
-    const result = wishlist ? page : page.getByRole("article").filter({ has: page.getByRole("heading", {
-      name: refunding ? "Оплаченный оффер" : "Активный оффер", exact: true,
+    const result = page.getByRole("article").filter({ has: page.getByRole("heading", {
+      name: refunding ? "Оплаченный оффер" : wishlist ? "Wishlist товар" : "Активный оффер", exact: true,
     }) });
     if (orderType === "payment-archived") {
       await page.getByRole("status").filter({ hasText: "Счёт «Активный оффер» оплачен." }).waitFor();
@@ -122,6 +115,48 @@ async function checkRecordedOperations() {
     console.log(`PASS invoice recovery ${width}×${height} ${orderType}: exact GET after reload without another POST`);
   }
 }
+async function checkWishlistOffers(page, width, height) {
+  await page.goto(`${smokeOrigin(server)}/__offers-smoke?surface=offers`);
+  const product = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Wishlist товар" }) });
+  const service = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Активный оффер" }) });
+  await product.getByText(/75/).waitFor();
+  await product.getByText("Срок доставки: В течение 3 дней после оплаты").waitFor();
+  await service.getByText("Срок оказания услуги: На следующей неделе").waitFor();
+  await page.getByRole("heading", { name: "Рекомендация продавца" }).waitFor();
+  assert.equal(await product.count(), 1, "Wishlist payment record appears only once");
+  assert.equal(await page.getByRole("tab", { name: "Счета", exact: true }).count(), 0);
+  const checkout = page.getByRole("alertdialog", { name: "Оформление покупки" });
+  const action = product.getByRole("button", { name: "К оформлению", exact: true });
+  assert.equal((await action.boundingBox()).height, 48, "Checkout action height");
+  // Click away from the CTA to exercise the card's larger hit region.
+  const heading = product.getByRole("heading");
+  await heading.scrollIntoViewIfNeeded();
+  const box = await heading.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await checkout.getByText(/Wishlist товар.*75/).waitFor();
+  await checkout.getByText("Срок доставки: В течение 3 дней после оплаты").waitFor();
+  assert.deepEqual(await page.evaluate(() => window.offerCalls), []);
+  await page.getByRole("button", { name: "Отмена", exact: true }).click();
+  await checkout.waitFor({ state: "hidden" });
+  await action.press("Enter");
+  await checkout.getByRole("button", { name: "Отмена" }).click();
+  await checkout.waitFor({ state: "hidden" });
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Offers page overflow");
+  await page.screenshot({ path: `${output}/unified-offers-${width}-${height}.png`, fullPage: true });
+  await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=wishlist-buyer`);
+  await page.getByRole("button", {name:"К оформлению",exact:true}).click();
+  await page.getByRole("button", {name:"Подтвердить оплату"}).click();
+  await page.getByText("Недостаточно роллов").waitFor();
+  await page.getByRole("button", {name:"Подтвердить оплату"}).click();
+  await page.getByRole("alertdialog").waitFor({state:"hidden"});
+  await page.getByRole("status").filter({hasText:"Оплачен"}).waitFor();
+  assert.equal(await page.getByRole("button", {name:"К оформлению",exact:true}).count(),0);
+  assert.deepEqual(await page.evaluate(() => window.offerCalls), Array(2).fill({
+    path: "/personal-offers/wishlist-invoice/pay", body: { expectedPriceRolls: 75 },
+  }));
+  await page.screenshot({path:`${output}/wishlist-paid-${width}-${height}.png`});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Wishlist offer root overflow");
+}
 try {
   await checkRecordedOperations();
   for (const [width, height] of (process.argv.includes("--recovery-only") ? [] : viewports)) {
@@ -129,6 +164,13 @@ try {
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
     await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
+    await checkWishlistOffers(page, width, height);
+    console.log(`PASS ${width}x${height}: one Wishlist feed, exact terms and checkout, retry and overflow`);
+    if (process.argv.includes("--wishlist-only")) {
+      assert.deepEqual(errors, []);
+      await page.close();
+      continue;
+    }
     for (const [sphere, section] of [["health", "sport"], ["education", "courses"], ["career", "contacts"], ["identity", "identity-reports"]]) {
       try {
         await checkSphereCatalog(page, sphere, section);
@@ -144,19 +186,23 @@ try {
     assert.equal(await page.getByRole("button", { name: "Оплатить", exact: true }).count(), 1);
     await page.getByRole("button", { name: "Рекомендовать с оффером" }).click();
     await page.getByRole("button", { name: "Получатель · @buyer" }).click();
+    await page.getByRole("list", { name: "Активные потребности покупателя" }).getByText("Нужна настольная лампа").waitFor();
     await page.getByLabel("Цена в роллах").fill("75");
-    assert.equal(await page.getByLabel("Срок с момента создания").locator('[data-slot="select-value"]').textContent(), "24 часа");
+    assert.equal(await page.getByLabel("Срок действия цены").locator('[data-slot="select-value"]').textContent(), "24 часа");
+    assert.equal(await page.getByRole("button", { name: "Отправить предложение" }).isDisabled(), true);
+    await page.getByLabel("Срок исполнения").fill("В течение недели");
     await page.screenshot({ path: `${output}/form-${width}-${height}.png`, fullPage: true });
     assert(await page.evaluate(() => [...document.querySelectorAll('[data-control-bar] button')].every(button => {
       const rect = button.getBoundingClientRect(), style = getComputedStyle(button);
       return rect.height >= 48 && [style.borderTopLeftRadius,style.borderTopRightRadius,style.borderBottomLeftRadius,style.borderBottomRightRadius].every(radius => parseFloat(radius) >= 24);
     })), "Composer control geometry");
-    await page.getByRole("button", { name: "Создать счёт" }).click();
+    await page.getByRole("button", { name: "Отправить предложение" }).click();
     await page.getByText("Повторите создание").waitFor();
-    await page.getByRole("button", { name: "Создать счёт" }).click();
-    await page.getByRole("status").filter({ hasText: "Персональный счёт создан" }).waitFor();
+    await page.getByRole("button", { name: "Отправить предложение" }).click();
+    await page.getByRole("status").filter({ hasText: "Предложение отправлено" }).waitFor();
     const calls = await page.evaluate(() => window.offerCalls);
     assert.equal(calls.length, 2); assert.deepEqual(calls[0], calls[1]); assert.equal(calls[0].body.priceRolls, 75);
+    assert.equal(calls[0].body.fulfillmentTerms, "В течение недели");
     await page.getByRole("button", { name: "Оплатить", exact: true }).click();
     await page.getByRole("button", { name: "Отмена", exact: true }).click();
     assert.equal((await page.evaluate(() => window.offerCalls)).length, 2);
@@ -252,7 +298,7 @@ try {
     assert.equal(itemCalls.length, 2); assert.deepEqual(itemCalls[0], itemCalls[1]);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Business form overflow");
     await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=business-page`);
-    await page.getByRole("heading", { name: "Доступ к пространствам клиентов" }).waitFor();
+    await page.getByRole("heading", { name: "Клиенты", exact: true }).waitFor();
     assert.equal(await page.locator('section[aria-labelledby="business-offers-title"]').evaluate(node => getComputedStyle(node).gap), "24px");
     await page.getByLabel("Товар или услуга", { exact: true }).click();
     await page.getByRole("option", { name: "Персональная консультация по развитию бизнеса" }).click();
@@ -261,32 +307,6 @@ try {
     await page.getByLabel("Цена в роллах").fill("75");
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Real clients page overflow");
     await page.screenshot({ path: `${output}/clients-page-${width}-${height}.png`, fullPage: true });
-    await page.goto(`${smokeOrigin(server)}/__offers-smoke?surface=offers`);
-    await page.getByRole("button", { name: 'Открыть «Wishlist товар»' }).waitFor();
-    assert.deepEqual(await page.evaluate(() => window.offerReads), []);
-    const invoiceTab = page.getByRole("tab", { name: "Счета", exact: true });
-    const offerTabs = page.getByRole("tablist", { name: "Предложения и счета", exact: true });
-    assert.deepEqual(await offerTabs.getByRole("tab").evaluateAll(tabs => tabs.map(tab => {
-      const text = document.createRange();
-      text.selectNodeContents(tab);
-      const label = text.getBoundingClientRect();
-      const bounds = tab.getBoundingClientRect();
-      return [bounds.height, label.left >= bounds.left + 12 && label.right <= bounds.right - 12];
-    })), [[48, true], [48, true]]);
-    await invoiceTab.click();
-    await page.waitForURL((url) => url.searchParams.get("view") === "invoices");
-    await page.getByRole("heading", { name: "Активный оффер" }).waitFor();
-    await page.getByRole("button", { name: "Оплатить", exact: true }).click();
-    await page.getByRole("alertdialog").waitFor();
-    await page.getByRole("button", { name: "Отмена", exact: true }).click();
-    await page.getByRole("alertdialog").waitFor({ state: "hidden" });
-    assert.equal(await page.getByRole("heading", { name: "Персональные офферы", exact: true }).evaluate(node => getComputedStyle(node).fontSize), "30px");
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Invoice page overflow");
-    await page.screenshot({ path: `${output}/invoices-${width}-${height}.png`, fullPage: true });
-    await page.goBack();
-    await page.getByRole("button", { name: 'Открыть «Wishlist товар»' }).waitFor();
-    await page.goForward();
-    await page.getByRole("heading", { name: "Активный оффер" }).waitFor();
     await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=pagination`);
     await page.getByRole("button", { name: "Показать ещё счета" }).click();
     const older = page.locator("article").filter({ has: page.getByRole("heading", { name: "Ранний счёт", exact: true }) });
@@ -317,10 +337,12 @@ try {
     await page.screenshot({ path: `${output}/long-recipient-${width}-${height}.png`, fullPage: true });
     await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=wishlist-manager`);
     await page.getByRole("button", {name:'Открыть «Wishlist товар»'}).click();
-    await page.getByLabel("Подписчик", {exact:true}).click();
+    await page.getByLabel("Покупатель", {exact:true}).click();
     await page.getByRole("option", {name:"Получатель · @buyer"}).click();
+    await page.getByRole("list", { name: "Активные потребности покупателя" }).getByText("Тёплый свет").waitFor();
     await page.getByLabel("Цена в роллах", {exact:true}).fill("75");
-    await page.getByLabel("Срок действия", {exact:true}).click();
+    await page.getByLabel("Срок доставки", {exact:true}).fill("За 3 дня");
+    await page.getByLabel("Срок действия цены", {exact:true}).click();
     await page.getByRole("option", {name:"3 дня",exact:true}).click();
     await page.getByRole("button", {name:"Предложить",exact:true}).click();
     await page.getByText("Повторите рекомендацию").waitFor();
@@ -330,19 +352,7 @@ try {
     const recommendations=await page.evaluate(()=>window.offerCalls);
     assert.equal(recommendations.length,2);assert.deepEqual(recommendations[0],recommendations[1]);
     assert.equal(recommendations[0].body.priceRolls,75);assert.equal(recommendations[0].body.durationHours,72);
-    await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=wishlist-buyer`);
-    await page.getByRole("button", {name:'Открыть «Wishlist товар»'}).click();
-    await page.getByRole("button", {name:"Оплатить",exact:true}).click();
-    await page.getByRole("button", {name:"Подтвердить оплату"}).click();
-    await page.getByText("Недостаточно роллов").waitFor();
-    await page.getByRole("button", {name:"Подтвердить оплату"}).click();
-    await page.getByRole("alertdialog").waitFor({state:"hidden"});
-    await page.waitForURL(url=>!url.searchParams.has("formScreen"));
-    await page.getByRole("button", {name:'Открыть «Wishlist товар»'}).click();
-    await page.getByRole("status").filter({hasText:"Оплачен"}).waitFor();
-    assert.equal(await page.getByRole("button", {name:"Оплатить",exact:true}).count(),0);
-    await page.screenshot({path:`${output}/wishlist-paid-${width}-${height}.png`});
-    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Wishlist offer root overflow");
+    assert.equal(recommendations[0].body.fulfillmentTerms, "За 3 дня");
     assert.deepEqual(errors, []);
     console.log(`PASS ${width}x${height}: terms, retry key, cancellation, insufficient balance, paid/expired, overflow`);
     await page.close();

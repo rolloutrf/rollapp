@@ -11,6 +11,8 @@ import { readRollWallet } from "./modules/history/wallet-history.js";
 import { readRollOrders } from "./modules/history/order-history.js";
 import { readRollReceipt } from "./modules/history/roll-receipts.js";
 import { reconcileRollAccounting } from "./modules/payments/roll-reconciliation.js";
+import { brandOfferScope, readBrandPurchaseNeeds } from "./modules/access/brand-offer-consent.js";
+import { savePurchaseNeed } from "./modules/planning/planning.js";
 import { ROLLS_MAX_BALANCE } from "../shared/modules/payments/rolls.js";
 
 test("personal offers on existing production schema: every test write is rolled back", { skip: process.env.ROLLAPP_TEST_PERSONAL_OFFERS !== "1" }, async t => {
@@ -38,6 +40,11 @@ test("personal offers on existing production schema: every test write is rolled 
     const data = { itemId: product.id, recipientId: buyer, priceRolls: 40, durationHours: 24, idempotencyKey: randomUUID() };
     await assert.rejects(createPersonalOffer(client, seller, data), error => error.code === "OFFER_CONSENT_REQUIRED");
     await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [buyer,seller]);
+    await assert.rejects(createPersonalOffer(client, seller, data), { code: "OFFER_CONSENT_REQUIRED" });
+    await client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [buyer,seller]);
+    const allowBrand = () => client.query("INSERT INTO sphere_section_shares(owner_user_id,viewer_user_id,sphere,section) VALUES($1,$2,'brand-offers','needs')", [buyer,seller]);
+    const blockBrand = () => client.query(`DELETE FROM sphere_section_shares WHERE owner_user_id=$1 AND viewer_user_id=$2 AND ${brandOfferScope}`, [buyer,seller]);
+    await allowBrand();
     const offer = await createPersonalOffer(client, seller, data);
     const balances = async () => (await client.query("SELECT user_id,balance::text FROM roll_wallets WHERE user_id=ANY($1::text[]) ORDER BY user_id", [[seller,buyer,other]])).rows;
     const reject = async (operation, code) => {
@@ -45,6 +52,25 @@ test("personal offers on existing production schema: every test write is rolled 
       await assert.rejects(operation, e => e.code === code);
       await client.query("ROLLBACK TO SAVEPOINT rejected_offer"); assert.deepEqual(await balances(), before);
     };
+    await t.test("brand consent exposes only active purchase needs to the chosen brand", async () => {
+      const query = (sql, params) => client.query(sql, params);
+      const qualifiers = { title: "Open need", criteria: "Warm light", neededBy: "2026-12-01",
+        dueOn: "2026-11-29", country: "RU", budgetMinor: 80000, savedMinor: 50000, currency: "RUB", variantIds: [] };
+      const needId = `need-${randomUUID()}`;
+      const completedId = `need-${randomUUID()}`;
+      await savePurchaseNeed(query, buyer, needId, qualifiers);
+      await savePurchaseNeed(query, buyer, completedId, { ...qualifiers, title: "Closed need" });
+      await client.query("UPDATE planning_tasks SET completed=TRUE WHERE id=$1 AND user_id=$2", [`purchase-plan:${completedId}`, buyer]);
+      assert.deepEqual(await readBrandPurchaseNeeds(query, buyer, seller), [
+        { id: needId, title: qualifiers.title, criteria: qualifiers.criteria, neededBy: qualifiers.neededBy },
+      ]);
+      assert.equal(await readBrandPurchaseNeeds(query, buyer, other), null);
+      assert.equal(await readBrandPurchaseNeeds(query, other, seller), null);
+      await blockBrand();
+      assert.equal(await readBrandPurchaseNeeds(query, buyer, seller), null);
+      await assert.rejects(createPersonalOffer(client, seller, { ...data, idempotencyKey: randomUUID() }), { code: "OFFER_CONSENT_REQUIRED" });
+      await allowBrand();
+    });
     await t.test("retry does not extend expiry; altered terms and foreign recipients fail", async () => {
       const before = (await client.query("SELECT expires_at FROM business_personal_offers WHERE id=$1", [offer.id])).rows[0];
       assert.equal((await createPersonalOffer(client, seller, data)).id, offer.id);
@@ -157,7 +183,7 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal((await post(path, buyer, { expectedPriceRolls: 2 })).body.code, "OFFER_PRICE_CHANGED");
           assert.deepEqual(await balances(), beforeStatus);
           for (const [sql, params] of [
-            ["DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [buyer, seller]],
+            [`DELETE FROM sphere_section_shares WHERE owner_user_id=$1 AND viewer_user_id=$2 AND ${brandOfferScope}`, [buyer, seller]],
             ["UPDATE business_marketplace_items SET active=FALSE WHERE id=$1", [product.id]],
             ["UPDATE users SET business_category='doctor' WHERE id=$1", [seller]],
           ]) {
@@ -266,7 +292,7 @@ test("personal offers on existing production schema: every test write is rolled 
             assert.equal((await readRollOrders(client, buyer)).orders[0].status, "placed");
           } finally { await client.query("ROLLBACK TO SAVEPOINT refund_recipient_capacity"); }
 
-          await client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [buyer, seller]);
+          await blockBrand();
           await client.query("UPDATE business_marketplace_items SET active=FALSE WHERE id=$1", [product.id]);
           assert.equal((await listOffer(buyer)).status, "paid");
           assert.equal((await status(path, buyer)).result.purchase.id, paid.body.purchase.id);
@@ -326,11 +352,9 @@ test("personal offers on existing production schema: every test write is rolled 
           const request=async(path,body,userId=buyer)=>{const response=await fetch(`http://127.0.0.1:${server.address().port}/api${path}`,{method:body?"POST":"GET",headers:{"x-test-user":userId,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});return{status:response.status,body:await response.json()};};
           const terms={buyerId:buyer,priceRolls:40,durationHours:24,idempotencyKey:randomUUID()};
           const path=`/wishlist-business/products/items/${wishlistItem}/recommend`;
-          const unfollow = () => client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [buyer, seller]);
-          const follow = () => client.query("INSERT INTO follows(follower_id,following_id) VALUES($1,$2)", [buyer, seller]);
           const account = (space) => request(`/wishlist-business/${space}/accounts`).then(({ body }) =>
             body.accounts.find(entry => entry.username === `offer-${seller}`));
-          await unfollow();
+          await blockBrand();
           assert.deepEqual((await request("/wishlist-business/products/buyers", null, seller)).body.buyers, []);
           const grantOnly = await request(path, terms, seller);
           assert.equal(grantOnly.status, 403);
@@ -347,8 +371,8 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal((await account("places")).storefrontTitle, null);
           await client.query("UPDATE users SET seller_space='products' WHERE id=$1", [seller]);
           await client.query("UPDATE wishlist_business_pages SET published=TRUE WHERE business_user_id=$1 AND space='products'", [seller]);
-          await follow();
-          assert.equal((await account("products")).isFollowing, true);
+          await allowBrand();
+          assert.equal((await account("products")).offerConsent, true);
           const recommendation=await request(path,terms,seller);
           assert.equal(recommendation.status,200,JSON.stringify(recommendation.body));
           const paymentId=recommendation.body.personalOfferId;
@@ -360,8 +384,8 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal((await request('/wishlist-business/products/offers',null,other)).body.items.length,0);
           await client.query("UPDATE wishlist_business_items SET title='Changed',price='10000 RUB' WHERE id=$1",[wishlistItem]);
           assert.equal((await request('/wishlist-business/products/offers')).body.items[0].title,'Original wishlist item');
-          await unfollow();
-          assert.equal((await account("products")).isFollowing, false);
+          await blockBrand();
+          assert.equal((await account("products")).offerConsent, false);
           assert.equal((await request(path, { ...terms, idempotencyKey: randomUUID() }, seller)).body.code, "OFFER_CONSENT_REQUIRED");
           assert.equal((await request(path, terms, seller)).body.personalOfferId, paymentId);
           await client.query("SAVEPOINT wishlist_grant_only");
@@ -384,7 +408,7 @@ test("personal offers on existing production schema: every test write is rolled 
           await client.query("DELETE FROM sphere_section_shares WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist'",[buyer,seller]);
           assert.equal(await invoiceStatus(), "unavailable");
           const denied=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(denied.status,403);assert.equal(denied.body.code,'OFFER_ACCESS_REVOKED');
-          await follow();
+          await allowBrand();
           const buyers = await request('/wishlist-business/products/buyers',null,seller);
           assert.deepEqual(buyers.body.buyers.map(person => person.id), [buyer]);
           const paid=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(paid.status,201,JSON.stringify(paid.body));

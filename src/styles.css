@@ -3957,45 +3957,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .app-layout--dark .wishes-page__identity--readonly { cursor: default; }
 
-.sphere-access-requests {
-  width: min(calc(100% - 32px), 980px);
-  margin: 0 auto 24px;
-  display: grid;
-  gap: 10px;
-}
-.sphere-access-request {
-  padding: 16px;
-  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) auto;
-  align-items: center;
-  gap: 16px;
-}
-.sphere-access-request__person,
-.business-access-form__person {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
-.sphere-access-request__person > span,
-.business-access-form__person > span {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-.sphere-access-request__person strong,
-.sphere-access-request__person small,
-.business-access-form__person strong,
-.business-access-form__person small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sphere-access-request__person small,
-.business-access-form__person small { color: var(--muted-foreground); font-size: .8125rem; line-height: 1rem; }
-.sphere-access-request__copy { min-width: 0; display: grid; gap: 4px; }
-.sphere-access-request__copy > p { margin: 0; color: var(--muted-foreground); text-wrap: pretty; }
-.sphere-access-request__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
-
 .app-layout--dark .app-main--with-profile > .business-marketplace-page { padding-top: 0; }
 .business-marketplace-page {
   width: 100%;
@@ -4059,8 +4020,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   flex: none;
   align-self: center;
 }
-.business-access-person__grants { display: grid; gap: var(--layout-inline-gap); min-width: 0; }
-.business-access-person__grants > div { display: flex; flex-wrap: wrap; gap: var(--layout-inline-gap); }
 .business-access-page__status {
   min-height: var(--layout-control-size);
   padding: 12px 16px;
@@ -4072,16 +4031,10 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   color: var(--muted-foreground);
 }
 .business-access-page__status > svg { width: 22px; height: 22px; }
-.business-access-form { min-height: 0; display: flex; flex: 1; flex-direction: column; }
-.business-access-form__person { padding: 12px; border-radius: 16px; background: var(--muted); }
-.business-access-form textarea { min-height: 112px; }
 
 @media (max-width: 760px) {
   .auth-account-types { grid-template-columns: 1fr; }
   .auth-account-type { min-height: 72px; }
-  .sphere-access-request { grid-template-columns: 1fr; }
-  .sphere-access-request__actions { justify-content: stretch; }
-  .sphere-access-request__actions > button { flex: 1; }
 }
 
 .app-layout--dark .wishes-page__hero-avatar {
@@ -5642,7 +5595,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   align-items: center;
   gap: var(--layout-inline-gap);
 }
-:is(.contacts-sphere__search, .business-access-page__search) {
+.contacts-sphere__search {
   width: 100%;
   height: 50px;
   margin: 0;
@@ -5653,11 +5606,11 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   border: 0;
   background: color-mix(in oklch, var(--foreground) 5%, transparent);
 }
-:is(.contacts-sphere__search, .business-access-page__search) [data-slot="input-group-addon"][data-align="inline-start"] {
+.contacts-sphere__search [data-slot="input-group-addon"][data-align="inline-start"] {
   padding-left: 16px;
   padding-right: 10px;
 }
-:is(.contacts-sphere__search, .business-access-page__search) [data-slot="input-group-addon"] > svg {
+.contacts-sphere__search [data-slot="input-group-addon"] > svg {
   width: 19px;
   height: 19px;
   color: var(--muted-foreground);
@@ -5671,10 +5624,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   background: transparent;
   box-shadow: none;
   font-size: 15px;
-}
-.app-layout--dark .business-access-page__search [data-slot="input"] {
-  height: 100%;
-  background: transparent;
 }
 .contacts-sphere__search-clear {
   color: var(--muted-foreground);

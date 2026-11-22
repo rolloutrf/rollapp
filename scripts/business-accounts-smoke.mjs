@@ -5,7 +5,7 @@ import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 import { BUSINESS_CATEGORIES } from "../shared/modules/catalog-marketplace/business-accounts.js";
-import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS } from "../shared/modules/access/sphere-sharing.js";
+import { SPHERE_SECTIONS } from "../shared/modules/access/sphere-sharing.js";
 
 const output = "/tmp/rollapp-business-categories";
 const clientsOnly = process.argv.includes("--clients-only");
@@ -38,7 +38,7 @@ async function geometry(page, label) {
   }
 }
 
-async function checkRegistrationAndRequestForms(page, label) {
+async function checkRegistration(page, label) {
     await page.goto(`${origin}/__business-accounts`);
     await page.getByRole("radio", { name: /^Личный/ }).waitFor();
     await page.evaluate(() => document.fonts.ready);
@@ -92,23 +92,6 @@ async function checkRegistrationAndRequestForms(page, label) {
     await page.waitForFunction((id) => JSON.parse(document.querySelector("[data-state]").textContent).businessCategory === id, BUSINESS_CATEGORIES[0].id);
     await page.screenshot({ path: `${output}/${label}-registration.png`, fullPage: true, animations: "disabled" });
 
-    for (const category of BUSINESS_CATEGORIES) {
-      await page.goto(`${origin}/__business-accounts?request=1&category=${category.id}`);
-      const sphere = page.getByRole("combobox", { name: "Сфера", exact: true });
-      await sphere.waitFor();
-      assert.equal(await sphere.locator('[data-slot="select-value"]').textContent(), category.sphereLabel);
-      assert(await sphere.isDisabled(), `${label}: category sphere must be fixed`);
-      const section = page.getByRole("combobox", { name: "Пространство", exact: true });
-      await section.click();
-      await page.getByRole("option").first().waitFor();
-      const eligibleSections = SPHERE_SECTIONS[category.sphere].filter(id => category.sphere !== "wishlist" || id !== "wishlist");
-      const expected = eligibleSections.map((id) => SPHERE_SECTION_LABELS[id]);
-      assert.deepEqual(await page.getByRole("option").allTextContents(), expected);
-      await page.getByRole("option").last().click();
-      await page.getByRole("button", { name: "Отправить запрос" }).click();
-      assert.deepEqual(JSON.parse(await page.locator("[data-submitted]").textContent()), { sphere: category.sphere, section: eligibleSections.at(-1) });
-      await geometry(page, `${label} request ${category.id}`);
-    }
 }
 
 async function checkOwnerCatalog(page, width, height) {
@@ -127,22 +110,21 @@ async function checkOwnerCatalog(page, width, height) {
       const list = page.getByRole("list", { name: "Бизнес-аккаунты", exact: true });
       await list.waitFor();
       assert.equal(await list.getByRole("listitem").count(), sphere === "wishlist" ? 52 : 3);
-      await page.getByText("Подпишитесь на бизнес, чтобы получать от него предложения.").waitFor();
       const index = sphere === "wishlist" ? 52 : 3;
       const name = `Организация ${index}`;
-      const follow = list.getByRole("button", { name: `Подписаться · ${name}`, exact: true });
-      await follow.click();
+      const allow = list.getByRole("button", { name: `Открыть потребности · ${name}`, exact: true });
+      await allow.click();
       if (retry) {
         await list.getByText("Повторите изменение подписки", { exact: true }).waitFor();
-        await follow.click();
+        await allow.click();
       }
-      await list.getByRole("button", { name: `Отписаться · ${name}`, exact: true }).click();
-      await follow.waitFor();
-      const path = `/profile/business-account-${index}/follow`;
+      await list.getByRole("button", { name: `Закрыть потребности · ${name}`, exact: true }).click();
+      await allow.waitFor();
+      const path = `/brand-offer-consents/business-account-${index}`;
       assert.deepEqual(await page.evaluate(() => window.catalogCalls), [
-        ...(retry ? [{ path, body: { following: true } }] : []),
-        { path, body: { following: true } },
-        { path, body: { following: false } },
+        ...(retry ? [{ path, body: { granted: true } }] : []),
+        { path, body: { granted: true } },
+        { path, body: { granted: false } },
       ]);
     }
     assert.equal(await page.getByRole("button", { name: /Доступ к личному разделу|Открытые доступы/ }).count(), 0);
@@ -153,28 +135,34 @@ async function checkOwnerCatalog(page, width, height) {
   }
 
   await page.goto(`${origin}/__business-accounts?owner-catalog=wishlist&section=food&revoke=1`);
-  const manage = page.getByRole("button", { name: "Открытые доступы", exact: true });
-  await manage.click();
-  const drawer = page.getByRole("dialog", { name: "Доступ к разделу «Еда»", exact: true });
-  await drawer.getByText("Доступ ко всему Вишлисту", { exact: true }).waitFor();
-  assert.equal(await drawer.getAttribute("data-swipe-axis"), width < 768 ? "y" : "x");
-  const revoke = drawer.getByRole("button", { name: "Закрыть доступ для Организация 1", exact: true });
-  await revoke.scrollIntoViewIfNeeded();
-  assert(await revoke.evaluate((node) => {
-    const body = node.closest(".app-drawer-body");
-    const rect = node.getBoundingClientRect();
-    return rect.height >= 48 && rect.left >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight
-      && body.scrollWidth <= body.clientWidth + 1;
-  }), `${width}x${height}: the revoke action must fit the visible drawer`);
-  if ([390, 1440].includes(width)) {
-    await drawer.screenshot({ path: `${output}/${width}x${height}-existing-access.png`, animations: "disabled" });
-  }
+  await page.getByRole("link", { name: "Открыть каталог брендов" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: /Открытые доступы|Открыть доступ/ }).count(), 0);
+  await page.goto(`${origin}/__business-accounts?owner-catalog=wishlist&section=food&old-grant=1`);
+  const menu = page.getByRole("button", { name: "Ранее выданные права бренда «Организация 1»", exact: true });
+  const revoke = page.getByRole("menuitem", { name: "Закрыть доступ к «Весь Вишлист (существующий доступ)»", exact: true });
+  await menu.click();
   await revoke.click();
-  await drawer.waitFor({ state: "hidden" });
-  await manage.waitFor({ state: "hidden" });
+  await page.waitForFunction(() => window.catalogCalls.length === 1);
   assert.deepEqual(await page.evaluate(() => window.catalogCalls), [
     { path: "/sphere-shares", body: { viewerId: "business-1", sphere: "wishlist", section: "wishlist", granted: false } },
   ]);
+  await menu.waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Открыть потребности · Организация 1", exact: true }).waitFor();
+
+}
+
+async function checkAllOwnerSections(page) {
+  for (const [sphere, sections] of Object.entries(SPHERE_SECTIONS)) {
+    for (const section of sections) {
+      if (section === "wishlist") continue; // Historical all-Wishlist grant, not a visible tab.
+      const params = new URLSearchParams({ "owner-catalog": sphere, section, "audit-section": "1" });
+      await page.goto(`${origin}/__business-accounts?${params}`);
+      await page.getByRole("link", { name: "Открыть каталог брендов" }).waitFor();
+      await page.waitForFunction(() => window.ownerScopeRead === true);
+      assert.equal(await page.getByRole("button", { name: /Открытые доступы|^Открыть доступ$|^Запросить доступ$/ }).count(), 0, `${sphere}/${section}`);
+    }
+  }
+  console.log("PASS all owner sphere sections without manual access buttons");
 }
 
 try {
@@ -185,37 +173,20 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", (route) => { errors.push(`Unexpected API request: ${route.request().method()}`); return route.abort(); });
     const label = `${width}x${height}`;
-    if (!clientsOnly) await checkRegistrationAndRequestForms(page, label);
+    if (!clientsOnly) await checkRegistration(page, label);
     await page.goto(`${origin}/__business-accounts?clients=1&access-unavailable`);
-    const users = page.getByRole("list", { name: "Пользователи", exact: true });
-    const grantedCard = users.getByRole("listitem").filter({ hasText: "@shared-client" });
-    const accessError = "Не удалось загрузить доступы и запросы";
+    const accessError = "Не удалось загрузить ранее открытые разделы";
     await page.getByText(accessError, { exact: true }).waitFor();
-    await grantedCard.getByRole("button", { name: "Запросить доступ", exact: true }).click();
-    const drawer = page.locator('[data-mobile-form-page]:visible, [data-slot="drawer-popup"]:visible');
-    await drawer.getByRole("heading", { name: "Разделы и доступ", exact: true }).waitFor();
-    await drawer.getByText(accessError, { exact: true }).waitFor();
-    assert.equal(await drawer.getByRole("button", { name: "Отправить запрос" }).count(), 0);
-    assert.equal(await drawer.getByRole("link", { name: "Открыть", exact: true }).count(), 0);
-
     await page.evaluate(() => window.restoreClientAccess());
-    await drawer.getByRole("button", { name: "Повторить", exact: true }).click();
-    await drawer.getByText("Доступ открыт для чтения.", { exact: true }).waitFor();
-    assert.equal(await drawer.getByText(accessError, { exact: true }).count(), 0);
-    assert.equal(await drawer.getByRole("link", { name: "Открыть", exact: true }).getAttribute("href"), "/shared-client/products");
-    assert.deepEqual(await page.evaluate(() => window.clientAccessCalls), []);
-    if (width < 768) await page.getByRole("button", { name: "Назад", exact: true }).click();
-    else await drawer.getByRole("button", { name: "Закрыть запрос доступа", exact: true }).click();
-    await drawer.waitFor({ state: "hidden" });
-    assert.equal(await page.getByText(accessError, { exact: true }).count(), 0);
-
-    const openProducts = grantedCard.getByRole("link", { name: "Товары", exact: true });
+    await page.getByRole("button", { name: "Повторить", exact: true }).click();
+    const shares = page.getByRole("region", { name: "Ранее открытые разделы", exact: true });
+    const openProducts = shares.getByRole("link", { name: "Открыть «Товары» — Александр Соколов" });
     await openProducts.waitFor();
-    assert.equal(await openProducts.count(), 1);
     assert.equal(await openProducts.getAttribute("href"), "/shared-client/products");
-    assert.equal(await grantedCard.getByRole("button", { name: /Запросить/ }).count(), 0);
-    const shares = page.getByRole("region", { name: "Открытые разделы", exact: true });
-    assert.equal(await shares.getByRole("link", { name: "Открыть «Товары» — Александр Соколов" }).getAttribute("href"), "/shared-client/products");
+    assert.equal(await page.getByRole("button", { name: /Запросить доступ|Отправить запрос/ }).count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.clientAccessReads.filter(path => path.includes("access") || path.includes("sphere-shares"))), [
+      "/sphere-shares/incoming", "/sphere-shares/incoming",
+    ]);
     const menu = page.getByRole("button", { name: "Открыть переключатель сфер", exact: true });
     await menu.click();
     const services = page.getByRole("navigation", { name: "Сервисы и сферы Rollapp" });
@@ -223,25 +194,13 @@ try {
     assert.deepEqual(await services.getByRole("link").allTextContents(), ["Вишлист", "Клиенты"]);
     assert.equal(await services.getByRole("link", { name: "Клиенты", exact: true }).getAttribute("aria-current"), "page");
     assert.equal(await page.getByRole("navigation", { name: "Разделы, доступные для чтения", exact: true }).count(), 0);
-    assert.equal(await page.evaluate(() => window.clientAccessReads.includes("/sphere-shares/incoming")), false);
     if ((width === 390 && height > 400) || width === 1440) {
       await page.locator(".sphere-switcher__panel").screenshot({ path: `${output}/${label}-business-menu.png`, animations: "disabled" });
     }
     await page.keyboard.press("Escape");
     await services.waitFor({ state: "hidden" });
 
-    const requests = page.getByRole("region", { name: "Мои запросы", exact: true });
-    await requests.getByText("Ожидает ответа").waitFor();
     await geometry(page, `${label} client access`);
-    const columns = width <= 350 ? 1 : width <= 760 ? 2 : width <= 1080 ? 3 : 4;
-    assert.equal(await users.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(" ").length), columns);
-    const search = page.getByRole("searchbox", { name: "Найти пользователя", exact: true });
-    const searchFits = await search.evaluate(node => {
-      const searchBox = node.closest('[data-slot="input-group"]').getBoundingClientRect();
-      const section = node.closest("section").getBoundingClientRect();
-      return searchBox.left >= section.left && searchBox.right <= section.right;
-    });
-    assert(searchFits, `${label}: search overflows the section`);
     for (const card of await page.locator(".business-access-card").all()) {
       const overflow = await card.evaluate(element => {
         if (element.scrollWidth <= element.clientWidth + 1) return null;
@@ -269,32 +228,11 @@ try {
     }
     if ([390, 1440].includes(width) && height >= 800) {
       await page.screenshot({ path: `${output}/${label}-client-access.png`, fullPage: true, animations: "disabled" });
-      await users.screenshot({ path: `${output}/${label}-client-grid.png`, animations: "disabled" });
     }
-    await search.fill("нет совпадений");
-    await page.getByText("Пользователи не найдены", { exact: true }).waitFor();
-    const clear = page.getByRole("button", { name: "Очистить поиск", exact: true });
-    assert.equal(await clear.count(), 1);
-    await clear.press("Enter");
-    await openProducts.waitFor();
-    assert.equal(await search.inputValue(), "");
-    await search.fill("long-username");
-    const prospect = users.getByRole("listitem").filter({ hasText: "@long-username-with-many-characters" });
-    await prospect.waitFor();
-    await page.waitForFunction(() => document.querySelectorAll('ul[aria-label="Пользователи"] > li').length === 1);
-    await prospect.getByRole("button", { name: "Запросить доступ", exact: true }).click();
-    await page.getByRole("heading", { name: "Разделы и доступ", exact: true }).waitFor();
-    await page.getByRole("button", { name: "Отправить запрос" }).click();
-    await prospect.getByText("Есть запрос", { exact: true }).waitFor();
-    await requests.getByRole("listitem").filter({ hasText: "@pending-client" }).getByRole("button", { name: "Отменить", exact: true }).click();
-    await requests.getByText("@pending-client").waitFor({ state: "detached" });
-    assert.deepEqual(await page.evaluate(() => window.clientAccessCalls), [
-      { ownerId: "new-client", sphere: "wishlist", section: "products", message: "" },
-      "/business-access/requests/initial-request",
-    ]);
     if (!clientsOnly) await checkOwnerCatalog(page, width, height);
+    if (!clientsOnly && width === 1440) await checkAllOwnerSections(page);
     assert.deepEqual(errors, [], `${label}: runtime errors or API requests`);
     await page.close();
-    console.log(`PASS ${label}: ${clientsOnly ? "" : "registration, categories, five scoped request forms, "}client cards, drawer retry, search and access actions; no API requests`);
+    console.log(`PASS ${label}: ${clientsOnly ? "" : "registration, categories, brand consent, "}legacy client cards and retry; no API requests`);
   }
 } finally { await browser.close(); await server.close(); }

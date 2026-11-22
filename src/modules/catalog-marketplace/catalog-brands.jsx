@@ -1,19 +1,23 @@
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Building2 } from "lucide-react";
+import { Building2, Ellipsis } from "lucide-react";
 import { api } from "../runtime/api.js";
 import { publicProfilePath, publicSpacePath } from "../../../shared/modules/profile/profile-links.js";
 import { APP_WISH_CATALOG_PATH } from "../shell/app-routing.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ControlBar } from "@/components/control-bar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar as ProfileAvatar } from "../profile/profile-avatar.jsx";
 import { profileCardAccent } from "../profile/profile-card-accent.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { PageActionButton } from "@/components/page-action-button";
 import { cn } from "@/lib/utils";
+import { useSphereSharing } from "../access/sphere-sharing.jsx";
+import { SPHERE_SECTION_LABELS } from "../../../shared/modules/access/sphere-sharing.js";
 
 export function brandCatalogPath(space) {
   return `${APP_WISH_CATALOG_PATH}?${new URLSearchParams({ source: "brands", tab: space })}`;
@@ -37,12 +41,12 @@ export function BusinessCatalogProvider({ space, sphere, children }) {
     return () => { active = false; };
   }, [endpoint, revision]);
   const state = result?.endpoint === endpoint && result.revision === revision ? result : loadingState;
-  const updateFollowing = (username, following) => setResult(current => (
+  const updateConsent = (username, granted) => setResult(current => (
     current?.endpoint === endpoint && current.revision === revision
-      ? { ...current, accounts: current.accounts.map(account => account.username === username ? { ...account, isFollowing: following } : account) }
+      ? { ...current, accounts: current.accounts.map(account => account.username === username ? { ...account, offerConsent: granted } : account) }
       : current
   ));
-  return <BusinessCatalogContext.Provider value={{ ...state, space, sphere, endpoint, updateFollowing, retry: () => setRevision(value => value + 1) }}>{children}</BusinessCatalogContext.Provider>;
+  return <BusinessCatalogContext.Provider value={{ ...state, space, sphere, endpoint, updateConsent, retry: () => setRevision(value => value + 1) }}>{children}</BusinessCatalogContext.Provider>;
 }
 
 function BusinessAvatar({ account, className }) {
@@ -78,47 +82,74 @@ export function BusinessCatalogSelect({ side = "bottom", fullWidth = false }) {
 }
 
 export function BusinessCatalogList() {
-  const { accounts, space, sphere, endpoint, loading, error, updateFollowing, retry } = useContext(BusinessCatalogContext);
+  const { accounts, space, sphere, endpoint, loading, error, updateConsent, retry } = useContext(BusinessCatalogContext);
+  const access = useSphereSharing();
+  const consentHintId = useId();
   if (loading) return <p role="status" className="rollapp-body flex items-center justify-center gap-2"><Spinner />Загружаем бизнес-аккаунты…</p>;
   if (error) return <Alert variant="destructive" className="wish-catalog-page__error">
     <AlertTitle>Не удалось загрузить бизнес-аккаунты</AlertTitle>
     <AlertDescription>{error.message}</AlertDescription>
     <PageActionButton type="button" variant="outline" onClick={retry}>Повторить</PageActionButton>
   </Alert>;
-  if (!accounts.length) return <EmptyState icon={Building2} title="В этом разделе пока нет бизнес-аккаунтов"
+  const legacyAccounts = access.active && access.isOwner && !access.error
+    ? access.people.filter((person, index, people) => people.findIndex(entry => entry.username === person.username) === index &&
+        !accounts.some(account => account.username === person.username))
+    : [];
+  if (!accounts.length && !legacyAccounts.length) return <EmptyState icon={Building2} title="В этом разделе пока нет бизнес-аккаунтов"
     text={sphere ? "Здесь появятся бизнес-аккаунты этой сферы." : "Здесь появятся аккаунты продавцов этого раздела."} />;
   return <>
-    {accounts.some(account => typeof account.isFollowing === "boolean") && <p className="rollapp-body text-pretty">Подпишитесь на бизнес, чтобы получать от него предложения.</p>}
+    {accounts.some(account => typeof account.offerConsent === "boolean") && <p id={consentHintId} className="rollapp-body text-pretty">
+      Откройте активные потребности выбранному бренду, чтобы он мог присылать вам предложения.
+    </p>}
     <ul className="contacts-grid rollapp-body mx-auto w-full max-w-(--layout-collection-width)" role="list" aria-label="Бизнес-аккаунты">
-      {accounts.map(account => <BusinessCatalogAccount key={`${endpoint}:${account.username}`} account={account}
-        path={space ? publicSpacePath(account, space) : publicProfilePath(account)} onChange={updateFollowing} />)}
+      {[...accounts, ...legacyAccounts].map(account => <BusinessCatalogAccount key={`${endpoint}:${account.username}`} account={account}
+        path={space ? publicSpacePath(account, space) : publicProfilePath(account)} onChange={updateConsent} access={access} consentHintId={consentHintId} />)}
     </ul>
   </>;
 }
 
-function BusinessCatalogAccount({ account, path, onChange }) {
+function BusinessCatalogAccount({ account, path, onChange, access, consentHintId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
+  const consentButton = useRef(null);
   const name = account.storefrontTitle || account.name;
-  const label = account.isFollowing ? "Отписаться" : "Подписаться";
-  const change = async () => {
+  const canChangeConsent = typeof account.offerConsent === "boolean";
+  const grants = access.active && access.isOwner && !access.error
+    ? access.people.filter(person => person.username === account.username)
+    : [];
+  const action = account.offerConsent ? "Закрыть потребности" : "Открыть потребности";
+
+  async function save(operation) {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     setError("");
     try {
-      const result = await api.post(`/profile/${encodeURIComponent(account.username)}/follow`, { following: !account.isFollowing });
-      onChange(account.username, result.following);
+      await operation();
     } catch (failure) {
       setError(failure.message);
     } finally {
       lock.current = false;
       setBusy(false);
     }
+  }
+  const changeConsent = () => save(async () => {
+    const { granted } = await api.post(`/brand-offer-consents/${encodeURIComponent(account.username)}`, { granted: !account.offerConsent });
+    onChange(account.username, granted);
+  });
+  const revokeGrant = (grant) => save(async () => {
+    await api.post("/sphere-shares", { viewerId: grant.id, sphere: access.sphere, section: grant.grantSection, granted: false });
+    await access.reload({ background: true });
+  });
+  const focusConsent = (event) => {
+    if (!event.ctrlKey || !consentButton.current) return;
+    event.preventDefault();
+    consentButton.current.focus();
   };
   return <li className="business-catalog-card" style={{ "--contact-accent": profileCardAccent(account.username || name) }}>
-    <Link to={path} className="business-catalog-card__profile" aria-label={`Открыть профиль ${name} (@${account.username})`}>
+    <Link to={path} className="business-catalog-card__profile" aria-label={`Открыть профиль ${name} (@${account.username})`}
+      onClick={focusConsent} onContextMenu={focusConsent}>
       <span className="contact-card__avatar-wrap">
         <ProfileAvatar user={account} size="lg" className="contact-card__avatar" aria-hidden="true" />
       </span>
@@ -127,10 +158,21 @@ function BusinessCatalogAccount({ account, path, onChange }) {
         <span className="text-xs text-muted-foreground wrap-anywhere">@{account.username}</span>
       </span>
     </Link>
-    {typeof account.isFollowing === "boolean" && <footer className="business-catalog-card__footer">
-      <Button type="button" variant="outline" className="h-auto rounded-full whitespace-normal" aria-label={`${label} · ${name}`}
-        aria-busy={busy || undefined} disabled={busy} onClick={change}><span>{label}</span></Button>
-      {error && <p role="alert" className="w-full text-xs text-destructive wrap-anywhere">{error}</p>}
+    {canChangeConsent && <footer className="business-catalog-card__footer">
+      <Button ref={consentButton} type="button" variant={account.offerConsent ? "secondary" : "outline"}
+        className="h-auto rounded-full py-2 whitespace-normal" aria-label={`${action} · ${name}`} aria-describedby={consentHintId}
+        aria-busy={busy || undefined} disabled={busy} onClick={changeConsent}><span>{action}</span></Button>
     </footer>}
+    {grants.length > 0 && <ControlBar className="absolute top-3 right-3 z-10">
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon" data-control-icon
+          aria-label={`Ранее выданные права бренда «${name}»`} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={8} className="w-max max-w-(--available-width)">
+          {grants.map(grant => <DropdownMenuItem key={grant.grantSection} variant="destructive" className="whitespace-normal" disabled={busy}
+            onClick={() => revokeGrant(grant)}>Закрыть доступ к «{SPHERE_SECTION_LABELS[grant.grantSection]}»</DropdownMenuItem>)}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </ControlBar>}
+    {error && <p role="alert" className="px-2 text-xs text-destructive wrap-anywhere">{error}</p>}
   </li>;
 }

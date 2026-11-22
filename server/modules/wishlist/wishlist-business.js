@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { createPersonalOffer, personalOfferStatus } from "../../personal-offers.js";
+import { createPersonalOffer, personalOfferFulfillmentSchema, personalOfferStatus } from "../../personal-offers.js";
 import { RollsError } from "../payments/rolls.js";
 import { WISHLIST_SPACE_IDS, canManageWishSales, canManageWishlistSpace } from "../../../shared/modules/wishlist/wishlist-business.js";
+import { brandOfferScope } from "../access/brand-offer-consent.js";
 
 const spacesSql = WISHLIST_SPACE_IDS.map(id => `'${id}'`).join(",");
 // Explicit additive migration only; never invoked by runtime startup.
@@ -54,6 +55,7 @@ const manualSaleId = (userId, space, requestId) =>
 const wishSale = `starts_with(i.id, '${wishSalePrefix}')`;
 const personalSale = `(u.account_type='personal' AND ${wishSale})`;
 const consent = `(EXISTS (SELECT 1 FROM follows f WHERE f.follower_id=o.buyer_user_id AND f.following_id=i.business_user_id)
+  OR EXISTS (SELECT 1 FROM sphere_section_shares s WHERE s.owner_user_id=o.buyer_user_id AND s.viewer_user_id=i.business_user_id AND ${brandOfferScope})
   OR EXISTS (SELECT 1 FROM sphere_section_shares s WHERE s.owner_user_id=o.buyer_user_id AND s.viewer_user_id=i.business_user_id AND s.sphere='wishlist' AND s.section IN (i.space,'wishlist')))`;
 const eligible = `u.account_type='business' AND u.business_category='seller' AND (u.seller_space IS NULL OR u.seller_space=i.space)`;
 const itemSelect = `SELECT i.*,u.name AS business_name,u.username AS business_username,p.title AS page_title,p.published AS page_published,${personalSale} AS personal_sale FROM wishlist_business_items i JOIN wishlist_business_pages p ON p.business_user_id=i.business_user_id AND p.space=i.space JOIN users u ON u.id=i.business_user_id`;
@@ -106,10 +108,10 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
  app.get(`${base}/accounts`, requireAuth, scope, route(async (req, res) => {
    const { rows } = await query(
      `SELECT u.username, u.name, u.avatar_url AS "avatarUrl", p.title AS "storefrontTitle",
-             CASE WHEN $2 IS NOT NULL AND u.id<>$2 THEN f.follower_id IS NOT NULL END AS "isFollowing"
+             CASE WHEN $2 IS NOT NULL AND u.id<>$2 THEN s.owner_user_id IS NOT NULL END AS "offerConsent"
       FROM users u
       LEFT JOIN wishlist_business_pages p ON p.business_user_id=u.id AND p.space=$1 AND p.published
-      LEFT JOIN follows f ON f.follower_id=$2 AND f.following_id=u.id
+      LEFT JOIN sphere_section_shares s ON s.owner_user_id=$2 AND s.viewer_user_id=u.id AND s.${brandOfferScope}
       WHERE u.account_type='business' AND u.business_category='seller'
         AND (u.seller_space=$1 OR u.seller_space IS NULL)
       ORDER BY lower(COALESCE(p.title,u.name)), u.username`,
@@ -216,22 +218,23 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
  app.patch(`${base}/sales/:itemId`, requireAuth, scope, saleOwner, saveItem(true));
  app.get(`${base}/buyers`,requireAuth,scope,seller,route(async(req,res) => {
    const result = await query(
-     `SELECT u.id,u.name,u.username FROM follows f
-      JOIN users u ON u.id=f.follower_id AND u.account_type='personal'
-      WHERE f.following_id=$1
+     `SELECT u.id,u.name,u.username FROM sphere_section_shares s
+      JOIN users u ON u.id=s.owner_user_id AND u.account_type='personal'
+      WHERE s.viewer_user_id=$1 AND ${brandOfferScope}
       ORDER BY u.name,u.id LIMIT 200`,
      [req.user.id],
    );
-   res.json({buyers:result.rows});
+   res.set("Cache-Control", "private, no-store").json({buyers:result.rows});
  }));
  app.post(`${base}/items/:itemId/recommend`,requireAuth,scope,seller,route(async(req,res) => {
-   const parsed=z.object({buyerId:z.string().min(1).max(100),priceRolls:z.number().int().min(1).max(1000000),durationHours:z.number().int().min(1).max(720),idempotencyKey:z.string().uuid()}).strict().safeParse(req.body);
+   const parsed=z.object({buyerId:z.string().min(1).max(100),priceRolls:z.number().int().min(1).max(1000000),durationHours:z.number().int().min(1).max(720),fulfillmentTerms:personalOfferFulfillmentSchema,idempotencyKey:z.string().uuid()}).strict().safeParse(req.body);
    if(!parsed.success) return fail(res,400,"Укажите покупателя, цену в роллах и срок действия");
    const result=await transaction(async client => {
      const item=await client.query(`SELECT i.id FROM wishlist_business_items i JOIN wishlist_business_pages p ON p.business_user_id=i.business_user_id AND p.space=i.space WHERE i.id=$1 AND i.business_user_id=$2 AND i.space=$3 AND i.active AND p.published FOR SHARE OF i,p`,[req.params.itemId,req.user.id,req.params.space]);
      if(!item.rowCount) return {status:404,error:"Сначала опубликуйте карточку"};
-     const payment=await createPersonalOffer(client,req.user.id,{itemId:req.params.itemId,itemSource:"wishlist",recipientId:parsed.data.buyerId,priceRolls:parsed.data.priceRolls,durationHours:parsed.data.durationHours,idempotencyKey:parsed.data.idempotencyKey});
-     const saved=await client.query(`INSERT INTO wishlist_business_offers(id,item_id,buyer_user_id) VALUES($1,$2,$3) ON CONFLICT(item_id,buyer_user_id) DO NOTHING RETURNING id`,[randomUUID(),req.params.itemId,parsed.data.buyerId]);
+     const { buyerId, ...terms } = parsed.data;
+     const payment=await createPersonalOffer(client,req.user.id,{...terms,itemId:req.params.itemId,itemSource:"wishlist",recipientId:buyerId});
+     await client.query(`INSERT INTO wishlist_business_offers(id,item_id,buyer_user_id) VALUES($1,$2,$3) ON CONFLICT(item_id,buyer_user_id) DO NOTHING RETURNING id`,[randomUUID(),req.params.itemId,buyerId]);
      return {sent:true,alreadySent:payment.replayed,personalOfferId:payment.id};
    });
    if(result.error) return fail(res,result.status,result.error); res.json(result);

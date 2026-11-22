@@ -59,17 +59,13 @@ api.get = async (path) => {
     });
     return { user: params.has("guest") ? null : owner ? { ...business, accountType: "business", businessCategory, sellerSpace } : { ...user, username: "owner", accountType: "personal" } };
   }
-  if (path === "/sphere-shares/incoming") return { shares: [] };
-  if (params.has("profile-sections")) {
-    if (path === "/business-access/requests") {
-      if (!state.accessReleased) await new Promise(resolve => {
-        state.releaseAccess = () => { state.accessReleased = true; resolve(); };
-      });
-      return { shares: [], requests: [] };
-    }
-    if (path === "/business-access/users") return { people: [] };
-    if (path === "/profile/studio/calendar") return { profile: business, isOwner: true, slots: [] };
+  if (path === "/sphere-shares/incoming") {
+    if (params.has("profile-sections") && !state.accessReleased) await new Promise(resolve => {
+      state.releaseAccess = () => { state.accessReleased = true; resolve(); };
+    });
+    return { shares: [] };
   }
+  if (params.has("profile-sections") && path === "/profile/studio/calendar") return { profile: business, isOwner: true, slots: [] };
   if (params.has("brand-certificates") && path === "/catalog/brands?space=products") {
     return { brands: [{ id: "brand", label: "BORK", slug: "bork.ru" }] };
   }

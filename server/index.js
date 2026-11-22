@@ -124,9 +124,10 @@ import { createAccountSessions, requireExpectedAccount, savedSessionsCookie, ses
 import { registerAndroidAuthRoutes } from "./modules/auth/android-auth.js";
 import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./modules/runtime/trusted-origins.js";
 import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/modules/access/sphere-sharing.js";
-import { BUSINESS_CATEGORIES, BUSINESS_OFFER_SPHERES, businessCategoryForSection, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
+import { BUSINESS_CATEGORIES, BUSINESS_OFFER_SPHERES, canBusinessAccessSection } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { registrationAccountSchema } from "./modules/catalog-marketplace/business-accounts.js";
-import { readBusinessAccessSnapshot, readSphereShareCandidates } from "./modules/access/business-access.js";
+import { readBusinessAccessSnapshot } from "./modules/access/business-access.js";
+import { registerBrandOfferConsentRoutes } from "./modules/access/brand-offer-consent.js";
 import { wishlistProfileGrant, wishlistWishVisibility } from "./modules/wishlist/wishlist-profile-access.js";
 import { getSmsConfig, sendSms } from "./modules/identification/sms.js";
 import {
@@ -705,6 +706,7 @@ registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerPlaceListingRoutes(app, { requireAuth, query, transaction });
 registerPersonalOfferRoutes(app, { requireAuth, query, transaction });
+registerBrandOfferConsentRoutes(app, { requireAuth, asyncRoute, query, transaction });
 registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerProfileMoodRoutes(app, { requireAuth, transaction, asyncRoute, available: () => profileMoodAvailable });
@@ -2051,7 +2053,7 @@ app.get("/api/sphere-shares/incoming", requireAuth, requireBusinessAccount, asyn
     `SELECT s.sphere,s.section,s.created_at,u.id,u.username,u.name,u.avatar_url,u.account_type
      FROM sphere_section_shares s
      JOIN users u ON u.id=s.owner_user_id
-     WHERE s.viewer_user_id=$1
+     WHERE s.viewer_user_id=$1 AND s.sphere<>'brand-offers'
      ORDER BY s.created_at DESC,u.name,s.sphere,s.section`,
     [req.user.id],
   );
@@ -2067,46 +2069,22 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
   const access = await sphereShareOwner(req.user, req.query.owner, sphere, section);
   if (access.error) return res.status(access.status).json({ error: access.error, code: access.code });
   let people = [];
-  let requests = [];
   if (access.isOwner) {
-    const [peopleResult, requestResult] = await Promise.all([
-      query(
-        `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space,s.section AS grant_section
-         FROM sphere_section_shares s
-         JOIN users u ON u.id=s.viewer_user_id
-         WHERE s.owner_user_id=$1 AND s.sphere=$2 AND (s.section=$3 OR ($2='wishlist' AND s.section='wishlist'))
-           AND u.account_type='business'
-         ORDER BY u.name,u.username,s.section`,
-        [access.owner.id, sphere, section],
-      ),
-      query(
-        `SELECT r.id,r.sphere,r.section,r.message,r.created_at,u.id AS requester_id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space
-         FROM sphere_access_requests r
-         JOIN users u ON u.id=r.requester_user_id
-         WHERE r.owner_user_id=$1 AND r.sphere=$2 AND r.status='pending'
-           AND (r.section=$3 OR ($2='wishlist' AND $3='wishlist'))
-           AND u.account_type='business'
-           AND NOT EXISTS (
-             SELECT 1 FROM sphere_section_shares s
-             WHERE s.owner_user_id=r.owner_user_id AND s.viewer_user_id=r.requester_user_id AND s.sphere=r.sphere
-               AND (s.section=r.section OR (s.sphere='wishlist' AND s.section='wishlist'))
-           )
-         ORDER BY r.created_at,u.name`,
-        [access.owner.id, sphere, section],
-      ),
-    ]);
-    people = peopleResult.rows.filter((row) => canBusinessAccessSection(row, sphere, section)).map((row) => ({ ...shareUser(row), grantSection: row.grant_section }));
-    requests = requestResult.rows.filter((row) => canBusinessAccessSection(row, row.sphere, row.section)).map((row) => ({
-      id: row.id,
-      ...canonicalSphereSection(row.sphere, row.section),
-      message: row.message,
-      createdAt: row.created_at,
-      requester: shareUser({ ...row, id: row.requester_id }),
-    }));
+    const result = await query(
+      `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space,s.section AS grant_section
+       FROM sphere_section_shares s
+       JOIN users u ON u.id=s.viewer_user_id
+       WHERE s.owner_user_id=$1 AND s.sphere=$2 AND (s.section=$3 OR ($2='wishlist' AND s.section='wishlist'))
+         AND u.account_type='business'
+       ORDER BY u.name,u.username,s.section`,
+      [access.owner.id, sphere, section],
+    );
+    people = result.rows.filter((row) => canBusinessAccessSection(row, sphere, section))
+      .map((row) => ({ ...shareUser(row), grantSection: row.grant_section }));
   }
   res.set("Cache-Control", "private, no-store");
   const { addresses } = await profileDirectory(query);
-  return res.json({ owner: shareUser(access.owner, addresses), people, requests, isOwner: access.isOwner, ...canonicalSphereSection(sphere, section) });
+  return res.json({ owner: shareUser(access.owner, addresses), people, requests: [], isOwner: access.isOwner, ...canonicalSphereSection(sphere, section) });
 }));
 
 app.get("/api/business-catalog/:sphere", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
@@ -2115,9 +2093,10 @@ app.get("/api/business-catalog/:sphere", requireAuth, requirePrivateSphereOwner,
   if (!BUSINESS_OFFER_SPHERES.includes(sphere)) return res.status(404).json({ error: "Каталог не найден" });
   const category = BUSINESS_CATEGORIES.find(item => item.sphere === sphere);
   const { rows } = await query(
-    `SELECT u.id,u.username,u.name,u.avatar_url AS "avatarUrl", (f.follower_id IS NOT NULL) AS "isFollowing"
+    `SELECT u.id,u.username,u.name,u.avatar_url AS "avatarUrl", (s.owner_user_id IS NOT NULL) AS "offerConsent"
      FROM users u
-     LEFT JOIN follows f ON f.follower_id=$1 AND f.following_id=u.id
+     LEFT JOIN sphere_section_shares s ON s.owner_user_id=$1 AND s.viewer_user_id=u.id
+       AND s.sphere='brand-offers' AND s.section='needs'
      WHERE u.account_type='business' AND u.business_category=$2 AND u.id<>$1
      ORDER BY lower(u.name),u.username`,
     [req.user.id, category.id],
@@ -2126,31 +2105,15 @@ app.get("/api/business-catalog/:sphere", requireAuth, requirePrivateSphereOwner,
   res.set("Cache-Control", "private, no-store").json({ accounts: rows.map(({ id, ...row }) => ({ ...row, profileSlug: addresses.get(id) })) });
 }));
 
-app.get("/api/sphere-shares/candidates", requireAuth, requireShareOwner, asyncRoute(async (req, res) => {
-  const { sphere, section } = sphereSectionStorageScope(String(req.query.sphere || ""), String(req.query.section || ""));
-  const category = businessCategoryForSection(sphere, section);
-  if (!category) return res.status(404).json({ error: "Раздел не найден" });
-  const search = String(req.query.search || "").trim().slice(0, 80).toLocaleLowerCase("ru-RU");
-  const result = await readSphereShareCandidates(query, { ownerId: req.user.id, sphere, section, category: category.id, search });
-  res.set("Cache-Control", "private, no-store");
-  return res.json({ people: result.rows.filter(row => canBusinessAccessSection(row, sphere, section)).map((row) => ({ ...shareUser(row), granted: Boolean(row.grant_section), grantSection: row.grant_section || section })) });
-}));
+function retiredBusinessShare(_req, res) {
+  return res.set("Cache-Control", "private, no-store").status(410).json({
+    error: "Новые доступы к личным разделам закрыты. Предложения можно разрешить в каталоге брендов.",
+    code: "BUSINESS_SHARE_RETIRED",
+  });
+}
 
-app.get("/api/business-access/users", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
-  const search = String(req.query.search || "").trim().slice(0, 80).toLocaleLowerCase("ru-RU");
-  const result = await query(
-    `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type
-     FROM users u
-     LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
-     WHERE u.id<>$1 AND u.account_type='personal' AND (dft.user_id IS NOT NULL OR $4)
-       AND ($2='' OR LOWER(u.name) LIKE $3 OR LOWER(u.username) LIKE $3)
-     ORDER BY u.name,u.username
-     LIMIT 50`,
-    [req.user.id, search, `%${search}%`, canBusinessAccessSection(req.user,"wishlist",req.user.seller_space || "products")],
-  );
-  res.set("Cache-Control", "private, no-store");
-  return res.json({ people: result.rows.map(row => shareUser(row)) });
-}));
+app.get("/api/sphere-shares/candidates", requireAuth, requireShareOwner, retiredBusinessShare);
+app.get("/api/business-access/users", requireAuth, requireBusinessAccount, retiredBusinessShare);
 
 app.get("/api/business-access/requests", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
   const result = await readBusinessAccessSnapshot(query, req.user.id);
@@ -2171,77 +2134,7 @@ app.get("/api/business-access/requests", requireAuth, requireBusinessAccount, as
   });
 }));
 
-app.post("/api/business-access/requests", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
-  const parsed = z.object({
-    ownerId: z.string().trim().min(1).max(100),
-    sphere: z.string().trim().min(1).max(40),
-    section: z.string().trim().min(1).max(80),
-    message: z.string().trim().max(500).default(""),
-  }).strict().safeParse(req.body);
-  if (!parsed.success || !isSphereSection(parsed.data?.sphere, parsed.data?.section)) {
-    return res.status(400).json({ error: "Выберите пользователя и конкретное пространство" });
-  }
-  if (parsed.data.sphere === "wishlist" && parsed.data.section === "wishlist") return res.status(400).json({ error: "Выберите конкретное пространство Вишлиста" });
-  const { ownerId, message } = parsed.data;
-  const { sphere, section } = sphereSectionStorageScope(parsed.data.sphere, parsed.data.section);
-  if (!canBusinessAccessSection(req.user, sphere, section)) {
-    return res.status(403).json({ error: "Это пространство недоступно для вашей категории бизнеса", code: "BUSINESS_CATEGORY_SCOPE" });
-  }
-  if (ownerId === req.user.id) return res.status(400).json({ error: "Нельзя запросить доступ у себя" });
-  const owner = await query(
-    `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type
-     FROM users u
-     LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
-     WHERE u.id=$1 AND u.account_type='personal' AND (dft.user_id IS NOT NULL OR $2='wishlist')`,
-    [ownerId, sphere],
-  );
-  if (!owner.rowCount) return res.status(404).json({ error: "Пользователь с доступными сферами не найден" });
-  const result = await transaction(async (client) => {
-    await lockBusinessAccess(client, req.user.id);
-    const existingShare = await client.query(
-      `SELECT 1 FROM sphere_section_shares
-       WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3
-         AND (section=$4 OR (sphere='wishlist' AND section='wishlist'))`,
-      [ownerId, req.user.id, sphere, section],
-    );
-    if (existingShare.rowCount) return { status: 409, error: "Доступ к этому разделу уже открыт" };
-    const pending = await client.query(
-      "SELECT owner_user_id,sphere,section FROM sphere_access_requests WHERE requester_user_id=$1 AND status='pending'",
-      [req.user.id],
-    );
-    if (pending.rows.some((row) => row.owner_user_id === ownerId && row.sphere === sphere && row.section === section)) {
-      return { status: 409, error: "Запрос к этому разделу уже отправлен" };
-    }
-    if (pending.rowCount >= 50) return { status: 429, error: "Сначала дождитесь ответа на уже отправленные запросы" };
-    const { rows } = await client.query(
-      `INSERT INTO sphere_access_requests
-         (id,requester_user_id,owner_user_id,sphere,section,message,status,created_at,updated_at,responded_at)
-       VALUES ($1,$2,$3,$4,$5,$6,'pending',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)
-       ON CONFLICT (requester_user_id,owner_user_id,sphere,section) DO UPDATE SET
-         message=EXCLUDED.message,
-         status='pending',
-         updated_at=CURRENT_TIMESTAMP,
-         responded_at=NULL
-       WHERE sphere_access_requests.status<>'pending'
-       RETURNING id,status,created_at,updated_at`,
-      [randomUUID(), req.user.id, ownerId, sphere, section, message],
-    );
-    return rows[0] || { status: 409, error: "Запрос к этому разделу уже отправлен" };
-  });
-  if (result.error) return res.status(result.status).json({ error: result.error });
-  res.set("Cache-Control", "private, no-store");
-  return res.status(201).json({
-    request: {
-      id: result.id,
-      ...canonicalSphereSection(sphere, section),
-      message,
-      status: result.status,
-      createdAt: result.created_at,
-      updatedAt: result.updated_at,
-      owner: shareUser(owner.rows[0]),
-    },
-  });
-}));
+app.post("/api/business-access/requests", requireAuth, requireBusinessAccount, retiredBusinessShare);
 
 app.delete("/api/business-access/requests/:requestId", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
   const result = await query(
@@ -2256,60 +2149,7 @@ app.delete("/api/business-access/requests/:requestId", requireAuth, requireBusin
   return res.json({ cancelled: true });
 }));
 
-app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, asyncRoute(async (req, res) => {
-  const parsed = z.object({ decision: z.enum(["approved", "declined"]) }).strict().safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Выберите, открыть или отклонить доступ" });
-  const response = await transaction(async (client) => {
-    const ownerRequest = await client.query(
-      "SELECT requester_user_id FROM sphere_access_requests WHERE id=$1 AND owner_user_id=$2",
-      [req.params.requestId, req.user.id],
-    );
-    if (!ownerRequest.rowCount) return { status: 404, error: "Запрос не найден" };
-    await lockBusinessAccess(client, ownerRequest.rows[0].requester_user_id);
-    const request = await client.query(
-      `SELECT id,requester_user_id,sphere,section,status
-       FROM sphere_access_requests
-       WHERE id=$1 AND owner_user_id=$2
-       FOR UPDATE`,
-      [req.params.requestId, req.user.id],
-    );
-    if (!request.rowCount) return { status: 404, error: "Запрос не найден" };
-    if (request.rows[0].status !== "pending") return { status: 409, error: "На этот запрос уже ответили" };
-    const row = request.rows[0];
-    if (!req.user.can_discover_spheres && !(row.sphere === "wishlist" && req.user.account_type === "personal")) return { status: 403, error: "Раздел недоступен" };
-    if (parsed.data.decision === "approved") {
-      const requester = await client.query("SELECT account_type,business_category,seller_space FROM users WHERE id=$1", [row.requester_user_id]);
-      if (requester.rows[0]?.account_type !== "business") {
-        return {
-          status: 400,
-          error: "Доступ можно открыть только бизнес-аккаунту",
-          code: "BUSINESS_VIEWER_REQUIRED",
-        };
-      }
-      if (!canBusinessAccessSection(requester.rows[0], row.sphere, row.section)) {
-        return { status: 403, error: "Это пространство недоступно для категории бизнеса", code: "BUSINESS_CATEGORY_SCOPE" };
-      }
-    }
-    await client.query(
-      `UPDATE sphere_access_requests
-       SET status=$1,updated_at=CURRENT_TIMESTAMP,responded_at=CURRENT_TIMESTAMP
-       WHERE id=$2`,
-      [parsed.data.decision, row.id],
-    );
-    if (parsed.data.decision === "approved") {
-      await client.query(
-        `INSERT INTO sphere_section_shares (owner_user_id,viewer_user_id,sphere,section)
-         VALUES ($1,$2,$3,$4)
-         ON CONFLICT (owner_user_id,viewer_user_id,sphere,section) DO NOTHING`,
-        [req.user.id, row.requester_user_id, row.sphere, row.section],
-      );
-    }
-    return { decision: parsed.data.decision };
-  });
-  if (response.error) return res.status(response.status).json({ error: response.error, code: response.code });
-  res.set("Cache-Control", "private, no-store");
-  return res.json(response);
-}));
+app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, retiredBusinessShare);
 
 app.post("/api/sphere-shares", requireAuth, requireShareOwner, asyncRoute(async (req, res) => {
   const parsed = z.object({
@@ -2321,47 +2161,23 @@ app.post("/api/sphere-shares", requireAuth, requireShareOwner, asyncRoute(async 
   if (!parsed.success || !isSphereSection(parsed.data?.sphere, parsed.data?.section)) {
     return res.status(400).json({ error: "Не удалось изменить доступ к разделу" });
   }
-  if (parsed.data.granted && parsed.data.sphere === "wishlist" && parsed.data.section === "wishlist") return res.status(400).json({ error: "Выберите конкретное пространство Вишлиста" });
-  const { viewerId, granted } = parsed.data;
+  if (parsed.data.granted) return retiredBusinessShare(req, res);
+  const { viewerId } = parsed.data;
   const { sphere, section } = sphereSectionStorageScope(parsed.data.sphere, parsed.data.section);
   if (viewerId === req.user.id) return res.status(400).json({ error: "Владелец уже имеет доступ к разделу" });
-  const viewer = await query("SELECT id,account_type,business_category,seller_space FROM users WHERE id=$1", [viewerId]);
-  if (!viewer.rowCount) return res.status(404).json({ error: "Пользователь не найден" });
-  if (granted && viewer.rows[0].account_type !== "business") {
-    return res.status(400).json({
-      error: "Доступ можно открыть только бизнес-аккаунту",
-      code: "BUSINESS_VIEWER_REQUIRED",
-    });
-  }
-  if (granted && !canBusinessAccessSection(viewer.rows[0], sphere, section)) {
-    return res.status(403).json({ error: "Это пространство недоступно для категории бизнеса", code: "BUSINESS_CATEGORY_SCOPE" });
+  if (!(await query("SELECT id FROM users WHERE id=$1", [viewerId])).rowCount) {
+    return res.status(404).json({ error: "Пользователь не найден" });
   }
   await transaction(async (client) => {
     await lockBusinessAccess(client, viewerId);
-    const scope = [req.user.id, viewerId, sphere, section];
-    if (granted) {
-      await client.query(
-        `INSERT INTO sphere_section_shares (owner_user_id,viewer_user_id,sphere,section)
-         VALUES ($1,$2,$3,$4)
-         ON CONFLICT (owner_user_id,viewer_user_id,sphere,section) DO NOTHING`,
-        scope,
-      );
-      await client.query(
-        `UPDATE sphere_access_requests
-         SET status='approved',updated_at=CURRENT_TIMESTAMP,responded_at=CURRENT_TIMESTAMP
-         WHERE owner_user_id=$1 AND requester_user_id=$2 AND sphere=$3 AND section=$4 AND status='pending'`,
-        scope,
-      );
-    } else {
-      await client.query(
-        `DELETE FROM sphere_section_shares
-         WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
-        scope,
-      );
-    }
+    await client.query(
+      `DELETE FROM sphere_section_shares
+       WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
+      [req.user.id, viewerId, sphere, section],
+    );
   });
   res.set("Cache-Control", "private, no-store");
-  return res.json({ granted });
+  return res.json({ granted: false });
 }));
 
 const diskProfiles = createDiskProfileStorage({ query, transaction, updateProfile: saveProfile });
