@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, CalendarDays, CheckCheck, ChevronRight, Pill, Plus } from 'lucide-react';
+import { Bell, CalendarDays, CheckCheck, Pill } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { MessageDrawer, MessageDrawerHeading } from '@/components/messenger';
 import { Button } from '@/components/ui/button';
@@ -102,7 +102,6 @@ export function NotificationDrawer({ open, onOpenChange, canAccessHealth }) {
                     <span className="wrap-anywhere font-medium">{reminder.title}</span>
                     <span className="text-xs text-muted-foreground">{reminder.repeatsDaily ? 'Каждый день' : formatDay(reminder.startOn)}, {reminder.remindAt}</span>
                   </span>
-                  <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
                 </Button>
               </li>)}
             </ul>
@@ -134,7 +133,7 @@ export function NotificationDrawer({ open, onOpenChange, canAccessHealth }) {
       </div>
       {(inbox || error) && <DrawerFooter>
         {inbox ? <>
-          <Button type="button" onClick={() => editReminder(null)}><Plus aria-hidden="true" />Новое напоминание</Button>
+          <Button type="button" onClick={() => editReminder(null)}>Новое напоминание</Button>
           {Boolean(unread.length) && <Button data-control-icon type="button" variant="outline" size="icon" disabled={busy}
             aria-label="Отметить все прочитанными" title="Отметить все прочитанными" onClick={() => void markRead()}>
             <CheckCheck aria-hidden="true" />
