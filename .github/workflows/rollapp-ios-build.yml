@@ -78,8 +78,10 @@ jobs:
           mkdir -p ios/build/smoke
           for family in iPhone iPad; do
             device=$(jq -erc --arg family "$family" '
-              [.devices | to_entries | sort_by(.key) | reverse | .[] |
-                select(.key | contains(".iOS-")) | .value[] |
+              [.devices | to_entries |
+                select(.key | test("\\.iOS-[0-9]+(-[0-9]+)*$"))] |
+                sort_by(.key | split(".iOS-") | last | split("-") | map(tonumber)) |
+                reverse | [.[] | .value[] |
                 select(.name | startswith($family))] | first
             ' <<< "$devices")
             sim=$(jq -r .udid <<< "$device")
