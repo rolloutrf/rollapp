@@ -58,7 +58,7 @@ jobs:
   smoke:
     if: github.event_name == 'workflow_dispatch' && inputs.simulator_smoke
     needs: build
-    runs-on: xcode-27
+    runs-on: macos-26
     timeout-minutes: 10
     steps:
       - uses: actions/download-artifact@v8
