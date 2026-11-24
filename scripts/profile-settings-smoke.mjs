@@ -940,6 +940,44 @@ try {
       await back.click();
       await menu.waitFor();
     }
+    await page.goto(`${origin}/__profile-settings?state=telegram-waitlist`);
+    const waitlist = button("Заявки из Telegram");
+    await waitlist.click();
+    await page.getByRole("heading", { name: "Заявки из Telegram", exact: true }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Загружаем заявки…" }).waitFor();
+    await page.waitForFunction(() => typeof window.finishWaitlistRead === "function");
+    await page.evaluate(() => window.finishWaitlistRead());
+    await page.getByRole("alert").filter({ hasText: "Заявки временно недоступны" }).waitFor();
+    await button("Повторить").click();
+    await page.getByText("Пока никто не оставил Telegram.", { exact: true }).waitFor();
+    await back.click();
+    await menu.waitFor();
+    await waitlist.click();
+    const entries = page.getByRole("list", { name: "Заявки с главной страницы" });
+    const telegramLink = entries.getByRole("link").first();
+    await telegramLink.waitFor();
+    assert.equal(await entries.getByRole("listitem").count(), 24);
+    assert.equal(await telegramLink.getAttribute("href"), `https://t.me/${"a".repeat(32)}`);
+    assert.equal(await telegramLink.getAttribute("rel"), "noopener noreferrer");
+    assert.equal(await telegramLink.locator("time").getAttribute("datetime"), "2026-11-24T12:00:00.000Z");
+    assert.deepEqual(await telegramLink.locator("time").evaluate(captionGeometry), ["13px", "16px"]);
+    assert(await telegramLink.evaluate(element => {
+      const label = element.querySelector("span");
+      return label.scrollWidth <= label.clientWidth + 1 && document.documentElement.scrollWidth <= innerWidth;
+    }));
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: `/tmp/rollapp-profile-telegram-waitlist-${width}x${height}.png` });
+    const lastEntry = entries.getByRole("link").last();
+    await lastEntry.scrollIntoViewIfNeeded();
+    assert(await lastEntry.evaluate(element => {
+      const { left, top, width, height } = element.getBoundingClientRect();
+      return element.contains(document.elementFromPoint(left + width / 2, top + height / 2));
+    }));
+    if (mobile) await page.goBack();
+    else await back.click();
+    await menu.waitFor();
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Заявки из Telegram");
+
     const result = mobile ? "permission" : "complete";
     await page.clock.install();
     await page.goto(`${origin}/login?state=backup-result&auth_success=YANDEX_LINKED&backup=f589bf34-5586-4456-aea6-83223dbbd052&result=${result}`);
@@ -961,7 +999,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     if (height === 400) await page.screenshot({ path: `/tmp/rollapp-yandex-result-${width}x${height}.png` });
     assert.deepEqual(errors, []);
-    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, finance, MCP keys, backup result (${result}) and Disk sync`);
+    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, finance, MCP keys, Telegram waitlist, backup result (${result}) and Disk sync`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

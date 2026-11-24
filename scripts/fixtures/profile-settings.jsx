@@ -11,6 +11,7 @@ import "../../src/index.css";
 const mode = new URLSearchParams(location.search).get("state");
 const fixtureUser = {
   id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error", canInvite: true, memberNumber: null,
+  canViewTelegramWaitlist: mode === "telegram-waitlist",
   ...(mode === "business-card" && {
     accountType: "business", name: "Пример бизнеса", username: "example-business", profileSlug: "пример-бизнеса",
   }),
@@ -62,6 +63,18 @@ api.get = async (path) => {
   if (path === "/me/openrouter" && mode === "error") throw new Error("Fixture settings unavailable");
   if (path === "/me/openrouter") return openRouter;
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
+  if (path === "/me/telegram-waitlist" && fixtureUser.canViewTelegramWaitlist) {
+    window.waitlistReads = (window.waitlistReads || 0) + 1;
+    if (window.waitlistReads === 1) {
+      await new Promise(resolve => { window.finishWaitlistRead = resolve; });
+      throw new Error("Заявки временно недоступны");
+    }
+    if (window.waitlistReads === 2) return { entries: [] };
+    return { entries: Array.from({ length: 24 }, (_, index) => ({
+      username: index === 0 ? "a".repeat(32) : `fixture_visitor_${index}`,
+      requestedAt: "2026-11-24T12:00:00.000Z",
+    })) };
+  }
   if (path === "/me/invites") {
     if (window.holdInviteHistory) {
       window.holdInviteHistory = false;

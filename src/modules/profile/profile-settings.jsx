@@ -27,6 +27,7 @@ import { OpenRouterSettings } from "@/modules/assistant/openrouter-settings.jsx"
 import { InvitesManager } from "@/modules/auth/invites-manager.jsx";
 import { ProfileAccounts } from "@/modules/profile/profile-accounts.jsx";
 import { ProfileMcpKeys } from "@/modules/profile/profile-mcp-keys.jsx";
+import { ProfileTelegramWaitlist } from "@/modules/profile/profile-telegram-waitlist.jsx";
 import { OzonWishlistImport } from "@/modules/profile/ozon-wishlist-import.jsx";
 import { parseOzonWishlistClipboard } from "../media-import/ozon-wishlist-clipboard.js";
 import { PrivateNotesLink } from "@/components/private-notes";
@@ -111,6 +112,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
     { id: "contact-card", title: "Визитка и QR-код" },
     ...(user.accountType !== "business" ? [{ id: "wishlists", title: "Внешние вишлисты" }] : []),
     ...(user.canInvite ? [{ id: "invites", title: "Инвайты" }] : []),
+    ...(user.canViewTelegramWaitlist ? [{ id: "telegram-waitlist", title: "Заявки из Telegram" }] : []),
     { id: "openrouter", title: "OpenRouter" },
     { id: "mcp", title: "Ключи MCP" },
     { id: "yandex", title: "Yandex ID" },
@@ -621,6 +623,10 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
     || (section === "mood" && <ProfileMoodSettings onSaved={onMoodSaved} onBusyChange={setMoodBusy} />)
     || (section === "mcp" && <ProfileMcpKeys key={user.id} onBusyChange={setMcpKeysBusy} />)
     || (section === "invites" && <InvitesManager key={user.id} />)
+    || (section === "telegram-waitlist" && user.canViewTelegramWaitlist && <>
+      <ProfileTelegramWaitlist key={user.id} />
+      {isMobile && <DrawerFooter />}
+    </>)
     || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);
   const sectionOwnsScroll = Boolean(desktopSection && (fullSection || desktopSection === "rolls"));
   return <>

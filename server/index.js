@@ -20,6 +20,7 @@ import { registerYandexDiskSyncRoutes, startYandexDiskSync, verifyYandexDiskSync
 import { initializeRuntimeDatabase } from "./modules/runtime/database-startup.js";
 import { publicMood, registerProfileMoodRoutes, verifyProfileMoodAvailability } from "./modules/profile/profile-mood.js";
 import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/modules/identification/telegram-waitlist.js";
+import { canViewTelegramWaitlist, registerTelegramWaitlistReader, TELEGRAM_WAITLIST_KEY_PREFIX } from "./modules/auth/telegram-waitlist.js";
 import { registerPrivateFiles } from "./private-files.js";
 import { createYandexBackupJobs, uploadYandexBackup } from "./modules/profile/yandex-disk-backup.js";
 import { registerYouTubeThumbnailRoutes } from "./modules/media-import/youtube-thumbnails.js";
@@ -460,16 +461,17 @@ async function cleanAuthenticatedUser(row) {
   const moodLevel = profileMoodAvailable && row.account_type !== "business" ? row.mood_level ?? null : null;
   const profileSlug = await profileAddress(query, row.id);
   const notificationCapability = notificationToken?.length >= 32 ? { notificationsEnabled: true } : {};
+  const waitlistCapability = canViewTelegramWaitlist(row) ? { canViewTelegramWaitlist: true } : {};
   const hasCapabilities = ["has_yandex", "can_discover_spheres"]
     .every((property) => Object.prototype.hasOwnProperty.call(row, property));
-  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug, ...notificationCapability };
+  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug, ...notificationCapability, ...waitlistCapability };
   const capabilities = await query(
     `SELECT
        EXISTS(SELECT 1 FROM yandex_identities WHERE user_id=$1) AS has_yandex,
        EXISTS(SELECT 1 FROM default_follow_targets WHERE user_id=$1) AS can_discover_spheres`,
     [row.id],
   );
-  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug, ...notificationCapability };
+  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug, ...notificationCapability, ...waitlistCapability };
 }
 
 function mapList(row) {
@@ -1698,10 +1700,12 @@ app.post("/api/waitlist", waitlistRateLimit, asyncRoute(async (req, res) => {
 
   await query(
     "INSERT INTO application_settings (key,value_text) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING",
-    [`telegram_waitlist:${username}`, new Date().toISOString()],
+    [`${TELEGRAM_WAITLIST_KEY_PREFIX}${username}`, new Date().toISOString()],
   );
   return res.json({ ok: true });
 }));
+
+registerTelegramWaitlistReader(app, { requireAuth, asyncRoute, query });
 
 app.get("/api/healthz", asyncRoute(async (_req, res) => {
   await query("SELECT 1 AS ok");
