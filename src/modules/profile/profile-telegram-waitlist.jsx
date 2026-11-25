@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { PageActionButton } from "@/components/page-action-button";
+import { DrawerFooter } from "@/components/form-surface";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/modules/runtime/api.js";
 
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" });
 
-export function ProfileTelegramWaitlist() {
+export function ProfileTelegramWaitlist({ isMobile }) {
   const [entries, setEntries] = useState(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -20,17 +21,11 @@ export function ProfileTelegramWaitlist() {
     return () => controller.abort();
   }, [attempt]);
 
-  return (
+  return <>
     <ScrollArea className="mx-auto min-h-0 w-full max-w-full flex-1">
       <div className="grid min-w-0 gap-3 px-4 py-4">
         {error ? (
-          <div className="grid gap-2">
-            <p role="alert" className="text-destructive">{error}</p>
-            <PageActionButton type="button" variant="outline" className="w-fit" onClick={() => {
-              setError("");
-              setAttempt((current) => current + 1);
-            }}>Повторить</PageActionButton>
-          </div>
+          <p role="alert" className="text-destructive">{error}</p>
         ) : !entries ? (
           <p role="status" className="flex items-center gap-2"><Spinner aria-hidden="true" />Загружаем заявки…</p>
         ) : entries.length === 0 ? (
@@ -54,5 +49,11 @@ export function ProfileTelegramWaitlist() {
         )}
       </div>
     </ScrollArea>
-  );
+    {(isMobile || error) && <DrawerFooter>
+      {error && <Button type="button" className="min-w-0 flex-1" onClick={() => {
+        setError("");
+        setAttempt((current) => current + 1);
+      }}>Повторить</Button>}
+    </DrawerFooter>}
+  </>;
 }

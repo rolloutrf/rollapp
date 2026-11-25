@@ -623,10 +623,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
     || (section === "mood" && <ProfileMoodSettings onSaved={onMoodSaved} onBusyChange={setMoodBusy} />)
     || (section === "mcp" && <ProfileMcpKeys key={user.id} onBusyChange={setMcpKeysBusy} />)
     || (section === "invites" && <InvitesManager key={user.id} />)
-    || (section === "telegram-waitlist" && user.canViewTelegramWaitlist && <>
-      <ProfileTelegramWaitlist key={user.id} />
-      {isMobile && <DrawerFooter />}
-    </>)
+    || (section === "telegram-waitlist" && user.canViewTelegramWaitlist && <ProfileTelegramWaitlist key={user.id} isMobile={isMobile} />)
     || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);
   const sectionOwnsScroll = Boolean(desktopSection && (fullSection || desktopSection === "rolls"));
   return <>

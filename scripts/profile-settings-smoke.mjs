@@ -948,7 +948,12 @@ try {
     await page.waitForFunction(() => typeof window.finishWaitlistRead === "function");
     await page.evaluate(() => window.finishWaitlistRead());
     await page.getByRole("alert").filter({ hasText: "Заявки временно недоступны" }).waitFor();
-    await button("Повторить").click();
+    const retryWaitlist = button("Повторить");
+    assert(await retryWaitlist.evaluate(element => (
+      element.offsetHeight === 48 && Boolean(element.closest("[data-control-bar]")) &&
+      !element.closest('[data-slot="scroll-area-viewport"]')
+    )));
+    await retryWaitlist.click();
     await page.getByText("Пока никто не оставил Telegram.", { exact: true }).waitFor();
     await back.click();
     await menu.waitFor();
