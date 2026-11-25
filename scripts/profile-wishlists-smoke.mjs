@@ -374,8 +374,8 @@ try {
     await page.goto(origin + '/app/wishes?tab=products&sharing-fixture');
     const hero = page.locator('[data-persistent-profile]');
     await assertProfileHeading(page, { owner: true, selector: '[data-persistent-profile]' });
-    await page.getByRole('region', { name: 'Запросы доступа к пространству' }).getByRole('button', { name: 'Открыть доступ', exact: true }).waitFor();
-    assert.equal(await hero.getByRole('button', { name: /Открыть доступ/ }).count(), 0);
+    assert.equal(await page.getByRole('region', { name: 'Запросы доступа к пространству' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Открыть доступ', exact: true }).count(), 0);
     assert.equal(await hero.getByRole('button', { name: /QR-код/ }).count(), 0);
     assert(await open.isVisible());
     assert(await page.getByRole('button', { name: 'Добавить', exact: true }).isVisible());

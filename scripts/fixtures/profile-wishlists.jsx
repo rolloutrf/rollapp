@@ -40,7 +40,7 @@ api.get = async (path) => {
       owner: profile,
       isOwner: true,
       people: [],
-      requests: [{ id: "access-request", requester: { name: "Продавец", username: "seller" }, sphere: "wishlist", section: "products" }],
+      requests: [],
     };
   }
   if (path === "/profile/fixture" || path === `/profile/${encodeURIComponent("колосков-михаил")}`) {
