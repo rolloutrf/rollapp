@@ -42,8 +42,8 @@ export function registerPlaceListingRoutes(app, { requireAuth, query, transactio
      `SELECT p.id, p.slug, p.name, p.category, p.category_label AS "categoryLabel",
              p.subcategory, p.description, p.addresses, p.links,
              (SELECT COUNT(*)::int FROM place_waitlist w WHERE w.place_id=p.id) AS "waitCount",
-             CASE WHEN $2 IS NOT NULL THEN EXISTS (
-               SELECT 1 FROM place_waitlist w WHERE w.place_id=p.id AND w.user_id=$2
+             CASE WHEN $2::text IS NOT NULL THEN EXISTS (
+               SELECT 1 FROM place_waitlist w WHERE w.place_id=p.id AND w.user_id=$2::text
              ) END AS "isWaiting"
       FROM place_listings p
       WHERE p.space=$1
