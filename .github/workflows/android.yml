@@ -28,9 +28,9 @@ jobs:
         with:
           packages: "platforms;android-36 build-tools;35.0.0"
           log-accepted-android-sdk-licenses: "false"
-      - name: Lint and build
+      - name: Test, lint and build
         working-directory: android
-        run: ./gradlew --no-daemon :app:lintDebug :app:assembleDebug :app:bundleRelease
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:bundleRelease
       - name: Verify APK signature
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk
