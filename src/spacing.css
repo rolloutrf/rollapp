@@ -314,22 +314,17 @@
   }
 
   .app-layout--dark .persistent-profile-hero {
-    --persistent-profile-name-gap: var(--layout-profile-gap);
     max-width: var(--layout-page-width);
     padding: var(--layout-profile-gap) var(--layout-page-inset) var(--layout-page-gap);
   }
 
-  .persistent-profile-hero .wishes-page__identity {
-    gap: var(--persistent-profile-name-gap);
+  .wishes-page__identity {
+    gap: var(--layout-profile-gap);
   }
 
   .public-collection-page__hero {
     padding: var(--layout-profile-gap) 0 var(--layout-page-gap);
     gap: var(--layout-page-gap);
-  }
-
-  .public-collection-page__hero .wishes-page__identity {
-    gap: var(--layout-profile-gap);
   }
 
   .wishes-page__profile-controls {
@@ -566,6 +561,26 @@
 }
 
 @layer utilities {
+  /* The native page already reserves the safe area above its header. Give
+     its title the same remaining space as the wishlist chrome. */
+  .mobile-form-page__surface.profile-settings-dialog {
+    max-width: none;
+  }
+  .mobile-form-page__surface.profile-settings-dialog > .mobile-form-page__header {
+    min-block-size: calc(var(--app-chrome-overlay-height) - var(--layout-safe-top));
+    max-inline-size: var(--layout-form-width);
+  }
+
+  .mobile-form-page__surface .profile-settings-menu {
+    padding-block-start: var(--layout-profile-gap);
+    padding-inline: var(--layout-page-inset);
+  }
+  .mobile-form-page__surface .profile-settings-menu > :not(.wishes-page__identity) {
+    width: 100%;
+    max-width: calc(var(--layout-form-width) - 2 * var(--layout-item-gap));
+    margin-inline: auto;
+  }
+
   .profile-section-navigation {
     margin-block-start: var(--layout-inline-gap);
   }

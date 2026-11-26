@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App, { ProfileSettingsModal, SessionContext, ToastContext } from "/src/App.jsx?profile-settings-fixture";
+import { AppShell } from "@/modules/shell/app-shell.jsx";
+import { ProfileEditorProvider } from "@/modules/profile/profile-editor.jsx";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { api } from "@/modules/runtime/api.js";
@@ -11,6 +13,10 @@ import "../../src/index.css";
 const mode = new URLSearchParams(location.search).get("state");
 const fixtureUser = {
   id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error", canInvite: true, memberNumber: null,
+  ...(mode === "hero" && {
+    name: new URLSearchParams(location.search).get("name") || "Имя профиля",
+    avatarUrl: "/api/media/01234567-89ab-4cde-8fab-0123456789ab",
+  }),
   canViewTelegramWaitlist: mode === "telegram-waitlist",
   ...(mode === "business-card" && {
     accountType: "business", name: "Пример бизнеса", username: "example-business", profileSlug: "пример-бизнеса",
@@ -211,9 +217,12 @@ function Fixture() {
   const [savedName, setSavedName] = useState("");
   const [user, setUser] = useState(fixtureUser);
   return <SessionContext.Provider value={{ user, setSession: () => {} }}><ToastContext.Provider value={() => {}}><MobileFormPages>
+    {mode === "hero" && <ProfileEditorProvider>
+      <AppShell wishlistChrome><div aria-hidden="true" style={{ height: "120vh" }} /></AppShell>
+    </ProfileEditorProvider>}
     {savedName && <output>{savedName}</output>}
-    {user.avatarUrl && <output>Фото сохранено</output>}
-    {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onProfileUpdated={setUser} onSaved={(saved) => { setSavedName(saved.name); setOpen(false); }} />}
+    {user.avatarUrl && mode !== "hero" && <output>Фото сохранено</output>}
+    {mode !== "hero" && open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onProfileUpdated={setUser} onSaved={(saved) => { setSavedName(saved.name); setOpen(false); }} />}
   </MobileFormPages></ToastContext.Provider></SessionContext.Provider>;
 }
 createRoot(document.getElementById("root")).render(

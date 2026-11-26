@@ -291,8 +291,7 @@ const narrativeContractStart = legacyStyles.indexOf("Non-Wishlist narrative copy
 const narrativeContractEnd = legacyStyles.indexOf("Shared Wishlist catalog.", narrativeContractStart);
 const narrativeContract = legacyStyles.slice(narrativeContractStart, narrativeContractEnd);
 assert.match(narrativeContract, /color:\s*var\(--foreground\);/, "Non-Wishlist narrative copy must use the canonical foreground color");
-assert(spacing.includes('--persistent-profile-name-gap: var(--layout-profile-gap)'), "Profile spacing must consume the shared layout token");
-assert(spacing.includes('gap: var(--persistent-profile-name-gap)'), "Avatar and name must use the profile spacing token");
+assert.match(spacing, /\.wishes-page__identity\s*\{\s*gap: var\(--layout-profile-gap\)/, "Profile headers and settings must use the shared avatar-to-name gap");
 assert(spacing.includes('var(--layout-page-gap)'), "Page compositions must use the shared page gap");
 assert(theme.includes('@import "./spacing.css"'), "The application must load the shared spacing system");
 

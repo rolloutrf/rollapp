@@ -21,7 +21,70 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 const errors = [];
+
+async function measureProfileIdentity(scope, name) {
+  const image = scope.locator(".avatar img");
+  await image.waitFor();
+  await image.evaluate(async node => { await node.decode(); await document.fonts.ready; });
+  const photo = await image.boundingBox();
+  const label = scope.getByText(name, { exact: true });
+  const text = await label.evaluate(node => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const { x, y, width, height } = range.getBoundingClientRect();
+    const { fontFamily, fontSize, fontWeight, lineHeight, letterSpacing, color } = getComputedStyle(node);
+    return { x, y, width, height, fontFamily, fontSize, fontWeight, lineHeight, letterSpacing, color };
+  });
+  const crop = await image.evaluate(node => {
+    const { objectFit, objectPosition, borderRadius } = getComputedStyle(node);
+    const avatar = node.closest(".avatar");
+    return [node.currentSrc, objectFit, objectPosition, borderRadius, getComputedStyle(avatar).borderTopWidth,
+      getComputedStyle(avatar, "::after").display];
+  });
+  return { photo, text, crop };
+}
 try {
+  for (const [width, safeTop] of [[320, 0], [393, 59], [700, 0], [1440, 0]]) {
+    const page = await browser.newPage({ viewport: { width, height: 852 }, reducedMotion: "reduce" });
+    page.setDefaultNavigationTimeout(90000);
+    page.on("pageerror", error => errors.push(error.message));
+    await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: safeTop } });
+    const name = [320, 700].includes(width) ? "Александра Константинопольская Константинопольская" : "Имя профиля";
+    await page.route("**/api/media/*", route => route.fulfill({
+      contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="90" height="60"><rect width="90" height="60" fill="teal"/></svg>',
+    }));
+    await page.goto(`${origin}/__profile-settings?state=hero&name=${encodeURIComponent(name)}`);
+    const hero = page.locator("[data-persistent-profile]");
+    await hero.waitFor();
+    if (width === 700) {
+      await page.evaluate(() => window.scrollTo({ top: 36, behavior: "instant" }));
+      assert.equal(await page.evaluate(() => window.scrollY), 36);
+    }
+    const original = await measureProfileIdentity(hero, name);
+    await hero.getByRole("button", { name: /Редактировать профиль/ }).click();
+    const editor = page.getByRole("group", { name: "Фото профиля", exact: true });
+    const opened = await measureProfileIdentity(editor, name);
+    assert.deepEqual(opened.crop, original.crop, `Portrait crop and framing at ${width}px`);
+    assert.deepEqual([opened.photo.width, opened.photo.height], [original.photo.width, original.photo.height]);
+    if (width < 768) {
+      assert(Math.abs(opened.photo.x - original.photo.x) < 0.1 && Math.abs(opened.photo.y - original.photo.y) < 0.1,
+        `Portrait position at ${width}px, safe top ${safeTop}px: ${JSON.stringify(opened.photo)} vs ${JSON.stringify(original.photo)}`);
+      assert.deepEqual(opened.text, original.text, `Name style and position at ${width}px`);
+      await page.getByRole("button", { name: "Назад", exact: true }).click();
+      await editor.waitFor({ state: "hidden" });
+      if (width === 700) await page.waitForFunction(() => window.scrollY === 36);
+      assert.deepEqual(await measureProfileIdentity(hero, name), original, "Back restores the original header");
+    } else {
+      const { x: heroX, y: heroY, ...heroStyleAndSize } = original.text;
+      const { x: drawerX, y: drawerY, ...drawerStyleAndSize } = opened.text;
+      assert.deepEqual(drawerStyleAndSize, heroStyleAndSize, "Desktop drawer uses the same typography");
+      assert(Math.abs((drawerX - opened.photo.x) - (heroX - original.photo.x)) < 1, "Desktop name alignment");
+      assert(Math.abs((drawerY - opened.photo.y) - (heroY - original.photo.y)) < 1, "Desktop name spacing");
+    }
+    await page.close();
+  }
   for (const [width, height] of [[320,568],[390,844],[768,900],[820,900],[1024,768],[1440,900],[1920,1080],[390,400],[1440,400]]) {
     const page = await browser.newPage({ viewport: { width, height }, reducedMotion: "reduce" });
     page.setDefaultTimeout(10000);
@@ -53,7 +116,9 @@ try {
     const personalBox = await personal.boundingBox();
     const uploadBox = await upload.boundingBox();
     assert(photoBox.y + photoBox.height <= personalBox.y && photoBox.x === personalBox.x);
-    assert.deepEqual([uploadBox.width, uploadBox.height], [144, 144]);
+    assert(avatarBox.x >= uploadBox.x && avatarBox.y >= uploadBox.y &&
+      avatarBox.x + avatarBox.width <= uploadBox.x + uploadBox.width &&
+      avatarBox.y + avatarBox.height <= uploadBox.y + uploadBox.height, "The entire portrait opens the photo picker");
     assert(Math.abs(uploadBox.x + uploadBox.width / 2 - (photoBox.x + photoBox.width / 2)) <= 1);
     assert.equal(await photo.getByRole("button").count(), 1);
     assert.equal(await photo.locator('input[type="file"]').isVisible(), false);
