@@ -106,7 +106,7 @@ try{
     assert.equal(await profileNav.locator('a[aria-current="page"]').count(),1);
     assert.equal(await profileNav.getByRole('link',{name:'Открыть каталог брендов'}).count(),1);
     assert.equal(await profileNav.getByRole('link',{name:'Предложения',exact:true}).count(),1);
-    assert.equal(await profileNav.getByRole('link',{name:'Открыть магазин за роллы'}).count(),variant==='identity-nav'?0:1);
+    assert.equal(await profileNav.getByRole('link',{name:'Открыть магазин за роллы'}).count(),['identity-nav','health-nav','education-nav'].includes(variant)?0:1);
     assert.equal(await page.locator('.sphere-share-avatars a').count(),0);
     assert.equal(textActions.length,0);
    }

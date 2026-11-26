@@ -71,7 +71,8 @@ export function PublicProfileHero({
         <ContactCardButton key={profile.username} profile={profile} canSign={isOwner} />
         {!shared && <ProfilePublicationLinks activeSection={publication}
           toSection={section => `${publicPublicationPath(profile, section)}?${tab}`}
-          state={{ publicationListId }} />}
+          state={{ publicationListId }}
+          onlySections={activeSpace === "products" ? null : ["calendar"]} />}
       </ControlBar>
     </section>
   );

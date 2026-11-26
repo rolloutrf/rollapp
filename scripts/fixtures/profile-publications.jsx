@@ -13,6 +13,7 @@ const params = new URLSearchParams(location.search);
 const routing = params.get("routing");
 const section = params.get("section");
 const mode = params.get("mode");
+const spaceId = params.get("space") || "products";
 const owner = mode === "owner";
 const guest = mode === "guest";
 const empty = mode === "empty";
@@ -49,10 +50,10 @@ if (routing) {
   const collection = {
     profile: account,
     lists: [
-      { id: "archive", title: "Архив", space: "media", privacy: "public" },
-      { id: "media-list", title: "Медиатека", space: "media", privacy: "public" },
+      { id: "archive", title: "Архив", space: spaceId, privacy: "public" },
+      { id: `${spaceId}-list`, title: spaceId === "media" ? "Медиатека" : "Подборка", space: spaceId, privacy: "public" },
     ],
-    wishes: [{ id: "film", title: "Фильм для вечера", space: "media", listIds: ["media-list"], status: "active", userId: account.id }],
+    wishes: [{ id: "film", title: "Фильм для вечера", space: spaceId, listIds: [`${spaceId}-list`], status: "active", userId: account.id }],
     groups: [], isOwner: true, followersCount: 0, followingCount: 0,
   };
   api.get = async path => {
@@ -62,20 +63,20 @@ if (routing) {
     if (path === "/gift-suggestions") return { items: [] };
     if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, requests: [] };
     if (path.startsWith("/catalog?")) return { items: [], total: 0 };
-    if (path === "/wishlist-business/media/accounts") return { accounts: [] };
+    if (path === "/wishlist-business/" + spaceId + "/accounts") return { accounts: [] };
     if (path === "/personal-offers") return { offers: [], nextOffset: null };
-    if (path === "/wishlist-business/media/offers" || path === "/wishlist-business/media/sales") return { items: [] };
+    if (path === `/wishlist-business/${spaceId}/offers` || path === `/wishlist-business/${spaceId}/sales`) return { items: [] };
     if (path === "/profile/host/calendar" || path === "/profile/host/announcements") return { ...snapshot, isOwner: routing !== "booking" };
     throw new Error(`Unexpected GET ${path}`);
   };
   const wishlistTabs = {
-    brands: "/app/wishes/catalog?source=brands&tab=media",
-    sales: "/app/wishes/sales?tab=media",
-    announcements: "/app/wishes?tab=media&publication=announcements",
+    brands: `/app/wishes/catalog?source=brands&tab=${spaceId}`,
+    sales: `/app/wishes/sales?tab=${spaceId}`,
+    announcements: `/app/wishes?tab=${spaceId}&publication=announcements`,
   };
   const path = {
-    wishlist: wishlistTabs[params.get("tabView")] || "/app/wishes?tab=media",
-    public: "/host/lists/media-list",
+    wishlist: wishlistTabs[params.get("tabView")] || `/app/wishes?tab=${spaceId}`,
+    public: `/host/lists/${spaceId}-list`,
     booking: "/host/calendar/book?slot=open&zone=UTC",
   };
   history.replaceState({}, "", path[routing]);

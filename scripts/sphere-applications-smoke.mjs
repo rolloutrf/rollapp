@@ -178,7 +178,6 @@ try {
       ]) await openCollection("wishlist", path);
 
       const labs = `${home}?tab=lab-results`;
-      const healthStore = `${businessMarketplacePath("health")}?tab=lab-results`;
       const labsResponse = Promise.withResolvers();
       pendingLabResults = labsResponse.promise;
       try {
@@ -188,10 +187,7 @@ try {
         pendingLabResults = undefined;
       }
       await openCollection("health", labs);
-      collectionState = "filled";
-      await openCollection("health", healthStore, ".business-marketplace-grid");
       collectionState = "error";
-      await openCollection("health", healthStore, ".app-page [role='alert']");
       await openCollection("health", labs, ".app-page [role='alert']");
       collectionState = null;
 
