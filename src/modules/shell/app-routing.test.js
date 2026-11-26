@@ -20,11 +20,14 @@ test("the application catalog route wins over the clean public wish route", () =
 });
 
 test("sphere business routes expose stores, while catalog stays in Wishlist", () => {
-  for (const sphere of ["career", "education", "health", "contacts"]) {
+  for (const sphere of ["career", "contacts"]) {
     assert.equal(businessMarketplacePath(sphere, "catalog"), null);
     assert.equal(businessMarketplacePath(sphere), `/app/spheres/${sphere}/business/store`);
   }
-  assert.equal(businessMarketplacePath("health", "store"), "/app/spheres/health/business/store");
+  assert.equal(businessMarketplacePath("health"), null);
+  assert.equal(businessMarketplacePath("health", "store"), null);
+  assert.equal(businessMarketplacePath("education"), null);
+  assert.equal(businessMarketplacePath("education", "store"), null);
   assert.equal(businessMarketplacePath("identity"), null);
   assert.equal(businessMarketplacePath("identity", "catalog"), null);
   assert.equal(businessMarketplacePath("unknown", "unknown"), null);

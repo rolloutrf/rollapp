@@ -13,15 +13,15 @@ test("business marketplace rejects client-controlled purchase data", () => {
 
 test("business marketplace maps production rows without inventing content", async () => {
   const query = async (_sql, params) => {
-    assert.deepEqual(params, ["education", "store"]);
+    assert.deepEqual(params, ["career", "store"]);
     return { rows: [{
-      id: "offer-1", sphere: "education", kind: "store", item_type: "service",
+      id: "offer-1", sphere: "career", kind: "store", item_type: "service",
       title: "Карьерная консультация", description: "", category: "", image_url: "", action_url: "",
       price_rolls: 250, business_user_id: "business-1", business_name: "Студия",
       business_username: "studio", business_avatar_url: "",
     }] };
   };
-  const items = await listBusinessMarketplaceItems(query, { sphere: "education", kind: "store" });
+  const items = await listBusinessMarketplaceItems(query, { sphere: "career", kind: "store" });
   assert.equal(items.length, 1);
   assert.deepEqual(items[0].business, { id: "business-1", name: "Студия", username: "studio", avatarUrl: "" });
   assert.equal(items[0].priceRolls, 250);

@@ -318,7 +318,7 @@ try {
       const profileHeading = page.getByRole("heading", { name: "Участник", exact: true });
       const space = page.getByRole("combobox", { name: "Раздел сервиса Вишлист" });
       const listNavigation = page.locator("[data-wishlist-list-navigation]");
-      const list = page.getByRole("button", { name: /^Медиатека/ });
+      const list = page.getByRole("button", { name: /^Подборка/ });
       const wish = page.getByRole("button", { name: "Открыть желание «Фильм для вечера»" });
       if (routing === "wishlist") await list.click();
       await wish.waitFor();
@@ -331,7 +331,7 @@ try {
         assert.equal(await profileHeading.count(), 1);
         assert(await avatar.evaluate(node => node.isConnected), `${routing}: profile hero was replaced`);
         assert.equal(await page.locator("[data-add-fab]").getByRole("button", { name: "Добавить", exact: true }).count(), publication ? 0 : 1);
-        assert.match(await space.innerText(), /Медиа/);
+        assert.match(await space.innerText(), /Товары/);
         const rows = await rail.evaluate(node => new Set([...node.children].map(child => child.getBoundingClientRect().top)).size);
         assert.equal(rows, 1);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
@@ -386,14 +386,14 @@ try {
       assert.equal(await list.getAttribute("aria-pressed"), "true");
       if (routing === "wishlist") {
         const destinations = [
-          ["Вишлист", "/app/wishes?tab=media", listNavigation],
-          ["Открыть ленту", "/app/wishes/catalog?tab=media", page.getByRole("heading", { name: "В разделе «Медиа» пока пусто" })],
-          ["Открыть каталог брендов", "/app/wishes/catalog?source=brands&tab=media", page.getByRole("heading", { name: "В этом разделе пока нет бизнес-аккаунтов" })],
-          ["Открыть магазин", "/app/store?tab=media", page.getByText("В этом разделе магазина пока пусто", { exact: true })],
-          ["Открыть предложения", "/app/wishes/offers?tab=media", page.getByText("Предложений пока нет", { exact: true })],
-          ["Мои продажи", "/app/wishes/sales?tab=media", page.getByText("Объявлений пока нет", { exact: true })],
-          ["Календарь", "/app/wishes?tab=media&publication=calendar", page.getByRole("heading", { name: "Первая встреча" })],
-          ["Доска объявлений", "/app/wishes?tab=media&publication=announcements", page.getByRole("heading", { name: "Открыта запись на ноябрь" })],
+          ["Вишлист", "/app/wishes?tab=products", listNavigation],
+          ["Открыть ленту", "/app/wishes/catalog?tab=products", page.getByRole("heading", { name: "В разделе «Товары» пока пусто" })],
+          ["Открыть каталог брендов", "/app/wishes/catalog?source=brands&tab=products", page.getByRole("heading", { name: "В этом разделе пока нет бизнес-аккаунтов" })],
+          ["Открыть магазин", "/app/store?tab=products", page.getByRole("button", { name: /^Купить «.*» за / }).first()],
+          ["Открыть предложения", "/app/wishes/offers?tab=products", page.getByText("Предложений пока нет", { exact: true })],
+          ["Мои продажи", "/app/wishes/sales?tab=products", page.getByText("Объявлений пока нет", { exact: true })],
+          ["Календарь", "/app/wishes?tab=products&publication=calendar", page.getByRole("heading", { name: "Первая встреча" })],
+          ["Доска объявлений", "/app/wishes?tab=products&publication=announcements", page.getByRole("heading", { name: "Открыта запись на ноябрь" })],
         ];
         assert.deepEqual(await rail.getByRole("link").evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), destinations.map(([name]) => name));
         for (const [name, path, content] of [...destinations.slice(1), destinations[0]]) {
@@ -402,10 +402,9 @@ try {
           await link.click();
           await page.waitForURL(origin + path);
           await content.waitFor();
-          if (["Открыть ленту", "Открыть каталог брендов", "Открыть магазин", "Открыть предложения", "Мои продажи"].includes(name)) {
+          if (["Открыть ленту", "Открыть каталог брендов", "Открыть предложения", "Мои продажи"].includes(name)) {
             await assertEmptyState();
-            assert.equal(await page.getByRole("heading", { name: /^(Лента|Бренды|Магазин) · Медиа$/ }).count(), 0);
-            if (name === "Открыть магазин") await screenshot("empty-store");
+            assert.equal(await page.getByRole("heading", { name: /^(Лента|Бренды|Магазин) · Товары$/ }).count(), 0);
             if (name === "Открыть каталог брендов") await screenshot("empty-brands");
           }
           assert(await original.evaluate(node => node.isConnected), `${name}: navigation was replaced`);
@@ -495,6 +494,20 @@ try {
           bounds.push([Math.round(box.x), Math.round(box.width)]);
         }
         assert.deepEqual(bounds, [bounds[0], bounds[0], bounds[0]], "Границы коллекций Вишлиста");
+      }
+      // Маркетплейс-разделы (магазин, продажи, объявления) показываем только в «Товарах».
+      await page.goto(`${origin}/__profile-publications?routing=${routing}&space=media`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+      if (routing === "wishlist") {
+        const mediaRail = page.getByRole("navigation", { name: "Разделы Вишлиста" });
+        await mediaRail.getByRole("link", { name: "Вишлист", exact: true }).waitFor();
+        assert.deepEqual(await mediaRail.getByRole("link").evaluateAll(links => links.map(link => link.getAttribute("aria-label"))),
+          ["Вишлист", "Открыть ленту", "Открыть каталог брендов", "Открыть предложения", "Календарь"],
+          "Магазин, продажи и доска объявлений скрыты вне «Товаров»");
+      } else {
+        const mediaActions = page.getByRole("group", { name: "Действия со списком желаний" });
+        await mediaActions.getByRole("link", { name: "Календарь", exact: true }).waitFor();
+        assert.equal(await mediaActions.getByRole("link", { name: "Доска объявлений", exact: true }).count(), 0,
+          "Доска объявлений скрыта вне «Товаров»");
       }
       assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     }

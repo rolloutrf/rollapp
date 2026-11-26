@@ -28,20 +28,22 @@ export function WishlistSectionNavigation({ user }) {
   const tab = new URLSearchParams({ tab: space });
   const brands = isBrandCatalogSearch(search);
   const publication = path === APP_HOME ? profilePublicationSection(new URLSearchParams(search).get("publication")) : null;
+  const marketplaceSpace = space === "products";
   const links = [
     { to: wishlistPublicationPath(space), active: path === APP_HOME && !publication, label: "Вишлист", title: "Вишлист", icon: Gift },
     { to: `${APP_WISH_CATALOG_PATH}?${tab}`, active: path === APP_WISH_CATALOG_PATH && !brands, label: "Открыть ленту", title: "Лента", icon: Newspaper },
     { to: brandCatalogPath(space), active: path === APP_WISH_CATALOG_PATH && brands, label: "Открыть каталог брендов", title: "Каталог брендов", icon: ShoppingBag },
-    { to: `${APP_STORE_PATH}?${tab}`, active: path === APP_STORE_PATH || path === APP_ORDERS_PATH, label: "Открыть магазин", title: "Магазин", icon: Store },
+    ...(marketplaceSpace ? [{ to: `${APP_STORE_PATH}?${tab}`, active: path === APP_STORE_PATH || path === APP_ORDERS_PATH, label: "Открыть магазин", title: "Магазин", icon: Store }] : []),
     { to: `${APP_WISH_OFFERS_PATH}?${tab}`, active: path === APP_WISH_OFFERS_PATH, label: "Открыть предложения", title: "Предложения", icon: Send },
   ];
-  if (canManageWishSales(user, space)) {
+  if (marketplaceSpace && canManageWishSales(user, space)) {
     links.push({ to: wishSalesPath(space), active: path === APP_WISH_SALES_PATH, label: "Мои продажи", title: "Мои продажи", icon: Tag });
   }
   return (
     <ProfileSectionNavigation label="Разделы Вишлиста" links={links} className="wishlist-section-navigation">
       {isOwner && user.username && <ProfilePublicationLinks activeSection={publication}
-        toSection={section => wishlistPublicationPath(space, section)} />}
+        toSection={section => wishlistPublicationPath(space, section)}
+        onlySections={marketplaceSpace ? null : ["calendar"]} />}
     </ProfileSectionNavigation>
   );
 }

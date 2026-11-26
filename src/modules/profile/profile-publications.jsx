@@ -23,8 +23,9 @@ const sections = {
 };
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "full" });
 
-export function ProfilePublicationLinks({ activeSection, toSection, state }) {
-  return Object.entries(sections).map(([section, { title, icon: Icon }]) => (
+export function ProfilePublicationLinks({ activeSection, toSection, state, onlySections = null }) {
+  const visible = Object.entries(sections).filter(([section]) => !onlySections || onlySections.includes(section));
+  return visible.map(([section, { title, icon: Icon }]) => (
     <Link key={section} to={toSection(section)} state={state}
       className={buttonVariants({ variant: activeSection === section ? "default" : "outline", size: "icon" })}
       data-control-icon aria-label={title} aria-current={activeSection === section ? "page" : undefined} title={title}>
