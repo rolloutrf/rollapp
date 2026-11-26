@@ -29,6 +29,11 @@ try {
     const button = (name) => page.getByRole("button", { name, exact: true });
     const posts = () => page.evaluate(() => starsFixture.state.posts);
     const openTopup = button("Пополнить баланс");
+    await openTopup.waitFor();
+    const topupBox = await openTopup.boundingBox();
+    const sendBox = await button("Отправить роллы").boundingBox();
+    assert(Math.abs(topupBox.x + topupBox.width / 2 - sendBox.x - sendBox.width / 2) < 1);
+    assert(topupBox.y >= sendBox.y + sendBox.height + 7);
     await openTopup.click();
     await page.getByRole("radio", { name: "500 роллов 50 Stars" }).click();
     const buy = button("Купить за 50 Stars");

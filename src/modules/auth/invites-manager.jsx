@@ -3,7 +3,6 @@ import { Check, CircleAlert, Clock3, Ellipsis, Link2, RotateCw, Send, TimerOff }
 import { api } from "@/modules/runtime/api.js";
 import { ControlBar } from "@/components/control-bar";
 import { DrawerFooter } from "@/components/form-surface";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -86,15 +85,14 @@ export function InvitesManager() {
   const initialRead = useRef(null);
   const busy = sending !== null;
   const seenEmails = new Set();
-  const recentInvites = [];
-  const previousInvites = [];
+  const visibleInvites = [];
   for (const invite of invites) {
     const latest = !seenEmails.has(invite.email);
     seenEmails.add(invite.email);
+    if (!latest && ["failed", "expired"].includes(invite.status)) continue;
     const canCopy = invite.status === "sent" && Boolean(invite.copyUrl);
     const canResend = latest && invite.canResend !== false && ["sent", "failed", "expired"].includes(invite.status);
-    const list = !latest && ["failed", "expired"].includes(invite.status) ? previousInvites : recentInvites;
-    list.push({ invite, canCopy, canResend });
+    visibleInvites.push({ invite, canCopy, canResend });
   }
   useEffect(() => {
     const controller = new AbortController();
@@ -176,18 +174,7 @@ export function InvitesManager() {
           {historyLoading && <p role="status" className="text-muted-foreground">Загружаем историю…</p>}
           {historyError && <p role="alert" className="wrap-anywhere text-destructive">{historyError}</p>}
           {!historyLoading && !historyError && invites.length === 0 && <p className="text-muted-foreground">Приглашений пока нет.</p>}
-          {recentInvites.length > 0 && <InviteList label="Приглашения" items={recentInvites} {...listActions} />}
-          {previousInvites.length > 0 && <Accordion>
-            <AccordionItem value="previous-attempts">
-              <AccordionTrigger headerAs="h3" className="min-h-12 items-center gap-2 text-rollapp-body! hover:no-underline">
-                <span className="min-w-0 flex-1">Предыдущие попытки</span>
-                <span className="text-xs text-muted-foreground">{previousInvites.length}</span>
-              </AccordionTrigger>
-              <AccordionContent className="text-rollapp-body duration-0! motion-reduce:animate-none!">
-                <InviteList label="Предыдущие попытки" items={previousInvites} {...listActions} />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>}
+          {visibleInvites.length > 0 && <InviteList label="Приглашения" items={visibleInvites} {...listActions} />}
         </section>
       </div>
     </ScrollArea>

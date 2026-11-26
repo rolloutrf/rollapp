@@ -4,6 +4,7 @@ import { createServer } from "vite";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
+import { codexKeychainCommand, codexMacConfig } from "../shared/modules/profile/mcp-setup.js";
 const server = await createServer({
   cacheDir: "node_modules/.vite-profile-settings",
   optimizeDeps: { include: smokeBaseUiDependencies },
@@ -162,12 +163,10 @@ try {
     const sendInvite = button("Отправить приглашение");
     const inviteHistory = page.getByRole("region", { name: "История приглашений" });
     const inviteList = inviteHistory.getByRole("list", { name: "Приглашения", exact: true });
-    const inviteAttempts = inviteHistory.getByRole("button", { name: /Предыдущие попытки/ });
-    const attemptedInvites = inviteHistory.getByRole("list", { name: "Предыдущие попытки", exact: true });
+    const supersededAttempts = inviteHistory.getByText("Предыдущие попытки", { exact: true });
     await page.getByText("previous-19@example.com", { exact: true }).waitFor();
-    assert.equal(await inviteList.getByText("previous-0@example.com", { exact: true }).count(), 1);
-    assert.equal(await inviteAttempts.getAttribute("aria-expanded"), "false");
-    assert.equal(await attemptedInvites.isVisible(), false);
+    assert.equal(await inviteHistory.getByText("previous-0@example.com", { exact: true }).count(), 1);
+    assert.equal(await supersededAttempts.count(), 0);
     const sentRow = inviteList.getByRole("listitem").filter({ hasText: "previous-0@example.com" })
       .filter({ has: page.getByText("Отправлено", { exact: true }) });
     const acceptedRow = inviteList.getByRole("listitem").filter({ hasText: "previous-1@example.com" });
@@ -297,18 +296,10 @@ try {
     assert.equal(await page.evaluate(() => window.inviteRequests), 3);
     assert.equal(await inviteEmail.inputValue(), "draft@example.com");
     assert.deepEqual(await inviteAction(), initialInviteAction);
-    assert.equal(await inviteList.getByText("previous-0@example.com", { exact: true }).count(), 1);
-    await inviteAttempts.press("Enter");
-    assert.equal(await inviteAttempts.getAttribute("aria-expanded"), "true");
-    await attemptedInvites.evaluate(async node => {
-      const panel = node.closest('[data-slot="accordion-content"]');
-      panel.getBoundingClientRect();
-      await Promise.allSettled(panel.getAnimations({ subtree: true }).map(animation => animation.finished));
-    });
-    assert.equal(await attemptedInvites.getByText("previous-0@example.com", { exact: true }).count(), 3);
-    assert.equal(await attemptedInvites.getByRole("button").count(), 0);
+    assert.equal(await inviteHistory.getByText("previous-0@example.com", { exact: true }).count(), 1);
+    assert.equal(await supersededAttempts.count(), 0);
     if (height < 500) {
-      const lastInvite = attemptedInvites.getByRole("listitem").last();
+      const lastInvite = inviteList.getByRole("listitem").last();
       const scroll = (top) => lastInvite.evaluate((node, top) => {
         const scroller = node.closest('[data-slot="drawer-popup"] [data-slot="scroll-area-viewport"]') || document.scrollingElement;
         scroller.scrollTo({ top, behavior: "instant" });
@@ -341,11 +332,9 @@ try {
       }
     }
     if ((width === 390 && height === 844) || (width === 1440 && height === 900)) {
-      await inviteAttempts.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `/tmp/rollapp-profile-invite-attempts-${width}x${height}.png` });
+      await inviteList.getByRole("listitem").last().scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `/tmp/rollapp-profile-invite-history-end-${width}x${height}.png` });
     }
-    await inviteAttempts.press("Space");
-    await attemptedInvites.waitFor({ state: "hidden" });
     await back.click();
     await menu.waitFor();
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Инвайты", undefined, { polling: 50 });
@@ -862,6 +851,25 @@ try {
     assert.equal(await setup.getByRole("listitem").count(), 3);
     assert.equal(await setup.getByRole("list").evaluate(node => getComputedStyle(node).listStyleType), "decimal");
     if (shortMobile || width === 1440) {
+      const mac = keys.getByRole("button", { name: "Codex на Mac", exact: true });
+      assert.equal(await mac.getAttribute("aria-expanded"), "false");
+      await mac.press("Enter");
+      const macCommands = keys.locator("pre");
+      await macCommands.last().waitFor();
+      assert.deepEqual(await macCommands.allTextContents(), [codexKeychainCommand, codexMacConfig]);
+      assert(await macCommands.evaluateAll(nodes => nodes.every(node => node.scrollWidth <= node.clientWidth + 1)));
+      assert.equal(await secret.count(), 0);
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (value) => {
+          window.copiedMacMcpConfig = value;
+        } } });
+      });
+      await keys.getByRole("button", { name: "Скопировать конфигурацию", exact: true }).click();
+      await keys.getByRole("status").getByText("Конфигурация скопирована").waitFor();
+      assert.equal(await page.evaluate(() => window.copiedMacMcpConfig), codexMacConfig);
+      assert.deepEqual(await footerGeometry(), initialFooter);
+      await mac.press("Enter");
+      await macCommands.first().waitFor({ state: "hidden" });
       const terminal = keys.getByRole("button", { name: "Codex в терминале", exact: true });
       assert.equal(await terminal.getAttribute("aria-expanded"), "false");
       await terminal.press("Enter");
