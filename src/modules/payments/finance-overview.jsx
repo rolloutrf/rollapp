@@ -8,12 +8,11 @@ const balanceNumber = new Intl.NumberFormat("ru-RU");
 export const FINANCE_SECTIONS = [
   ["wallet", "Кошелёк"],
   ["purchases", "Покупки"],
-  ["activity", "Операции"],
 ];
 
 export function FinanceNavigation() {
   return <ControlBar className="w-full min-w-0" data-finance-navigation="">
-    <TabsList aria-label="Разделы финансов" className="grid w-full grid-cols-3 rounded-full bg-muted p-0">
+    <TabsList aria-label="Разделы финансов" className="grid w-full grid-cols-2 rounded-full bg-muted p-0">
       {FINANCE_SECTIONS.map(([value, label]) => <TabsTrigger key={value} value={value}
         className="min-w-0 rounded-full px-1 text-rollapp-body leading-7 after:hidden">
         {label}

@@ -8,14 +8,19 @@ import { writeAccountBackup } from "../../account-backup.js";
 
 const api = "https://cloud-api.yandex.net/v1/disk/";
 const statusLifetime = 60 * 60 * 1000;
+const transferTimeoutMs = 8 * 60_000;
+const confirmationTimeoutMs = 5 * 60_000;
+// Leave room for OAuth, notes and releasing the lease after confirmation.
+export const YANDEX_BACKUP_SYNC_LEASE_MS = transferTimeoutMs + confirmationTimeoutMs + 4 * 60_000;
 // This is temporary storage; keep the runtime from filling the filesystem
 // even if a deployment has already reduced its free space.
 const serverDiskReserve = 1024 ** 3;
 
 class DiskError extends Error {
-  constructor(status) {
+  constructor(status, code) {
     super(status);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -44,20 +49,50 @@ async function* readArchive(file, size) {
   }
 }
 
+async function confirmArchive(getArchive, filename, size, checksum, callerSignal) {
+  const deadline = AbortSignal.timeout(confirmationTimeoutMs);
+  const signal = callerSignal ? AbortSignal.any([deadline, callerSignal]) : deadline;
+  let waitMs = 300;
+  try {
+    for (;;) {
+      const response = await getArchive(signal).catch(() => {
+        signal.throwIfAborted();
+        return null;
+      });
+      if (response) {
+        if (response.status === 404 || response.status === 429 || response.status >= 500) {
+          await response.body?.cancel();
+        } else {
+          if (!response.ok) throw diskFailure(response);
+          const archive = await response.json();
+          if (archive.type !== "file" || archive.share || archive.public_key || archive.public_url) throw new DiskError("folder");
+          if (archive.size === size && archive.sha256 === checksum) return filename;
+        }
+      }
+      await delay(waitMs, undefined, { signal });
+      waitMs = Math.min(waitMs * 2, 30_000);
+    }
+  } catch (error) {
+    callerSignal?.throwIfAborted();
+    if (deadline.aborted) throw new DiskError("failed", "DISK_BACKUP_UNCONFIRMED");
+    throw error;
+  }
+}
+
 export async function uploadYandexBackup({
   accessToken, transaction, userId, fetchImpl = fetch, now = new Date(), minimumFreeBytes = serverDiskReserve,
   folder = "disk:/ROLLAPP", latest = false, privateNotes, signal: callerSignal,
 }) {
-  const deadline = AbortSignal.timeout(8 * 60 * 1000);
+  const deadline = AbortSignal.timeout(transferTimeoutMs);
   const signal = callerSignal ? AbortSignal.any([deadline, callerSignal]) : deadline;
-  const diskRequest = (resource, parameters, method = "GET") => {
+  const diskRequest = (resource, parameters, method = "GET", phaseSignal = signal) => {
     const url = new URL(resource, api);
     url.search = new URLSearchParams(parameters);
     return fetchImpl(url, {
       method,
       headers: { Authorization: `OAuth ${accessToken}` },
       redirect: "error",
-      signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+      signal: AbortSignal.any([phaseSignal, AbortSignal.timeout(15_000)]),
     });
   };
   const getFolder = () => diskRequest("resources", { path: folder, fields: "type,share,public_key,public_url" });
@@ -111,7 +146,7 @@ export async function uploadYandexBackup({
     const { size } = await file.stat();
     // Preparing a large archive can take time; check sharing again before sending it.
     await requirePrivateFolder(await getFolder());
-    const getArchive = () => diskRequest("resources", { path, fields: "type,share,public_key,public_url,sha256,size" });
+    const getArchive = (phaseSignal) => diskRequest("resources", { path, fields: "type,share,public_key,public_url,sha256,size" }, "GET", phaseSignal);
     if (latest) {
       const existing = await getArchive();
       if (existing.status === 404) await existing.body?.cancel();
@@ -126,30 +161,22 @@ export async function uploadYandexBackup({
     const { href, method } = await link.json();
     if (method !== "PUT") throw new DiskError("failed");
     const destination = uploaderUrl(href);
-    const uploaded = await fetchImpl(destination, {
-      method: "PUT",
-      headers: { "Content-Type": "application/gzip", "Content-Length": String(size) },
-      body: readArchive(file, size), duplex: "half", redirect: "error", signal,
-    });
-    await uploaded.body?.cancel();
-    if (uploaded.status !== 201 && !(latest && uploaded.status === 202)) throw diskFailure(uploaded);
-    if (latest) {
-      const checksum = hash.digest("hex");
-      for (const wait of [0, 300, 800, 2000, 4000]) {
-        if (wait) await delay(wait, undefined, { signal });
-        const response = await getArchive();
-        if (response.status === 404) {
-          await response.body?.cancel();
-          continue;
-        }
-        if (!response.ok) throw diskFailure(response);
-        const archive = await response.json();
-        if (archive.type !== "file" || archive.share || archive.public_key || archive.public_url) throw new DiskError("folder");
-        if (archive.size === size && archive.sha256 === checksum) return filename;
-      }
-      throw new DiskError("failed");
+    let uploaded;
+    try {
+      uploaded = await fetchImpl(destination, {
+        method: "PUT",
+        headers: { "Content-Type": "application/gzip", "Content-Length": String(size) },
+        body: readArchive(file, size), duplex: "half", redirect: "error", signal,
+      });
+    } catch (error) {
+      if (!latest || callerSignal?.aborted) throw error;
+      // The provider can save the file after the upload response times out.
     }
-    return filename;
+    if (uploaded) {
+      await uploaded.body?.cancel().catch(() => {});
+      if (uploaded.status !== 201 && !(latest && uploaded.status === 202)) throw diskFailure(uploaded);
+    }
+    return latest ? await confirmArchive(getArchive, filename, size, hash.digest("hex"), callerSignal) : filename;
   } finally {
     try {
       await file?.close();

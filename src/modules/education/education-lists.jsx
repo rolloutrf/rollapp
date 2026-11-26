@@ -317,8 +317,7 @@ export function EducationListDrawer({
               </FieldGroup>
             </div>
             <DrawerFooter>
-              <Button className="min-h-12 px-4 text-base" type="submit" aria-label={editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : undefined} disabled={saving || deleting}>
-                {saving && <Spinner aria-hidden="true" />}
+              <Button className="min-h-12 px-4 text-base" type="submit" aria-label={editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : undefined} disabled={saving || deleting} aria-busy={Boolean(saving) || undefined}>
                 {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Создать список"}
               </Button>
               {editing
@@ -339,8 +338,7 @@ export function EducationListDrawer({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" disabled={deleting} onClick={remove}>
-                {deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
+              <AlertDialogAction variant="destructive" disabled={deleting} onClick={remove} aria-busy={Boolean(deleting) || undefined}>
                 Удалить
               </AlertDialogAction>
             </AlertDialogFooter>

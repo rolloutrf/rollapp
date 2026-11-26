@@ -1,13 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, Check, ChevronRight, Coins, Import, Plus, Search } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Coins, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ControlBar } from "@/components/control-bar";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { FinanceFundraiserCards } from "@/components/fundraiser-virtual-card";
 import { DrawerFooter } from "@/components/form-surface";
@@ -18,17 +17,15 @@ import { PurchaseHistoryImport } from "@/modules/history/purchase-history-import
 import { readTonIntent, readTrackedTonOrder } from "./ton-topup-intent.js";
 import { RollsTopup, restoreStarTopup } from "@/modules/payments/rolls-topup.jsx";
 import { clearRollTransfer, restoreRollTransfer, rollTransferMatches, rollTransferWasRejected } from "./roll-transfer-intent.js";
-import { PersonalOffers } from "@/components/personal-offers";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
-import { APP_ORDERS_PATH } from "../shell/app-routing.js";
-import { MarketplaceOrderAttention } from "../history/marketplace-order-attention.jsx";
 import { RollsHistory } from "../history/rolls-history.jsx";
-import { RollsActivity } from "../pfm/rolls-activity.jsx";
+import { useRollReceiptScreen } from "../history/roll-receipt.jsx";
 import { WishPurchasesPanel } from "../wishlist/wish-purchases-panel.jsx";
 import { FINANCE_SECTIONS, FinanceBalance, FinanceNavigation } from "./finance-overview.jsx";
 import "./finance.css";
@@ -44,6 +41,8 @@ function PersonAvatar({ person }) {
 }
 
 export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
+  const isMobile = useIsMobile();
+  const { openReceipt, receiptOpen, receiptScreen } = useRollReceiptScreen({ inDrawer: embedded && !isMobile });
   const transferFormId = useId();
   const [searchParams, setSearchParams] = useSearchParams();
   const [drawerSection, setDrawerSection] = useState("wallet");
@@ -64,7 +63,6 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const [confirmOpen, setConfirmOpen] = useState(Boolean(pending));
   const [transferView, setTransferView] = useState(() => Boolean(pending));
   const [topupView, setTopupView] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const importOpener = useRef(null);
   const [requestMode, setRequestMode] = useState(null);
@@ -382,7 +380,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             <FinanceBalance wallet={wallet} loading={loading} actions={<>
               {wallet?.features?.starsPurchases && !pendingTopup && <PageActionButton ref={topupOpener} type="button"
                 aria-label="Пополнить баланс" onClick={() => setTopupView(true)} disabled={busy}>
-                <Plus data-icon="inline-start" aria-hidden="true" />Пополнить
+                Пополнить
               </PageActionButton>}
               <PageActionButton ref={transferOpener} type="button" variant={wallet?.features?.starsPurchases && !pendingTopup ? "outline" : "default"}
                 aria-label="Отправить роллы" onClick={() => {
@@ -390,17 +388,9 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
                   setTransferError("");
                   setTransferView(true);
                 }} disabled={!wallet || busy || Boolean(pending)}>
-                <ArrowRight data-icon="inline-start" aria-hidden="true" />Отправить
+                Отправить
               </PageActionButton>
             </>} />
-
-            {wallet && <section className="grid min-w-0 gap-3" aria-label="Заказы и счета">
-              <PageActionButton variant="outline" nativeButton={false} role="link" className="w-full justify-between"
-                render={<Link to={APP_ORDERS_PATH} state={{ ordersFromStore: true }} />}>
-                Заказы и продажи<ChevronRight data-icon="inline-end" aria-hidden="true" />
-              </PageActionButton>
-              <MarketplaceOrderAttention attention={wallet.orderAttention} />
-            </section>}
 
             {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
               <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
@@ -408,34 +398,23 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             {wallet && !wallet.features?.tonWallet && hasTonStatus.current && <Suspense fallback={null}>
               <TonOrderStatus key={user.id} userId={user.id} onPaid={refresh} />
             </Suspense>}
-            <PersonalOffers user={user} onPaid={() => refresh({ quiet: true })} />
             <FinanceFundraiserCards key={user.id} ownerId={user.id} />
+            <section className="grid min-w-0 gap-4" aria-label="Операции с роллами">
+              <h2 className="font-heading text-2xl font-semibold">Операции с роллами</h2>
+              <RollsHistory transactions={wallet?.transactions ?? null} hasMore={wallet?.nextOffset != null}
+                loading={loading} loadingMore={loadingMore} busy={busy} onLoadMore={loadMore} onOpenReceipt={openReceipt} />
+            </section>
           </TabsContent>
 
           <TabsContent value="purchases" className="grid min-w-0 gap-6 rollapp-body">
             <WishPurchasesPanel key={`purchases:${user.id}`} viewerId={user.id} historyAction={
               <PageActionButton ref={importOpener} type="button" variant="outline" aria-label="Импорт покупок" onClick={() => setImportOpen(true)}>
-                <Import data-icon="inline-start" aria-hidden="true" />
                 <span className="@md/purchases:hidden">Импорт</span>
                 <span className="hidden @md/purchases:inline">Импорт покупок</span>
               </PageActionButton>
             } />
           </TabsContent>
 
-          <TabsContent value="activity" className="grid min-w-0 gap-6 rollapp-body">
-            <header className="grid min-w-0 gap-2">
-              <h2 className="font-heading text-2xl leading-8 font-semibold">Операции с роллами</h2>
-              <p className="text-muted-foreground">Переводы, пополнения, покупки и возвраты в кошельке.</p>
-            </header>
-            {wallet?.features?.rollActivity && <ControlBar className="flex flex-wrap gap-2" role="group" aria-label="Вид операций">
-              <Button variant={!activityOpen ? "default" : "outline"} aria-pressed={!activityOpen} onClick={() => setActivityOpen(false)}>Журнал</Button>
-              <Button variant={activityOpen ? "default" : "outline"} aria-pressed={activityOpen} onClick={() => setActivityOpen(true)}>Сводка по роллам</Button>
-            </ControlBar>}
-            {wallet?.features?.rollActivity && activityOpen
-              ? <RollsActivity key={`activity:${user.id}`} />
-              : <RollsHistory transactions={wallet?.transactions ?? null} hasMore={wallet?.nextOffset != null}
-                  loading={loading} loadingMore={loadingMore} busy={busy} onLoadMore={loadMore} />}
-          </TabsContent>
         </>}
     </div>
 
@@ -483,8 +462,7 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
           <AlertDialogAction className="rounded-full" disabled={busy || (!pending && !canReview)} onClick={(event) => {
             event.preventDefault();
             void (pending ? checkTransfer() : sendTransfer());
-          }}>
-            {busy ? <Spinner /> : !pending && <Check aria-hidden="true" />}
+          }} aria-busy={Boolean(busy) || undefined}>
             {busy ? (requestMode === "send" ? "Отправляем…" : "Проверяем…") : pending ? "Проверить перевод" : "Перевести"}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -492,17 +470,20 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
     </AlertDialog>
   </div>;
 
-  return <Tabs value={section} onValueChange={chooseSection}
-    className={embedded ? "flex min-h-0 min-w-0 w-full flex-1 flex-col gap-0" : "min-w-0"}>
-    {!embedded ? content : <>
-      {sectionNav}
-      <ScrollArea ref={walletScrollArea} tabIndex={-1} className="min-h-0 min-w-0 w-full flex-1">{content}</ScrollArea>
-      <DrawerFooter className="empty:hidden">
-        {transferView && <>
-          {transferSubmit}
-          <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={returnToWallet}><Coins aria-hidden="true" /></Button>
-        </>}
-      </DrawerFooter>
-    </>}
-  </Tabs>;
+  return <>
+    <Tabs value={section} onValueChange={chooseSection} inert={receiptOpen || undefined} aria-hidden={receiptOpen || undefined}
+      className={embedded ? "flex min-h-0 min-w-0 w-full flex-1 flex-col gap-0" : "min-w-0"}>
+      {!embedded ? content : <>
+        {sectionNav}
+        <ScrollArea ref={walletScrollArea} tabIndex={-1} className="min-h-0 min-w-0 w-full flex-1">{content}</ScrollArea>
+        <DrawerFooter className="empty:hidden">
+          {transferView && <>
+            {transferSubmit}
+            <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={returnToWallet}><Coins aria-hidden="true" /></Button>
+          </>}
+        </DrawerFooter>
+      </>}
+    </Tabs>
+    {receiptScreen}
+  </>;
 }

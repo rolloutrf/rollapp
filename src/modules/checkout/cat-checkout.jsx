@@ -4,7 +4,6 @@ import { PurchaseRecoveryNotice, usePurchaseRecovery } from "./purchase-recovery
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerSectionHeader } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
-import { Spinner } from "@/components/ui/spinner";
 
 import { CAT_STORE_PRICE } from "../../../shared/modules/checkout/cat-store-price.js";
 import { formatRolls } from "../../../shared/modules/payments/rolls.js";
@@ -116,8 +115,8 @@ export function CatCheckout({ purchase, storageKey, onClose, onSuccess }) {
             : <Button type="button" variant="outline" size="icon" data-control-icon aria-label="Изменить пункт" title="Изменить пункт" onClick={() => setStep("pickup")}>
               <ArrowLeft aria-hidden="true" />
             </Button>}
-          <Button type="button" disabled={busy || !selectedPoint} onClick={pending ? recovery.check : confirm}>
-            {busy && <Spinner />}{busy ? (requestMode === "send" ? "Оплачиваем…" : "Проверяем…") : pending ? "Проверить покупку" : `Купить за ${price}`}
+          <Button type="button" disabled={busy || !selectedPoint} onClick={pending ? recovery.check : confirm} aria-busy={Boolean(busy) || undefined}>
+            {busy ? (requestMode === "send" ? "Оплачиваем…" : "Проверяем…") : pending ? "Проверить покупку" : `Купить за ${price}`}
           </Button>
         </>}
       </DrawerFooter>

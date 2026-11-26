@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publicContactCard, contactCardVcard, contactCardDownload } from "./contact-card.js";
+import { PLATFORM_HOST, SPHERE_APPLICATIONS } from "../shell/applications.js";
+import { publicContactCard, contactCardVcard, contactCardDownload, contactCardDisplayUrl } from "./contact-card.js";
 
 test("card exports only the explicit public identity, even from a full session", () => {
   const card = publicContactCard({ name: "Тестовый", username: "synthetic-user", email: "private@example.org", notes: "private", birthday: "2000-01-01", id: "private-id", favorite: true, bio: "private" }, "https://example.org/app?owner=other");
@@ -38,4 +39,23 @@ test("profile URL stays on the supplied HTTP origin and filenames cannot travers
   assert.throws(() => publicContactCard({ username: "test" }, "javascript:alert(1)"));
   assert.throws(() => publicContactCard({}, "https://example.org"));
   assert.throws(() => contactCardDownload(card, "unknown"));
+});
+
+test("the profile address label reads in Cyrillic and resolves to the QR destination", () => {
+  const profile = { username: "mikhail", name: "Михаил Колосков", profileSlug: "колосков-михаил" };
+  const hosts = [
+    [PLATFORM_HOST, "роллапп.рф"],
+    [SPHERE_APPLICATIONS.identity.host, "идентичность.роллапп.рф"],
+    [SPHERE_APPLICATIONS.health.host, "здоровье.роллапп.рф"],
+    [SPHERE_APPLICATIONS.career.host, "карьера.роллапп.рф"],
+    [SPHERE_APPLICATIONS.education.host, "образование.роллапп.рф"],
+    [SPHERE_APPLICATIONS.wishlist.host, "вишлист.роллапп.рф"],
+    ["localhost:5172", "localhost:5172"],
+  ];
+  for (const [host, label] of hosts) {
+    const { url } = publicContactCard(profile, `https://${host}`);
+    const display = contactCardDisplayUrl(url);
+    assert.equal(display, `https://${label}/колосков-михаил`);
+    assert.equal(new URL(display).href, url);
+  }
 });

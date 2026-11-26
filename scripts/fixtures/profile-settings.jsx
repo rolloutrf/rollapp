@@ -9,7 +9,12 @@ import "../../src/styles.css";
 import "../../src/index.css";
 
 const mode = new URLSearchParams(location.search).get("state");
-const fixtureUser = { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error", canInvite: true, memberNumber: null };
+const fixtureUser = {
+  id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error", canInvite: true, memberNumber: null,
+  ...(mode === "business-card" && {
+    accountType: "business", name: "Пример бизнеса", username: "example-business", profileSlug: "пример-бизнеса",
+  }),
+};
 sessionStorage.setItem(`rollapp:virtual-card-sandbox:${fixtureUser.id}:legacy-fund`, JSON.stringify({
   version: 1, id: "DEMO-12345678", ownerId: fixtureUser.id, fundraiserId: "legacy-fund",
   initialBalance: 200, balance: 150, purchases: [{ id: "fixture-purchase", merchant: "Магазин", amount: 50 }],
@@ -70,7 +75,10 @@ api.get = async (path) => {
       })),
     };
   }
-  if (path === "/personal-offers") return { offers: [] };
+  if (path.startsWith("/personal-offers")) {
+    window.personalOfferReads = (window.personalOfferReads || 0) + 1;
+    return { offers: [] };
+  }
   if (mode === "gifts-recovery" && path === `/rolls/gift-cards/operations/issue/${recoverableIssue.idempotencyKey}`) {
     window.giftRecoveryChecks.push(path);
     return { card: null };

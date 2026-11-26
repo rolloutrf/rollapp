@@ -3,7 +3,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/modules/runtime/api";
 import { addCalendarDays, dateFromKey } from "../../../shared/modules/calendar/planning-calendar.js";
 import { localDateKey } from "../../../shared/modules/planning/planning.js";
@@ -58,8 +57,8 @@ export function WishNeedOffers({ id, need, plan, selectedId, onSelect, disabled 
     <div className="grid gap-2">
       <h3 className="text-lg font-semibold">Варианты</h3>
       {variants.length === 0 && <p className="text-muted-foreground">Добавьте подходящие товары при редактировании потребности.</p>}
-      {variants.length > 0 && <Button type="button" variant="outline" className="min-h-12 justify-self-start rounded-full" disabled={checking || disabled} onClick={compare}>
-        {checking && <Spinner />}Проверить цены и доставку
+      {variants.length > 0 && <Button type="button" variant="outline" className="min-h-12 justify-self-start rounded-full" disabled={checking || disabled} onClick={compare} aria-busy={Boolean(checking) || undefined}>
+        Проверить цены и доставку
       </Button>}
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {result && <p className="text-xs text-muted-foreground">Проверено <time dateTime={result.checkedAt}>{checkedLabel.format(new Date(result.checkedAt))}</time></p>}

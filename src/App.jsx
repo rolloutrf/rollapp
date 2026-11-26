@@ -3,8 +3,9 @@ import { useLocation, Navigate, Outlet, useParams, Route, Routes } from "react-r
 import { TabbedSpherePage } from "./modules/shell/sphere-page.jsx";
 import { ContactsSpherePage, LegacyContactsRedirect } from "./modules/contacts/contacts-page.jsx";
 import { APP_HOME } from "./modules/shell/home-path.jsx";
-import { SPACE_IDS, SPACES } from "./modules/categories/wish-spaces.jsx";
+import { SPACE_IDS } from "./modules/categories/wish-spaces.jsx";
 import { WishlistBusinessListing, wishlistSpace, WishSalesPage } from "@/modules/wishlist/wishlist-business.jsx";
+import { WishlistOffersRoute } from "@/modules/wishlist/wishlist-offers.jsx";
 import { canManageWishlistSpace } from "../shared/modules/wishlist/wishlist-business.js";
 import { safeNextPath } from "./modules/auth/auth.js";
 import { publicSpacePath, publicPublicationPath, profilePublicationSection } from "../shared/modules/profile/profile-links.js";
@@ -22,6 +23,7 @@ import {
   APP_CATALOG_ITEM_ROUTE_PATH,
   APP_CLASSIFIEDS_PATH,
   APP_ORDERS_PATH,
+  APP_BUSINESS_ACCESS_PATH,
   APP_SHELL_ROUTE_PATH,
   APP_STORE_PATH,
   APP_WISH_CATALOG_PATH,
@@ -36,7 +38,6 @@ import { BusinessCatalogList, BusinessCatalogProvider } from "@/modules/catalog-
 import { sphereBusinessCatalogPath } from "../shared/modules/catalog-marketplace/business-accounts.js";
 import { useSphereSharing } from "./modules/access/sphere-sharing.jsx";
 import { BusinessAccessPage } from "./modules/access/sphere-access.jsx";
-import { SphereShareAction } from "./modules/access/sphere-share-action.jsx";
 import { SPHERE_APPLICATIONS } from "../shared/modules/shell/applications.js";
 import { RollsWallet } from "@/modules/payments/rolls-wallet.jsx";
 import { MemberNumberPage } from "@/modules/profile/member-number-page.jsx";
@@ -57,6 +58,7 @@ import { RootRoute, RegisterPage, AuthPage } from "./modules/auth/auth-pages.jsx
 import { CatalogItemPage, WishCatalogPage } from "./modules/catalog-marketplace/wish-catalog.jsx";
 import { PublicProfile } from "./modules/wishlist/public-wishlist.jsx";
 import { PublicBookingPage } from "./modules/profile/public-pages.jsx";
+import { BusinessProfileLayout } from "./modules/profile/business-profile-layout.jsx";
 import { LegacyProfileRedirect } from "./modules/profile/profile-redirect.jsx";
 import { CatalogBusinessDirectoryScope } from "./modules/catalog-marketplace/catalog-scope.jsx";
 
@@ -133,16 +135,6 @@ function WishlistStoreRoute({ ordersOpen = false }) {
   return <StorePage key={`${user.id}:${space}`} user={user} selectedSpace={space} ordersOpen={ordersOpen} />;
 }
 
-function WishlistOffersRoute() {
-  const { search } = useLocation();
-  const { user } = useSession();
-  const space = wishlistSpace(search);
-  const label = SPACES.find((entry) => entry.id === space)?.label;
-  return <section className="app-page app-page--collection page-stack rollapp-body" aria-label={`Предложения: ${label}`}>
-    <WishlistBusinessListing key={`${user.id}:${space}`} space={space} offers viewerId={user.id} />
-  </section>;
-}
-
 function WishlistSalesRoute() {
   const { user } = useSession();
   return <WishSalesPage user={user} />;
@@ -174,10 +166,7 @@ function SphereBusinessCatalogRoute() {
   return <section className="app-page app-page--collection page-stack rollapp-body" aria-label={offers ? "Предложения сферы" : "Каталог брендов"}>
     {offers ? <PersonalOffers key={`${user.id}:${sphere}`} user={user} sphere={sphere} /> : (
       <BusinessCatalogProvider sphere={sphere}>
-        <BusinessCatalogList
-          intro={<p className="text-pretty">Подпишитесь на бизнес, чтобы получать от него предложения.</p>}
-        />
-        <SphereShareAction />
+        <BusinessCatalogList />
       </BusinessCatalogProvider>
     )}
   </section>;
@@ -218,8 +207,9 @@ function ProtectedApp({ application }) {
           <Route path="planning" element={<PlanningSpace key={user.id} />} />
           <Route path="private-notes" element={<PrivateNotes key={user.id} ownerId={user.id} />} />
           <Route path="rolls" element={<RollsWallet key={user.id} user={user} />} />
-          <Route path="member-number" element={<MemberNumberPage key={user.id} user={user} onDrawn={refresh} />} />
-          <Route path="business/access" element={<BusinessAccessPage />} />
+          <Route path="member-number" element={user.accountType === "business"
+            ? <Navigate to={home} replace />
+            : <MemberNumberPage key={user.id} user={user} onDrawn={refresh} />} />
           <Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} />
           <Route path="friends/:section" element={<FriendsPage />} />
           <Route path="settings" element={<Navigate to={APP_HOME} replace />} />
@@ -277,11 +267,14 @@ export default function App({ application = null }) {
               <Route path={APP_ASSISTANT_PATH} element={<AssistantRoute />} />
               <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
               <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />
-              <Route path="/:username" element={<PublicProfile />} />
+              <Route element={<BusinessProfileLayout />}>
+                <Route path="/:username" element={<PublicProfile />} />
+                <Route path="/:username/:space" element={<PublicProfile />} />
+                <Route path="/:username/lists/:listId" element={<PublicProfile />} />
+                <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
+                <Route path={APP_BUSINESS_ACCESS_PATH} element={<BusinessAccessPage embedded />} />
+              </Route>
               <Route path="/:username/calendar/book" element={<PublicBookingPage />} />
-              <Route path="/:username/:space" element={<PublicProfile />} />
-              <Route path="/:username/lists/:listId" element={<PublicProfile />} />
-              <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
             </>}
             {(!application || application === "wishlist") && <>
               <Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} />

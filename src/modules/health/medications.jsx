@@ -4,8 +4,18 @@ import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx"
 import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  AlertTriangle, CalendarDays, CheckCircle2, CirclePause, Clock3, Folder,
-  ImagePlus, ListPlus, MoreHorizontal, Pill, Plus, RotateCcw, Stethoscope, Trash2, X,
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  CirclePause,
+  Clock3,
+  Folder,
+  ListPlus,
+  MoreHorizontal,
+  Pill,
+  Stethoscope,
+  Trash2,
+  X,
 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
@@ -446,8 +456,7 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
                 <Input className="sr-only" ref={imageFileRef} type="file" tabIndex={-1} aria-label="Файл фото препарата"
                   accept="image/jpeg,image/png,image/webp" disabled={saving || uploading} onChange={(event) => uploadPhoto(event.target.files?.[0])} />
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" type="button" disabled={saving || uploading} onClick={() => imageFileRef.current?.click()}>
-                    {uploading ? <Spinner aria-hidden="true" /> : <ImagePlus data-icon="inline-start" aria-hidden="true" />}
+                  <Button variant="outline" type="button" disabled={saving || uploading} onClick={() => imageFileRef.current?.click()} aria-busy={Boolean(uploading) || undefined}>
                     {uploading ? "Загружаем" : form.imageUrl ? "Заменить фото" : "Загрузить фото"}
                   </Button>
                   {form.imageUrl && <Button variant="destructive" type="button" disabled={saving || uploading}
@@ -544,7 +553,6 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
                 </div>
                 {form.frequency === "custom" && form.scheduleTimes.length < 6 && (
                   <Button className="min-h-12 self-start px-4 text-base" variant="ghost" type="button" onClick={addTime}>
-                    <Plus data-icon="inline-start" aria-hidden="true" />
                     Добавить время
                   </Button>
                 )}
@@ -613,8 +621,7 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
           </div>
 
           <DrawerFooter>
-            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || uploading || invalidDates || !form.name.trim()}>
-              {saving && <Spinner aria-hidden="true" />}
+            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || uploading || invalidDates || !form.name.trim()} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : medication ? "Сохранить изменения" : "Добавить препарат"}
             </Button>
             <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || uploading} />}>Отмена</DrawerClose>
@@ -725,8 +732,7 @@ function MedicationGroupDrawer({ open, group, opener, onOpenChange, onSaved, onD
               </Field>
             </div>
             <DrawerFooter>
-              <Button className="min-h-12 px-4 text-base" type="submit" disabled={busy || !title.trim()}>
-                {saving && <Spinner aria-hidden="true" />}
+              <Button className="min-h-12 px-4 text-base" type="submit" disabled={busy || !title.trim()} aria-busy={Boolean(saving) || undefined}>
                 {saving ? "Сохраняем" : group ? "Сохранить" : "Создать группу"}
               </Button>
               {!group && <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>}
@@ -744,8 +750,7 @@ function MedicationGroupDrawer({ open, group, opener, onOpenChange, onSaved, onD
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={deleting} onClick={removeGroup}>
-              {deleting && <Spinner data-icon="inline-start" aria-hidden="true" />}
+            <AlertDialogAction variant="destructive" disabled={deleting} onClick={removeGroup} aria-busy={Boolean(deleting) || undefined}>
               Удалить группу
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -925,7 +930,6 @@ export function Medications() {
           <AlertDescription>{requestState.error.message}</AlertDescription>
           <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
-              <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
           </div>

@@ -10,6 +10,7 @@ if (query.has("light")) document.documentElement.classList.remove("dark");
 const accounts = [
   { username: "example-studio", storefrontTitle: query.has("sphere") ? undefined : "Витрина студии", name: "Студия", avatarUrl: "/favicon.png", isFollowing: false },
   { username: "very-long-business-account-name-for-the-smallest-screen", name: "Независимая студия городских пространств и архитектуры", isFollowing: true },
+  { username: "light-workshop", name: "Мастерская света", isFollowing: false },
   { username: "read-only-shop", name: "Магазин без подписки", isFollowing: null },
 ];
 let attempts = 0;
@@ -31,12 +32,16 @@ api.post = async (path, body) => {
 
 function Fixture() {
   const { pathname } = useLocation();
-  return <main className="app-page page-stack">
-    <BusinessCatalogProvider {...(query.has("sphere") ? { sphere: "career" } : { space: "products" })}>
-      <BusinessCatalogList />
-    </BusinessCatalogProvider>
-    <output hidden data-location>{pathname}</output>
-  </main>;
+  return <div className="app-layout app-layout--dark">
+    <main className="app-main">
+      <section className="app-page app-page--collection page-stack">
+        <BusinessCatalogProvider {...(query.has("sphere") ? { sphere: "career" } : { space: "products" })}>
+          <BusinessCatalogList />
+        </BusinessCatalogProvider>
+        <output hidden data-location>{pathname}</output>
+      </section>
+    </main>
+  </div>;
 }
 
 createRoot(document.getElementById("root")).render(<MemoryRouter><Fixture /></MemoryRouter>);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronRight, Download } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { Drawer, DrawerBack, DrawerContent, DrawerFooter, DrawerSectionHeader } from "@/components/form-surface";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
@@ -56,7 +56,7 @@ function ReceiptContent({ intent, titleId, titleRef, onClose }) {
   </Button>;
   const download = <Button type="button" variant={drawer || mobile ? "default" : "outline"} disabled={!receipt}
     className={mobile && !drawer ? "min-w-0 flex-1" : undefined} aria-label="Скачать квитанцию" onClick={() => downloadReceipt(receipt)}>
-    <Download aria-hidden="true" />{mobile && !drawer ? "Скачать" : "Скачать квитанцию"}
+    {mobile && !drawer ? "Скачать" : "Скачать квитанцию"}
   </Button>;
 
   const heading = native
@@ -145,15 +145,14 @@ export function useRollReceiptScreen({ inDrawer = false } = {}) {
 
   return {
     openReceipt,
+    receiptOpen: active,
     receiptScreen: intent && (active || intent.surface === "drawer") ? <ReceiptScreen key={intent.marker}
       intent={intent} open={active} onClose={closeReceipt} /> : null,
   };
 }
 
-export function OrderReceipt({ order, onOpenReceipt }) {
-  return <div className="col-span-full flex min-w-0">
-    <PageActionButton variant="outline" type="button" onClick={(event) => onOpenReceipt(event, "order", order.id)}>
-      Квитанция <ChevronRight data-icon="inline-end" aria-hidden="true" />
-    </PageActionButton>
-  </div>;
+export function OrderReceipt({ order, onOpenReceipt, className = "w-full rounded-full" }) {
+  return <Button variant="outline" type="button" className={className} onClick={(event) => onOpenReceipt(event, "order", order.id)}>
+    Квитанция
+  </Button>;
 }

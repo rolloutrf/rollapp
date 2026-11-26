@@ -6,6 +6,7 @@ import App from "../../src/App.jsx";
 import { MobileFormPages } from "../../src/components/mobile-form-pages";
 import { WishlistBusinessManager, WishlistBusinessListing } from "../../src/modules/wishlist/wishlist-business.jsx";
 import { RollsWallet } from "../../src/modules/payments/rolls-wallet.jsx";
+import { APP_WISH_OFFERS_PATH } from "../../src/modules/shell/app-routing.js";
 import { api } from "../../src/modules/runtime/api.js";
 import { createRoot } from "react-dom/client";
 import { PersonalOfferComposer, PersonalOffers, BusinessPersonalOffers } from "../../src/components/personal-offers";
@@ -16,6 +17,7 @@ const base = { ...item, priceRolls: 50, business: { id: "seller", name: "Биз�
 const params = new URLSearchParams(location.search);
 const scenario = params.get("case");
 const catalog = scenario === "sphere-catalog";
+const offersRoute = params.get("surface") === "offers";
 const sphere = params.get("sphere") || "health";
 const section = { health: "sport", career: "contacts", identity: "identity-reports", education: "courses" }[sphere];
 let subscribed = false;
@@ -35,6 +37,7 @@ const savedFixture = recording ? JSON.parse(sessionStorage.getItem(fixtureKey)) 
 if (savedFixture) ({ paid, refunded } = savedFixture);
 window.offerCalls = savedFixture?.calls ?? [];
 window.offerChecks = savedFixture?.checks ?? [];
+window.offerReads = [];
 function persistFixture() {
   if (recording) sessionStorage.setItem(fixtureKey, JSON.stringify({ paid, refunded, calls: window.offerCalls, checks: window.offerChecks }));
 }
@@ -42,6 +45,7 @@ const rollbackError = (message, code) => Object.assign(new Error(message), { sta
 const wishlistItem = { id:"wishlist-item",title:"Wishlist товар",description:"Описание товара",price:"999 RUB",active:true,brand:"Бренд",business:{id:"seller",name:"Продавец",username:"seller",pageTitle:"Магазин"} };
 const client = {
   async get(path) {
+    if (path.startsWith("/personal-offers")) window.offerReads.push(path);
     const statusPath = /^\/personal-offers\/([^/]+)\/(pay|refund)\/status$/.exec(path);
     if (statusPath) {
       const [, offerId, action] = statusPath;
@@ -50,9 +54,11 @@ const client = {
       return { purchase: recorded ? { id: "purchase", offerId, priceRolls: offerId === "wishlist-invoice" ? 75 : 50,
         businessId: "seller", recipientId: "buyer", refundedAt: action === "refund" ? base.expiresAt : null } : null };
     }
-    if (catalog) {
+    if (catalog || offersRoute) {
       if (path === "/me") return { user: { ...user, canDiscoverSpheres: true } };
       if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, owner: user, requests: [], people: [] };
+    }
+    if (catalog) {
       if (path === `/business-catalog/${sphere}`) return { accounts: [{ username: "brand", name: "Партнёр сферы", isFollowing: subscribed }] };
       if (path === `/personal-offers?sphere=${sphere}`) return { offers: subscribed ? [{ ...base, id: "brand-offer", title: "Предложение партнёра", status: "active" }] : [] };
       if (path === "/health/workouts") return { workouts: [], lists: [] };
@@ -126,8 +132,15 @@ const client = {
 // network requests remain forbidden by the runner.
 api.get = client.get;
 api.post = client.post;
-const user = { id: scenario === "business-page" ? "seller" : "buyer", name: "Пользователь", username: "fixture", accountType: scenario === "business-page" ? "business" : "personal" };
+const businessUser = sellerScenario || scenario === "business-page";
+const user = { id: businessUser ? "seller" : "buyer", name: "Пользователь", username: "fixture",
+  accountType: businessUser ? "business" : "personal", ...(sellerScenario ? { businessCategory: "seller", sellerSpace: "products" } : {}) };
 const showToast = () => {};
 const content = scenario === "wishlist-manager" ? <main className="app-page rollapp-body"><WishlistBusinessManager user={{id:"seller",accountType:"business",businessCategory:"seller",sellerSpace:"products"}} space="products" /></main> : wishlistBuyerScenario ? <main className="app-page rollapp-body"><WishlistBusinessListing space="products" offers viewerId={user.id} /></main> : scenario === "business-page" ? <BusinessAccessPage /> : scenario === "wallet-page" ? <RollsWallet user={user} /> : <main className="app-page rollapp-body page-stack">{scenario === "business" ? <BusinessPersonalOffers client={client} /> : <>{(!scenario || scenario === "long-recipient") && <PersonalOfferComposer item={item} client={client} />}<PersonalOffers user={{ id: sellerScenario ? "seller" : "buyer" }} client={client} /></>}</main>;
 if (catalog) history.replaceState({}, "", `/app/spheres/${sphere}?tab=${section}`);
-createRoot(document.getElementById("root")).render(<BrowserRouter>{catalog ? <App /> : <SessionContext.Provider value={{ user }}><ToastContext.Provider value={showToast}><MobileFormPages>{content}</MobileFormPages></ToastContext.Provider></SessionContext.Provider>}</BrowserRouter>);
+if (offersRoute) {
+  const query = new URLSearchParams({ tab: "products" });
+  if (params.get("view") === "invoices") query.set("view", "invoices");
+  history.replaceState({}, "", `${APP_WISH_OFFERS_PATH}?${query}`);
+}
+createRoot(document.getElementById("root")).render(<BrowserRouter>{catalog || offersRoute ? <App /> : <SessionContext.Provider value={{ user }}><ToastContext.Provider value={showToast}><MobileFormPages>{content}</MobileFormPages></ToastContext.Provider></SessionContext.Provider>}</BrowserRouter>);

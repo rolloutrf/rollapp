@@ -8,7 +8,7 @@ export function RelatedChoiceCard({ item, selected, onToggle, removable = false,
   const Icon = RELATED_ICONS[item.kind] || Link2;
   const kindLabel = relatedKindLabel(item.kind);
   const info = item.priceLabel || item.snippet || kindLabel;
-  return <Button variant={removable ? "destructive" : "ghost"} type="button" disabled={disabled} className={`planning-related__choice${removable ? " planning-related__choice--selected" : ""}${preview ? " planning-related__choice--preview" : ""}`} title={preview ? item.title : undefined} aria-pressed={removable ? undefined : selected} aria-label={removable ? `Убрать ${item.title}` : undefined} onClick={() => onToggle(item)}>
+  return <Button data-content-control="" variant={removable ? "destructive" : "ghost"} type="button" disabled={disabled} className={`planning-related__choice${removable ? " planning-related__choice--selected" : ""}${preview ? " planning-related__choice--preview" : ""}`} title={preview ? item.title : undefined} aria-pressed={removable ? undefined : selected} aria-label={removable ? `Убрать ${item.title}` : undefined} onClick={() => onToggle(item)}>
     <span className="planning-related__choice-media" data-kind={item.kind}>
       {item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.nextElementSibling.hidden = false; }} />}
       <Icon className="planning-related__choice-fallback" size={26} aria-hidden="true" hidden={Boolean(item.imageUrl)} />

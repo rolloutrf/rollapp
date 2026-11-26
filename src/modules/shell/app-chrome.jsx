@@ -1,6 +1,7 @@
+import { businessCategoryFor } from "../../../shared/modules/catalog-marketplace/business-accounts.js";
 import { isBrandCatalogSearch } from "../../../shared/modules/catalog-marketplace/catalog-links.js";
 import { useContext } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useMatch, useNavigate } from "react-router-dom";
 import { Share2 } from "lucide-react";
 import { TELEGRAM_WAITLIST_ENABLED } from "../../../shared/modules/identification/telegram-waitlist.js";
 import { ControlBar } from "@/components/control-bar";
@@ -10,21 +11,23 @@ import { BusinessCatalogSelect } from "@/modules/catalog-marketplace/catalog-bra
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { canAccessPrivateSpheres } from "./service-navigation.js";
-import { isPublicWishDetailPath, APP_WISH_CATALOG_PATH } from "./app-routing.js";
-import { publicSpacePath, publicProfileRoute } from "../../../shared/modules/profile/profile-links.js";
+import { isPublicWishDetailPath, APP_BUSINESS_ACCESS_PATH, APP_WISH_CATALOG_PATH } from "./app-routing.js";
+import { matchesProfileAddress, publicSpacePath, publicProfileRoute } from "../../../shared/modules/profile/profile-links.js";
+import { SPACES } from "../categories/wish-spaces.jsx";
 import { CollectionNavigationContext } from "../categories/collection-navigation.jsx";
 import { APP_HOME } from "./home-path.jsx";
 import { useSession } from "../auth/session.jsx";
 import { useToast } from "./toast.jsx";
-import { PLANNING_SERVICE, isFriendsDirectoryPath, serviceChromeFromPath, isAssistantPath } from "./service-menu.jsx";
+import { PLANNING_SERVICE, SERVICE_SWITCHER_ITEMS, isFriendsDirectoryPath, serviceChromeFromPath, isAssistantPath } from "./service-menu.jsx";
 import { SphereSwitcher, AppBrand } from "./brand.jsx";
 
 export function GlobalAppChrome() {
   const location = useLocation();
+  const clients = useMatch(APP_BUSINESS_ACCESS_PATH);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const toast = useToast();
-  const { user } = useSession();
+  const { user, loading: sessionLoading } = useSession();
   const waitlistLanding = TELEGRAM_WAITLIST_ENABLED && location.pathname === "/" && !user;
   const { collection } = useContext(CollectionNavigationContext);
   const collectionSpace = collection?.pathname === location.pathname ? collection.space : null;
@@ -35,6 +38,13 @@ export function GlobalAppChrome() {
     ? requestedService
     : null;
   const publicRoute = publicProfileRoute(location.pathname);
+  const businessProfile = user?.accountType === "business" && (
+    clients || matchesProfileAddress(user, publicRoute?.username) || (location.pathname === APP_HOME && !sharedOwner)
+  );
+  const businessCategory = businessProfile ? businessCategoryFor(user) : null;
+  const sellerSpace = businessCategory?.id === "seller" ? SPACES.find(({ id }) => id === user.sellerSpace) : null;
+  const categoryLabel = sellerSpace?.label || businessCategory?.label;
+  const CategoryIcon = sellerSpace?.icon || SERVICE_SWITCHER_ITEMS.find(({ id }) => id === businessCategory?.sphere)?.icon;
   const requestedTab = publicRoute?.space || collectionSpace || new URLSearchParams(location.search).get("tab");
   const serviceOptions = service?.id === "planning" ? [] : service?.tabs || [];
   const options = location.pathname.startsWith("/s/") || isFriendsDirectoryPath(location.pathname) ? [] : sharedOwner
@@ -66,7 +76,7 @@ export function GlobalAppChrome() {
   };
   if (waitlistLanding || isAssistantPath(location.pathname)) return null;
   if ((isMobile && location.pathname.startsWith("/app/messenger")) || (isMobile && location.pathname === PLANNING_SERVICE.path) || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
-  const sectionSelector = location.pathname === PLANNING_SERVICE.path && user
+  const sectionSelector = sessionLoading || businessProfile ? null : location.pathname === PLANNING_SERVICE.path && user
     ? <div className="planning-fab-space global-service-select"><PlanningSpaceSwitcher /></div>
     : brandCatalog && user ? <BusinessCatalogSelect side={isMobile ? "top" : "bottom"} fullWidth={isMobile} /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
@@ -85,8 +95,16 @@ export function GlobalAppChrome() {
         </Select>
       );
   return <>
-    <ControlBar as="header" className="global-app-chrome" data-mobile-navigation={isMobile || undefined} aria-label="Панель приложения">
+    <ControlBar as="header" className="global-app-chrome" data-mobile-navigation={isMobile || undefined}
+      data-business-category={categoryLabel ? "" : undefined} aria-label="Панель приложения">
       <AppBrand showSwitcher={!isMobile} />
+      {categoryLabel && (
+        <div className="global-business-category col-start-2 flex h-(--layout-control-size) min-w-0 max-w-full items-center justify-self-center gap-2 rounded-full bg-primary px-3 text-center text-xs font-medium text-primary-foreground md:text-rollapp-body">
+          {CategoryIcon && <CategoryIcon className="size-(--layout-control-icon-size) shrink-0" aria-hidden="true" />}
+          <span className="sr-only">Категория бизнеса</span>
+          <span className="min-w-0 wrap-anywhere">{categoryLabel}</span>
+        </div>
+      )}
       {!isMobile && sectionSelector}
       {service && <div className="global-app-chrome__actions">
         <ShadcnButton data-control-icon className="global-app-chrome__share rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>

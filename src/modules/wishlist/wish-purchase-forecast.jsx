@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dateFromKey } from "../../../shared/modules/calendar/planning-calendar.js";
 import { formatPurchaseBudget } from "../../../shared/modules/planning/purchase-plan.js";
@@ -30,7 +30,7 @@ export function WishPurchaseForecast({ today, plans, subscriptions = [], onOpen,
           {items.some(({ overdue }) => overdue) && <p className="wrap-anywhere text-xs text-destructive">В просроченных планах ещё понадобится {money(overdueMinor)}</p>}
           {expanded && <ul className="grid min-w-0 gap-1">
             {items.map((item) => <li key={`${item.type}:${item.id}`} className="min-w-0">
-              <Button type="button" variant="ghost" className="h-auto min-h-12 w-full min-w-0 justify-between gap-2 rounded-xl px-2 py-2 text-left whitespace-normal font-normal"
+              <Button data-content-control="" type="button" variant="ghost" className="h-auto min-h-12 w-full min-w-0 justify-between gap-2 rounded-xl px-2 py-2 text-left whitespace-normal font-normal"
                 aria-label={`Открыть из прогноза: ${item.title}`} onClick={() => item.type === "subscription" ? onOpenSubscription(item.id) : onOpen(planById.get(item.id))}>
                 <span className="grid min-w-0 gap-1"><span className="wrap-anywhere">{item.title}</span>
                   <span className="text-xs text-muted-foreground">{displayDate(item.date)} · {money(item.minor)}{item.savedMinor > 0 && ` · отложено ${money(item.savedMinor)}`}</span></span>
@@ -42,7 +42,7 @@ export function WishPurchaseForecast({ today, plans, subscriptions = [], onOpen,
       })}
     </ul>
     <Button type="button" variant="ghost" className="h-auto min-h-12 max-w-full justify-self-start rounded-full text-left whitespace-normal" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-      {expanded ? "Скрыть планы" : "Показать планы на 30 дней"}<ChevronDown aria-hidden="true" className={expanded ? "rotate-180" : undefined} />
+      {expanded ? "Скрыть планы" : "Показать планы на 30 дней"}
     </Button>
   </section>;
 }

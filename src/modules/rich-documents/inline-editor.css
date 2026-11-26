@@ -82,7 +82,6 @@
 .inline-editor__block-list { position: relative; display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .inline-editor__block-option { width: 100%; flex-shrink: 0; justify-content: flex-start; text-align: start; white-space: normal; }
 .inline-editor__block-option span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.inline-editor__block-option svg { flex: 0 0 20px; width: 20px; height: 20px; }
 .inline-editor__block-option kbd { flex-shrink: 0; color: var(--muted-foreground); font: inherit; }
 .inline-editor__block-preview { display: flex; flex: 0 0 40%; flex-direction: column; gap: 16px; min-width: 0; overflow-y: auto; padding: 16px; border-radius: var(--radius); background: var(--muted); }
 .inline-editor__block-preview > p { margin: 0; color: var(--muted-foreground); }

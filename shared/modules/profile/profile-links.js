@@ -3,6 +3,8 @@ const PROFILE_PUBLICATIONS = ["calendar", "announcements"];
 export const profilePublicationSection = (value) => PROFILE_PUBLICATIONS.includes(value) ? value : null;
 const segment = (value) => encodeURIComponent(String(value || ""));
 export const publicProfileAddress = profile => typeof profile === "string" ? profile : profile?.profileSlug || profile?.username;
+export const matchesProfileAddress = (profile, address) =>
+  Boolean(address) && [publicProfileAddress(profile), profile?.username].includes(address);
 export const publicProfilePath = profile => `/${segment(publicProfileAddress(profile))}`;
 export const publicSpacePath = (profile, space = "products") => `${publicProfilePath(profile)}/${PROFILE_SPACES.includes(space) ? space : "products"}`;
 export const publicListPath = (profile, listId) => `${publicProfilePath(profile)}/lists/${segment(listId)}`;

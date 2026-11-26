@@ -10,7 +10,6 @@ import { DrawerFooter } from "@/components/form-surface";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../shared/modules/payments/rolls.js";
@@ -176,7 +175,7 @@ function WishGroupFundraiser({ group, viewerId, shareToken, request, endpoint, d
     let actions;
     if (data && editing) {
       actions = <>
-        <Button type="submit" form={targetForm} disabled={busy || !validTarget}>{busy && <Spinner />}{fund ? "Сохранить" : "Открыть сбор"}</Button>
+        <Button type="submit" form={targetForm} disabled={busy || !validTarget} aria-busy={Boolean(busy) || undefined}>{fund ? "Сохранить" : "Открыть сбор"}</Button>
         <Button type="button" variant="outline" disabled={busy} onClick={() => setEditing(false)}>Отмена</Button>
       </>;
     } else if (fund && data.isOwner) {
@@ -189,7 +188,7 @@ function WishGroupFundraiser({ group, viewerId, shareToken, request, endpoint, d
         })}>Возобновить</Button>}
       </>;
     } else if (canContribute) {
-      actions = <Button type="submit" form={contributionForm} disabled={busy || (!validAmount && !pending)}><Coins aria-hidden="true" />{pending ? "Проверить взнос" : "Внести роллы"}</Button>;
+      actions = <Button type="submit" form={contributionForm} disabled={busy || (!validAmount && !pending)}>{pending ? "Проверить взнос" : "Внести роллы"}</Button>;
     } else if (canSignIn) {
       actions = <Link data-slot="button" className={buttonVariants()} to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}>Войти</Link>;
     } else if (!fund && data?.isOwner) {
@@ -236,7 +235,7 @@ function WishGroupFundraiser({ group, viewerId, shareToken, request, endpoint, d
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{pending ? "Проверить взнос?" : `Внести ${formatRolls(confirmationAmount)}?`}</AlertDialogTitle><AlertDialogDescription>Сбор «{group.title}». Роллы сразу поступят владельцу группы. {pending ? "Проверим результат запроса без повторного списания." : "Отменить перевод после подтверждения нельзя."}</AlertDialogDescription></AlertDialogHeader>
           {error && <p role="alert">{error}</p>}
-          <AlertDialogFooter><AlertDialogCancel disabled={busy}>Назад</AlertDialogCancel><AlertDialogAction disabled={busy || (!pending && !validAmount)} onClick={event => { event.preventDefault(); contribute(); }}>{busy && <Spinner />}{pending ? "Проверить взнос" : "Подтвердить взнос"}</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel disabled={busy}>Назад</AlertDialogCancel><AlertDialogAction disabled={busy || (!pending && !validAmount)} onClick={event => { event.preventDefault(); contribute(); }} aria-busy={Boolean(busy) || undefined}>{pending ? "Проверить взнос" : "Подтвердить взнос"}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>;

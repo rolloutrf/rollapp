@@ -1,6 +1,6 @@
 import { useHref } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { DrawerFooter } from "@/components/form-surface";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -81,9 +81,8 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
               <Check className="size-5 shrink-0 text-primary" aria-hidden="true" />
             </div> : <>
               <Button type="button" variant="ghost" className="h-auto min-h-12 min-w-0 flex-1 justify-start gap-2 px-2 py-1 hover:bg-transparent dark:hover:bg-transparent"
-                aria-label={`Переключиться на @${account.username}`} disabled={actionBlocked} onClick={() => selectAccount(account)}>
+                aria-label={`Переключиться на @${account.username}`} disabled={actionBlocked} onClick={() => selectAccount(account)} aria-busy={Boolean(pending?.id === account.id && !pending.remove) || undefined}>
                 {label}
-                {pending?.id === account.id && !pending.remove && <Spinner />}
               </Button>
               <Button type="button" variant="destructive" size="icon" className="size-12 shrink-0 rounded-full"
                 aria-label={`Убрать @${account.username} с этого устройства`} title="Убрать аккаунт с этого устройства"
@@ -107,7 +106,7 @@ export function ProfileAccounts({ Avatar, addHref, home, blocked, changed, onBus
     {(canAdd || isMobile) && <DrawerFooter>
       {canAdd && <a data-slot="button" href={actionBlocked ? undefined : addAccountHref} aria-disabled={actionBlocked || undefined}
         className={buttonVariants({ variant: "outline", className: "flex-1" })}>
-        <Plus data-icon="inline-start" aria-hidden="true" />Добавить аккаунт
+        Добавить аккаунт
       </a>}
     </DrawerFooter>}
   </>;

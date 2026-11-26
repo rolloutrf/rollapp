@@ -45,7 +45,7 @@ function MarketplaceItem({ item, busy, onBuy, user }) {
         </Link>
         {item.category && <span data-typography="label" className="font-semibold uppercase">{item.category}</span>}
         {item.description && <p className="m-0 text-pretty">{item.description}</p>}
-        {user ? <Button className="min-h-12 w-full" disabled={busy || user.id === item.business.id} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button> : (
+        {user ? <Button className="min-h-12 w-full" disabled={busy || user.id === item.business.id} onClick={() => onBuy(item)} aria-busy={Boolean(busy) || undefined}>Купить</Button> : (
           <Link className={buttonVariants({ className: "min-h-12 w-full whitespace-normal" })} to={`/login?next=${encodeURIComponent(publicProfilePath(item.business))}`}>Войти для покупки</Link>
         )}
         {user?.accountType === "business" && user.id === item.business.id && <PersonalOfferComposer item={item} />}
@@ -182,8 +182,8 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
               event.preventDefault();
               if (pending) recovery.check();
               else buy();
-            }}>
-              {busy && <Spinner />}{busy ? (requestMode === "send" ? "Оплачиваем…" : "Проверяем…") : pending ? "Проверить оплату" : "Подтвердить"}
+            }} aria-busy={Boolean(busy) || undefined}>
+              {busy ? (requestMode === "send" ? "Оплачиваем…" : "Проверяем…") : pending ? "Проверить оплату" : "Подтвердить"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

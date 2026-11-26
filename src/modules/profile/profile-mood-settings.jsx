@@ -127,7 +127,7 @@ export function ProfileMoodSettings({ onSaved, onBusyChange, transport = moodApi
               })}
             </ol>}
             {journal.nextBefore && <Button type="button" variant="outline" disabled={!!busy} aria-busy={busy === "more" || undefined} onClick={loadMore}>
-              {busy === "more" && <Spinner />}Показать предыдущие
+              Показать предыдущие
             </Button>}
             {error?.operation === "more" && <Alert variant="destructive"><AlertDescription>{error.message}</AlertDescription></Alert>}
           </section>
@@ -136,7 +136,7 @@ export function ProfileMoodSettings({ onSaved, onBusyChange, transport = moodApi
     </Body>
     <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full">
       <Button type="submit" className="h-12 w-full" disabled={!changed || !!busy} aria-busy={busy === "save" || undefined}>
-        {busy === "save" && <Spinner />}Сохранить настроение
+        Сохранить настроение
       </Button>
     </DrawerFooter>
   </form>;

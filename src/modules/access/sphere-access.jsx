@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { businessCategoryFor, businessRequestSpheres } from "../../../shared/modules/catalog-marketplace/business-accounts.js";
 import { publicSpacePath } from "../../../shared/modules/profile/profile-links.js";
-import { contactAccent } from "../contacts/contacts-page.jsx";
+import { profileCardAccent } from "../profile/profile-card-accent.js";
 
 export function SphereAccessRequestBanner() {
   const access = useSphereSharing();
@@ -69,8 +69,7 @@ export function SphereAccessRequestBanner() {
           </div>
           <div className="sphere-access-request__actions">
             <ShadcnButton type="button" variant="destructive" disabled={Boolean(savingId)} onClick={() => respond(request, "declined")}>Отклонить</ShadcnButton>
-            <ShadcnButton type="button" disabled={Boolean(savingId)} onClick={() => respond(request, "approved")}>
-              {savingId === request.id && <Spinner data-icon="inline-start" />}
+            <ShadcnButton type="button" disabled={Boolean(savingId)} onClick={() => respond(request, "approved")} aria-busy={Boolean(savingId === request.id) || undefined}>
               Открыть доступ
             </ShadcnButton>
           </div>
@@ -95,13 +94,13 @@ export const businessSectionLabel = (section) => SPHERE_SECTION_LABELS[section] 
 
 const businessSharePath = ({ owner, sphere, section }) => sphereSectionPath({ owner: owner, sphere, section });
 
-export function BusinessAccessPage() {
+export function BusinessAccessPage({ embedded = false }) {
   const { user } = useSession();
   if (user?.accountType !== "business") return <Navigate to={APP_HOME} replace />;
-  return <BusinessAccessContent key={user.id} user={user} />;
+  return <BusinessAccessContent key={user.id} user={user} embedded={embedded} />;
 }
 
-function BusinessAccessContent({ user }) {
+function BusinessAccessContent({ user, embedded }) {
   const isMobile = useIsMobile();
   const toast = useToast();
   const category = businessCategoryFor(user);
@@ -236,12 +235,12 @@ function BusinessAccessContent({ user }) {
   ) : null;
 
   return (
-    <div className="app-page business-access-page page-stack page-stack--sections rollapp-body">
+    <div className={`${embedded ? "" : "app-page "}business-access-page page-stack page-stack--sections rollapp-body`}>
       <header className="business-access-page__header typeset typeset-rollapp">
-        <h1>Доступ к пространствам клиентов</h1>
+        {embedded ? <h2>Доступ к пространствам клиентов</h2> : <h1>Доступ к пространствам клиентов</h1>}
         {category && <p>{category.label} · {category.sphereLabel}</p>}
         <p>Открытые владельцами разделы доступны только для чтения. Чтобы получить доступ к другому разделу, найдите пользователя и отправьте запрос.</p>
-        {category?.id === "seller" && <PageActionButton to={publicSpacePath(user, user.sellerSpace || "products")}>Моя страница</PageActionButton>}
+        {!embedded && category?.id === "seller" && <PageActionButton to={publicSpacePath(user, user.sellerSpace || "products")}>Моя страница</PageActionButton>}
       </header>
 
       {category?.id !== "seller" && <BusinessPersonalOffers user={user} />}
@@ -267,7 +266,7 @@ function BusinessAccessContent({ user }) {
               const status = BUSINESS_REQUEST_STATUS[request.status];
               return (
                 <BusinessAccessCard key={request.id} owner={request.owner} scope={request} status={status && <Badge variant={status.variant}>{status.label}</Badge>} actions={request.status === "pending" && (
-                  <ShadcnButton type="button" variant="outline" disabled={Boolean(cancellingId)} onClick={() => cancelRequest(request)}>{cancellingId === request.id && <Spinner data-icon="inline-start" />}<span>Отменить</span></ShadcnButton>
+                  <ShadcnButton type="button" variant="outline" disabled={Boolean(cancellingId)} onClick={() => cancelRequest(request)} aria-busy={Boolean(cancellingId === request.id) || undefined}><span>Отменить</span></ShadcnButton>
                 )} />
               );
             })}
@@ -329,7 +328,7 @@ function BusinessAccessContent({ user }) {
                 className={buttonVariants({ className: "flex-1" })}
               >Открыть</Link>
             ) : (
-              <ShadcnButton type="submit" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton>
+              <ShadcnButton type="submit" disabled={saving} aria-busy={Boolean(saving) || undefined}>Отправить запрос</ShadcnButton>
             )}</DrawerFooter>}
           </form>
         </DrawerContent>
@@ -340,14 +339,14 @@ function BusinessAccessContent({ user }) {
 
 function BusinessAccessCard({ owner, scope, status, actions }) {
   return (
-    <li className="business-access-card" style={{ "--contact-accent": contactAccent(owner.username || owner.name) }}>
+    <li className="business-access-card" style={{ "--contact-accent": profileCardAccent(owner.username || owner.name) }}>
       <div className="business-access-card__body">
         <div className="contact-card__avatar-wrap">
           <Avatar user={owner} size="lg" className="contact-card__avatar" aria-hidden="true" />
         </div>
         <div className="business-access-card__identity">
           <strong>{owner.name}</strong>
-          <span className="business-access-card__caption">@{owner.username}</span>
+          <span className="text-xs text-muted-foreground wrap-anywhere">@{owner.username}</span>
         </div>
         {scope && (
           <div className="business-access-card__scope">

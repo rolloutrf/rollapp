@@ -64,7 +64,7 @@ test("fulfilled wish sales on production PostgreSQL (all writes roll back)", {
       const response = await fetch(`http://127.0.0.1:${server.address().port}/api/wishlist-business/${path}`, {
         method, headers: { "test-actor": actor, "content-type": "application/json" }, body: JSON.stringify(payload),
       });
-      return { status: response.status, data: await response.json() };
+      return { status: response.status, data: response.headers.get("content-type")?.includes("application/json") ? await response.json() : null };
     };
     const sale = { title: "Кофемолка", description: "Описание продажи", imageUrl: `/api/media/${imageId}`, price: "3 500 ₽", active: false };
     const endpoint = "products/sales";
@@ -108,21 +108,42 @@ test("fulfilled wish sales on production PostgreSQL (all writes roll back)", {
     const seller = await client.query(
       `INSERT INTO users(id,email,username,name,password_hash,account_type,business_category,seller_space)
        VALUES($1,$2,$3,'Sale test business','unusable','business','seller','products')
-       RETURNING id,name,account_type,business_category,seller_space`,
+       RETURNING id,name,username,account_type,business_category,seller_space`,
       [sellerId, `${sellerId}@wish-sale-test.invalid`, `sale-${sellerId}`],
     );
     accounts.set(sellerId, seller.rows[0]);
     await client.query("INSERT INTO wishes(id,user_id,title,status,space) VALUES($1,$2,'Часы','fulfilled','products')", [sellerWishId, sellerId]);
+    const oldItem = randomUUID();
+    await client.query("INSERT INTO wishlist_business_pages(business_user_id,space,title,description) VALUES($1,'products','Часовая мастерская','Старое описание')", [sellerId]);
+    await client.query("INSERT INTO wishlist_business_items(id,business_user_id,space,title,active) VALUES($1,$2,'products','Ранее скрыто',true)", [oldItem, sellerId]);
+    const publicProfile = `products/profiles/${seller.rows[0].username}`;
+    assert.deepEqual((await request(publicProfile)).data.items, []);
+    assert.equal((await request("products/page", { actor: sellerId })).data.items[0].active, false);
+    assert.equal((await request("products/page", { actor: sellerId, method: "POST", payload: { published: true } })).status, 404);
+
+    const draftItem = await request("products/items", { actor: sellerId, method: "POST", payload: { title: "Черновик", active: false } });
+    assert.equal(draftItem.status, 201);
+    assert.deepEqual((await request(publicProfile)).data.items, []);
+    const newItem = { actor: sellerId, method: "POST", payload: { title: "Новый товар", requestId: randomUUID() } };
+    const published = await request("products/items", newItem);
+    assert.equal(published.status, 201);
+    assert.equal(published.data.item.active, true);
+    assert.deepEqual((await request("products/items", newItem)).data, { ...published.data, replayed: true });
+    const storefront = (await request(publicProfile)).data;
+    assert.deepEqual(storefront.items.map(({ id }) => id), [published.data.id]);
+    assert.equal(storefront.pages[0].title, "Часовая мастерская");
+    assert.equal(storefront.pages[0].description, "Старое описание");
+    const oldItemSave = await request(`products/items/${oldItem}`, {
+      actor: sellerId, method: "PATCH", payload: { title: "Ранее скрыто", active: true },
+    });
+    assert.equal(oldItemSave.status, 200);
+    assert.equal((await request(publicProfile)).data.items.some(({ id }) => id === oldItem), true);
+
     const sellerSale = { actor: sellerId, method: "POST", payload: { wishId: sellerWishId, title: "Часы", active: true } };
     assert.equal((await request("transport/sales", sellerSale)).status, 403);
     const sellerSaved = await request(endpoint, sellerSale);
     assert.equal(sellerSaved.status, 201);
-    assert.equal((await request(endpoint, { actor: sellerId })).data.published, false);
     const sellerItemVisible = async () => (await request("products/store", { actor: buyerId })).data.items.some(item => item.id === sellerSaved.data.item.id);
-    assert.equal(await sellerItemVisible(), false);
-    assert.equal((await request("products/page", {
-      actor: sellerId, method: "POST", payload: { title: "Часовая мастерская", published: true },
-    })).status, 200);
     assert.equal(await sellerItemVisible(), true);
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));

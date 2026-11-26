@@ -52,9 +52,16 @@ export function formatMemberNumber(number) {
   return number == null ? null : String(number).padStart(5, "0");
 }
 
-export function membershipHasCapacity(count) {
-  const current = Number(count);
+export async function canRegisterInvitedAccount(client, accountType) {
+  if (accountType === "business") return true;
+  const { rows } = await client.query("SELECT COUNT(*) AS count FROM users WHERE account_type='personal'");
+  const current = Number(rows[0]?.count);
   return Number.isSafeInteger(current) && current >= 0 && current < MEMBER_LIMIT;
+}
+
+export function requireMemberNumberAccount(req, res, next) {
+  if (req.user.account_type === "personal") return next();
+  return res.status(403).json({ error: "Номер участника доступен личным аккаунтам", code: "MEMBER_NUMBER_PERSONAL_ONLY" });
 }
 
 // Call under the global membership advisory lock. Rejection sampling is uniform

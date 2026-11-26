@@ -15,8 +15,8 @@ export function useProfileTileMood(level) {
   const access = useSphereSharing();
   // A public page explicitly passes null when the owner has no visible mood.
   if (level !== undefined) return tileMoodStyle(level);
-  const profileLevel = access.active && !access.isOwner
-    ? access.owner?.publicMood
-    : user?.moodLevel ?? user?.publicMood;
-  return tileMoodStyle(profileLevel);
+  const shared = access.active && !access.isOwner;
+  const profile = shared ? access.owner : user;
+  if (profile?.accountType === "business") return tileMoodStyle(null);
+  return tileMoodStyle(shared ? profile?.publicMood : profile?.moodLevel ?? profile?.publicMood);
 }

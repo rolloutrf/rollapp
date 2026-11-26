@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Square, RotateCcw, Upload, Settings } from 'lucide-react';
+import { Camera, RotateCcw, Upload, Settings } from 'lucide-react';
 import { api } from '@/modules/runtime/api.js';
 import { useUserStories } from '@/hooks/use-user-stories';
 import { Button } from '@/components/ui/button';
@@ -148,11 +148,11 @@ export function StoryAvatar({ user, own = false, onEditProfile, children, classN
           </>}
         </div>
         <DrawerFooter>
-          {own && mode === 'view' && <Button type="submit" className="flex-1"><Camera />Добавить сторис</Button>}
+          {own && mode === 'view' && <Button type="submit" className="flex-1">Добавить сторис</Button>}
           {own && mode === 'record' && <>
-            {recording ? <Button type="submit" className="flex-1"><Square />Остановить</Button> : blob
+            {recording ? <Button type="submit" className="flex-1">Остановить</Button> : blob
               ? <Button type="submit" className="flex-1" disabled={busy}>{busy ? 'Публикуем…' : 'Опубликовать'}</Button>
-              : <Button type="submit" className="flex-1" disabled={busy}><Camera />{busy ? 'Открываем камеру…' : 'Записать'}</Button>}
+              : <Button type="submit" className="flex-1" disabled={busy}>{busy ? 'Открываем камеру…' : 'Записать'}</Button>}
             {!recording && <Button data-control-icon size="icon" variant="outline" aria-label={blob ? 'Перезаписать' : 'Выбрать видео'} disabled={busy} onClick={() => { if (blob) { setBlob(null); setError(''); } else { fileIntent.current = generation.current; fileInput.current?.click(); } }}>
               {blob ? <RotateCcw /> : <Upload />}</Button>}
           </>}

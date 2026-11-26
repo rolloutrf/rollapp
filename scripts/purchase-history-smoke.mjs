@@ -8,8 +8,8 @@ import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
 import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 
 const fixture = "/__purchase-history-smoke";
-const activityScreenshots = process.env.ROLLAPP_ACTIVITY_SCREENSHOTS;
-if (activityScreenshots) await mkdir(activityScreenshots, { recursive: true });
+const journalScreenshots = process.env.ROLLAPP_JOURNAL_SCREENSHOTS;
+if (journalScreenshots) await mkdir(journalScreenshots, { recursive: true });
 const server = await createServer({
   optimizeDeps: { include: [...smokeBaseUiDependencies, "read-excel-file/universal"] },
   cacheDir: "node_modules/.vite-purchase-history-smoke",
@@ -33,42 +33,66 @@ const server = await createServer({
 await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
 
-async function checkActivity(page, viewport, surface) {
+async function checkJournal(page, viewport, surface) {
   const tabs = page.getByRole("tablist", { name: "Разделы финансов" });
-  await tabs.getByRole("tab", { name: "Операции", exact: true }).click();
-  await tabs.getByRole("tab", { name: "Операции", selected: true }).waitFor();
-  await page.locator("[data-rolls-balance]").waitFor({ state: "hidden" });
+  const wallet = page.getByRole("tabpanel", { name: "Кошелёк", exact: true });
+  const balance = wallet.getByRole("region", { name: "Баланс роллов" });
+  await balance.waitFor();
+  assert.deepEqual(await tabs.getByRole("tab").allTextContents(), ["Кошелёк", "Покупки"]);
+  assert.equal(await wallet.getByRole("link", { name: "Заказы и продажи" }).count(), 0);
   if (surface === "wallet") {
-    assert.equal(new URL(page.url()).searchParams.get("finance"), "activity");
+    await tabs.getByRole("tab", { name: "Покупки", exact: true }).click();
+    assert.equal(new URL(page.url()).searchParams.get("finance"), "purchases");
+    await balance.waitFor({ state: "hidden" });
     await page.goBack();
-    await tabs.getByRole("tab", { name: "Кошелёк", selected: true }).waitFor();
+    await balance.waitFor();
     await page.goForward();
-    await tabs.getByRole("tab", { name: "Операции", selected: true }).waitFor();
+    await tabs.getByRole("tab", { name: "Покупки", selected: true }).waitFor();
+    await tabs.getByRole("tab", { name: "Кошелёк", exact: true }).click();
   }
-  const open = page.getByRole("button", { name: "Сводка по роллам", exact: true });
-  const walletReceipt = page.getByRole("button", { name: "Квитанция · От Мария", exact: false });
+  const journal = wallet.getByRole("region", { name: "История операций" });
+  await journal.waitFor();
+  assert.equal(await wallet.getByRole("button", { name: /^(Журнал|Обзор|Сводка по роллам)$/ }).count(), 0);
+  assert.equal(await wallet.getByRole("heading", { name: "Движение роллов" }).count(), 0);
+  const desktopDrawer = surface === "drawer" && viewport.width >= 768;
+  const financeDrawer = page.locator(".profile-settings-dialog");
+  const financeFrame = desktopDrawer ? await financeDrawer.boundingBox() : null;
+  const sourceUrl = page.url();
+  const walletReceipt = journal.getByRole("button", { name: "Квитанция · От Мария", exact: false });
+  await walletReceipt.scrollIntoViewIfNeeded();
+  const journalScroll = () => walletReceipt.evaluate(node => node.closest('[data-slot="scroll-area-viewport"]')?.scrollTop);
+  const originalScroll = await journalScroll();
   await walletReceipt.press("Enter");
   const receipt = page.getByRole("region", { name: "Квитанция Rollapp", exact: true });
   await receipt.getByText("Мария · @maria").waitFor();
   await receipt.getByText("16 нояб. 2026 г., 01:30:00").waitFor();
+  if (desktopDrawer) {
+    const receiptDrawer = page.getByRole("dialog", { name: "Квитанция Rollapp", exact: true });
+    assert.equal(await receiptDrawer.getAttribute("data-slot"), "drawer-popup");
+    assert.equal(await receiptDrawer.getAttribute("data-swipe-direction"), "right");
+    assert.equal(await financeDrawer.getAttribute("data-nested-drawer-open"), "");
+    await page.waitForFunction(() => {
+      const popup = document.querySelector("[data-roll-receipt]")?.closest('[data-slot="drawer-popup"]');
+      return popup?.contains(document.activeElement) && new DOMMatrixReadOnly(getComputedStyle(popup).transform).isIdentity;
+    });
+    await wallet.waitFor({ state: "hidden" });
+    assert.deepEqual(await receiptDrawer.boundingBox(), financeFrame);
+    assert.equal(page.url(), sourceUrl);
+  } else if (surface === "drawer") {
+    assert.equal(await receipt.locator("[data-native-form-actions]").count(), 1);
+  } else {
+    assert.equal(await receipt.locator("xpath=ancestor::*[contains(@class,'app-fullscreen-dialog')]").count(), 1);
+  }
   await receipt.getByRole("button", { name: "Назад", exact: true }).click();
   await receipt.waitFor({ state: "hidden" });
+  await walletReceipt.waitFor();
   assert(await walletReceipt.evaluate(node => node === document.activeElement));
-  await open.click();
-  const report = page.getByRole("region", { name: "Движение роллов", exact: true });
-  await report.getByText("70 роллов", { exact: false }).waitFor();
-  await report.getByText("Москва", { exact: false }).waitFor();
-  const period = report.getByRole("group", { name: "Период сводки" });
-  for (const button of await period.getByRole("button").all()) {
-    assert.equal(await button.evaluate((element) => element.offsetHeight), 48);
-  }
-  await report.getByRole("button", { name: /Покупки и продажи/ }).click();
-  await report.getByRole("alert").filter({ hasText: "Выписка временно недоступна" }).waitFor();
-  await report.getByRole("button", { name: "Повторить", exact: true }).click();
-  await report.getByText("Возврат · Возврат заказа A").waitFor();
-  await report.getByRole("button", { name: "Показать ещё", exact: true }).click();
-  await report.getByText("Покупка · Книги для проекта").waitFor();
-  const refundReceipt = report.getByRole("button", { name: "Квитанция · Возврат · Возврат заказа A", exact: false });
+  assert.equal(await journalScroll(), originalScroll);
+  assert.equal(page.url(), sourceUrl);
+  await journal.getByRole("button", { name: "Показать ещё", exact: true }).click();
+  await journal.getByText("Покупка · Книги для проекта", { exact: true }).waitFor();
+  await journal.getByRole("button", { name: "Показать ещё", exact: true }).waitFor({ state: "hidden" });
+  const refundReceipt = journal.getByRole("button", { name: "Квитанция · Возврат · Заказ A", exact: false });
   await refundReceipt.click();
   await receipt.getByText("Квитанция временно недоступна").waitFor();
   await receipt.getByRole("button", { name: "Повторить", exact: true }).click();
@@ -85,47 +109,17 @@ async function checkActivity(page, viewport, surface) {
   assert.match(contents, /Номер заказа: invoice/);
   assert.match(contents, /Движение: Зачисление/);
   assert(await receipt.evaluate(node => [node, ...node.querySelectorAll("button, dl, dd")].every(el => el.scrollWidth <= el.clientWidth + 1)));
-  if (activityScreenshots && [390, 1440].includes(viewport.width) && viewport.height >= 800) {
+  if (journalScreenshots && [390, 1440].includes(viewport.width) && viewport.height >= 800) {
     await receipt.getByRole("heading").scrollIntoViewIfNeeded();
-    await page.screenshot({ path: join(activityScreenshots, `receipt-${surface}-${viewport.width}.png`) });
+    await page.screenshot({ path: join(journalScreenshots, `receipt-${surface}-${viewport.width}.png`) });
   }
   await page.goBack();
   await receipt.waitFor({ state: "hidden" });
   await refundReceipt.waitFor();
   assert(await refundReceipt.evaluate(node => node === document.activeElement));
-  assert.deepEqual(await page.evaluate(() => window.activityRequests.filter(({ mode }) => mode === "detail")), [
-    { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments" },
-    { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments" },
-    { mode: "detail", days: "30", asOf: "2026-11-15T23:00:00.842461Z", group: "payments", beforeId: "refund:invoice", before: "2026-11-14T12:23:10.824521Z" },
-  ]);
-  if (activityScreenshots && [390, 1440].includes(viewport.width) && viewport.height >= 800) {
-    await report.getByRole("heading").scrollIntoViewIfNeeded();
-    await page.screenshot({ path: join(activityScreenshots, `${surface}-${viewport.width}.png`) });
-  }
-  await period.getByRole("button", { name: "7 дней" }).click();
-  await report.getByText("За этот период операций не было.").waitFor();
-  assert.equal(await report.getByText("Книги для проекта", { exact: false }).count(), 0);
-  await period.getByRole("button", { name: "90 дней" }).click();
-  await report.getByText("Сводка временно недоступна").waitFor();
-  await report.getByRole("button", { name: "Повторить", exact: true }).click();
-  await report.getByText("103 ролла", { exact: false }).waitFor();
-  assert.equal(await period.getByRole("button", { name: "90 дней" }).getAttribute("aria-pressed"), "true");
-  const overflows = await report.evaluate((element) => {
-    return [document.documentElement, element, ...element.querySelectorAll("button, dl")]
-      .filter((node) => node.scrollWidth > node.clientWidth + 1).map((node) => node.tagName);
-  });
-  assert.deepEqual(overflows, [], `Roll activity overflow ${surface} ${viewport.width}`);
-  await page.evaluate(() => { window.delayRollActivity = true; });
-  await period.getByRole("button", { name: "30 дней" }).click();
-  await page.waitForFunction(() => typeof window.finishRollActivity === "function");
-  await period.getByRole("button", { name: "7 дней" }).click();
-  await report.getByText("За этот период операций не было.").waitFor();
-  await page.evaluate(async () => { window.finishRollActivity(); await new Promise(requestAnimationFrame); });
-  assert.equal(await report.getByRole("button", { name: /Покупки и продажи/ }).count(), 0);
-  await page.getByRole("button", { name: "Журнал", exact: true }).click();
-  await report.waitFor({ state: "hidden" });
-  await walletReceipt.waitFor();
-  await tabs.getByRole("tab", { name: "Кошелёк", exact: true }).click();
+  assert.equal(page.url(), sourceUrl);
+  assert(await journal.evaluate((element) => [document.documentElement, element, ...element.querySelectorAll("button")]
+    .every(node => node.scrollWidth <= node.clientWidth + 1)), `Wallet journal overflow ${surface} ${viewport.width}`);
 }
 
 async function checkTransfers(page, { width, height, surface, expectRetry = false }) {
@@ -200,17 +194,14 @@ async function checkTransfers(page, { width, height, surface, expectRetry = fals
       assert.equal(box.height, 48);
       assert(box.y >= bounds.y && box.y + box.height <= bounds.y + bounds.height + 1);
     }
-    if (activityScreenshots && (width === 390 || width === 1440)) {
-      await page.screenshot({ path: join(activityScreenshots, `transfer-${width}x${height}.png`) });
+    if (journalScreenshots && (width === 390 || width === 1440)) {
+      await page.screenshot({ path: join(journalScreenshots, `transfer-${width}x${height}.png`) });
     }
     await retry.click();
   }
   await dialog.waitFor({ state: "hidden" });
   await page.locator("[data-rolls-balance]").getByText("15", { exact: true }).waitFor();
-  const tabs = page.getByRole("tablist", { name: "Разделы финансов" });
-  await tabs.getByRole("tab", { name: "Операции", exact: true }).click();
   await page.getByRole("button", { name: "Квитанция · Иван", exact: false }).waitFor();
-  await tabs.getByRole("tab", { name: "Кошелёк", exact: true }).click();
   assert.equal(await stored(), null);
   const after = await readFixture();
   assert.deepEqual(after.attempts, expectRetry ? [initial, initial] : [initial]);
@@ -261,7 +252,7 @@ try {
     assert.equal(await page.getByRole("button", { name: "Импорт покупок" }).count(), 0);
     await page.getByRole("button", { name: "Профиль", exact: true }).click();
     await page.getByRole("button", { name: "Финансы", exact: true }).click();
-    await checkActivity(page, { width, height }, "drawer");
+    await checkJournal(page, { width, height }, "drawer");
     await checkTransfers(page, { width, height, surface: "drawer" });
     await page.evaluate(() => sessionStorage.removeItem("purchase-history-transfer-fixture"));
     const purchaseTab = page.getByRole("tab", { name: "Покупки", exact: true });
@@ -386,8 +377,8 @@ try {
     await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Импорт покупок");
     assert.deepEqual(errors, []);
     const expectRetry = width === 390 || width === 1440;
-    await page.goto(smokeOrigin(server) + fixture + `?wallet${expectRetry ? "&transferMiss" : ""}`, { waitUntil: "commit" });
-    await checkActivity(page, { width, height }, "wallet");
+    await page.goto(smokeOrigin(server) + fixture + `?wallet&finance=activity${expectRetry ? "&transferMiss" : ""}`, { waitUntil: "commit" });
+    await checkJournal(page, { width, height }, "wallet");
     if (width === 320 || width === 1440) {
       const purchaseTab = page.getByRole("tab", { name: "Покупки", exact: true });
       await purchaseTab.click();
@@ -405,7 +396,7 @@ try {
     }
     await checkTransfers(page, { width, height, surface: "wallet", expectRetry });
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height}: confirmed transfers, private status, roll receipts and statements, native import`);
+    console.log(`PASS ${width}×${height}: confirmed transfers, private status, roll journal and receipts, native import`);
     await page.close();
   }
 } finally {

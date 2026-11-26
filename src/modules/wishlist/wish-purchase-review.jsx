@@ -249,8 +249,7 @@ export function WishPurchaseReview({ purchase, onClose, onSaved, onPriceChecked,
         {data && !review && <DrawerFooter className="gap-2">
           {choice ? <>
             <Button type="submit" variant={choice === "declined" ? "destructive" : "default"} aria-label={decisionLabels[choice]}
-              disabled={busy || invalidChoice || error?.status === 409}>
-              {busy && <Spinner />}
+              disabled={busy || invalidChoice || error?.status === 409} aria-busy={Boolean(busy) || undefined}>
               {compactDecisionLabels[choice] ? <>
                 <span className="md:hidden">{compactDecisionLabels[choice]}</span>
                 <span className="hidden md:inline">{decisionLabels[choice]}</span>

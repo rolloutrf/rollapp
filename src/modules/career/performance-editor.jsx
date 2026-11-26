@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { AlertTriangle, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Trash2, X } from "lucide-react";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
@@ -12,7 +12,6 @@ import {
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -58,11 +57,9 @@ function ReviewBlocksEditor({ blocks, idPrefix, label, onChange }) {
         <h5 className="m-0 text-sm font-medium">{label}</h5>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" type="button" onClick={() => onChange([...blocks, emptyBlock()])}>
-            <Plus data-icon="inline-start" aria-hidden="true" />
             Абзац
           </Button>
           <Button variant="outline" size="sm" type="button" onClick={() => onChange([...blocks, emptyBlock("unordered-list")])}>
-            <Plus data-icon="inline-start" aria-hidden="true" />
             Список
           </Button>
         </div>
@@ -210,7 +207,6 @@ function ProjectEditor({ idPrefix, onChange, onRemove, project }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="m-0 text-base font-medium">Секции результата</h4>
           <Button variant="outline" size="sm" type="button" onClick={addSection}>
-            <Plus data-icon="inline-start" aria-hidden="true" />
             Добавить секцию
           </Button>
         </div>
@@ -258,7 +254,6 @@ function ProjectEditor({ idPrefix, onChange, onRemove, project }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="m-0 text-base font-medium">Отзывы о проекте</h4>
           <Button variant="outline" size="sm" type="button" onClick={addReviewer}>
-            <Plus data-icon="inline-start" aria-hidden="true" />
             Добавить отзыв
           </Button>
         </div>
@@ -420,7 +415,6 @@ export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChan
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="m-0 text-sm text-muted-foreground">Проектов в цикле: {cycle.projects.length}</p>
                   <Button variant="outline" type="button" onClick={addProject}>
-                    <Plus data-icon="inline-start" aria-hidden="true" />
                     Добавить проект
                   </Button>
                 </div>
@@ -450,7 +444,6 @@ export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChan
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="m-0 text-sm text-muted-foreground">Отзывов о взаимодействии: {cycle.interaction.length}</p>
                   <Button variant="outline" type="button" onClick={addInteraction}>
-                    <Plus data-icon="inline-start" aria-hidden="true" />
                     Добавить отзыв
                   </Button>
                 </div>
@@ -473,8 +466,7 @@ export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChan
             </Tabs>
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 text-base" type="submit" aria-label="Сохранить изменения" disabled={busy}>
-              {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
+            <Button className="min-h-12 text-base" type="submit" aria-label="Сохранить изменения" disabled={busy} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : isMobile ? "Сохранить" : "Сохранить изменения"}
             </Button>
             {onDelete

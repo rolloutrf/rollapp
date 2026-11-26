@@ -1,8 +1,9 @@
 import { Avatar, avatarInitials } from "@/modules/profile/profile-avatar.jsx";
+import { profileCardAccent } from "@/modules/profile/profile-card-accent.js";
 import { ContactMeetingNotes } from "@/modules/contacts/contact-meeting-notes.jsx";
 import { ContactCompanyInput } from "@/modules/contacts/contact-company-input.jsx";
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, Link2, Plus, Star, Trash2, X, Building2, ContactRound, NotebookText, Search } from "lucide-react";
+import { Link2, Star, Trash2, X, Building2, ContactRound, Search } from "lucide-react";
 import { api, sessionFetch } from "../runtime/api.js";
 import { MobileFormFooter } from "@/components/mobile-form-pages";
 import {
@@ -58,7 +59,6 @@ const CONTACT_CATEGORY_LABELS = {
   Tracker: "Трекинг",
 };
 
-const CONTACT_ACCENTS = ["#9b72e8", "#5b8def", "#43bd83", "#e66a8f", "#f2a65a", "#49a7a1", "#7d83ea"];
 
 const CONTACT_SOCIAL_PLATFORMS = {
   facebook: { label: "Facebook", mark: "f" },
@@ -113,8 +113,6 @@ const contactCountNoun = (count) => {
 const ALL_CONTACT_COMPANIES = "__rollapp_all_contact_companies__";
 
 const ALL_CONTACT_CATEGORIES = "__rollapp_all_contact_categories__";
-
-export const contactAccent = (company = "") => CONTACT_ACCENTS[[...company].reduce((sum, character) => sum + character.codePointAt(0), 0) % CONTACT_ACCENTS.length];
 
 function contactLinkPayload(link) {
   const url = link.url.trim();
@@ -413,7 +411,7 @@ export function ContactEditForm({ contact = null, companies = [], favoriteSaving
               ))}
               {!form.links.length && <p>Ссылок пока нет.</p>}
             </div>
-            {form.links.length < 12 && <ShadcnButton type="button" variant="ghost" className="contact-detail__add-link" onClick={() => setForm((current) => ({ ...current, links: [...current.links, { url: "" }] }))}><Plus />Добавить ссылку</ShadcnButton>}
+            {form.links.length < 12 && <ShadcnButton type="button" variant="ghost" className="contact-detail__add-link" onClick={() => setForm((current) => ({ ...current, links: [...current.links, { url: "" }] }))}>Добавить ссылку</ShadcnButton>}
           </section>
           <Field className="contact-detail__edit-notes">
             <FieldLabel htmlFor={`${contactFieldId}-notes`}>Заметки</FieldLabel>
@@ -439,7 +437,7 @@ export function ContactEditForm({ contact = null, companies = [], favoriteSaving
         >
           {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
         </ShadcnButton>}
-        <ShadcnButton type="submit" disabled={busy}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
+        <ShadcnButton type="submit" disabled={busy}>{saving ? "Сохраняем" : creating ? "Добавить контакт" : "Сохранить"}</ShadcnButton>
         {!creating && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
       </MobileFormFooter>
       {!creating && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
@@ -451,7 +449,7 @@ export function ContactEditForm({ contact = null, companies = [], favoriteSaving
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
             <AlertDialogAction variant="destructive" disabled={deleting} aria-busy={deleting || undefined} onClick={removeContact}>
-              {deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить контакт
+              Удалить контакт
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -492,7 +490,7 @@ export function ContactDetailDrawer({ contactId, companies, onClose, onUpdated, 
   const [favoriteSaving, setFavoriteSaving] = useState(false);
   const { data, loading, error, reload, updateData } = useAsync(() => api.get(`/contacts/${encodeURIComponent(contactId)}`), [contactId]);
   const contact = data?.contact;
-  const accent = contactAccent(contact?.company);
+  const accent = profileCardAccent(contact?.company);
   const toggleFavorite = async () => {
     if (!contact || favoriteSaving) return;
     const favorite = !contact.favorite;
@@ -547,7 +545,7 @@ export function ContactCreateDrawer({ companies, onClose, onCreated }) {
   const isMobile = useIsMobile();
   return (
     <Drawer open showSwipeHandle={isMobile} swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form" style={{ "--contact-accent": contactAccent("") }}>
+      <DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form" style={{ "--contact-accent": profileCardAccent("") }}>
         <DrawerTitle className="sr-only">Добавить контакт</DrawerTitle>
         <div className="contact-detail__toolbar flex shrink-0 justify-end px-4 pt-4 pb-2">
           <DrawerClose
@@ -688,7 +686,6 @@ export function ContactsSpherePage() {
               aria-pressed={favoriteOnly}
               onClick={() => { setFavoriteOnly((value) => !value); }}
             >
-              <Star fill={favoriteOnly ? "currentColor" : "none"} aria-hidden="true" />
               Избранные{data?.favoriteTotal ? ` · ${data.favoriteTotal}` : ""}
             </ShadcnButton>
             {hasFilters && <ShadcnButton type="button" variant="ghost" className="contacts-sphere__reset h-11 rounded-full px-4" onClick={clearFilters}>Сбросить</ShadcnButton>}
@@ -710,7 +707,7 @@ export function ContactsSpherePage() {
           <>
             <ul className="contacts-grid">
               {contacts.map((contact) => {
-                const accent = contactAccent(contact.company);
+                const accent = profileCardAccent(contact.company);
                 const socialLinks = (contact.links || []).filter((link) => link?.url);
                 return (
                   <li className="contact-card" style={{ "--contact-accent": accent }} key={contact.id}>
@@ -755,7 +752,7 @@ export function ContactsSpherePage() {
                           {favoriteSavingIds.has(contact.id) ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
                         </ShadcnButton>}
                         {(contact.hasNotes || socialLinks.length > 0) && <div className="contact-card__secondary-actions">
-                          {contact.hasNotes && <ShadcnButton type="button" variant="ghost" className="contact-card__details h-9 rounded-full px-1" onClick={() => setSelectedContactId(contact.id)}><NotebookText aria-hidden="true" />Заметки</ShadcnButton>}
+                          {contact.hasNotes && <ShadcnButton type="button" variant="ghost" className="contact-card__details h-9 rounded-full px-1" onClick={() => setSelectedContactId(contact.id)}>Заметки</ShadcnButton>}
                           {socialLinks.length > 0 && (
                             <span className="contact-card__social-links" role="group" aria-label={`Ссылки ${contact.name}`}>
                               {socialLinks.map((link, index) => <ContactSocialLink key={`${link.url}-${index}`} link={link} contactName={contact.name} />)}
@@ -772,7 +769,7 @@ export function ContactsSpherePage() {
               <div ref={loadMoreRef} className="contacts-load-more" aria-live="polite" aria-busy={loadingMore}>
                 {error && <span role="alert">Не удалось загрузить ещё контакты: {error.message}</span>}
                 <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={loadingMore} onClick={() => void loadMore()}>
-                  {loadingMore ? <><Spinner />Загрузка контактов…</> : error ? "Попробовать снова" : "Загрузить ещё"}
+                  {loadingMore ? "Загрузка контактов…" : error ? "Попробовать снова" : "Загрузить ещё"}
                 </ShadcnButton>
               </div>
             )}

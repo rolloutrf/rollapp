@@ -1,10 +1,10 @@
 import { ProductTitleInput } from "@/modules/catalog-marketplace/product-title-input.jsx";
 import { useEffect, useId, useRef, useState } from "react";
-import { Camera, Eye, EyeOff, Trash2 } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
 import { ControlBar } from "@/components/control-bar";
-import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -13,10 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 const itemDefaults = { title: "", description: "", brand: "", imageUrl: "", actionUrl: "", price: "", active: true };
 const imageTypes = ["image/jpeg", "image/png", "image/webp"];
@@ -102,7 +100,6 @@ function ItemPhoto({ photo, onChange, disabled, captionId, error, unreadable, on
             aria-describedby={captionId}
             onClick={() => picker.current.click()}
           >
-            <Camera aria-hidden="true" className="size-6" />
             Добавить фото
             <span className="hidden text-xs font-normal text-muted-foreground md:block">или перетащите сюда</span>
           </Button>
@@ -113,8 +110,7 @@ function ItemPhoto({ photo, onChange, disabled, captionId, error, unreadable, on
   );
 }
 
-export function WishlistBusinessItemEditor({ item, space, spaceLabel, published, onClose, onSaved, renderPreview, sale, open = true, onAfterClose }) {
-  const isMobile = useIsMobile();
+export function WishlistBusinessItemEditor({ item, space, spaceLabel, onClose, onSaved, renderPreview, sale, open = true, onAfterClose }) {
   const prefix = useId();
   const [initial] = useState(() => Object.fromEntries(Object.entries(itemDefaults).map(
     ([key, value]) => [key, item[key] ?? value],
@@ -140,6 +136,7 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
   const noun = isProduct ? "товар" : "позицию";
   const unreadable = Boolean(file && file === unreadableFile);
   const dirty = Boolean(file) || Object.keys(initial).some((key) => form[key] !== initial[key]);
+  const active = !sale || form.active;
 
   useEffect(() => {
     if (!file) return;
@@ -214,7 +211,7 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
       }
       uploading = false;
       setPhase("saving");
-      const payload = { ...form, title, actionUrl, imageUrl, brand: form.brand.trim(), price: form.price.trim(), description: form.description.trim() };
+      const payload = { ...form, active, title, actionUrl, imageUrl, brand: form.brand.trim(), price: form.price.trim(), description: form.description.trim() };
       const endpoint = `/wishlist-business/${space}/${sale ? "sales" : "items"}`;
       const options = { signal: AbortSignal.timeout(25_000) };
       let result;
@@ -242,10 +239,8 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
   };
 
   const photo = file ? (localPreview?.file === file ? localPreview.url : "") : form.imageUrl;
-  const publicItem = published && form.active;
-  const submitLabel = item.id
-    ? "Сохранить"
-    : publicItem ? "Опубликовать" : form.active ? "Добавить" : "Сохранить скрытым";
+  const publishes = sale ? !item.id && active : !item.id || !initial.active;
+  const submitLabel = publishes ? "Опубликовать" : item.id ? "Сохранить" : "Сохранить скрытым";
   const heading = sale
     ? (item.id ? "Редактировать объявление" : sale.wishId ? "Выставить на продажу" : `Добавить ${noun}`)
     : (item.id ? `Редактировать ${noun}` : `Добавить ${noun}`);
@@ -263,11 +258,21 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
           aria-label={heading}
           initialFocus={headingRef}
         >
-          <DrawerHeader className="shrink-0 gap-1 border-b px-(--layout-page-inset) py-4 md:px-6">
-            <DrawerDescription className="text-xs text-muted-foreground">{sale ? "Мои продажи" : "Витрина"} · {spaceLabel}</DrawerDescription>
-            <DrawerTitle ref={headingRef} tabIndex={-1} className="font-heading text-2xl font-semibold">
-              {heading}
-            </DrawerTitle>
+          <DrawerHeader className="shrink-0 border-b px-(--layout-page-inset) py-4 md:px-6">
+            <div className="flex items-start gap-2">
+              <div className="grid min-w-0 flex-1 gap-1">
+                <DrawerDescription className="text-xs text-muted-foreground">{sale ? "Мои продажи" : "Витрина"} · {spaceLabel}</DrawerDescription>
+                <DrawerTitle ref={headingRef} tabIndex={-1} className="font-heading text-2xl font-semibold">
+                  {heading}
+                </DrawerTitle>
+              </div>
+              <DrawerClose
+                render={<Button type="button" variant="outline" size="icon" disabled={Boolean(phase)} />}
+                aria-label="Закрыть редактор"
+              >
+                <X aria-hidden="true" />
+              </DrawerClose>
+            </div>
           </DrawerHeader>
           <form onSubmit={save} noValidate className="form-surface flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-(--layout-page-inset) py-5 md:px-6">
@@ -321,30 +326,33 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
                 </Field>
               </section>
 
-              <section aria-labelledby={`${prefix}-visibility`} className="grid min-w-0 gap-3 border-t pt-5">
-                <h2 id={`${prefix}-visibility`} className="font-heading text-xl font-semibold">Видимость</h2>
-                <div className="flex min-w-0 items-start justify-between gap-3 rounded-xl border bg-muted/25 p-3">
-                  <div className="grid min-w-0 gap-1">
-                    <FieldLabel htmlFor={`${prefix}-active`}>{sale ? "Опубликовать объявление" : "Показывать на витрине"}</FieldLabel>
-                    <p id={`${prefix}-visibility-hint`} className="text-xs text-muted-foreground">
-                      {!form.active ? "Карточка видна только вам." : published ? "Покупатели увидят карточку после сохранения." : "Покупатели увидят карточку после публикации страницы продавца."}
-                    </p>
-                  </div>
-                  <Switch id={`${prefix}-active`} aria-describedby={`${prefix}-visibility-hint`} checked={form.active} onCheckedChange={(value) => set("active", value)} disabled={Boolean(phase)} />
-                </div>
+              <div className="grid min-w-0 gap-3 border-t pt-5">
+                {sale && (
+                  <section aria-labelledby={`${prefix}-visibility`} className="grid min-w-0 gap-3">
+                    <h2 id={`${prefix}-visibility`} className="font-heading text-xl font-semibold">Видимость</h2>
+                    <div className="flex min-w-0 items-start justify-between gap-3 rounded-xl border bg-muted/25 p-3">
+                      <div className="grid min-w-0 gap-1">
+                        <FieldLabel htmlFor={`${prefix}-active`}>Опубликовать объявление</FieldLabel>
+                        <p id={`${prefix}-visibility-hint`} className="text-xs text-muted-foreground">
+                          {active ? "Покупатели увидят карточку после сохранения." : "Карточка видна только вам."}
+                        </p>
+                      </div>
+                      <Switch id={`${prefix}-active`} aria-describedby={`${prefix}-visibility-hint`} checked={active} onCheckedChange={(value) => set("active", value)} disabled={Boolean(phase)} />
+                    </div>
+                  </section>
+                )}
                 <ControlBar className="flex">
                   <Button
                     type="button" variant="outline" className="w-full" aria-expanded={showPreview} aria-controls={`${prefix}-preview`}
                     onClick={() => setShowPreview((current) => !current)}
                   >
-                    {showPreview ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
                     {showPreview ? "Свернуть предпросмотр" : "Предпросмотр"}
                   </Button>
                 </ControlBar>
                 <div id={`${prefix}-preview`} hidden={!showPreview}>
-                  {showPreview && renderPreview({ ...form, imageUrl: unreadable ? "" : photo })}
+                  {showPreview && renderPreview({ ...form, active, imageUrl: unreadable ? "" : photo })}
                 </div>
-              </section>
+              </div>
               {saveError && (
                 <Alert ref={saveErrorRef} variant="destructive" tabIndex={-1}>
                   <AlertTitle>Не удалось завершить отправку</AlertTitle>
@@ -354,9 +362,7 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
               <span role="status" className="sr-only">{phase === "uploading" ? "Загружаем фото" : phase === "saving" ? "Сохраняем карточку" : ""}</span>
             </div>
             <DrawerFooter>
-              {!isMobile && <Button type="button" variant="outline" onClick={close} disabled={Boolean(phase)}>Отмена</Button>}
-              <Button type="submit" disabled={Boolean(phase) || unreadable}>
-                {phase && <Spinner aria-hidden="true" />}
+              <Button type="submit" disabled={Boolean(phase) || unreadable} aria-busy={Boolean(phase) || undefined}>
                 {phase === "uploading" ? "Загружаем фото…" : phase === "saving" ? "Сохраняем…" : submitLabel}
               </Button>
             </DrawerFooter>

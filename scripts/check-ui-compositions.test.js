@@ -35,3 +35,21 @@ test("horizontal report tiles require an explicit scroller contract", () => {
   checkUiComposition('<TabsList data-tab-scroller className="flex-nowrap overflow-x-auto" />', "src/components/reports.jsx");
   assert.throws(() => checkUiComposition('<TabsList className="flex-nowrap overflow-x-auto" />', "src/components/reports.jsx"), /data-tab-scroller/);
 });
+
+test("text actions and icon actions have separate visible content", () => {
+  const file = "src/components/page.jsx";
+  for (const source of [
+    'import { Plus as Glyph } from "lucide-react"; const element = <Button><Glyph />Добавить</Button>;',
+    '<PageActionButton><span>Скачать</span><svg /></PageActionButton>',
+    '<AlertDialogAction>{busy && <Spinner />}Сохранить</AlertDialogAction>',
+    '<Link className={buttonVariants()}><Icon />{label}</Link>',
+  ]) {
+    assert.throws(() => checkUiComposition(source, file), /text action must not render an icon/);
+  }
+  for (const source of [
+    '<Button data-control-icon aria-label="Назад"><Icon /><span className="sr-only">Назад</span></Button>',
+    '<Button>{compact ? <Icon /> : "Открыть"}</Button>',
+    '<PageActionButton aria-busy={busy}>{busy ? "Сохраняем…" : "Сохранить"}</PageActionButton>',
+    '<Button data-content-control><Icon />{record.name}</Button>',
+  ]) checkUiComposition(source, file);
+});

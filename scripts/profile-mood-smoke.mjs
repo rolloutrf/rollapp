@@ -249,6 +249,10 @@ try {
       }
       assert.equal(colors.size, 5, "Each mood gives the selected tile a distinct tint");
     }
+    if (width === 320 || width === 1440) {
+      await page.goto(`${smokeOrigin(server)}/__profile-mood?business`);
+      await assertMoodTiles(ownerTiles, neutral, 3);
+    }
     assert.deepEqual(errors, []);
     console.log(`PASS ${width}×${height}: 5 choices, retry, private log, real tile tints, no avatar halo, public color, neutral fallback, cancel, 48px controls`);
     await page.close();

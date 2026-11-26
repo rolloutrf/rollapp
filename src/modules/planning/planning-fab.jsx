@@ -201,12 +201,12 @@ function PlanningControls({ user }) {
       <PopoverContent className="planning-fab__panel app-navigation-popup rollapp-body w-80 max-w-(--available-width) !rounded-2xl !p-2" side="top" align="end" sideOffset={12}>
         <PopoverTitle className="sr-only">Планирование</PopoverTitle>
         <nav className="flex flex-col gap-1" aria-label="Инструменты планирования">
-          {PLANNING_TABS.map(({ id, label, icon: Icon }) => (
+          {PLANNING_TABS.map(({ id, label }) => (
             <Link key={id} to={`${PLANNING_SERVICE.path}?tab=${id}`}
               className={buttonVariants({ variant: inPlanning && currentTab === id ? "secondary" : "ghost", className: "!h-auto !min-h-12 !justify-start !gap-3 !rounded-xl !px-3 !py-3" })}
               aria-current={inPlanning && currentTab === id ? "page" : undefined}
               onClick={() => setOpen(false)}
-            ><Icon aria-hidden="true" /><span>{label}</span></Link>
+            ><span>{label}</span></Link>
           ))}
         </nav>
       </PopoverContent>

@@ -12,19 +12,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  ChevronRight,
-  CircleUserRound,
-  Fingerprint,
-  Gift,
-  Heart,
-  LockKeyhole,
   LogOut,
-  PackageCheck,
-  QrCode,
   RotateCcw,
-  Smile,
-  UserPlus,
-  Users,
   X,
 } from "lucide-react";
 import { api } from "../runtime/api.js";
@@ -65,7 +54,6 @@ import { requestBrowserWishlist } from "../media-import/retailer-browser-import.
 import { APP_HOME } from "../shell/home-path.jsx";
 import { useToast } from "../shell/toast.jsx";
 import { useLogout } from "../auth/session.jsx";
-import { ROLLS_SERVICE } from "../shell/service-menu.jsx";
 
 const BROWSER_WISHLIST_PROVIDERS = EXTERNAL_WISHLIST_PROVIDERS.filter(({ browserFavoritesUrl }) => browserFavoritesUrl);
 
@@ -114,18 +102,18 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
   const sectionHeading = useRef(null);
   const scrollArea = useRef(null);
   const sections = [
-    { id: "accounts", title: "Аккаунты", icon: Users },
-    { id: "personal", title: "Персональная информация", icon: CircleUserRound },
-    { id: "mood", title: "Настроение", icon: Smile },
-    { id: "contact-card", title: "Визитка и QR-код", icon: QrCode },
-    { id: "wishlists", title: "Внешние вишлисты", icon: Heart },
-    ...(user.canInvite ? [{ id: "invites", title: "Инвайты", icon: UserPlus }] : []),
-    { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
-    { id: "mcp", title: "Ключи MCP", icon: LockKeyhole },
-    { id: "yandex", title: "Yandex ID", icon: Fingerprint },
-    { id: "rolls", title: "Финансы", icon: ROLLS_SERVICE.icon },
-    { id: "gift-cards", title: "Подарочные карты", icon: Gift },
-    { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
+    { id: "accounts", title: "Аккаунты" },
+    { id: "personal", title: "Персональная информация" },
+    ...(user.accountType !== "business" ? [{ id: "mood", title: "Настроение" }] : []),
+    { id: "contact-card", title: "Визитка и QR-код" },
+    ...(user.accountType !== "business" ? [{ id: "wishlists", title: "Внешние вишлисты" }] : []),
+    ...(user.canInvite ? [{ id: "invites", title: "Инвайты" }] : []),
+    { id: "openrouter", title: "OpenRouter" },
+    { id: "mcp", title: "Ключи MCP" },
+    { id: "yandex", title: "Yandex ID" },
+    { id: "rolls", title: "Финансы" },
+    { id: "gift-cards", title: "Подарочные карты" },
+    { id: "orders", title: "Заказы", path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
   const yandexSettingsBlocked = Boolean(loading || imageUploading || loggingOut);
@@ -342,7 +330,6 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
   const wishlistsFooter = section === "wishlists" && (
     <DrawerFooter className="mx-auto w-full max-w-full">
       <ShadcnButton type="submit" form="profile-wishlists-form" disabled={!changedWishlists.length || busy} aria-busy={loading || undefined}>
-        {loading && <Spinner />}
         Сохранить
       </ShadcnButton>
       <ShadcnButton type="button" variant="outline" size="icon" data-control-icon=""
@@ -373,7 +360,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
     </div>
     <nav aria-label="Разделы профиля">
       <ul className="divide-y">
-        {sections.map(({ id, title, icon: Icon, path }) => <li key={id}>
+        {sections.map(({ id, title, path }) => <li key={id}>
           <ShadcnButton
             type="button"
             variant="ghost"
@@ -387,9 +374,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
               }
             }}
           >
-            <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="min-w-0 flex-1">{title}</span>
-            <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
           </ShadcnButton>
         </li>)}
       </ul>
@@ -424,12 +409,12 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
           <FieldLabel htmlFor="settings-profile-bio">{user.accountType === "business" ? "Описание бизнеса" : "О себе"}</FieldLabel>
           <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder={user.accountType === "business" ? undefined : "Что вам нравится?"} onChange={(event) => setForm({ ...form, bio: event.target.value })} />
         </Field>
-        <Field className="sm:max-w-[calc(50%-0.5rem)]">
+        <Field>
           <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
-          <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
+          <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm((current) => ({ ...current, birthday: date }))} />
         </Field>
       </FieldGroup>
-      {user.memberNumber ? <MemberNumberBoard number={user.memberNumber} fullWidth /> : (
+      {user.accountType !== "business" && (user.memberNumber ? <MemberNumberBoard number={user.memberNumber} fullWidth /> : (
         <Card className="grid gap-2 p-4">
           <h3>Номер участника</h3>
           <p>Ваш номер ещё не выбран.</p>
@@ -437,7 +422,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
             ? <p>Сохраните или отмените изменения профиля перед выбором номера.</p>
             : <ShadcnButton type="button" variant="outline" className="min-h-(--layout-control-size) rounded-full" onClick={() => exitSettings(() => { onClose(); navigate("/app/member-number"); })}>Получить номер</ShadcnButton>}
         </Card>
-      )}
+      ))}
     </form>
   ) : section === "wishlists" ? (
     <form id="profile-wishlists-form" onSubmit={submitWishlists}>
@@ -578,7 +563,6 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
         disabled={!profileChanged || busy}
         aria-busy={loading || undefined}
       >
-        {loading && <Spinner />}
         Сохранить
       </ShadcnButton>
       <ShadcnButton

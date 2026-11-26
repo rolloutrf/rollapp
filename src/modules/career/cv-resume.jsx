@@ -22,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cvHasStructuredContent, normalizeCvContent } from "@/modules/career/cv.js";
@@ -256,8 +255,7 @@ function CvEditor({ cv, editor, onDelete, onOpenChange, onSave }) {
             )}
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
-              {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
+            <Button className="min-h-12 text-base" type="submit" disabled={busy} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : "Сохранить"}
             </Button>
             {editingEntry && onDelete

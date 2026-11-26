@@ -2,7 +2,7 @@ import { sharePageUrl } from "../../applications/location.js";
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, Clock3, Globe2, Link2, Plus, Video, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, Clock3, Globe2, Plus, Video, X } from "lucide-react";
 import { ru } from "date-fns/locale";
 import { TZDate } from "react-day-picker";
 import { Link, useLocation } from "react-router-dom";
@@ -531,7 +531,7 @@ export function ProfileBookingCalendar({ profile, slots, owner, user, busy, noti
       {!editing && <PageActionButton type="button" variant="outline" disabled={busy} onClick={() => { setPreview(!preview); setTypeId(null); }}>
         {preview ? "К управлению слотами" : "Предпросмотр"}
       </PageActionButton>}
-      {!editing && <PageActionButton type="button" variant="outline" onClick={share}><Link2 aria-hidden="true" />Копировать ссылку</PageActionButton>}
+      {!editing && <PageActionButton type="button" variant="outline" onClick={share}>Копировать ссылку</PageActionButton>}
     </div>}
     {copied && <p role={copied.error ? "alert" : "status"}>{copied.text}</p>}
     {notice && <p role={notice.error ? "alert" : "status"} className={notice.error ? "text-destructive" : undefined}>{notice.message}</p>}
@@ -552,7 +552,7 @@ export function ProfileBookingCalendar({ profile, slots, owner, user, busy, noti
       </>}
     </> : <>
       {types.length > 1 && type && <div>
-        <PageActionButton type="button" variant="outline" disabled={busy} onClick={() => setTypeId("")}><ArrowLeft aria-hidden="true" />Все встречи</PageActionButton>
+        <PageActionButton type="button" variant="outline" disabled={busy} onClick={() => setTypeId("")}>Все встречи</PageActionButton>
       </div>}
       {activeBooking || type || types.length === 0
         ? <BookingPicker key={`${type?.id || "empty"}:${linkedSlot?.id || ""}`} type={type} profile={profile} user={preview ? null : user} loginPath={loginPath}

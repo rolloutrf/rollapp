@@ -6,7 +6,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 
 export function EditorDeleteAction({ description, disabled, label, onBusyChange, onDelete, onDeleted, title }) {
   const [open, setOpen] = useState(false);
@@ -53,8 +52,7 @@ export function EditorDeleteAction({ description, disabled, label, onBusyChange,
         </Alert>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
-          <AlertDialogAction type="button" variant="destructive" disabled={disabled || deleting} onClick={remove}>
-            {deleting ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
+          <AlertDialogAction type="button" variant="destructive" disabled={disabled || deleting} onClick={remove} aria-busy={Boolean(deleting) || undefined}>
             {deleting ? "Удаляем" : label}
           </AlertDialogAction>
         </AlertDialogFooter>

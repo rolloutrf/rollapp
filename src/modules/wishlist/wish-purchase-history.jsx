@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { ChevronDown, ChevronRight, ShoppingBag } from "lucide-react";
+import { ChevronRight, ShoppingBag } from "lucide-react";
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ function PurchaseHistoryRow({ entry, onOpen }) {
     ? `На ${formatPurchaseBudget({ minor: Math.abs(changeMinor), currency })} ${changeMinor > 0 ? "дороже" : "дешевле"}`
     : null;
   return <li className="min-w-0">
-    <Button type="button" variant="ghost" aria-label={`Открыть покупку: ${title}`} aria-describedby={contextId} onClick={() => onOpen(entry.id)}
+    <Button data-content-control="" type="button" variant="ghost" aria-label={`Открыть покупку: ${title}`} aria-describedby={contextId} onClick={() => onOpen(entry.id)}
       className="h-auto min-h-12 w-full min-w-0 justify-between gap-2 rounded-xl px-2 py-3 text-left whitespace-normal font-normal">
       <span id={contextId} className="grid min-w-0 flex-1 gap-x-4 gap-y-1 @lg/purchases:grid-cols-[minmax(0,1fr)_minmax(0,auto)] @lg/purchases:items-start">
         <span className="grid min-w-0 gap-1">
@@ -78,8 +78,8 @@ function PurchaseHistoryFeed({ onOpen }) {
       {data.items.map((entry) => <PurchaseHistoryRow key={entry.id} entry={entry} onOpen={onOpen} />)}
     </ul>
     {moreError && <Alert variant="destructive"><AlertDescription>Не удалось загрузить следующие покупки.</AlertDescription></Alert>}
-    {data.nextCursor && <Button variant="outline" className="min-h-12 justify-self-start rounded-full" disabled={loadingMore} onClick={loadMore}>
-      {loadingMore && <Spinner />}{moreError ? "Повторить" : "Ещё покупки"}
+    {data.nextCursor && <Button variant="outline" className="min-h-12 justify-self-start rounded-full" disabled={loadingMore} onClick={loadMore} aria-busy={Boolean(loadingMore) || undefined}>
+      {moreError ? "Повторить" : "Ещё покупки"}
     </Button>}
   </div>;
 }
@@ -94,7 +94,6 @@ export function WishPurchaseHistory({ revision, onOpen, action }) {
           aria-label="История покупок" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}>
           <span className="@md/purchases:hidden">История</span>
           <span className="hidden @md/purchases:inline">История покупок</span>
-          <ChevronDown aria-hidden="true" className={expanded ? "rotate-180" : undefined} />
         </Button>
       </h3>
       {action}

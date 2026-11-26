@@ -12,7 +12,6 @@ import {
 } from "@/components/form-surface";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
@@ -115,8 +114,7 @@ function AboutMeQuestionEditor({ entry, mode, onDelete, onOpenChange, onSave, op
             </FieldGroup>
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 text-base" type="submit" aria-label={editing ? "Сохранить изменения" : undefined} disabled={busy}>
-              {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
+            <Button className="min-h-12 text-base" type="submit" aria-label={editing ? "Сохранить изменения" : undefined} disabled={busy} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : "Добавить вопрос"}
             </Button>
             {editing && onDelete

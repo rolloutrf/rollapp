@@ -1,4 +1,3 @@
-import { Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,7 +8,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Spinner } from "@/components/ui/spinner";
 
 export function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
   return <AlertDialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !busy) onOpenChange?.(false); }}>
@@ -20,7 +18,7 @@ export function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange,
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel>
-        <AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={onConfirm}>{busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</AlertDialogAction>
+        <AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={onConfirm}>Удалить</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>;

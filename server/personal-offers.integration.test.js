@@ -326,7 +326,29 @@ test("personal offers on existing production schema: every test write is rolled 
           const request=async(path,body,userId=buyer)=>{const response=await fetch(`http://127.0.0.1:${server.address().port}/api${path}`,{method:body?"POST":"GET",headers:{"x-test-user":userId,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});return{status:response.status,body:await response.json()};};
           const terms={buyerId:buyer,priceRolls:40,durationHours:24,idempotencyKey:randomUUID()};
           const path=`/wishlist-business/products/items/${wishlistItem}/recommend`;
-          await client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2",[buyer,seller]);
+          const unfollow = () => client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [buyer, seller]);
+          const follow = () => client.query("INSERT INTO follows(follower_id,following_id) VALUES($1,$2)", [buyer, seller]);
+          const account = (space) => request(`/wishlist-business/${space}/accounts`).then(({ body }) =>
+            body.accounts.find(entry => entry.username === `offer-${seller}`));
+          await unfollow();
+          assert.deepEqual((await request("/wishlist-business/products/buyers", null, seller)).body.buyers, []);
+          const grantOnly = await request(path, terms, seller);
+          assert.equal(grantOnly.status, 403);
+          assert.equal(grantOnly.body.code, "OFFER_CONSENT_REQUIRED");
+          const direct = await request("/personal-offers", {
+            itemId: wishlistItem, itemSource: "wishlist", recipientId: buyer,
+            priceRolls: terms.priceRolls, durationHours: terms.durationHours, idempotencyKey: terms.idempotencyKey,
+          }, seller);
+          assert.equal(direct.body.code, "OFFER_CONSENT_REQUIRED");
+          await client.query("UPDATE wishlist_business_pages SET published=FALSE WHERE business_user_id=$1 AND space='products'", [seller]);
+          assert.equal((await account("products")).storefrontTitle, null);
+          assert.equal(await account("places"), undefined);
+          await client.query("UPDATE users SET seller_space=NULL WHERE id=$1", [seller]);
+          assert.equal((await account("places")).storefrontTitle, null);
+          await client.query("UPDATE users SET seller_space='products' WHERE id=$1", [seller]);
+          await client.query("UPDATE wishlist_business_pages SET published=TRUE WHERE business_user_id=$1 AND space='products'", [seller]);
+          await follow();
+          assert.equal((await account("products")).isFollowing, true);
           const recommendation=await request(path,terms,seller);
           assert.equal(recommendation.status,200,JSON.stringify(recommendation.body));
           const paymentId=recommendation.body.personalOfferId;
@@ -338,6 +360,10 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal((await request('/wishlist-business/products/offers',null,other)).body.items.length,0);
           await client.query("UPDATE wishlist_business_items SET title='Changed',price='10000 RUB' WHERE id=$1",[wishlistItem]);
           assert.equal((await request('/wishlist-business/products/offers')).body.items[0].title,'Original wishlist item');
+          await unfollow();
+          assert.equal((await account("products")).isFollowing, false);
+          assert.equal((await request(path, { ...terms, idempotencyKey: randomUUID() }, seller)).body.code, "OFFER_CONSENT_REQUIRED");
+          assert.equal((await request(path, terms, seller)).body.personalOfferId, paymentId);
           await client.query("SAVEPOINT wishlist_grant_only");
           try {
             const paymentPath = `/personal-offers/${paymentId}/pay`;
@@ -358,7 +384,7 @@ test("personal offers on existing production schema: every test write is rolled 
           await client.query("DELETE FROM sphere_section_shares WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist'",[buyer,seller]);
           assert.equal(await invoiceStatus(), "unavailable");
           const denied=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(denied.status,403);assert.equal(denied.body.code,'OFFER_ACCESS_REVOKED');
-          await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [buyer,seller]);
+          await follow();
           const buyers = await request('/wishlist-business/products/buyers',null,seller);
           assert.deepEqual(buyers.body.buyers.map(person => person.id), [buyer]);
           const paid=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(paid.status,201,JSON.stringify(paid.body));

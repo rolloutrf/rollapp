@@ -100,7 +100,7 @@ export function WishPurchasePlan({ wish, onClose, onSaved, load = readPlan, save
           </FieldGroup> : error ? <Button type="button" variant="outline" onClick={() => { setError(""); setRetry((value) => value + 1); }}>Повторить</Button> : <p className="flex items-center gap-2" role="status"><Spinner />Загружаем план…</p>}
           {form && <p className="text-muted-foreground">Появится в основном списке To Do.</p>}
         </div>
-        <DrawerFooter><Button type="submit" disabled={busy || !budgetMinor || !form?.dueOn}>{busy && <Spinner />}Сохранить</Button></DrawerFooter>
+        <DrawerFooter><Button type="submit" disabled={busy || !budgetMinor || !form?.dueOn} aria-busy={Boolean(busy) || undefined}>Сохранить</Button></DrawerFooter>
       </form>
     </DrawerContent>
   </Drawer>;

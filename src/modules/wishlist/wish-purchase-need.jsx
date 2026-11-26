@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker";
@@ -137,7 +136,7 @@ export function WishPurchaseNeed({ plan, wishes, onClose, onSaved }) {
             </Field>
           </FieldGroup>
         </div>
-        <DrawerFooter><Button type="submit" disabled={!valid || busy}>{busy && <Spinner />}Сохранить</Button></DrawerFooter>
+        <DrawerFooter><Button type="submit" disabled={!valid || busy} aria-busy={Boolean(busy) || undefined}>Сохранить</Button></DrawerFooter>
       </form>
     </DrawerContent>
   </Drawer>;

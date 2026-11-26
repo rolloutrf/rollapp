@@ -246,8 +246,8 @@ export function RollsTopup({ user, onBack, onPaid }) {
       <p role="status">Счёт ожидает проверки.</p>
       {verification === "missing" && <p role="status">Счёт пока не найден.</p>}
       {verification !== "conflict" && <>
-        <Button variant="outline" onClick={() => runRequest("find", pending)} disabled={busy}>
-          {busy && <Spinner />}{requestMode === "find" ? "Ищем счёт…" : requestMode === "send" ? "Создаём счёт…" : "Найти счёт"}
+        <Button variant="outline" onClick={() => runRequest("find", pending)} disabled={busy} aria-busy={Boolean(busy) || undefined}>
+          {requestMode === "find" ? "Ищем счёт…" : requestMode === "send" ? "Создаём счёт…" : "Найти счёт"}
         </Button>
         {verification === "missing" && canBuy && <Button onClick={() => runRequest("send", pending)} disabled={busy}>Повторить создание счёта</Button>}
       </>}
@@ -262,7 +262,7 @@ export function RollsTopup({ user, onBack, onPaid }) {
         ? "Ссылка на счёт ещё не готова."
         : "Готовим счёт Telegram. Ссылка появится автоматически, можно вернуться позже."}</p>}
       {awaitingInvoice && canBuy && config.invoiceDelivery === "direct" && verification !== "conflict" &&
-        <Button variant="outline" onClick={() => runRequest("send", pending)} disabled={busy}>{busy && <Spinner />}Запросить ссылку снова</Button>}
+        <Button variant="outline" onClick={() => runRequest("send", pending)} disabled={busy} aria-busy={Boolean(busy) || undefined}>Запросить ссылку снова</Button>}
       {safeInvoice && order.status === "pending" && config?.enabled && <>
         <p>К оплате {order.stars} Stars</p>
         <p>Оплачивайте из аккаунта Telegram, привязанного к Rollapp. Баланс обновится после подтверждения оплаты.</p>

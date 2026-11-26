@@ -60,6 +60,7 @@ const appSources = [
   "src/modules/profile/profile-redirect.jsx",
   "src/modules/profile/profile-settings.jsx",
   "src/modules/profile/public-pages.jsx",
+  "src/modules/profile/public-profile-hero.jsx",
   "src/modules/shell/app-chrome.jsx",
   "src/modules/shell/app-shell.jsx",
   "src/modules/shell/brand.jsx",
@@ -96,7 +97,7 @@ function appComponentSource(file, name, endName) {
 }
 const spacing = await read("src/spacing.css");
 const pageActionButton = await read("src/components/page-action-button.jsx");
-assert.match(pageActionButton, /cn\(className, "min-h-\(--layout-control-size\) rounded-full px-6 has-data-\[icon=inline-start\]:pl-6 has-data-\[icon=inline-end\]:pr-6"\)/, "PageActionButton must use the shared control token and 24px padding after caller classes, including icons and loading spinners");
+assert.match(pageActionButton, /cn\(className, "min-h-\(--layout-control-size\) rounded-full px-6"\)/, "PageActionButton must use the shared control token and 24px padding after caller classes");
 assert.deepEqual([...spacing.matchAll(/--layout-control-size\s*:\s*([^;{}]+)/g)].map((match) => match[1].trim()), ["3rem"], "Navigation must have exactly one 48px size declaration, without responsive or local rebinding");
 assert(!/--layout-(?:navigation|planning)-control\b/.test(spacing), "Do not restore separate navigation/planning control scales");
 const controlBar = await read("src/components/control-bar.jsx");
@@ -453,18 +454,13 @@ assert(
 );
 const friendsLinkSource = appComponentSource("src/modules/social/friends-link.jsx", "AppFriendsLink");
 assert.equal([...friendsLinkSource.matchAll(/<Link\b/g)].length, 1, "Profile relationships must expose a single link");
-assert.match(friendsLinkSource, /<Link to="\/app\/friends"[^>]*>\s*<Users aria-hidden="true"\s*\/>\s*<span>Друзья<\/span>\s*<\/Link>/, "The profile Friends link must point to the Friends section and keep its decorative icon");
+assert.match(friendsLinkSource, /<Link to="\/app\/friends"[^>]*>\s*<span>Друзья<\/span>\s*<\/Link>/, "The profile Friends link must point to the Friends section with a text label");
 const relationshipHeroSource = appComponentSource("src/modules/profile/profile-hero.jsx", "PersistentProfileHero");
-const relationshipPublicSource = appComponentSource("src/modules/wishlist/public-wishlist.jsx", "PublicProfile");
+const relationshipPublicSource = appComponentSource("src/modules/profile/public-profile-hero.jsx", "PublicProfileHero");
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public"]]) {
   assert.match(source, /<div className="wishes-page__hero-copy">\s*<h1\b[^>]*>[^<]*<\/h1>\s*\{[^\n]*<AppFriendsLink\s+memberNumber=\{[^}]+\}\s*\/>\}/, `The ${label} profile must render its shared Friends link directly under the name`);
 }
 assert.equal([...app.matchAll(/<AppFriendsLink\s+memberNumber=\{[^}]+\}\s*\/>/g)].length, 2, "The Friends link belongs to the two profile headers");
-assert(
-  /\.app-layout--dark\s+\.wishes-page__friend-links\s*>\s*a\s*\{[^}]*\bgap:\s*8px;/s.test(legacyStyles)
-    && /\.app-layout--dark\s+\.wishes-page__friend-links\s*>\s*a\s*>\s*svg\s*\{[^}]*\bwidth:\s*20px;[^}]*\bheight:\s*20px;/s.test(legacyStyles),
-  "Relationship links must keep their 8px icon gap and 20x20 icon geometry",
-);
 const listColorTokens = Object.fromEntries(
   [...legacyStyles.matchAll(/^\s*--list-color-(coral|blue|lime|sun|ink):\s*([^;]+);/gm)]
     .map((match) => [match[1], match[2].trim()]),
@@ -796,7 +792,7 @@ assert(/item\.url && !\["products", "food", "transport"\]\.includes\(item\.space
 assert(/item\.fundraisingUrl/.test(catalogWishDetailsSource), "Catalog details must retain fundraising links inside the drawer");
 assert(/aria-label="Действия с позицией каталога"/.test(catalogWishDetailsSource), "Catalog detail actions must expose an accessible group name");
 assert(/item\.brand && <CatalogBrandAttribution brand=\{item\.brand\} compact \/>/.test(catalogWishDetailsSource), "Catalog details must identify the verified product brand");
-assert(/<Heart\b/.test(catalogWishDetailsSource) && /onClick=\{\(\) => onToggleWishlist\(item\)\}/.test(catalogWishDetailsSource), "Catalog details must reuse the Wishlist Heart toggle");
+assert(/onClick=\{\(\) => onToggleWishlist\(item\)\}/.test(catalogWishDetailsSource), "Catalog details must preserve the delegated Wishlist toggle");
 assert(/disabled=\{wishlistDisabled\}/.test(catalogWishDetailsSource) && /aria-pressed=\{Boolean\(item\.addedByMe\)\}/.test(catalogWishDetailsSource), "Catalog details must expose the same disabled and pressed states as catalog cards");
 assert(/Убрать из вишлиста/.test(catalogWishDetailsSource) && /Добавить в вишлист/.test(catalogWishDetailsSource), "Catalog details must label both Wishlist toggle directions");
 assert(!/onLike|likedByMe|likeLabel/.test(catalogWishDetailsSource), "Catalog details must not expose an independent Like action");
@@ -974,4 +970,4 @@ const appRootSource = app.slice(appRootStart);
 assert(appRootSource.indexOf("<MobileFormPages>") >= 0 && appRootSource.indexOf("<MobileFormPages>") < appRootSource.indexOf("<ProfileEditorProvider>"), "Profile settings must share MobileFormPages with stories before opening a native form");
 
 const publicProfileSource = appComponentSource("src/modules/wishlist/public-wishlist.jsx", "PublicProfile");
-assert(!/<StoryAvatar\b/.test(publicProfileSource), "Public profile avatars must retain profile behavior without a stories entry");
+assert(!/<StoryAvatar\b/.test(publicProfileSource + relationshipPublicSource), "Public profile avatars must retain profile behavior without a stories entry");

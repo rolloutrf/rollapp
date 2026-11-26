@@ -146,7 +146,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete, searchContacts }
               <Field className="planning-related">
                 <FieldLabel>Связанные объекты</FieldLabel>
                 {(task.relatedItems || []).filter(item => item.kind === "note").map(item => <Link key={item.id} className="text-start underline underline-offset-4" to={planningNotePath(item.id)}>Заметка «{item.title}»</Link>)}
-                <Button variant="outline" id={`${id}-related-toggle`} className="planning-related__trigger" type="button" onClick={() => setRelatedOpen(true)}>
+                <Button data-content-control="" variant="outline" id={`${id}-related-toggle`} className="planning-related__trigger" type="button" onClick={() => setRelatedOpen(true)}>
                   <span className="planning-related__trigger-icon"><Link2 size={20} aria-hidden="true" /></span>
                   <span className="planning-related__trigger-text"><strong>{(form.relatedItems || []).length ? `Выбрано: ${form.relatedItems.length}` : "Добавить связь"}</strong><small>Вишлист, здоровье, образование, контакты</small></span>
                   <ChevronDown className="planning-related__chevron" size={20} aria-hidden="true" />
@@ -165,7 +165,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete, searchContacts }
             </FieldGroup>
           </div>
           <DrawerFooter className="planning-task-editor__actions gap-2" data-task-editing={task.id ? true : undefined}>
-            <Button type="submit" disabled={busy || !form.title.trim()}>{busy && <Spinner />}Сохранить</Button>
+            <Button type="submit" disabled={busy || !form.title.trim()} aria-busy={Boolean(busy) || undefined}>Сохранить</Button>
             {task.id && <Button type="button" variant="destructive" size="icon" data-control-icon aria-label={task.recurrence ? "Удалить всю серию" : "Удалить задачу"} title={task.recurrence ? "Удалить всю серию" : "Удалить задачу"} disabled={busy} onClick={() => setConfirmDelete(true)}><Trash2 aria-hidden="true" /></Button>}
           </DrawerFooter>
         </form>

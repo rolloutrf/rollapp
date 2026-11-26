@@ -12,7 +12,6 @@ import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/form-surface";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/modules/access/sphere-sharing.jsx";
@@ -129,8 +128,7 @@ function ThesisEditor({ initialValue = "", mode, onDelete, onOpenChange, onSave,
             </Field>
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 min-w-0 flex-1 text-base" type="submit" aria-label={editing ? "Сохранить изменения" : `Добавить ${labels.item}`} disabled={busy}>
-              {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
+            <Button className="min-h-12 min-w-0 flex-1 text-base" type="submit" aria-label={editing ? "Сохранить изменения" : `Добавить ${labels.item}`} disabled={busy} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : `Добавить ${labels.item}`}
             </Button>
             {editing && onDelete

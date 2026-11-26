@@ -31,7 +31,7 @@ export function GiftSuggestionsPanel({ items = [], onOpenWish }) {
     </div>
     <div className="grid gap-3 md:grid-cols-2">
       {items.map((item) => <Card key={item.wishId} className="gap-3 p-3">
-        <ShadcnButton type="button" variant="ghost" className="h-auto min-w-0 justify-start gap-3 rounded-xl px-0 py-0 text-left hover:bg-transparent" onClick={() => onOpenWish(item.wishId)}>
+        <ShadcnButton data-content-control="" type="button" variant="ghost" className="h-auto min-w-0 justify-start gap-3 rounded-xl px-0 py-0 text-left hover:bg-transparent" onClick={() => onOpenWish(item.wishId)}>
           <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-muted-foreground">
             {item.imageUrl ? <img className="size-full object-cover" src={item.imageUrl} alt="" loading="lazy" /> : <Gift className="size-5" aria-hidden="true" />}
           </span>

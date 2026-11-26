@@ -1,10 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, Check, Gift, X } from "lucide-react";
+import { ArrowLeft, Check, Gift, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { api } from "@/modules/runtime/api.js";
 import { useOperationRecovery } from "../payments/use-operation-recovery.js";
-import { ControlBar } from "@/components/control-bar";
 import { PageActionButton } from "@/components/page-action-button";
 import { Card } from "@/components/ui/card";
 import { Drawer, DrawerBack, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerSectionHeader, DrawerTitle } from "@/components/form-surface";
@@ -15,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { publicProfilePath } from "../../../shared/modules/profile/profile-links.js";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../../shared/modules/payments/rolls.js";
-import { GiftCertificate } from "./gift-certificate";
+import { GiftCertificate, giftCertificateReference } from "./gift-certificate";
 
 const giftCardPath = "/rolls/gift-cards";
 const giftRejections = new Set(["INVALID_GIFT_CARD", "BUSINESS_NOT_FOUND", "GIFT_CARD_NOT_FOUND", "GIFT_CARD_LIMIT",
@@ -319,7 +318,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
     run(`/rolls/gift-cards/${selected.id}/send`, { recipientId: recipient.id, expectedBalance: selected.balance },
       `Карта отправлена: ${recipient.name}`, recipient.name);
   }
-  const description = recoveryOnly ? business.name : profileCard ? undefined : `${business.name} · Роллы с карты можно потратить только у этого бизнеса.`;
+  const description = recoveryOnly ? business.name : profileCard ? undefined : "Роллы с карты можно потратить только у этого бизнеса.";
   function returnFocusTarget() {
     const opener = returnFocusRef?.current;
     return opener?.isConnected && !opener.closest("[hidden]") ? opener : fallbackFocusRef?.current;
@@ -356,6 +355,11 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
       </>}
       <div ref={bodyRef} className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 break-words">
         {sentGift ? <GiftSendResult gift={sentGift} titleRef={resultTitle} /> : <>
+        {!profileCard && !recoveryOnly && <div className="gift-certificate-rail">
+          <GiftCertificate card={selected} business={business} />
+          {cardsReady && !cards.length && !selectedId && !message &&
+            <p className="text-center">Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
+        </div>}
         {!recoveryOnly && loading && <p role="status" className="flex items-center gap-2"><Spinner />Загружаем карты…</p>}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {cardsError && <Alert variant="destructive"><AlertDescription>{cardsError}</AlertDescription></Alert>}
@@ -373,20 +377,20 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
           </>}
         </AlertDescription></Alert>}
         {!recoveryOnly && <>
-          {!profileCard && cards.length > 0 && <div className="flex flex-col gap-2" role="group" aria-label="Мои карты этого бизнеса">
-            {cards.map((card) => <Button type="button" key={card.id} variant={card.id === selectedId ? "secondary" : "outline"} aria-pressed={card.id === selectedId} disabled={locked || !cardsReady} className="h-auto min-h-12 justify-between gap-3 whitespace-normal text-left" onClick={() => {
+          {!profileCard && (cards.length > 1 || (!selected && cards.length === 1)) && <div className="flex flex-col gap-2" role="group" aria-label="Мои карты этого бизнеса">
+            {cards.map((card) => <Button data-content-control="" type="button" key={card.id} variant={card.id === selectedId ? "secondary" : "outline"} aria-pressed={card.id === selectedId} disabled={locked || !cardsReady} className="h-auto min-h-12 justify-start whitespace-normal text-left" onClick={() => {
               if (card.id === selectedId) return;
               setSelectedId(card.id);
               setAmount(""); setRecipient(null); setSearch("");
               recovery.resetNotice(); setMessage("");
-            }}><Gift className="size-5 shrink-0" /><span className="min-w-0 break-words">{business.name} · {formatRolls(card.balance)}</span></Button>)}
+            }}><span className="min-w-0 wrap-anywhere">Карта · {giftCertificateReference(card.id)} · {formatRolls(card.balance)}</span></Button>)}
           </div>}
-          {!profileCard && cardsReady && !cards.length && !selectedId && !message && <p>Выпустите карту, пополните её со своего баланса и отправьте человеку в Rollapp.</p>}
-          {selected && <div className={profileCard ? "gift-certificate-rail" : "flex min-w-0 flex-col gap-6"}>
-            {profileCard && !step && cardsReady && <>
+          {selected && <div className="flex min-w-0 flex-col gap-6">
+            {profileCard && !step && cardsReady && <div className="gift-certificate-rail">
               <GiftCertificate card={selected} />
-              <div className="grid gap-2">
-                <PageActionButton className="w-fit" variant="outline" to={publicProfilePath(business)} onClick={(event) => {
+              <div className="grid justify-items-center gap-2 text-center">
+                <p>Действует только в этом магазине. При оплате роллами выберите подарочную карту.</p>
+                <PageActionButton variant="outline" to={publicProfilePath(business)} onClick={(event) => {
                   if (!onNavigate || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
                   event.preventDefault();
                   if (recovery.inFlight.current) return;
@@ -394,10 +398,9 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
                   // let profile settings unwind its own entries.
                   destination.current = publicProfilePath(business);
                   setOpen(false);
-                }}>Перейти в магазин <ArrowUpRight aria-hidden="true" data-icon="inline-end" /></PageActionButton>
-                <p>Действует только в этом магазине. При оплате роллами выберите подарочную карту.</p>
+                }}>Перейти в магазин</PageActionButton>
               </div>
-            </>}
+            </div>}
             {step === "topped-up" && <section ref={actionPanel} tabIndex={-1} aria-label="Баланс после пополнения" className="grid gap-2 outline-none">
               {cardsReady && <><p className="text-muted-foreground">Теперь на карте</p>
                 <p className="wrap-anywhere text-3xl font-semibold tabular-nums">{formatRolls(selected.balance)}</p></>}
@@ -405,14 +408,17 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
             <section hidden={profileCard && step !== "topup"} ref={step === "topup" ? actionPanel : null}
               tabIndex={step === "topup" ? -1 : undefined} className="flex flex-col gap-3 outline-none"
               id="gift-topup-panel" aria-label="Пополнение карты">
-              {!profileCard && <p>На карте: <strong>{formatRolls(selected.balance)}</strong></p>}
               {walletError ? <>
                 <Alert variant="destructive"><AlertDescription>{walletError}</AlertDescription></Alert>
                 <Button type="button" variant="outline" disabled={busy} onClick={loadWallet}>Повторить загрузку кошелька</Button>
               </> : <p>Ваш баланс: {walletReady ? formatRolls(wallet.balance) : "загружается…"}</p>}
               {!profileCard && selected.balance === 0 && <p className="text-muted-foreground">Пополните карту, чтобы подарить её.</p>}
               <form id={topupFormId} className="flex flex-col gap-3" onSubmit={(event) => { event.preventDefault(); if (valid && !locked) run(`/rolls/gift-cards/${selected.id}/topup`, { amount: value }, `Карта пополнена на ${formatRolls(value)}`); }}>
-                <Field><FieldLabel htmlFor="gift-amount">Сколько роллов добавить</FieldLabel><Input id="gift-amount" inputMode="numeric" pattern="[0-9]+" maxLength={10} required value={amount} disabled={locked || !cardsReady || !walletReady} onChange={(event) => setAmount(event.target.value)} aria-invalid={Boolean(amount && !valid)} aria-describedby="gift-amount-hint" /><FieldDescription className="text-xs leading-4" id="gift-amount-hint" aria-live="polite">{amountHint}</FieldDescription></Field>
+                <Field>
+                  <FieldLabel htmlFor="gift-amount">Сколько роллов добавить</FieldLabel>
+                  <Input id="gift-amount" inputMode="numeric" pattern="[0-9]+" maxLength={10} required value={amount} disabled={locked || !cardsReady || !walletReady} onChange={(event) => setAmount(event.target.value)} aria-invalid={Boolean(amount && !valid)} aria-describedby="gift-amount-hint" />
+                  <FieldDescription className="text-(length:--text-caption) leading-4" id="gift-amount-hint" aria-live="polite">{amountHint}</FieldDescription>
+                </Field>
                 {!profileCard && <Button type="submit" variant="outline" className="h-auto min-h-12 whitespace-normal" disabled={!valid || locked}>
                   {valid ? topupLabel : "Пополнить"}
                 </Button>}
@@ -425,7 +431,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
               <Field>
                 <FieldLabel htmlFor="gift-recipient">Кому подарить</FieldLabel>
                 <Input id="gift-recipient" placeholder="Имя или @username" autoComplete="off" maxLength={80} value={search} disabled={locked} aria-describedby="gift-recipient-hint" onChange={(event) => { setSearch(event.target.value); setRecipient(null); }} />
-                <FieldDescription className="text-xs leading-4" id="gift-recipient-hint">
+                <FieldDescription className="text-(length:--text-caption) leading-4" id="gift-recipient-hint">
                   {profileCard ? "Сертификат и весь остаток перейдут получателю в Rollapp." : "Введите имя или @username в Rollapp. Для поиска нужно хотя бы два символа, не считая @. После отправки карта появится в разделе «Подарочные карты» профиля получателя и исчезнет из вашего списка."}
                 </FieldDescription>
               </Field>
@@ -458,7 +464,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
         <Button type="button" onClick={() => setOpen(false)}>Готово</Button>
       </DrawerFooter> : hasFooterAction && <DrawerFooter aria-label="Действия с подарочной картой" onBack={stepBack}
         className={showCertificateActions && !pending && (!step || step === "topped-up") ? "gift-certificate-actions" : undefined}>
-        {pending ? <Button disabled={busy} onClick={recovery.check}>{busy && <Spinner />}
+        {pending ? <Button disabled={busy} onClick={recovery.check} aria-busy={Boolean(busy) || undefined}>
           {busy ? (requestMode === "send" ? "Выполняем…" : "Проверяем…") : "Проверить результат"}
         </Button>
           : showCertificateActions ? step === "topup" ? (
@@ -475,7 +481,7 @@ export function GiftCardManager({ business, user, initialCardId = "", returnFocu
               aria-controls="gift-send-panel" onClick={beginGift}>Подарить</Button>
           </>
             : showGiftAction ? <Button type="button" disabled={!canSendGift} onClick={sendGift}>Подарить карту</Button>
-            : <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")}>{busy && <Spinner />}Выпустить карту</Button>}
+            : <Button disabled={busy || !cardsReady} onClick={() => run("/rolls/gift-cards", { businessId: business.id }, "Карта выпущена. Теперь её можно пополнить.")} aria-busy={Boolean(busy) || undefined}>Выпустить карту</Button>}
       </DrawerFooter>}
     </DrawerContent>
   </Drawer>;
@@ -488,10 +494,9 @@ export function BusinessGiftAction({ business, user, labelled = false }) {
     {labelled ? (user
       ? <PageActionButton type="button" onClick={() => setOpen(true)}>Выпустить и подарить</PageActionButton>
       : <PageActionButton to={loginPath}>Войти и подарить</PageActionButton>
-    ) : <ControlBar className="justify-center" aria-label="Подарочная карта бизнеса">
-      {user ? <Button type="button" variant="outline" size="icon" data-control-icon aria-label={`Выпустить подарочную карту ${business.name}`} title="Подарочная карта" onClick={() => setOpen(true)}><Gift /></Button>
-        : <Link className={buttonVariants({ variant: "outline", size: "icon" })} data-slot="button" data-control-icon to={loginPath} aria-label="Войти и выпустить подарочную карту"><Gift /></Link>}
-    </ControlBar>}
+    ) : user
+      ? <Button type="button" variant="outline" size="icon" data-control-icon aria-label={`Выпустить подарочную карту ${business.name}`} title="Подарочная карта" onClick={() => setOpen(true)}><Gift /></Button>
+      : <Link className={buttonVariants({ variant: "outline", size: "icon" })} data-slot="button" data-control-icon to={loginPath} aria-label="Войти и выпустить подарочную карту"><Gift /></Link>}
     {open && user && <GiftCardManager key={`${user.id}:${business.id}`} business={business} user={user} onClose={() => setOpen(false)} />}
   </>;
 }

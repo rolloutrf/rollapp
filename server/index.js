@@ -63,7 +63,7 @@ import { registerCalendarDeviceRoutes } from "./modules/calendar/calendar-device
 import { registerProfilePublicationRoutes } from "./modules/profile/profile-publications.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./modules/auth/email.js";
 import { sendAccountInviteEmail } from "./modules/auth/email.js";
-import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, lockMembership, membershipHasCapacity } from "./modules/auth/invites.js";
+import { canRegisterInvitedAccount, createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, lockMembership, requireMemberNumberAccount } from "./modules/auth/invites.js";
 import { startMemberTonAnchor } from "./member-ton-anchor.js";
 
 import { externalCatalogItemFromRow } from "./modules/catalog-marketplace/external-catalog.js";
@@ -150,7 +150,7 @@ let profileMoodAvailable = false;
 let diskSyncAvailable = false;
 let diskSyncWorker;
 const wakeDiskSync = () => diskSyncWorker?.wake();
-const moodColumns = () => profileMoodAvailable ? ",u.mood_level,u.mood_public" : "";
+const moodColumns = () => profileMoodAvailable ? ",u.account_type,u.mood_level,u.mood_public" : "";
 const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
 const mcpHttp = createRollappMcpHttp({ query, trustedOrigins: trustedAppOrigins, publicHost: process.env.PUBLIC_HOST });
 let memberAnchor = { kick() {} };
@@ -448,7 +448,7 @@ function cleanUser(row) {
 
 async function cleanAuthenticatedUser(row) {
   if (!row) return null;
-  const moodLevel = profileMoodAvailable ? row.mood_level ?? null : null;
+  const moodLevel = profileMoodAvailable && row.account_type !== "business" ? row.mood_level ?? null : null;
   const profileSlug = await profileAddress(query, row.id);
   const hasCapabilities = ["has_yandex", "can_discover_spheres"]
     .every((property) => Object.prototype.hasOwnProperty.call(row, property));
@@ -1157,8 +1157,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
       [attempt.invite_token_hash, yandexUser.email],
     );
     if (!invite.rowCount) return { kind: "invite-invalid" };
-    const count = await client.query("SELECT COUNT(*) AS count FROM users");
-    if (!membershipHasCapacity(count.rows[0].count)) return { kind: "limit-reached" };
+    if (!await canRegisterInvitedAccount(client, account.accountType)) return { kind: "limit-reached" };
 
     await lockProfileUsernames(client, isMemoryDatabase);
     const userId = randomUUID();
@@ -1853,8 +1852,6 @@ app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req,
   const invite = createInvite({ email: parsed.data.email, creatorId: req.user.id });
   const created = await transaction(async client => {
     await lockMembership(client, isMemoryDatabase);
-    const count = await client.query("SELECT COUNT(*) AS count FROM users");
-    if (!membershipHasCapacity(count.rows[0].count)) return { error: "Лимит 30 000 аккаунтов достигнут", status: 409 };
     if ((await client.query("SELECT 1 FROM users WHERE email=$1", [invite.email])).rowCount) return { error: "Аккаунт с таким email уже есть", status: 409 };
     const recent = await client.query(
       `SELECT 1 FROM account_invites WHERE created_by=$1 AND recipient_email=$2
@@ -1882,7 +1879,7 @@ app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req,
   res.status(201).json({ id: invite.id, email: invite.email, expiresAt: invite.expiresAt });
 }));
 
-app.post("/api/me/member-number/draw", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
+app.post("/api/me/member-number/draw", requireAuth, requireMemberNumberAccount, authRateLimit, asyncRoute(async (req, res) => {
   const drawn = await transaction(async client => {
     await lockMembership(client, isMemoryDatabase);
     const member = await client.query("SELECT member_number FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
@@ -1909,7 +1906,7 @@ app.post("/api/me/member-number/draw", requireAuth, authRateLimit, asyncRoute(as
   res.set("Cache-Control", "no-store").json(drawn);
 }));
 
-app.get("/api/me/member-number", requireAuth, asyncRoute(async (req, res) => {
+app.get("/api/me/member-number", requireAuth, requireMemberNumberAccount, asyncRoute(async (req, res) => {
   const found = await query("SELECT member_number,nonce,receipt_hash,chain,chain_transaction,chain_status FROM membership_receipts WHERE user_id=$1", [req.user.id]);
   const row = found.rows[0];
   res.set("Cache-Control", "no-store").json(row ? {
@@ -2045,12 +2042,12 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
   if (access.isOwner) {
     const [peopleResult, requestResult] = await Promise.all([
       query(
-        `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space
+        `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space,s.section AS grant_section
          FROM sphere_section_shares s
          JOIN users u ON u.id=s.viewer_user_id
-         WHERE s.owner_user_id=$1 AND s.sphere=$2 AND s.section=$3
+         WHERE s.owner_user_id=$1 AND s.sphere=$2 AND (s.section=$3 OR ($2='wishlist' AND s.section='wishlist'))
            AND u.account_type='business'
-         ORDER BY u.name,u.username`,
+         ORDER BY u.name,u.username,s.section`,
         [access.owner.id, sphere, section],
       ),
       query(
@@ -2069,7 +2066,7 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
         [access.owner.id, sphere, section],
       ),
     ]);
-    people = peopleResult.rows.filter((row) => canBusinessAccessSection(row, sphere, section)).map(row => shareUser(row));
+    people = peopleResult.rows.filter((row) => canBusinessAccessSection(row, sphere, section)).map((row) => ({ ...shareUser(row), grantSection: row.grant_section }));
     requests = requestResult.rows.filter((row) => canBusinessAccessSection(row, row.sphere, row.section)).map((row) => ({
       id: row.id,
       ...canonicalSphereSection(row.sphere, row.section),
@@ -2131,7 +2128,7 @@ app.get("/api/business-access/requests", requireAuth, requireBusinessAccount, as
   const rows = result.rows.filter((row) => canBusinessAccessSection(req.user, row.sphere, row.section));
   res.set("Cache-Control", "private, no-store");
   return res.json({
-    shares: rows.filter((row) => row.request_id === null).map(incomingSphereShare),
+    shares: rows.filter((row) => row.request_id === null).map((row) => incomingSphereShare(row)),
     requests: rows.filter((row) => row.request_id !== null).map((row) => ({
       id: row.request_id,
       ...canonicalSphereSection(row.sphere, row.section),

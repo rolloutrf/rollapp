@@ -3,8 +3,17 @@ import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx"
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  AlertTriangle, CalendarDays, CheckCircle2, Clock3, FolderInput, GraduationCap,
-  MoreHorizontal, Pencil, PlayCircle, RotateCcw, Ungroup, X,
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  FolderInput,
+  GraduationCap,
+  MoreHorizontal,
+  Pencil,
+  PlayCircle,
+  Ungroup,
+  X,
 } from "lucide-react";
 import { api, sessionFetch } from "@/modules/runtime/api.js";
 import { CollectionSnippet } from "@/modules/card/collection-snippet.jsx";
@@ -351,7 +360,6 @@ function CourseGroupTile({ group, courses, lists, isDropTarget, onOpen, onRename
             <AlertDialogFooter>
               <AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel>
               <AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={disband}>
-                {busy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}
                 Расформировать
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -460,7 +468,6 @@ function CourseGroupOpen({
             <AlertDialogFooter>
               <AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel>
               <AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={disband}>
-                {busy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}
                 Расформировать
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -724,8 +731,7 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
           </div>
 
           <DrawerFooter>
-            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid}>
-              {saving && <Spinner aria-hidden="true" />}
+            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid} aria-busy={Boolean(saving) || undefined}>
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить курс"}
             </Button>
             <DrawerClose
@@ -995,7 +1001,6 @@ export function Courses() {
           <AlertDescription>{requestState.error.message}</AlertDescription>
           <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
-              <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
           </div>

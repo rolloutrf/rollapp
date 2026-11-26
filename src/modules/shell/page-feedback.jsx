@@ -5,9 +5,9 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Link } from "react-router-dom";
 import { APP_HOME } from "./home-path.jsx";
 
-export function Button({ children, className = "", variant = "primary", icon: Icon, loading, ...props }) {
+export function Button({ children, className = "", variant = "primary", loading, ...props }) {
   const shadcnVariant = { primary: "default", soft: "secondary", paper: "secondary", reserved: "secondary" }[variant] || variant;
-  return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner data-icon="inline-start" /> : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}{children}</ShadcnButton>;
+  return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{children}</ShadcnButton>;
 }
 
 // Product composition of the shadcn Empty primitive. Standard size for a

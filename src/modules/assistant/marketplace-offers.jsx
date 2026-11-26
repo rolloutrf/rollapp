@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ExternalLink, LoaderCircle } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -195,7 +195,6 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
   const actionText = compactAction && !loading && !retrySeconds ? (aiOffers.length ? "Обновить" : "Найти лучшие") : compactAction && loading ? "Ищем" : actionLabel;
   const accessibleActionLabel = compactAction && aiConfigured === false && !loading && !retrySeconds ? `${actionText} предложения в магазинах` : actionLabel;
   const refreshAction = <Button className="w-full min-w-0 flex-1" type="button" size="sm" variant="secondary" disabled={loading || retrySeconds > 0} aria-label={accessibleActionLabel} aria-busy={loading || undefined} onClick={refresh}>
-    {loading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
     {actionText}
   </Button>;
 

@@ -7,6 +7,7 @@ import { MobileFormScreen } from "@/components/mobile-form-pages";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { dateFromKey } from "../../../shared/modules/calendar/planning-calendar.js";
 import { isPlanningDate, localDateKey } from "../../../shared/modules/planning/planning.js";
 
@@ -38,7 +39,7 @@ const calendarClassNames = {
   dropdowns: "flex w-full min-w-0 items-center gap-2",
 };
 
-export function PlanningDatePicker({ id, value, onChange, label = "Перейти к дате", clearable = false, disabled = false, min, max, "aria-invalid": ariaInvalid, className = "", children }) {
+export function PlanningDatePicker({ id, value, onChange, label = "Перейти к дате", clearable = false, disabled = false, min, max, "aria-invalid": ariaInvalid, appearance = "field", className, children }) {
   const accessibleId = useId();
   const [open, setOpen] = useState(false);
   const pendingSelection = useRef(null);
@@ -61,10 +62,31 @@ export function PlanningDatePicker({ id, value, onChange, label = "Перейт�
       <Calendar mode="single" hideNavigation required selected={date} defaultMonth={date} disabled={disabled ? true : [...(minimum ? [{ before: dateFromKey(minimum) }] : []), ...(maximum ? [{ after: dateFromKey(maximum) }] : [])]} onSelect={(next) => { if (next) select(localDateKey(next)); }} locale={ru} weekStartsOn={1} captionLayout="dropdown" components={calendarComponents} labels={calendarLabels} classNames={mobile ? { ...calendarClassNames, root: "w-full" } : calendarClassNames} startMonth={new Date(1900, 0, 1)} endMonth={maximum ? dateFromKey(maximum) : new Date(2100, 11, 1)} className={mobile ? "planning-date-page__calendar" : "[--cell-size:2.5rem] max-[380px]:[--cell-size:2.25rem]"} />
       {clearable && value && <div className="p-2"><Button type="button" variant="ghost" className="w-full justify-center" onClick={() => select("")}>Очистить дату</Button></div>}
     </>;
-  const button = <Button id={id} type="button" variant="outline" disabled={disabled} aria-invalid={ariaInvalid} className={`rounded-full ${className}`} aria-labelledby={`${accessibleId}-label ${accessibleId}-value`} aria-description={accessibleLabel} />;
-  const buttonContent = <><span id={`${accessibleId}-label`} className="sr-only">{label}: </span><span id={`${accessibleId}-value`} className="contents">{children ?? <><span>{date ? formatDate(date) : "Выберите дату"}</span><CalendarDays aria-hidden="true" /></>}</span></>;
+  const navigation = appearance === "navigation";
+  const triggerProps = {
+    id,
+    type: "button",
+    variant: navigation ? "outline" : "ghost",
+    disabled,
+    "data-date-field": navigation ? undefined : "",
+    "aria-invalid": ariaInvalid,
+    "aria-labelledby": `${accessibleId}-label ${accessibleId}-value`,
+    "aria-description": accessibleLabel,
+    className: cn(navigation ? "rounded-full" : [
+      "w-full min-w-0 justify-between border-input bg-transparent px-4 py-1 text-start font-normal",
+      "hover:bg-transparent aria-expanded:bg-transparent disabled:bg-input/50",
+      "dark:bg-input/30 dark:hover:bg-input/30 dark:aria-expanded:bg-input/30 dark:disabled:bg-input/80",
+    ], className),
+  };
+  const buttonContent = <>
+    <span id={`${accessibleId}-label`} className="sr-only">{label}: </span>
+    <span id={`${accessibleId}-value`} className="contents">{children ?? <>
+      <span className={!date && !navigation ? "text-muted-foreground" : undefined}>{date ? formatDate(date) : "Выберите дату"}</span>
+      <CalendarDays aria-hidden="true" />
+    </>}</span>
+  </>;
   if (mobile) return <>
-    <Button id={id} type="button" variant="outline" disabled={disabled} aria-invalid={ariaInvalid} className={`rounded-full ${className}`} aria-labelledby={`${accessibleId}-label ${accessibleId}-value`} aria-description={accessibleLabel} onClick={() => { pendingSelection.current = null; setOpen(true); }}>{buttonContent}</Button>
+    <Button {...triggerProps} onClick={() => { pendingSelection.current = null; setOpen(true); }}>{buttonContent}</Button>
     <MobileFormScreen open={open} onOpenChange={setOpen} onAfterClose={() => {
       const key = pendingSelection.current;
       pendingSelection.current = null;
@@ -77,7 +99,7 @@ export function PlanningDatePicker({ id, value, onChange, label = "Перейт�
     </MobileFormScreen>
   </>;
   return <Popover open={open} onOpenChange={setOpen}>
-    <PopoverTrigger render={button}>{buttonContent}</PopoverTrigger>
+    <PopoverTrigger render={<Button {...triggerProps} />}>{buttonContent}</PopoverTrigger>
     <PopoverContent className="not-typeset rollapp-body max-h-(--available-height) w-auto gap-0 overflow-y-auto p-0" align="start">{content}</PopoverContent>
   </Popover>;
 }

@@ -1,5 +1,4 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Upload } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,10 +126,10 @@ export function InlineImagePicker({ editor, onVisibilityChange }) {
       return request.existing ? sourceInput.current : uploadButton.current;
     }} finalFocus={() => { restoreFocus(); return false; }}>
       <form className="inline-editor__image-form" onSubmit={apply} onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); close(); } }}>
-        <Button ref={uploadButton} type="button" variant="secondary" disabled={busy} onClick={() => fileInput.current?.click()}><Upload data-icon="inline-start" className="size-5" aria-hidden="true" />{busy ? "Загружаем…" : "Загрузить изображение"}</Button>
+        <Button ref={uploadButton} type="button" variant="secondary" disabled={busy} onClick={() => fileInput.current?.click()}>{busy ? "Загружаем…" : "Загрузить изображение"}</Button>
         <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Файл изображения" tabIndex={-1} className="sr-only" onChange={event => upload(event.target.files?.[0])} />
         <Field><FieldLabel htmlFor={`${fieldId}-source`}>Адрес изображения</FieldLabel><Input id={`${fieldId}-source`} ref={sourceInput} value={source} disabled={busy} placeholder="https://…" onChange={event => setSource(event.target.value)} /></Field>
-        <Button type="button" variant="ghost" className="justify-start" aria-expanded={advanced} disabled={busy} onClick={() => setAdvanced(value => !value)}><ChevronDown data-icon="inline-start" className={advanced ? "size-5 rotate-180" : "size-5"} aria-hidden="true" />Описание и размер</Button>
+        <Button type="button" variant="ghost" className="justify-start" aria-expanded={advanced} disabled={busy} onClick={() => setAdvanced(value => !value)}>Описание и размер</Button>
         {advanced && <>
         <Field><FieldLabel htmlFor={`${fieldId}-alt`}>Описание изображения</FieldLabel><Input id={`${fieldId}-alt`} value={alt} disabled={busy} onChange={event => setAlt(event.target.value)} /></Field>
         <Field><FieldLabel htmlFor={`${fieldId}-width`}>Ширина в пикселях</FieldLabel><Input id={`${fieldId}-width`} inputMode="numeric" value={width} disabled={busy} placeholder="По размеру изображения" onChange={event => setWidth(event.target.value)} /></Field>

@@ -1,4 +1,4 @@
-import { Copy, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Palette, Bold, Italic, Columns3, Rows3, Table2, Merge, Split, Eraser, Trash2, Plus } from "lucide-react";
+import { Copy, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Bold, Italic, Columns3, Rows3, Table2, Merge, Split, Eraser, Trash2, Plus } from "lucide-react";
 import { CellSelection } from "@tiptap/pm/tables";
 import { closeHistory } from "@tiptap/pm/history";
 import { Button } from "@/components/ui/button";
@@ -27,10 +27,10 @@ export function InlineTableActions({ editor, position, onDone, onColors, onCellC
       }}><Icon aria-hidden="true" /></Button>)}
       <InlineStyleButtons editor={editor} onApply={onDone} onColors={onColors} />
     </div>}
-    <Button type="button" variant="ghost" className="w-full justify-start" disabled={!coloredBlockPositions(editor.state,{cells:true}).length} onClick={onCellColors}><Palette aria-hidden="true"/>Цвет ячеек</Button>
+    <Button type="button" variant="ghost" className="w-full justify-start" disabled={!coloredBlockPositions(editor.state,{cells:true}).length} onClick={onCellColors}>Цвет ячеек</Button>
     {items.map(([action, label, Icon]) => <Button key={action} type="button" variant={action.startsWith("delete") || action === "clear" ? "destructive" : "ghost"} className="w-full justify-start"
       title={action === "merge" ? "Сохранится содержимое верхней левой ячейки. Отмена вернёт остальные ячейки." : undefined}
       aria-pressed={action.startsWith("header") ? headerEnabled(editor.state, position, action === "headerRow" ? "row" : "column") : undefined}
-      disabled={!applyTableAction(editor, position, action, true)} onClick={() => { applyTableAction(editor, position, action); onDone(); }}><Icon aria-hidden="true" />{label}</Button>)}
+      disabled={!applyTableAction(editor, position, action, true)} onClick={() => { applyTableAction(editor, position, action); onDone(); }}>{label}</Button>)}
   </div>;
 }

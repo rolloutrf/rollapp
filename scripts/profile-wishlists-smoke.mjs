@@ -24,17 +24,14 @@ async function assertProfileHeading(page, { owner, name = 'Профиль', sele
   const renderedGeometry = await page.waitForFunction(({ selector, name }) => {
     const hero = document.querySelector(selector);
     const link = hero?.querySelector('a[href="/app/friends"]');
-    const glyph = link?.querySelector('svg[aria-hidden="true"]');
     const nav = link?.parentElement;
     const heading = nav?.previousElementSibling;
     const id = nav?.querySelector(':scope > span');
     const label = link?.querySelector('span');
-    if (heading?.textContent.trim() !== name || !glyph?.isConnected || !id || !label) return false;
+    if (heading?.textContent.trim() !== name || !id || !label) return false;
     const linkBox = link.getBoundingClientRect();
     const rowBox = nav.getBoundingClientRect();
     const nameBox = heading.getBoundingClientRect();
-    const icon = glyph.getBoundingClientRect();
-    if (!icon.width || !icon.height) return false;
     const textStyle = element => {
       const style = getComputedStyle(element);
       return [style.fontSize, style.lineHeight, style.fontWeight, style.color];
@@ -45,7 +42,8 @@ async function assertProfileHeading(page, { owner, name = 'Профиль', sele
       centerOffset: rowBox.left + rowBox.width / 2 - nameBox.left - nameBox.width / 2,
       sameStyle: JSON.stringify(textStyle(id)) === JSON.stringify(textStyle(label)),
       sameLine: Math.abs(id.getBoundingClientRect().top - label.getBoundingClientRect().top) < 1,
-      icon: [icon.width, icon.height],
+      height: linkBox.height,
+      icons: link.querySelectorAll('svg').length,
     };
   }, { selector, name });
   const geometry = await renderedGeometry.jsonValue();
@@ -53,7 +51,8 @@ async function assertProfileHeading(page, { owner, name = 'Профиль', sele
   assert.equal(geometry.nameTag, 'H1');
   assert(Math.abs(geometry.gap) <= 1, 'Friends should sit directly below the profile name');
   assert(Math.abs(geometry.centerOffset) <= 1, 'Friends and the profile name should share a center');
-  assert.deepEqual(geometry.icon, [20, 20]);
+  assert.equal(geometry.height, 48);
+  assert.equal(geometry.icons, 0);
   assert(geometry.sameStyle && geometry.sameLine);
 }
 

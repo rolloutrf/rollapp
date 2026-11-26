@@ -210,6 +210,10 @@
     }
     .global-app-chrome[data-mobile-navigation] { grid-template-columns: 1fr auto; }
     .global-app-chrome[data-mobile-navigation] .global-app-chrome__actions { grid-column: 2; }
+    .global-app-chrome[data-business-category] {
+      grid-template-columns: minmax(var(--layout-control-size), 1fr) minmax(0, auto) minmax(var(--layout-control-size), 1fr);
+    }
+    .global-app-chrome[data-business-category] .global-app-chrome__actions { grid-column: 3; }
     .mobile-app-navigation {
       position: fixed;
       z-index: 45;

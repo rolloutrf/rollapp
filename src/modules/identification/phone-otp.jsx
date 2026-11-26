@@ -4,7 +4,6 @@ import { Phone } from "lucide-react";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 
 const isRussianMobilePhone = (value = "") => {
   let digits = String(value).replace(/\D/g, "");
@@ -176,7 +175,7 @@ export function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "П�
         />
         {flow.error && <FieldError id={phoneErrorId} className="phone-otp__error">{flow.error}</FieldError>}
       </Field>
-      <ShadcnButton type="submit" className="auth-submit" disabled={flow.loading} aria-busy={flow.loading || undefined}>{flow.loading && <Spinner data-icon="inline-start" />}{requestLabel}</ShadcnButton>
+      <ShadcnButton type="submit" className="auth-submit" disabled={flow.loading} aria-busy={flow.loading || undefined}>{requestLabel}</ShadcnButton>
     </>;
   }
   return <>
@@ -206,7 +205,7 @@ export function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "П�
       />
       {flow.error && <FieldError id={phoneErrorId} className="phone-otp__error">{flow.error}</FieldError>}
     </Field>
-    <ShadcnButton type="submit" className="auth-submit" disabled={flow.loading} aria-busy={flow.loading || undefined}>{flow.loading && <Spinner data-icon="inline-start" />}{verifyLabel}</ShadcnButton>
+    <ShadcnButton type="submit" className="auth-submit" disabled={flow.loading} aria-busy={flow.loading || undefined}>{verifyLabel}</ShadcnButton>
     <ShadcnButton variant="link" className="phone-otp__resend" type="button" disabled={flow.loading || !readyToResend} onClick={flow.requestCode}>
       {readyToResend ? "Отправить код снова" : `Отправить снова через ${formatCountdown(flow.retrySeconds)}`}
     </ShadcnButton>

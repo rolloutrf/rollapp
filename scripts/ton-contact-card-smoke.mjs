@@ -91,7 +91,14 @@ try {
   await dialog.getByRole('button',{name:'Test wallet',exact:true}).click();await sign.waitFor();assert(await sign.isEnabled());
   assert.equal(await download.count(),0,'Stale signing result survived wallet change');
   await dialog.getByRole('button',{name:'Закрыть визитку',exact:true}).click();await dialog.waitFor({state:'detached'});
-  await page.goto(origin+'/__ton-card?guest');await page.getByRole('button',{name:'Визитка',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Подпись TON Testnet',exact:true}).count(),0);
+  await page.goto(origin+'/__ton-card?guest');
+  await page.getByRole('button',{name:'Визитка',exact:true}).click();
+  assert.equal(await dialog.getByRole('button',{name:'Подпись TON Testnet',exact:true}).count(),0);
+  const address = dialog.getByRole('link',{name:origin+'/тестовый-профиль',exact:true});
+  await address.waitFor();
+  assert.equal(await address.getAttribute('href'),new URL('/тестовый-профиль',origin).href);
+  await dialog.getByRole('img',{name:/QR-код профиля/}).waitFor();
+  assert(await dialog.locator('[data-contact-card-body]').evaluate(el=>el.scrollWidth<=el.clientWidth));
   assert.deepEqual(errors,[]);await page.close();console.log(`PASS ${width}×${height}: real signature routes, mainnet rejection, reject/retry/tamper, download, file verification, signed update chain, explicit Testnet transaction, unconfirmed RPC, guest access, geometry`);
  }
 } finally {await browser.close();await server.close();}

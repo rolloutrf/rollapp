@@ -78,7 +78,6 @@
     "test:marketplace-settlements:production": "ROLLAPP_TEST_MARKETPLACE_SETTLEMENTS=1 node --test server/marketplace-settlements.integration.test.js",
     "test:orders": "node scripts/orders-drawer-smoke.mjs",
     "rolls:grant": "node scripts/grant-welcome-rolls.mjs",
-    "test:roll-activity:production": "ROLLAPP_TEST_ROLL_ACTIVITY=1 node --test server/roll-activity.integration.test.js",
     "test:roll-receipts:production": "ROLLAPP_TEST_ROLL_RECEIPTS=1 node --test server/roll-receipts.integration.test.js",
     "test:roll-reconciliation:production": "ROLLAPP_TEST_ROLL_RECONCILIATION=1 node --test server/roll-reconciliation.integration.test.js",
     "test:rolls:production": "PG_POOL_SIZE=2 ROLLAPP_TEST_ROLLS=1 node --test server/rolls.integration.test.js",
@@ -190,6 +189,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@babel/parser": "7.29.12",
     "@modelcontextprotocol/client": "^2.4.0",
     "@storybook/addon-docs": "10.6.7",
     "@storybook/react-vite": "10.6.7",

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Copy, Download, Share2, Signature, X } from "lucide-react";
-import { publicContactCard, contactCardDownload } from "../../../shared/modules/contacts/contact-card.js";
+import { X } from "lucide-react";
+import { publicContactCard, contactCardDownload, contactCardDisplayUrl } from "../../../shared/modules/contacts/contact-card.js";
 import { ControlBar } from "@/components/control-bar";
 import { DrawerFooter } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
@@ -53,7 +53,6 @@ function ContactCardDialog({ profile, onClose, canSign }) {
 // Wallet code is loaded only after the owner explicitly opens signing.
 export function ContactCardContent({ profile, canSign = false }) {
   const card = publicContactCard(profile, window.location.origin);
-  const displayUrl = card.url.replace(/^(https?:\/\/)xn--80avakiab\.xn--p1ai(?=[:/])/, "$1роллапп.рф");
   const [qr, setQr] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const [message, setMessage] = useState("");
@@ -95,15 +94,15 @@ export function ContactCardContent({ profile, canSign = false }) {
                 : <span className="text-black" role="status"><Spinner /><span className="sr-only">Создаём QR-код</span></span>}
             </div>
           )}
-          <a className="max-w-full break-all underline underline-offset-4" href={card.url}>{displayUrl}</a>
+          <a className="max-w-full wrap-anywhere underline underline-offset-4" href={card.url}>{contactCardDisplayUrl(card.url)}</a>
         </div>
         <p className="text-muted-foreground">В vCard и обычном JSON — только имя, username и ссылка на профиль. Заметки и данные входа остаются в Rollapp.</p>
         <div className="flex flex-col gap-2">
           <ControlBar className="flex flex-col gap-2" aria-label="Обмен визиткой">
-            <Button type="button" variant="outline" onClick={() => run(async () => { await navigator.clipboard.writeText(card.url); setMessage("Ссылка на профиль скопирована"); })}><Copy aria-hidden="true" />Скопировать ссылку</Button>
-            <Button type="button" variant="outline" disabled={sharing} onClick={share}><Share2 aria-hidden="true" />Поделиться</Button>
-            <Button type="button" variant="outline" onClick={() => run(() => downloadCard(card, "json"))}><Download aria-hidden="true" />Скачать JSON</Button>
-            {canSign && !signingOpen && <Button type="button" variant="outline" onClick={() => { setPrevious(null); setSigningOpen(true); }}><Signature aria-hidden="true" />Подпись TON Testnet</Button>}
+            <Button type="button" variant="outline" onClick={() => run(async () => { await navigator.clipboard.writeText(card.url); setMessage("Ссылка на профиль скопирована"); })}>Скопировать ссылку</Button>
+            <Button type="button" variant="outline" disabled={sharing} onClick={share}>Поделиться</Button>
+            <Button type="button" variant="outline" onClick={() => run(() => downloadCard(card, "json"))}>Скачать JSON</Button>
+            {canSign && !signingOpen && <Button type="button" variant="outline" onClick={() => { setPrevious(null); setSigningOpen(true); }}>Подпись TON Testnet</Button>}
           </ControlBar>
           {canSign && signingOpen && <Suspense fallback={<p role="status">Загружаем подключение TON…</p>}><TonCardSigner key={`${card.username}:${card.name}`} profile={card} previous={previous} /></Suspense>}
           <SignedCardVerifier key={`${card.username}:${card.name}`} profile={card} onUpdate={canSign ? (bundle) => { setPrevious(bundle); setSigningOpen(true); } : undefined} />
@@ -112,7 +111,7 @@ export function ContactCardContent({ profile, canSign = false }) {
         {error && <p role="alert">{error}</p>}
       </div>
       <DrawerFooter aria-label="Действия с визиткой">
-        <Button type="button" onClick={() => run(() => downloadCard(card, "vcard"))}><Download aria-hidden="true" />Скачать vCard</Button>
+        <Button type="button" onClick={() => run(() => downloadCard(card, "vcard"))}>Скачать vCard</Button>
       </DrawerFooter>
   </>;
 }

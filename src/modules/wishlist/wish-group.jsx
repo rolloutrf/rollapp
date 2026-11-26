@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { wishCardImageSources } from "./wish-preview.jsx";
 import { WishlistSnippetImage } from "../card/wishlist-snippet.jsx";
 import { GroupDialog } from "@/components/group-dialog";
@@ -117,7 +116,7 @@ export function WishGroupTile({
   {disbandOpen && <AlertDialog open={disbandOpen} onOpenChange={(open) => { if (!busy) setDisbandOpen(open); }}>
     <AlertDialogContent>
       <AlertDialogHeader><AlertDialogTitle>Расформировать группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Желания останутся в списке и снова будут показаны отдельно.{group.space === "products" && " Сбор закроется, а внесённые роллы останутся в кошельке владельца."}</AlertDialogDescription></AlertDialogHeader>
-      <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={disband}>{busy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}Расформировать</AlertDialogAction></AlertDialogFooter>
+      <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={disband}>Расформировать</AlertDialogAction></AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>}
   </>;
@@ -180,7 +179,7 @@ export function WishGroupDialog({ group, count, moveTargets, onRename, onMove, o
     {disbandOpen && <AlertDialog open onOpenChange={(open) => { if (!busy) setDisbandOpen(open); }}>
       <AlertDialogContent>
         <AlertDialogHeader><AlertDialogTitle>Расформировать группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Желания останутся в списке и снова будут показаны отдельно.{group.space === "products" && " Сбор закроется, а внесённые роллы останутся в кошельке владельца."}</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={disband}>{busy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}Расформировать</AlertDialogAction></AlertDialogFooter>
+        <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={disband}>Расформировать</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>}
   </GroupDialog>;

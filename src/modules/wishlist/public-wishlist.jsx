@@ -20,17 +20,12 @@ import { sharePageUrl } from "../../applications/location.js";
 import { AddFab } from "@/components/add-fab";
 import { WishlistBusinessManager, WishlistBusinessListing } from "@/modules/wishlist/wishlist-business.jsx";
 import { canManageWishlistSpace } from "../../../shared/modules/wishlist/wishlist-business.js";
-import { ContactCardButton } from "@/modules/contacts/contact-card-dialog.jsx";
-import { PageActionButton } from "@/components/page-action-button";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { Gift, Heart, ListPlus, LoaderCircle } from "lucide-react";
 import { api } from "../runtime/api.js";
-import { ControlBar } from "@/components/control-bar";
-import { BusinessGiftAction, BusinessGiftCertificates } from "@/modules/loyalty/gift-cards.jsx";
-import { ProfilePublicationLinks } from "@/modules/profile/profile-publications.jsx";
-import { cn } from "@/lib/utils";
+import { BusinessGiftCertificates } from "@/modules/loyalty/gift-cards.jsx";
 import { BusinessMarketplacePage } from "@/modules/catalog-marketplace/business-marketplace-page.jsx";
-import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { WishListNavigation } from "@/modules/categories/wish-list-navigation.jsx";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { filterWishesWithoutList } from "./wish-lists.js";
@@ -50,14 +45,13 @@ import { SPACE_IDS, listSpace, wishBelongsToSpace, wishSpaceId } from "../catego
 import { useAsync } from "../shell/use-async.jsx";
 import { useSession } from "../auth/session.jsx";
 import { useProfileEditor } from "../profile/profile-editor.jsx";
-import { ProfilePortrait } from "../profile/profile-portrait.jsx";
 import { useGlobalShareHandler } from "../shell/global-share.jsx";
 import { EmptyState, LoadingScreen } from "../shell/page-feedback.jsx";
-import { AppFriendsLink } from "../social/friends-link.jsx";
 import { AppShell } from "../shell/app-shell.jsx";
 import { WishDetailsModal } from "../card/wish-details.jsx";
 import { ListModal, WishModal } from "./wish-editor.jsx";
 import { ProfilePublicationsPage } from "../profile/public-pages.jsx";
+import { PublicProfileHero } from "../profile/public-profile-hero.jsx";
 
 export function SharedWishes({ wishes, profile, onOpen, onChanged }) {
   const titleId = useId();
@@ -111,12 +105,13 @@ export function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = f
 }
 
 export function PublicProfile({ shared = false }) {
+  const embedded = Boolean(useOutletContext()?.businessProfile);
   const params = useParams();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: sessionLoading } = useSession();
-  const { openProfileEditor, wishlistVersion } = useProfileEditor();
+  const { wishlistVersion } = useProfileEditor();
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
   const { setCollection } = useContext(CollectionNavigationContext);
@@ -168,21 +163,23 @@ export function PublicProfile({ shared = false }) {
   }, [canonicalProfileAddress, data?.requestEndpoint, endpoint, loading, shared, params.username, location, navigate]);
 
   const renderCollectionState = ({ title, text, returnPath = APP_HOME, returnLabel = "В приложение", friendsContext = !shared }) => {
+    const state = <div className="not-found rollapp-body" role="status">
+      <Gift aria-hidden="true" />
+      {embedded ? <h2>{title}</h2> : <h1>{title}</h1>}
+      <p>{text}</p>
+      <Link to={returnPath} className={buttonVariants()}>{returnLabel}</Link>
+    </div>;
+    if (embedded) return state;
     const page = <div className="app-page app-page--collection wishes-page public-collection-page" data-public-collection-state>
       <div className="app-shell-chrome-spacer" aria-hidden="true" />
-      <div className="not-found rollapp-body" role="status">
-        <Gift aria-hidden="true" />
-        <h1>{title}</h1>
-        <p>{text}</p>
-        <Link to={returnPath} className={buttonVariants()}>{returnLabel}</Link>
-      </div>
+      {state}
     </div>;
     if (user) return <AppShell friendsContext={friendsContext} collectionChrome>{page}</AppShell>;
     return <div className="app-layout app-layout--dark public-collection-shell"><main className="app-main app-main--with-profile app-main--wishes">{page}</main></div>;
   };
 
-  if (loading || sessionLoading || (data && (data.requestEndpoint !== endpoint || data.viewerId !== viewerId))) return <LoadingScreen />;
-  if (error && !data && publication) return <ProfilePublicationsPage key={publication} section={publication} username={params.username} user={user} />;
+  if (loading || sessionLoading || (data && (data.requestEndpoint !== endpoint || data.viewerId !== viewerId))) return <LoadingScreen compact={embedded} />;
+  if (error && !data && publication && !embedded) return <ProfilePublicationsPage key={publication} section={publication} username={params.username} user={user} />;
   if (error && !data) return renderCollectionState({ title: "Такой список не нашёлся", text: error.message });
 
   const lists = shared ? [data.list] : data.lists;
@@ -342,60 +339,12 @@ export function PublicProfile({ shared = false }) {
   const sellerSpace = activeSpace;
   const managesStorefront = sellerProfile && data.isOwner && user?.id === data.profile.id
     && canManageWishlistSpace(user, sellerSpace);
-  const moodLevel = (data.isOwner && data.profile.id === user?.id ? user.moodLevel ?? user.publicMood : data.profile.publicMood) ?? null;
-  const identity = (
-    <div className="wishes-page__identity friend-profile-page__identity">
-      {data.isOwner ? <ShadcnButton
-        type="button"
-        variant="ghost"
-        className={cn("h-auto min-h-0 rounded-full p-0", !businessProfile && "persistent-profile-hero__avatar-button hover:bg-transparent dark:hover:bg-transparent active:translate-y-0")}
-        aria-label={`Редактировать профиль ${data.profile.name}`}
-        title={businessProfile ? undefined : "Редактировать профиль"}
-        onClick={openProfileEditor}
-      >
-        <ProfilePortrait user={data.profile} />
-      </ShadcnButton> : <ProfilePortrait user={data.profile} />}
-      {businessProfile && <BusinessGiftAction business={data.profile} user={user} />}
-      <div className="wishes-page__hero-copy">
-        <h1 id="public-profile-name">{data.profile.name}</h1>
-        {data.isOwner && <AppFriendsLink memberNumber={data.profile.memberNumber} />}
-        {businessProfile && <span className="text-muted-foreground">Бизнес-аккаунт</span>}
-        {businessProfile && data.profile.bio?.trim() && (
-          <div className="typeset typeset-rollapp max-w-full">
-            <p className="wrap-anywhere whitespace-pre-wrap text-muted-foreground">{data.profile.bio}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const moodLevel = data.profile.accountType === "business" ? null
+    : (data.isOwner && data.profile.id === user?.id ? user.moodLevel ?? user.publicMood : data.profile.publicMood) ?? null;
   if (isMobile && selectedWish && !editingWish) {
     return <WishDetailsModal screen wish={selectedWish} owner={data.isOwner && !selectedWish.sharedBy} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />;
   }
-  const collectionPage = <div className={`app-page app-page--collection wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
-    <div className="app-shell-chrome-spacer" aria-hidden="true" />
-
-    <section className={`wishes-page__hero public-collection-page__hero ${profileVisitor ? "friend-profile-page__hero" : ""}`} data-friend-profile={profileVisitor && !shared ? "" : undefined} aria-labelledby="public-profile-name">
-      {identity}
-      {relationshipBlock}
-      <ControlBar className={`page-actions wishes-page__hero-actions ${!shared ? "horizontal-action-scroller" : ""} ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={businessStorefront ? "Действия с бизнес-профилем" : data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
-        {businessStorefront && data.isOwner ? <>
-          <PageActionButton variant="outline" to="/app/business/access">Клиенты</PageActionButton>
-        </> : ownerCollection ? null : data.isOwner && shared
-          ? <PageActionButton onClick={() => navigate(publicListPath(data.profile, data.list.id))}>Открыть мой список</PageActionButton>
-          : <PageActionButton
-            variant={data.isFollowing ? "secondary" : "default"}
-            className="min-w-[180px]"
-            type="button"
-            aria-pressed={data.isFollowing}
-            onClick={follow}
-          >{data.isFollowing ? "Отписаться" : "Подписаться"}</PageActionButton>}
-        <ContactCardButton key={data.profile.username} profile={data.profile} canSign={data.isOwner} />
-        {!shared && <ProfilePublicationLinks activeSection={publication}
-          toSection={section => `${publicPublicationPath(data.profile, section)}?${new URLSearchParams({ tab: activeSpace })}`}
-          state={{ publicationListId: routeSelectedList?.id }} />}
-      </ControlBar>
-    </section>
-
+  const collectionContent = <>
     {businessStorefront && !publication && <div className="page-stack">
       <BusinessGiftCertificates business={data.profile} user={user} />
       <section className="page-stack rollapp-body" aria-label="Товары и предложения бизнеса">
@@ -425,7 +374,7 @@ export function PublicProfile({ shared = false }) {
     />}
 
     {publication && <ProfilePublicationsPage key={`${data.profile.username}:${user?.id || ""}:${publication}`}
-      section={publication} username={data.profile.username} user={user} returnTo={currentCollectionPath} />}
+      section={publication} username={data.profile.username} user={user} returnTo={currentCollectionPath} showIntro={!embedded} />}
     {!publication && !businessStorefront && (wishes.length
       ? <><PublicWishGrid
         key={`${endpoint}:${activeSpace}:${selectedValue}`}
@@ -457,6 +406,19 @@ export function PublicProfile({ shared = false }) {
     {editingWish && <WishModal wish={editingWish} space={activeSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}
     {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} space={activeSpace} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={deleteProfileList} returnFocusRef={listModal.id ? listSettingsTriggerRef : undefined} />}
     {wishModalOpen && <WishModal space={wishModalSpace} initialListId={selectedList?.id} onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}
+  </>;
+  if (embedded) return collectionContent;
+
+  const collectionPage = <div className={`app-page app-page--collection wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
+    <div className="app-shell-chrome-spacer" aria-hidden="true" />
+    <PublicProfileHero
+      profile={data.profile} user={user} isOwner={data.isOwner} shared={shared}
+      businessStorefront={businessStorefront} activeSpace={activeSpace}
+      publication={publication} publicationListId={routeSelectedList?.id} relationship={relationshipBlock}
+      ownListPath={data.isOwner && shared ? publicListPath(data.profile, data.list.id) : undefined}
+      onFollow={profileVisitor ? follow : undefined} isFollowing={data.isFollowing}
+    />
+    {collectionContent}
   </div>;
 
   if (user) return <AppShell friendsContext={!data.isOwner && !shared} collectionChrome>{collectionPage}</AppShell>;

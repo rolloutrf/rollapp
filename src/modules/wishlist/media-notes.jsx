@@ -122,7 +122,7 @@ export function MediaNotesPanel({ wish }) {
           : "Личный конспект";
 
   return <section className="mx-auto w-full max-w-(--layout-compact-width) overflow-hidden rounded-2xl border bg-card" aria-label="Конспект медиа-айтема">
-    <ShadcnButton type="button" variant="ghost" className="h-auto min-h-16 w-full justify-start gap-3 rounded-none px-4 py-3 text-left" aria-expanded={open} onClick={toggleOpen}>
+    <ShadcnButton data-content-control="" type="button" variant="ghost" className="h-auto min-h-16 w-full justify-start gap-3 rounded-none px-4 py-3 text-left" aria-expanded={open} onClick={toggleOpen}>
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground"><NotebookText className="size-5" /></span>
       <span className="min-w-0 flex-1">
         <strong className="block text-base font-semibold">Конспект</strong>
@@ -152,7 +152,7 @@ export function MediaNotesPanel({ wish }) {
         </label>
         <div className="flex items-center justify-between gap-3">
           <small className="text-muted-foreground">Конспект виден только вам</small>
-          <ShadcnButton size="sm" disabled={!dirty || saving} aria-busy={saving || undefined} onClick={() => saveNote(formRef.current, { announce: true })}>{saving ? <Spinner /> : <Check />}Сохранить</ShadcnButton>
+          <ShadcnButton size="sm" disabled={!dirty || saving} aria-busy={saving || undefined} onClick={() => saveNote(formRef.current, { announce: true })}>Сохранить</ShadcnButton>
         </div>
       </>}
     </div>}

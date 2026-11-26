@@ -7,6 +7,9 @@ import { publicProfilePath, publicSpacePath } from "../../../shared/modules/prof
 import { APP_WISH_CATALOG_PATH } from "../shell/app-routing.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Avatar as ProfileAvatar } from "../profile/profile-avatar.jsx";
+import { profileCardAccent } from "../profile/profile-card-accent.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { PageActionButton } from "@/components/page-action-button";
@@ -74,7 +77,7 @@ export function BusinessCatalogSelect({ side = "bottom", fullWidth = false }) {
   </Select>;
 }
 
-export function BusinessCatalogList({ intro }) {
+export function BusinessCatalogList() {
   const { accounts, space, sphere, endpoint, loading, error, updateFollowing, retry } = useContext(BusinessCatalogContext);
   if (loading) return <p role="status" className="rollapp-body flex items-center justify-center gap-2"><Spinner />Загружаем бизнес-аккаунты…</p>;
   if (error) return <Alert variant="destructive" className="wish-catalog-page__error">
@@ -84,10 +87,13 @@ export function BusinessCatalogList({ intro }) {
   </Alert>;
   if (!accounts.length) return <EmptyState icon={Building2} title="В этом разделе пока нет бизнес-аккаунтов"
     text={sphere ? "Здесь появятся бизнес-аккаунты этой сферы." : "Здесь появятся аккаунты продавцов этого раздела."} />;
-  return <>{intro}<ul className="business-catalog-grid rollapp-body mx-auto grid w-full max-w-(--layout-collection-width) gap-3 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="Бизнес-аккаунты">
-    {accounts.map(account => <BusinessCatalogAccount key={`${endpoint}:${account.username}`} account={account}
-      path={space ? publicSpacePath(account, space) : publicProfilePath(account)} onChange={updateFollowing} />)}
-  </ul></>;
+  return <>
+    {accounts.some(account => typeof account.isFollowing === "boolean") && <p className="rollapp-body text-pretty">Подпишитесь на бизнес, чтобы получать от него предложения.</p>}
+    <ul className="contacts-grid rollapp-body mx-auto w-full max-w-(--layout-collection-width)" role="list" aria-label="Бизнес-аккаунты">
+      {accounts.map(account => <BusinessCatalogAccount key={`${endpoint}:${account.username}`} account={account}
+        path={space ? publicSpacePath(account, space) : publicProfilePath(account)} onChange={updateFollowing} />)}
+    </ul>
+  </>;
 }
 
 function BusinessCatalogAccount({ account, path, onChange }) {
@@ -111,17 +117,19 @@ function BusinessCatalogAccount({ account, path, onChange }) {
       setBusy(false);
     }
   };
-  return <li className="business-catalog-card">
+  return <li className="business-catalog-card" style={{ "--contact-accent": profileCardAccent(account.username || name) }}>
     <Link to={path} className="business-catalog-card__profile" aria-label={`Открыть профиль ${name} (@${account.username})`}>
-      <BusinessAvatar account={account} className="business-catalog-card__avatar size-(--contact-avatar-size)" />
+      <span className="contact-card__avatar-wrap">
+        <ProfileAvatar user={account} size="lg" className="contact-card__avatar" aria-hidden="true" />
+      </span>
       <span className="business-catalog-card__identity">
         <strong>{name}</strong>
         <span className="text-xs text-muted-foreground wrap-anywhere">@{account.username}</span>
       </span>
     </Link>
     {typeof account.isFollowing === "boolean" && <footer className="business-catalog-card__footer">
-      <PageActionButton type="button" variant="outline" aria-label={`${label} · ${name}`}
-        aria-busy={busy || undefined} disabled={busy} onClick={change}>{label}</PageActionButton>
+      <Button type="button" variant="outline" className="h-auto rounded-full whitespace-normal" aria-label={`${label} · ${name}`}
+        aria-busy={busy || undefined} disabled={busy} onClick={change}><span>{label}</span></Button>
       {error && <p role="alert" className="w-full text-xs text-destructive wrap-anywhere">{error}</p>}
     </footer>}
   </li>;

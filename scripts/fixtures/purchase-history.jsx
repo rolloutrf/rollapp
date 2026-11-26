@@ -16,8 +16,6 @@ const lists = [
   { id: "travel", title: "Поездки", space: "places" },
 ];
 let dashboardReads = 0;
-let failedActivityPage = false;
-let failedActivitySummary = false;
 let failedReceipt = false;
 const fixtureParams = new URLSearchParams(window.location.search);
 const standalone = fixtureParams.has("wallet");
@@ -25,7 +23,10 @@ const transferFixtureKey = "purchase-history-transfer-fixture";
 const transferRecipient = { id: "transfer-fixture-recipient", name: "Иван", username: "ivan" };
 const transferFixture = () => JSON.parse(sessionStorage.getItem(transferFixtureKey) ?? '{"attempts":[],"checks":[],"transfer":null}');
 window.readTransferFixture = transferFixture;
-function walletFixture() {
+const refundCreatedAt = "2026-11-14T12:23:10.824521Z";
+const transferCreatedAt = "2026-11-15T23:00:00.842461Z";
+
+function walletFixture(offset = 0) {
   const { transfer } = transferFixture();
   const transactions = [{
     id: "transfer-wallet", direction: "incoming", amount: 28, kind: "transfer",
@@ -34,18 +35,23 @@ function walletFixture() {
   if (transfer) transactions.unshift({
     ...transfer, direction: "outgoing", kind: "transfer", person: transferRecipient,
   });
-  return { balance: 28 - (transfer?.amount ?? 0), transactions, features: { rollActivity: true } };
+  transactions.push(
+    { id: "refund:invoice", direction: "incoming", amount: 150, kind: "refund", productTitle: "Заказ A", createdAt: refundCreatedAt },
+    { id: "purchase:invoice", direction: "outgoing", amount: 80, kind: "purchase", productTitle: "Книги для проекта", createdAt: "2026-11-13T20:50:00Z" },
+  );
+  const pageSize = 2;
+  return {
+    balance: 28 - (transfer?.amount ?? 0),
+    transactions: transactions.slice(offset, offset + pageSize),
+    nextOffset: offset + pageSize < transactions.length ? offset + pageSize : null,
+  };
 }
-const asOf = "2026-11-15T23:00:00.842461Z";
-const periodFor = (days) => ({ days, startsOn: { 7: "2026-11-10", 30: "2026-10-18", 90: "2026-08-19" }[days], endsOn: "2026-11-16", timeZone: "Europe/Moscow", asOf });
-const firstActivityCursor = { before: "2026-11-14T12:23:10.824521Z", beforeId: "refund:invoice" };
-window.activityRequests = [];
-
 window.purchaseImportRequests = [];
 window.wishlistRefreshes = 0;
 api.get = async (path) => {
   if (path === "/auth/yandex/config") return { enabled: false };
   if (path === "/rolls") return walletFixture();
+  if (path.startsWith("/rolls?offset=")) return walletFixture(Number(path.split("=").at(-1)));
   if (path === "/dashboard/purchases") return { purchasePlans: [], wishes: [], subscriptions: [], purchaseCollaborations: [] };
   if (path.startsWith("/dashboard/purchase-month?")) return { totals: [], openTotals: [], limits: [] };
   if (path.startsWith("/rolls/recipients?")) return { people: [transferRecipient] };
@@ -71,41 +77,8 @@ api.get = async (path) => {
     }
     return { receipt: {
       id: "refund:invoice", kind: "refund", status: "recorded", amount: "150",
-      direction: "incoming", createdAt: firstActivityCursor.before, subject: "Возврат заказа A", orderId: "invoice",
+      direction: "incoming", createdAt: refundCreatedAt, subject: "Заказ A", orderId: "invoice",
     } };
-  }
-  if (path.startsWith("/rolls/activity?")) {
-    const q = new URLSearchParams(path.split("?")[1]);
-    const days = Number(q.get("days"));
-    window.activityRequests.push({ mode: "summary", days });
-    if (days === 90 && !failedActivitySummary) {
-      failedActivitySummary = true;
-      throw new Error("Сводка временно недоступна");
-    }
-    const totals = days === 7 ? { count: 0, received: "0", debited: "0", change: "0" }
-      : days === 90 ? { count: 61, received: "9007199254741003", debited: "9007199254740900", change: "103" }
-        : { count: 2, received: "150", debited: "80", change: "70" };
-    const summary = { period: periodFor(days), totals, groups: totals.count === 0 ? [] : [{ group: "payments", ...totals }] };
-    if (days === 30 && window.delayRollActivity) return new Promise((resolve) => {
-      window.finishRollActivity = () => resolve(summary);
-    });
-    return summary;
-  }
-  if (path.startsWith("/rolls/activity/entries?")) {
-    const q = Object.fromEntries(new URLSearchParams(path.split("?")[1]));
-    window.activityRequests.push({ mode: "detail", ...q });
-    if (!failedActivityPage) {
-      failedActivityPage = true;
-      throw new Error("Выписка временно недоступна");
-    }
-    if (q.beforeId) return {
-      transactions: [{ id: "purchase:invoice", direction: "outgoing", amount: 80, kind: "purchase", productTitle: "Книги для проекта", createdAt: "2026-11-13T20:50:00Z" }],
-      next: null,
-    };
-    return {
-      transactions: [{ id: "refund:invoice", direction: "incoming", amount: 150, kind: "refund", productTitle: "Возврат заказа A", createdAt: firstActivityCursor.before }],
-      next: firstActivityCursor,
-    };
   }
   if (path === "/personal-offers") return { offers: [] };
   if (path === "/dashboard") {
@@ -120,7 +93,7 @@ api.post = async (path, body) => {
     const state = transferFixture();
     state.attempts.push(body);
     if (state.attempts.length > 1 || !fixtureParams.has("transferMiss")) state.transfer = {
-      id: "transfer-posted", recipientId: body.recipientId, amount: body.amount, note: body.note, createdAt: asOf,
+      id: "transfer-posted", recipientId: body.recipientId, amount: body.amount, note: body.note, createdAt: transferCreatedAt,
     };
     sessionStorage.setItem(transferFixtureKey, JSON.stringify(state));
     if (state.attempts.length === 1) throw new Error("Соединение прервано");

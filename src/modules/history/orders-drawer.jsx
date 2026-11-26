@@ -1,9 +1,10 @@
 import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
-import { Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck, X } from "lucide-react";
+import { Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck } from "lucide-react";
 import { api } from "@/modules/runtime/api.js";
-import { DrawerClose, DrawerContent, DrawerSectionHeader } from "@/components/form-surface";
+import { DrawerBack, DrawerContent, DrawerSectionHeader } from "@/components/form-surface";
+import { ControlBar } from "@/components/control-bar";
 import { PageActionButton } from "@/components/page-action-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -13,7 +14,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import { APP_STORE_PATH } from "../shell/app-routing.js";
 import { readPendingMarketplaceAction } from "../checkout/marketplace-action-dialog.jsx";
 import { MarketplaceOrder } from "./marketplace-order.jsx";
@@ -39,7 +39,7 @@ function OrderCard({ order, product, busy, onRefund, onOpenReceipt }) {
   const point = order.delivery?.point;
   const refunded = order.status === "refunded";
   const gift = Boolean(order.delivery?.giftCardId);
-  return <article className="orders-card" data-order-status={order.status}>
+  return <article className="orders-card @container/order" data-order-status={order.status}>
     <div className="orders-card__media">
       {product ? <img src={product.image} alt="" /> : <PackageOpen aria-hidden="true" />}
       <span className="orders-card__number" title={order.id}>№ {orderNumber(order.id)}</span>
@@ -64,18 +64,19 @@ function OrderCard({ order, product, busy, onRefund, onOpenReceipt }) {
       <MapPin aria-hidden="true" />
       <div className="min-w-0"><strong>CDEK · {point.city}</strong><span>{point.address}</span><small>{point.code}{point.workTime ? ` · ${point.workTime}` : ""}</small></div>
     </section>}
-    {!refunded && !order.delivery?.personalOfferId && <Button variant="outline" className="col-span-full justify-self-start" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
-    <OrderReceipt order={order} onOpenReceipt={onOpenReceipt} />
+    <ControlBar className="col-span-full flex min-w-0 gap-2" aria-label="Действия заказа" data-order-actions="">
+      {!refunded && !order.delivery?.personalOfferId && <Button type="button" variant="outline" className="min-w-0 flex-1" disabled={busy}
+        aria-label="Вернуть товар" onClick={() => onRefund(order)}>
+        <span>Вернуть<span className="hidden @xs/order:inline"> товар</span></span>
+      </Button>}
+      <OrderReceipt order={order} onOpenReceipt={onOpenReceipt} className="min-w-0 flex-1" />
+    </ControlBar>
   </article>;
 }
 
 export function OrdersDrawerContent({ products, userId }) {
   return <DrawerContent className="orders-drawer rollapp-body app-drawer--form">
-    <DrawerSectionHeader title="Заказы" endAction={
-      <DrawerClose render={<Button type="button" variant="outline" size="icon" />} aria-label="Закрыть заказы">
-        <X aria-hidden="true" />
-      </DrawerClose>
-    } />
+    <DrawerSectionHeader title="Заказы" startAction={<DrawerBack />} />
     <OrderList key={userId} products={products} userId={userId} />
   </DrawerContent>;
 }
@@ -163,7 +164,7 @@ function OrderList({ products, userId }) {
       : !error && filter && visibleOrders.length === 0 ? <EmptyState compact icon={ShoppingBag} title="В этой подборке сейчас нет заказов." />
       : !error && orders.length === 0 ? <div className="flex flex-col items-center gap-4">
         <EmptyState compact icon={ShoppingBag} title="Заказов пока нет" text="Здесь будут ваши покупки и продажи за роллы." />
-        <PageActionButton to={APP_STORE_PATH} replace><ShoppingBag aria-hidden="true" />В магазин</PageActionButton>
+        <PageActionButton to={APP_STORE_PATH} replace>В магазин</PageActionButton>
       </div>
         : visibleOrders.map((order) => order.settlement ? <MarketplaceOrder key={order.id} order={order} userId={userId} filtered={Boolean(filter)} onReload={refreshMarketplaceOrder} fallbackFocus={() => list.current} onOpenReceipt={openReceipt} /> : <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onOpenReceipt={openReceipt} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
 
@@ -172,7 +173,7 @@ function OrderList({ products, userId }) {
       <AlertDialogContent className="rollapp-body w-[calc(100%-2rem)] overflow-y-auto">
         <AlertDialogHeader><AlertDialogTitle>Вернуть «{refundTarget?.productTitle}»?</AlertDialogTitle><AlertDialogDescription>{refundTarget ? `${formatRolls(refundTarget.amount)} вернутся на ваш баланс. Заказ будет отмечен как возвращённый.` : ""}</AlertDialogDescription></AlertDialogHeader>
         {refundError && <Alert variant="destructive"><AlertDescription>{refundError}</AlertDescription></Alert>}
-        <AlertDialogFooter><AlertDialogCancel disabled={refunding}>Оставить заказ</AlertDialogCancel><AlertDialogAction disabled={refunding} onClick={refund}>{refunding ? <Spinner /> : <RotateCcw aria-hidden="true" />}{refunding ? "Возвращаем…" : "Вернуть товар"}</AlertDialogAction></AlertDialogFooter>
+        <AlertDialogFooter><AlertDialogCancel disabled={refunding}>Оставить заказ</AlertDialogCancel><AlertDialogAction disabled={refunding} aria-busy={refunding || undefined} onClick={refund}>{refunding ? "Возвращаем…" : "Вернуть товар"}</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   </div>;

@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { ChevronRight, ExternalLink, X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -33,7 +33,7 @@ export function WishSubscriptions({ subscriptions, onOpen }) {
     <h3 className="text-2xl leading-8 font-semibold">Подписки и продления</h3>
     <ul className="min-w-0 divide-y">
       {subscriptions.map((subscription) => <li key={subscription.id}>
-        <Button type="button" variant="ghost" aria-label={`Открыть подписку: ${subscription.title}`}
+        <Button data-content-control="" type="button" variant="ghost" aria-label={`Открыть подписку: ${subscription.title}`}
           className="h-auto min-h-12 w-full justify-between gap-3 rounded-xl px-2 py-2 text-left whitespace-normal font-normal"
           onClick={() => onOpen(subscription.id)}>
           <span className="grid min-w-0 gap-1">
@@ -108,7 +108,7 @@ function SubscriptionFields({ subscription, busy, onSubmit, error, onBack }) {
       {onBack && <Button type="button" variant="ghost" className="self-start" disabled={busy} onClick={onBack}>К подписке</Button>}
     </div>
     <DrawerFooter>
-      <Button type="submit" disabled={!valid || busy}>{busy && <Spinner />}Сохранить</Button>
+      <Button type="submit" disabled={!valid || busy} aria-busy={Boolean(busy) || undefined}>Сохранить</Button>
     </DrawerFooter>
   </form>;
 }
@@ -138,7 +138,7 @@ function ConfirmCharge({ subscription, busy, error, onCharge, onBack }) {
       </FieldGroup>
       <Button type="button" variant="ghost" className="self-start" disabled={busy} onClick={onBack}>К подписке</Button>
     </div>
-    <DrawerFooter><Button type="submit" disabled={!valid || busy}>{busy && <Spinner />}Сохранить списание</Button></DrawerFooter>
+    <DrawerFooter><Button type="submit" disabled={!valid || busy} aria-busy={Boolean(busy) || undefined}>Сохранить списание</Button></DrawerFooter>
   </form>;
 }
 
@@ -148,7 +148,7 @@ function StopReminders({ busy, error, onStop, onBack }) {
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Button type="button" variant="outline" className="min-h-12 self-start rounded-full" disabled={busy} onClick={onBack}>К подписке</Button>
     </div>
-    <DrawerFooter><Button type="submit" variant="destructive" disabled={busy}>{busy && <Spinner />}Остановить</Button></DrawerFooter>
+    <DrawerFooter><Button type="submit" variant="destructive" disabled={busy} aria-busy={Boolean(busy) || undefined}>Остановить</Button></DrawerFooter>
   </form>;
 }
 
@@ -162,7 +162,7 @@ function SubscriptionDetails({ subscription, busy, error, onPaid, onEdit, onSkip
     {!subscription.stopped && <Button type="button" className="min-h-12 self-start rounded-full" disabled={busy} onClick={onPaid}>Записать списание</Button>}
     {subscription.url && <a href={subscription.url} target="_blank" rel="noreferrer"
       className={cn(buttonVariants({ variant: "outline" }), "min-h-12 self-start rounded-full")}>
-      Открыть сервис <ExternalLink aria-hidden="true" />
+      Открыть сервис
     </a>}
     {!subscription.stopped && <div className="flex flex-wrap gap-2">
       <Button type="button" variant="outline" className="min-h-12 rounded-full" disabled={busy} onClick={onEdit}>Изменить</Button>

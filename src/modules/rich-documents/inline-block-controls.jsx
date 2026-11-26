@@ -6,7 +6,7 @@ import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { closeHistory } from "@tiptap/pm/history";
 import { AllSelection, NodeSelection } from "@tiptap/pm/state";
 import { CellSelection } from "@tiptap/pm/tables";
-import { Palette, ArrowDown, ArrowUp, ArrowLeft, ArrowRight, Copy, GripVertical, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InlineBlockPicker } from "@/modules/rich-documents/inline-block-picker.jsx";
@@ -250,15 +250,15 @@ export function InlineBlockControls({ editor, actionsRef, onCreateBlock, childre
       }} />
       {query.trim() ? <InlineBlockPicker items={commandItems} index={commandIndex} label="Найденные действия блока" onIndex={setCommandIndex} onChoose={chooseCommand} onClose={closeMenu} /> : <>
       {block?.count === 1 && block.content.firstChild.type.name === "table" && <InlineTableActions editor={editor} position={block.from} onDone={() => { setOpen(false); editor.commands.focus(); }} onCellColors={event=>{handingOff.current=true;onCreateBlock(block.from,null,event.currentTarget,"cellColors");setOpen(false);}} onColors={event => { handingOff.current = true; onCreateBlock(block.from, null, event.currentTarget, "colors"); setOpen(false); }} />}
-      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!colorAllowed} onClick={event=>{handingOff.current=true;onCreateBlock(block?.from??position,null,event.currentTarget,"blockColors");setOpen(false);}}><Palette aria-hidden="true"/>Цвет блока</Button>
-      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!actionAllowed("indent")} onClick={() => perform("indent")}><ArrowRight aria-hidden="true" />Вложить блок</Button>
-      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!actionAllowed("outdent")} onClick={() => perform("outdent")}><ArrowLeft aria-hidden="true" />Поднять на уровень выше</Button>
-      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!actionAllowed("up")} onClick={() => perform("up")}><ArrowUp aria-hidden="true" />Переместить вверх</Button>
-      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!actionAllowed("down")} onClick={() => perform("down")}><ArrowDown aria-hidden="true" />Переместить вниз</Button>
-      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!block} onClick={() => perform("before")}><Plus aria-hidden="true" />Добавить блок выше</Button>
-      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!block} onClick={() => perform("after")}><Plus aria-hidden="true" />Добавить блок ниже</Button>
-      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!block} onClick={() => perform("duplicate")}><Copy aria-hidden="true" />{multiple ? "Дублировать блоки" : "Дублировать блок"}</Button>
-      <Button type="button" className="w-full justify-start" variant="destructive" disabled={!block} onClick={() => perform("delete")}><Trash2 aria-hidden="true" />{multiple ? "Удалить блоки" : "Удалить блок"}</Button>
+      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!colorAllowed} onClick={event=>{handingOff.current=true;onCreateBlock(block?.from??position,null,event.currentTarget,"blockColors");setOpen(false);}}>Цвет блока</Button>
+      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!actionAllowed("indent")} onClick={() => perform("indent")}>Вложить блок</Button>
+      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!actionAllowed("outdent")} onClick={() => perform("outdent")}>Поднять на уровень выше</Button>
+      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!actionAllowed("up")} onClick={() => perform("up")}>Переместить вверх</Button>
+      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!actionAllowed("down")} onClick={() => perform("down")}>Переместить вниз</Button>
+      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!block} onClick={() => perform("before")}>Добавить блок выше</Button>
+      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!block} onClick={() => perform("after")}>Добавить блок ниже</Button>
+      <Button variant="ghost" type="button" className="w-full justify-start" disabled={!block} onClick={() => perform("duplicate")}>{multiple ? "Дублировать блоки" : "Дублировать блок"}</Button>
+      <Button type="button" className="w-full justify-start" variant="destructive" disabled={!block} onClick={() => perform("delete")}>{multiple ? "Удалить блоки" : "Удалить блок"}</Button>
       </>}
     </PopoverContent>}
     <span className="sr-only" role="status" aria-live="polite">{notice}</span>

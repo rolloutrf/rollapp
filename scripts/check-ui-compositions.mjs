@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { checkActionButtonContent } from "./check-action-button-content.mjs";
 
 // Scan every application JSX source, including lazy pages and editor modules.
 // NativeSelect is an official component, but Rollapp uses Select consistently.
@@ -31,4 +32,5 @@ export function checkUiComposition(source, file) {
       && /aria-labelledby=/.test(tag);
     assert(hiddenFile || documentTask, `${file}: visible inputs must use shadcn Input/Checkbox`);
   }
+  checkActionButtonContent(source, file);
 }
