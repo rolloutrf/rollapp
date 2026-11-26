@@ -83,6 +83,7 @@ import { Mission } from "@/components/mission";
 import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { ProfileInvites } from "@/components/profile-invites";
+import { MembershipNumberReel } from "@/components/membership-number";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
@@ -1509,13 +1510,14 @@ function RegisterPage() {
     if (!invite) return;
     let active = true;
     api.post("/auth/invite/validate", { invite })
-      .then(() => { if (active) setCheck({ invite, attempt, valid: true }); })
+      .then(({ membershipDraw }) => { if (active) setCheck({ invite, attempt, valid: true, membershipDraw }); })
       .catch((error) => { if (active) setCheck({ invite, attempt, error }); });
     return () => { active = false; };
   }, [invite, attempt]);
 
-  if (result?.valid) return <AuthPage key={invite} mode="register" invite={invite} />;
+  if (result?.valid) return <AuthPage key={invite} mode="register" invite={invite} membershipDraw={result.membershipDraw} />;
   const invalid = result?.error?.code === "INVITE_INVALID";
+  const full = result?.error?.code === "MEMBERSHIP_FULL";
   const checking = Boolean(invite && !result);
   return (
     <div className="auth-page rollapp-body">
@@ -1523,13 +1525,13 @@ function RegisterPage() {
         <div className="auth-form">
           <div>
             <span className="eyebrow">Rollapp</span>
-            <h1>{checking ? "Проверяем приглашение" : invalid ? "Приглашение недействительно" : "Регистрация по приглашению"}</h1>
+            <h1>{checking ? "Проверяем приглашение" : invalid ? "Приглашение недействительно" : full ? "Все номера выданы" : "Регистрация по приглашению"}</h1>
             <p>
               {checking ? "Подождите немного." : invalid ? "Ссылка могла истечь или быть использована. Попросите отправителя создать новую." : invite ? result?.error?.message : "Попросите ссылку у человека, у которого уже есть аккаунт Rollapp."}
             </p>
           </div>
           {checking && <div className="auth-config-loading" role="status"><Spinner /><span>Проверяем ссылку…</span></div>}
-          {result?.error && !invalid && <PageActionButton type="button" variant="outline" onClick={() => setAttempt((current) => current + 1)}>Проверить снова</PageActionButton>}
+          {result?.error && !invalid && !full && <PageActionButton type="button" variant="outline" onClick={() => setAttempt((current) => current + 1)}>Проверить снова</PageActionButton>}
           <PageActionButton to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</PageActionButton>
         </div>
       </div>
@@ -1537,7 +1539,32 @@ function RegisterPage() {
   );
 }
 
-function AuthPage({ mode, invite }) {
+function MembershipNumberPage() {
+  const { user, loading } = useSession();
+  const { search } = useLocation();
+  const next = safeNextPath(new URLSearchParams(search).get("next"));
+  const destination = next.startsWith("/register/number") ? APP_HOME : next;
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(destination)}`} replace />;
+  if (!user.membershipNumber) return <Navigate to={destination} replace />;
+  return (
+    <main className="auth-page rollapp-body">
+      <div className="auth-panel">
+        <div className="auth-form">
+          <div>
+            <span className="eyebrow">Rollapp · 30 000 участников</span>
+            <h1>Ваш номер Rollapp</h1>
+            <p>Он закреплён за вами. Квитанция и статус записи в TON — в настройках профиля, в разделе «Инвайты».</p>
+          </div>
+          <MembershipNumberReel key={user.membershipNumber} number={user.membershipNumber} />
+          <PageActionButton to={destination}>Открыть Rollapp</PageActionButton>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function AuthPage({ mode, invite, membershipDraw = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, refresh } = useSession();
@@ -1657,6 +1684,7 @@ function AuthPage({ mode, invite }) {
     return () => { active = false; };
   }, [mode]);
 
+  if (user && mode === "register" && loading) return <LoadingScreen />;
   if (user && (!telegramAuth.initData || yandexLinked)) {
     if (!yandexError && !yandexLinked) return <Navigate to={nextPath} replace />;
     return (
@@ -1699,7 +1727,7 @@ function AuthPage({ mode, invite }) {
             ? "Бизнес-аккаунт готов"
             : "Вишлист готов — добавьте первую мечту"
           : "С возвращением!",
-        destination,
+        result.membershipDraw ? `/register/number?${new URLSearchParams({ next: destination })}` : destination,
       );
     } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
   };
@@ -1749,7 +1777,7 @@ function AuthPage({ mode, invite }) {
     : usingPhone && phoneFlow.step === "otp"
     ? <>Введите код, который мы отправили на <strong>{phoneFlow.phoneMasked}</strong>.</>
     : mode === "register"
-      ? "У вас есть приглашение. Выберите способ регистрации."
+      ? membershipDraw ? "Выберите способ регистрации. Барабан назначит вам один из свободных номеров." : "У вас есть приглашение. Выберите способ регистрации."
       : "Продолжите собирать и исполнять желания.";
 
   return (
@@ -1810,7 +1838,7 @@ function AuthPage({ mode, invite }) {
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
               {mode === "login" && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
-              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? form.accountType === "business" ? "Создать бизнес-аккаунт" : "Создать вишлист" : shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
+              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? membershipDraw ? "Крутить барабан" : form.accountType === "business" ? "Создать бизнес-аккаунт" : "Создать вишлист" : shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
             </>}
           {!connectingCurrentUser && mode === "login" && phoneConfigLoaded && phoneEnabled && (
             <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
@@ -7326,7 +7354,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
       </section>
       {isMobile && wishlistsFooter}
     </form>
-  ) : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
+  ) : section === "invites" ? <ProfileInvites membershipNumber={user.membershipNumber} /> : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -7809,6 +7837,7 @@ export default function App() {
   useVisualViewport();
   const { pathname, search } = useLocation();
   const linkingResult = pathname === "/login" && new URLSearchParams(search).get("auth_success") === "YANDEX_LINKED";
+  const hideChrome = linkingResult || pathname === "/register/number";
   return (
     <ToastProvider>
       <SessionProvider>
@@ -7816,12 +7845,13 @@ export default function App() {
         <ProfileEditorProvider>
           <CollectionNavigationProvider>
           <CatalogBusinessDirectoryScope>
-          {!linkingResult && <GlobalAppChrome />}
-          {!linkingResult && <PlanningFab />}
+          {!hideChrome && <GlobalAppChrome />}
+          {!hideChrome && <PlanningFab />}
           <Routes>
             <Route path="/" element={<RootRoute />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register/number" element={<MembershipNumberPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/ideas" element={<Navigate to={APP_HOME} replace />} />

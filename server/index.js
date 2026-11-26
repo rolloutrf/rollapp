@@ -65,6 +65,8 @@ import { YandexAiError, yandexAiConfig } from "./yandex-ai.js";
 import { readOpenRouterCredential, registerOpenRouterRoutes } from "./openrouter-routes.js";
 import { createRateLimit } from "./rate-limit.js";
 import { createRegistrationInvite, findRegistrationInvite, readRegistrationInvite } from "./registration-invites.js";
+import { formatMembershipNumber, hasFreeMembershipNumber, membershipFull, readMembership, readMembershipNumber } from "./membership-numbers.js";
+import { startMembershipTonWorker } from "./membership-ton.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
 import { loadContactAvatar, resolveContactSocialAvatar } from "./contact-avatars.js";
 import { contactAvatarPath, contactFromOverride, listContacts } from "./contacts.js";
@@ -732,14 +734,15 @@ async function cleanAuthenticatedUser(row) {
   if (!row) return null;
   const hasCapabilities = ["has_yandex", "can_discover_spheres"]
     .every((property) => Object.prototype.hasOwnProperty.call(row, property));
-  if (hasCapabilities) return cleanUser(row);
-  const capabilities = await query(
+  const capabilities = hasCapabilities ? null : await query(
     `SELECT
        EXISTS(SELECT 1 FROM yandex_identities WHERE user_id=$1) AS has_yandex,
        EXISTS(SELECT 1 FROM default_follow_targets WHERE user_id=$1) AS can_discover_spheres`,
     [row.id],
   );
-  return cleanUser({ ...row, ...capabilities.rows[0] });
+  const user = cleanUser({ ...row, ...capabilities?.rows[0] });
+  if (membershipEnabled) user.membershipNumber = await readMembershipNumber(query, row.id);
+  return user;
 }
 
 function mapList(row) {
@@ -1214,6 +1217,10 @@ const inviteSecret = registrationInviteSecret.length >= 32 ? registrationInviteS
 const inviteRequired = { error: "Регистрация доступна только по приглашению", code: "INVITE_REQUIRED" };
 const invalidInvite = { error: "Приглашение недействительно, истекло или уже использовано", code: "INVITE_INVALID" };
 const invitesUnavailable = { error: "Приглашения временно недоступны", code: "INVITES_UNAVAILABLE" };
+const membershipEnabled = process.env.ROLLAPP_MEMBERSHIP_ENABLED === "true";
+const lookupRegistrationInvite = (query, token) => findRegistrationInvite(query, token, inviteSecret, { membershipEnabled });
+const membershipHasSpace = () => hasFreeMembershipNumber(query, membershipEnabled);
+
 
 async function uniqueUsername(name, client = { query }) {
   const base = slugify(name);
@@ -1593,7 +1600,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, inviteToken)
 
     if (!inviteToken) return { kind: "invite-required" };
     await lockProfileUsernames(client, isMemoryDatabase);
-    const invite = await findRegistrationInvite(client.query.bind(client), inviteToken, inviteSecret);
+    const invite = await lookupRegistrationInvite(client.query.bind(client), inviteToken);
     if (!invite) return { kind: "invite-invalid" };
     const userId = invite.accountId;
     const unusablePasswordHash = `oauth-only:${randomBytes(32).toString("base64url")}`;
@@ -1609,7 +1616,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, inviteToken)
     await enrollWishRewards(client, userId);
     await saveYandexIdentity(client, yandexUser, userId);
     const session = await createSessionRecord(client, userId);
-    return { kind: "success", user: created.user, session };
+    return { kind: "success", user: created.user, session, newMembership: membershipEnabled };
   }));
 }
 
@@ -1893,7 +1900,8 @@ const startYandexLogin = asyncRoute(async (req, res) => {
   const wantsLink = !signingUp && req.query.link === "1";
   if (signingUp) {
     if (!inviteToken) return res.status(403).json(inviteRequired);
-    if (!await findRegistrationInvite(query, inviteToken, inviteSecret)) return res.status(403).json(invalidInvite);
+    if (!await lookupRegistrationInvite(query, inviteToken)) return res.status(403).json(invalidInvite);
+    if (!await membershipHasSpace()) return res.status(409).json(membershipFull);
   }
   if (wantsLink && !req.user) {
     return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
@@ -1994,8 +2002,10 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
       }
       return res.redirect(303, yandexLoginRedirect(attempt.next_path, "", "YANDEX_LINKED", backup));
     }
-    return res.redirect(303, safeOauthReturnPath(attempt.next_path));
+    const destination = safeOauthReturnPath(attempt.next_path);
+    return res.redirect(303, result.newMembership ? `/register/number?${new URLSearchParams({ next: destination })}` : destination);
   } catch (error) {
+    if (error?.code === "P3000") return res.redirect(303, authErrorRedirect(membershipFull.code));
     const publicCode = error instanceof YandexAuthError
       ? {
         YANDEX_EMAIL_REQUIRED: "YANDEX_EMAIL_REQUIRED",
@@ -2072,6 +2082,7 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
     version: process.env.APP_VERSION || "development",
     capabilities: {
       marketplaceDirect: true,
+      membershipNumbers: membershipEnabled,
       marketplaceAi: sharedAiConfigured(),
       defaultAiProvider: yandexAiConfig().enabled ? "yandex" : process.env.OPENROUTER_API_KEY ? "openrouter" : null,
       personalAiCredentials: userCredentialsConfigured(),
@@ -2185,21 +2196,23 @@ app.post("/api/auth/password-reset/confirm", authRateLimit, asyncRoute(async (re
   return res.json({ ok: true });
 }));
 
-app.post("/api/me/invites", requireAuth, inviteRateLimit, (req, res) => {
+app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req, res) => {
   res.set("Cache-Control", "no-store");
   if (!inviteSecret) return res.status(503).json(invitesUnavailable);
+  if (!await membershipHasSpace()) return res.status(409).json(membershipFull);
   const { token, expiresAt } = createRegistrationInvite(req.user.id, inviteSecret);
   const origin = isProduction ? getPasswordResetOrigin() : "";
   const path = `/register#invite=${token}`;
   return res.status(201).json({ url: origin ? new URL(path, origin).href : path, expiresAt });
-});
+}));
 
 app.post("/api/auth/invite/validate", inviteValidationRateLimit, asyncRoute(async (req, res) => {
   res.set("Cache-Control", "no-store");
   if (!inviteSecret) return res.status(503).json(invitesUnavailable);
-  const invite = await findRegistrationInvite(query, req.body?.invite, inviteSecret);
+  const invite = await lookupRegistrationInvite(query, req.body?.invite);
   if (!invite) return res.status(403).json(invalidInvite);
-  return res.json({ valid: true });
+  if (!await membershipHasSpace()) return res.status(409).json(membershipFull);
+  return res.json({ valid: true, membershipDraw: membershipEnabled });
 }));
 
 app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
@@ -2213,7 +2226,7 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   const passwordHash = await hashPassword(password);
   const result = await transaction(async (client) => {
     await lockProfileUsernames(client, isMemoryDatabase);
-    const invite = await findRegistrationInvite(client.query.bind(client), inviteToken, inviteSecret);
+    const invite = await lookupRegistrationInvite(client.query.bind(client), inviteToken);
     if (!invite) return { kind: "invalid-invite" };
     const userId = invite.accountId;
     const username = await uniqueUsername(name, client);
@@ -2237,7 +2250,7 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   if (result.kind === "invalid-invite") return res.status(403).json(invalidInvite);
   if (result.kind === "existing-email") return res.status(409).json({ error: "Аккаунт с таким email уже есть" });
   setSessionCookie(res, result.session);
-  res.status(201).json({ user: await cleanAuthenticatedUser(result.user) });
+  res.status(201).json({ user: await cleanAuthenticatedUser(result.user), membershipDraw: membershipEnabled });
 }));
 
 app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
@@ -2309,6 +2322,27 @@ app.post("/api/me/telegram/link", requireAuth, authRateLimit, asyncRoute(async (
 app.get("/api/me", asyncRoute(async (req, res) => {
   if (!req.user) return res.json({ user: null });
   res.json({ user: await cleanAuthenticatedUser(req.user) });
+}));
+
+app.get("/api/me/membership", requireAuth, asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const row = membershipEnabled ? await readMembership(query, req.user.id) : null;
+  if (!row) return res.status(404).json({ error: "Номер Rollapp недоступен" });
+  return res.json({
+    number: formatMembershipNumber(row.number),
+    anchor: row.digest ? {
+      status: row.tx_hash ? "confirmed" : "pending",
+      transactionHash: row.tx_hash, wallet: row.tx_hash ? row.wallet : null, logicalTime: row.tx_lt,
+    } : null,
+  });
+}));
+
+app.get("/api/me/membership/receipt", requireAuth, asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const row = membershipEnabled ? await readMembership(query, req.user.id) : null;
+  if (!row?.receipt) return res.status(404).json({ error: "Квитанция недоступна" });
+  // Send the stored bytes unchanged: their SHA-256 must match the TON payload.
+  return res.type("application/json").attachment(`rollapp-${formatMembershipNumber(row.number)}.json`).send(row.receipt);
 }));
 
 registerPrivateFiles(app, { query, requireAuth, asyncRoute });
@@ -6662,6 +6696,7 @@ if (isProduction) {
 }
 
 app.use((error, req, res, _next) => {
+  if (error?.code === "P3000") return res.status(409).json(membershipFull);
   if (error?.code === "IDENTITY_TEST_NOT_FOUND") return res.status(404).json({ error: error.message });
   console.error(error);
   if (error instanceof z.ZodError) return res.status(400).json({ error: "Проверьте введённые данные" });
@@ -6683,6 +6718,7 @@ if (databaseInitialization === "verify") console.log("Existing PostgreSQL schema
 const telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });
 const tonPaymentPoller = startTonPaymentPolling({ query, transaction });
 const rewardProofWorker = startRewardProofWorker({ transaction });
+const membershipTonWorker = await startMembershipTonWorker({ transaction, enabled: membershipEnabled });
 const needRewardExpiryWorker = startNeedRewardExpiryWorker({ query, transaction });
 
 const server = app.listen(port, "0.0.0.0", () => {
@@ -6693,6 +6729,7 @@ async function shutdown() {
   telegramPoller?.stop();
   tonPaymentPoller.stop();
   rewardProofWorker.stop();
+  membershipTonWorker.stop();
   needRewardExpiryWorker.stop();
   server.close(async () => {
     if (backgroundTasks.size) {

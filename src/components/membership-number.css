@@ -1,0 +1,51 @@
+.membership-reel {
+  --reel-row: clamp(2.5rem, 12vw, 4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(.25rem, 2vw, .75rem);
+  padding: 1.25rem .5rem;
+  border-block: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+.membership-reel__digits {
+  display: flex;
+  gap: clamp(.125rem, 1vw, .375rem);
+  font-size: calc(var(--reel-row) * .62);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.membership-reel__mark { color: var(--primary); font-weight: 650; }
+
+.membership-reel__window {
+  display: block;
+  overflow: hidden;
+  inline-size: calc(var(--reel-row) * .77);
+  block-size: var(--reel-row);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+
+.membership-reel__strip {
+  display: grid;
+  grid-auto-rows: var(--reel-row);
+  text-align: center;
+  line-height: var(--reel-row);
+  transform: translateY(calc(-7 * var(--reel-row) - 1px));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .membership-reel__strip {
+    animation: membership-reel-stop .85s cubic-bezier(.18, .64, .15, 1) var(--reel-delay) both;
+  }
+}
+
+@keyframes membership-reel-stop {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(-7 * var(--reel-row) - 1px)); }
+}
+
+.membership-receipt__number { font-variant-numeric: tabular-nums; font-weight: 650; }

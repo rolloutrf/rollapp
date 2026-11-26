@@ -20,6 +20,11 @@ export function yandexAuthStartPath(nextPath, { link = false } = {}) {
 }
 
 const yandexAuthErrors = {
+  MEMBERSHIP_FULL: {
+    title: "Все номера Rollapp выданы",
+    description: "Лимит в 30 000 аккаунтов достигнут.",
+    variant: "default",
+  },
   INVITE_REQUIRED: {
     title: "Регистрация по приглашению",
     description: "Попросите ссылку у человека, у которого уже есть аккаунт Rollapp.",

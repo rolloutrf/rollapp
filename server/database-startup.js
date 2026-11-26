@@ -1,4 +1,5 @@
 import { isReservedProfileUsername } from "./profile-paths.js";
+import { verifyMembershipSchema } from "./membership-numbers.js";
 import { verifyAccountBackupSchema } from "./account-backup.js";
 
 // Development reconnects to an existing production database. A reconnect must
@@ -6,7 +7,10 @@ import { verifyAccountBackupSchema } from "./account-backup.js";
 export async function initializeRuntimeDatabase({ environment = process.env, isMemoryDatabase, transaction, migrate }) {
   const mode = environment.ROLLAPP_DATABASE_INITIALIZATION || "migrate";
   if (!["migrate", "verify"].includes(mode)) throw new Error("ROLLAPP_DATABASE_INITIALIZATION должен быть migrate или verify.");
-  if (mode === "migrate") { await migrate(); return mode; }
+  if (mode === "migrate") {
+    if (environment.ROLLAPP_MEMBERSHIP_ENABLED === "true") throw new Error("Membership requires verify mode and its explicit SQL migration.");
+    await migrate(); return mode;
+  }
   if (isMemoryDatabase) throw new Error("Проверка существующей базы требует настроенный production PostgreSQL. Демо-база отключена.");
   await transaction(async client => {
     await client.query("SET TRANSACTION READ ONLY");
@@ -43,6 +47,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
       await client.query("SELECT id,offer_id,actor_id,action,note,created_at FROM reward_need_events LIMIT 0");
       await client.query("SELECT offer_id,content,digest,status,proof,bitcoin_height,bitcoin_hash,verified_at,attempts,next_attempt_at,lease_token,last_error,created_at FROM reward_blockchain_receipts LIMIT 0");
     }
+    if (environment.ROLLAPP_MEMBERSHIP_ENABLED === "true") await verifyMembershipSchema(client);
     if (environment.YANDEX_DISK_BACKUP_ENABLED === "true") await verifyAccountBackupSchema(client);
   });
   return mode;

@@ -4,10 +4,11 @@ import { createRegistrationInvite, findRegistrationInvite, INVITE_TTL_MS, readRe
 
 const secret = "registration-test-key".repeat(3);
 
-test("signed invite binds an issuer and one new account ID and expires after seven days", () => {
+test("signed invite binds an issuer and one new account ID and expires after ten days", () => {
   const now = Date.UTC(2026, 10, 6);
   const { token, expiresAt } = createRegistrationInvite("issuer", secret, now);
   const invite = readRegistrationInvite(token, secret, expiresAt - 1);
+  assert.equal(expiresAt, now + 10 * 86_400_000);
   assert.equal(expiresAt, now + INVITE_TTL_MS);
   assert.equal(invite.issuerId, "issuer");
   assert.match(invite.accountId, /^[0-9a-f-]{36}$/);

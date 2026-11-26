@@ -83,10 +83,19 @@ test("real deployment template renders exact SHA without changing other content"
   const template = await readFile(new URL("../deploy/docker-compose.template.yml", import.meta.url), "utf8");
   const rendered = renderDeploymentCompose(template, config);
   assert.equal(rendered, template.replaceAll("__IMAGE__", config.image).replaceAll("__VERSION__", version)
-    .replaceAll("__YANDEX_DISK_BACKUP_ENABLED__", "false"));
+    .replaceAll("__YANDEX_DISK_BACKUP_ENABLED__", "false")
+    .replaceAll("__ROLLAPP_MEMBERSHIP_ENABLED__", "false")
+    .replaceAll("__ROLLAPP_MEMBERSHIP_TON_ADDRESS__", "")
+    .replaceAll("__YC_MEMBERSHIP_TON_LOCKBOX_SECRET_ID__", ""));
   const withBackup = renderDeploymentCompose(template, { ...config, yandexDiskBackupEnabled: true });
   assert.equal(withBackup, rendered.replace('YANDEX_DISK_BACKUP_ENABLED: "false"', 'YANDEX_DISK_BACKUP_ENABLED: "true"'));
   assert.throws(() => renderDeploymentCompose("no placeholders", config));
+  assert.throws(() => renderDeploymentCompose(template, { ...config, membershipEnabled: true }), /dedicated TON/);
+  const withMembership = renderDeploymentCompose(template, {
+    ...config, membershipEnabled: true, membershipTonAddress: `0:${"a".repeat(64)}`, membershipTonSecretId: "wallet-lockbox",
+  });
+  assert.match(withMembership, /ROLLAPP_MEMBERSHIP_ENABLED: "true"/);
+  assert.match(withMembership, /YC_MEMBERSHIP_TON_LOCKBOX_SECRET_ID: "wallet-lockbox"/);
 });
 
 test("ordinary production releases verify the existing schema instead of migrating or cleaning reservations", async () => {

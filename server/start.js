@@ -102,6 +102,12 @@ async function loadUserCredentialsLockboxSecret() {
   console.log("Runtime user credential encryption secret loaded from Yandex Lockbox");
 }
 
+async function loadMembershipTonLockboxSecret() {
+  const secretId = process.env.YC_MEMBERSHIP_TON_LOCKBOX_SECRET_ID;
+  if (process.env.ROLLAPP_MEMBERSHIP_ENABLED !== "true" || !secretId || process.env.ROLLAPP_MEMBERSHIP_TON_MNEMONIC) return;
+  process.env.ROLLAPP_MEMBERSHIP_TON_MNEMONIC = await loadLockboxValue(secretId, "mnemonic");
+}
+
 await loadDatabaseLockboxSecret();
 await loadAutoDatabaseLockboxSecret();
 await loadPhoneAuthLockboxSecret();
@@ -110,6 +116,7 @@ await loadYandexOauthSecrets();
 await loadOpenRouterLockboxSecret();
 await loadOpenRouterProxyLockboxSecret();
 await loadUserCredentialsLockboxSecret();
+await loadMembershipTonLockboxSecret();
 
 if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
   const caddy = spawn("/usr/sbin/caddy", ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"], { stdio: "inherit" });

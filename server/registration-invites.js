@@ -1,6 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
-export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
+export const INVITE_TTL_MS = 10 * 24 * 60 * 60 * 1_000;
 const domain = "rollapp:registration-invite:v1\0";
 
 function signature(payload, secret) {
@@ -24,12 +24,13 @@ export function readRegistrationInvite(token, secret, now = Date.now()) {
   return expiresAt > now ? { issuerId, accountId } : null;
 }
 
-export async function findRegistrationInvite(query, token, secret) {
+export async function findRegistrationInvite(query, token, secret, { membershipEnabled = false } = {}) {
   const invite = readRegistrationInvite(token, secret);
   if (!invite) return null;
   const found = await query(
     `SELECT 1 FROM users WHERE id=$1
-     AND NOT EXISTS (SELECT 1 FROM users WHERE id=$2)`,
+     AND NOT EXISTS (SELECT 1 FROM users WHERE id=$2)
+     ${membershipEnabled ? "AND NOT EXISTS (SELECT 1 FROM membership_numbers WHERE claim_digest=sha256(convert_to($2, 'UTF8')))" : ""}`,
     [invite.issuerId, invite.accountId],
   );
   return found.rowCount ? invite : null;
