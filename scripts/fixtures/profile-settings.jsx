@@ -23,10 +23,19 @@ if (mode === "gifts-recovery") {
   window.giftRecoveryPosts = [];
 }
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
+const inviteExpiry = new Date(Date.now() + 8 * 86_400_000).toISOString();
+const inviteLink = "https://example.com/register#invite=fixture";
+const longInviteEmail = `${"recipient".repeat(7)}@${"subdomain.".repeat(5)}example.com`;
 let invites = Array.from({ length: 20 }, (_, index) => ({
-  id: `old-${index}`, email: `previous-${index}@example.com`, status: ["sent", "accepted", "pending"][index] ?? "expired",
-  expiresAt: "2026-11-29T00:00:00.000Z", canResend: index !== 3,
+  id: `old-${index}`, email: index === 18 ? longInviteEmail : `previous-${index}@example.com`,
+  status: ["sent", "accepted", "pending", "failed"][index] ?? (index === 18 ? "sent" : "expired"),
+  createdAt: "2026-11-15T12:00:00.000Z", expiresAt: inviteExpiry, canResend: index !== 3,
+  ...(index === 0 || index === 18 ? { copyUrl: inviteLink } : {}),
 }));
+invites.push({
+  id: "expired-0", email: "previous-0@example.com", status: "expired",
+  createdAt: "2026-11-02T12:00:00.000Z", expiresAt: "2026-11-12T12:00:00.000Z",
+});
 let mcpKeys = [];
 let diskSync = { connected: true, hasNotes: true, enabled: false, pending: false, running: false, lastCompletedAt: null, error: null };
 window.completeDiskSync = () => {
@@ -48,7 +57,14 @@ api.get = async (path) => {
   if (path === "/me/openrouter" && mode === "error") throw new Error("Fixture settings unavailable");
   if (path === "/me/openrouter") return openRouter;
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
-  if (path === "/me/invites") return { invites };
+  if (path === "/me/invites") {
+    if (window.holdInviteHistory) {
+      window.holdInviteHistory = false;
+      await new Promise(resolve => { window.finishInviteHistory = resolve; });
+      throw new Error("История приглашений временно недоступна");
+    }
+    return { invites: window.emptyInviteHistory ? [] : invites };
+  }
   if (path === "/mcp/tokens") {
     if (window.rejectMcpKeyList) {
       window.rejectMcpKeyList = false;
@@ -119,7 +135,7 @@ api.post = async (path, data) => {
   if (path === "/me/invites") {
     window.inviteRequests = (window.inviteRequests || 0) + 1;
     if (window.inviteRequests === 1) throw new Error("Отправка временно недоступна");
-    invites = [{ id: String(window.inviteRequests), email: data.email, status: "sent", expiresAt: "2026-11-17T00:00:00.000Z" }, ...invites];
+    invites = [{ id: String(window.inviteRequests), email: data.email, status: "sent", expiresAt: inviteExpiry }, ...invites];
     return { id: String(window.inviteRequests), email: data.email, expiresAt: invites[0].expiresAt };
   }
   const resendId = path.match(/^\/me\/invites\/([^/]+)\/resend$/)?.[1];

@@ -160,7 +160,34 @@ try {
     await page.getByRole("heading", { name: "Инвайты", exact: true }).waitFor();
     const inviteEmail = page.getByRole("textbox", { name: "Email получателя" });
     const sendInvite = button("Отправить приглашение");
+    const inviteHistory = page.getByRole("region", { name: "История приглашений" });
+    const inviteList = inviteHistory.getByRole("list", { name: "Приглашения", exact: true });
+    const inviteAttempts = inviteHistory.getByRole("button", { name: /Предыдущие попытки/ });
+    const attemptedInvites = inviteHistory.getByRole("list", { name: "Предыдущие попытки", exact: true });
     await page.getByText("previous-19@example.com", { exact: true }).waitFor();
+    assert.equal(await inviteList.getByText("previous-0@example.com", { exact: true }).count(), 1);
+    assert.equal(await inviteAttempts.getAttribute("aria-expanded"), "false");
+    assert.equal(await attemptedInvites.isVisible(), false);
+    const sentRow = inviteList.getByRole("listitem").filter({ hasText: "previous-0@example.com" })
+      .filter({ has: page.getByText("Отправлено", { exact: true }) });
+    const acceptedRow = inviteList.getByRole("listitem").filter({ hasText: "previous-1@example.com" });
+    assert.match(await sentRow.locator("time").textContent(), /^до \d{2}\.\d{2}\.\d{4}$/);
+    assert.match(await acceptedRow.locator("time").textContent(), /^создано /);
+    const captionGeometry = (node) => {
+      const { fontSize, lineHeight } = getComputedStyle(node);
+      return [fontSize, lineHeight];
+    };
+    assert.deepEqual(await sentRow.locator("time").evaluate(captionGeometry), ["13px", "16px"]);
+    assert.deepEqual(await page.locator("#account-invite-hint").evaluate(captionGeometry), ["13px", "16px"]);
+    const longInvite = inviteList.getByRole("listitem").filter({ hasText: "subdomain.subdomain" });
+    assert(await longInvite.evaluate((row) => {
+      const rail = row.querySelector("[data-control-bar]").getBoundingClientRect();
+      const email = row.querySelector("span");
+      const owner = row.closest('[data-slot="scroll-area-viewport"]');
+      return email.scrollWidth <= email.clientWidth + 1 && email.getBoundingClientRect().right < rail.left
+        && row.scrollWidth <= row.clientWidth + 1 && owner.scrollWidth <= owner.clientWidth + 1
+        && document.documentElement.scrollWidth <= innerWidth;
+    }));
     const inviteFooter = sendInvite.locator("xpath=ancestor::*[@data-control-bar][1]");
     assert.equal(await inviteFooter.getAttribute("data-native-form-actions") !== null, mobile);
     const inviteAction = () => sendInvite.evaluate((element) => {
@@ -174,13 +201,22 @@ try {
         reachable: element.contains(document.elementFromPoint(x + width / 2, y + height / 2)),
       };
     });
+    assert(await sendInvite.isDisabled());
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: `/tmp/rollapp-profile-invites-${width}x${height}.png` });
+    if ((width === 390 && height === 844) || (width === 1440 && height === 900)) {
+      await page.evaluate(() => document.documentElement.classList.remove("dark"));
+      await page.screenshot({ path: `/tmp/rollapp-profile-invites-light-${width}x${height}.png` });
+      await page.evaluate(() => document.documentElement.classList.add("dark"));
+    }
+    await inviteEmail.fill("invalid");
     const initialInviteAction = await inviteAction();
     assert.equal(initialInviteAction.height, 48);
     assert.deepEqual(initialInviteAction.radii, Array(4).fill("24px"));
     assert(initialInviteAction.ownsField && !initialInviteAction.card && !initialInviteAction.insideScroll && initialInviteAction.reachable);
     assert(initialInviteAction.bottom <= height && height - initialInviteAction.bottom <= 40);
     if (mobile) assert.equal(initialInviteAction.y, (await back.boundingBox()).y);
-    await sendInvite.click();
+    await inviteEmail.press("Enter");
     assert.equal(await page.evaluate(() => window.inviteRequests || 0), 0);
     await inviteEmail.fill("alice@example.com");
     await inviteEmail.press("Enter");
@@ -193,35 +229,86 @@ try {
     await sendInvite.click();
     await page.getByText("bob@example.com", { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.inviteRequests), 3);
-    const resend = button("Отправить снова — previous-0@example.com");
-    assert.equal(await button("Отправить снова — previous-1@example.com").count(), 0);
-    assert.equal(await button("Отправить снова — previous-2@example.com").count(), 0);
-    assert.equal(await button("Отправить снова — previous-3@example.com").count(), 0);
+    const sentInviteActions = button("Действия с приглашением — previous-0@example.com, Отправлено");
+    const failedInviteActions = button("Действия с приглашением — previous-0@example.com, Ошибка отправки");
+    const inviteMenu = page.getByRole("menu");
+    const copyInvite = inviteMenu.getByRole("menuitem", { name: "Скопировать ссылку" });
+    const resendInvite = inviteMenu.getByRole("menuitem", { name: "Отправить снова" });
+    for (const index of [1, 2, 3]) {
+      assert.equal(await inviteList.getByRole("listitem").filter({ hasText: `previous-${index}@example.com` }).getByRole("button").count(), 0);
+    }
     await inviteEmail.fill("draft@example.com");
-    await resend.scrollIntoViewIfNeeded();
-    assert.deepEqual(await resend.evaluate(node => {
-      const style = getComputedStyle(node);
-      return [node.offsetHeight, style.paddingInlineStart, style.paddingInlineEnd];
-    }), [48, "24px", "24px"]);
-    await resend.press("Enter");
+    assert.deepEqual(await sentInviteActions.evaluate(node => {
+      const { borderTopLeftRadius, borderTopRightRadius, borderBottomRightRadius, borderBottomLeftRadius } = getComputedStyle(node);
+      const glyph = node.querySelector("svg").getBoundingClientRect();
+      return [node.offsetWidth, node.offsetHeight, glyph.width, glyph.height,
+        borderTopLeftRadius, borderTopRightRadius, borderBottomRightRadius, borderBottomLeftRadius];
+    }), [48, 48, 20, 20, "24px", "24px", "24px", "24px"]);
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text) => {
+        if (window.blockInviteClipboard) throw new Error("Clipboard fixture denied");
+        window.copiedInvite = text;
+      } } });
+    });
+    await sentInviteActions.press("Enter");
+    await resendInvite.waitFor();
+    const menuItemGeometry = await copyInvite.evaluate(async node => {
+      const popup = node.closest('[data-slot="dropdown-menu-content"]');
+      await Promise.allSettled(popup.getAnimations().map(animation => animation.finished));
+      const { x, y, width, height } = node.getBoundingClientRect();
+      const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+      return { x, y, width, height: node.offsetHeight, reachable: node.contains(hit) };
+    });
+    assert(menuItemGeometry.height >= 48 && menuItemGeometry.reachable, JSON.stringify(menuItemGeometry));
+    await page.keyboard.press("Escape");
+    await inviteMenu.waitFor({ state: "hidden" });
+    assert(await sentInviteActions.evaluate(node => node === document.activeElement));
+    await sentInviteActions.press("Enter");
+    await copyInvite.press("Enter");
+    await sentRow.getByRole("status").filter({ hasText: "Ссылка скопирована" }).waitFor();
+    assert.equal(await page.evaluate(() => window.copiedInvite), "https://example.com/register#invite=fixture");
+    await page.evaluate(() => { window.blockInviteClipboard = true; });
+    await sentInviteActions.press("Enter");
+    await copyInvite.press("Enter");
+    const fallbackLink = sentRow.getByRole("textbox", { name: "Ссылка на приглашение — previous-0@example.com" });
+    await fallbackLink.focus();
+    assert(await fallbackLink.evaluate(node => node.readOnly && node.selectionStart === 0 && node.selectionEnd === node.value.length));
+    await fallbackLink.press("Enter");
+    assert.equal(await page.evaluate(() => window.inviteRequests), 3);
+    await sentInviteActions.press("Enter");
+    await resendInvite.press("Enter");
     await page.waitForFunction(() => Boolean(window.finishInviteResend));
-    assert(await resend.isDisabled());
+    assert(await sentInviteActions.isDisabled());
     assert(await sendInvite.isDisabled());
-    assert.equal(await resend.getAttribute("aria-busy"), "true");
+    assert.equal(await sentInviteActions.getAttribute("aria-busy"), "true");
     await page.evaluate(() => window.finishInviteResend());
     await page.getByRole("alert").filter({ hasText: "Не удалось отправить приглашение" }).waitFor();
-    await resend.locator("xpath=ancestor::li").getByText(/Ошибка отправки/).waitFor();
-    await resend.click();
+    await failedInviteActions.waitFor();
+    await sentInviteActions.press("Enter");
+    await copyInvite.waitFor(); // A failed resend leaves the previous working link available.
+    assert.equal(await resendInvite.count(), 0);
+    await page.keyboard.press("Escape");
+    await inviteMenu.waitFor({ state: "hidden" });
+    await failedInviteActions.press("Enter");
+    await resendInvite.click();
     await page.getByRole("status").filter({ hasText: "Новое приглашение отправлено" }).waitFor();
-    await resend.locator("xpath=ancestor::li").getByText(/Отправлен/).waitFor();
+    await sentInviteActions.waitFor();
     assert.deepEqual(await page.evaluate(() => window.inviteResendIds), ["old-0", "resend-failed"]);
     assert.equal(await page.evaluate(() => window.inviteRequests), 3);
     assert.equal(await inviteEmail.inputValue(), "draft@example.com");
     assert.deepEqual(await inviteAction(), initialInviteAction);
-    await resend.scrollIntoViewIfNeeded();
-    if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-profile-resend-${width}x${height}.png` });
+    assert.equal(await inviteList.getByText("previous-0@example.com", { exact: true }).count(), 1);
+    await inviteAttempts.press("Enter");
+    assert.equal(await inviteAttempts.getAttribute("aria-expanded"), "true");
+    await attemptedInvites.evaluate(async node => {
+      const panel = node.closest('[data-slot="accordion-content"]');
+      panel.getBoundingClientRect();
+      await Promise.allSettled(panel.getAnimations({ subtree: true }).map(animation => animation.finished));
+    });
+    assert.equal(await attemptedInvites.getByText("previous-0@example.com", { exact: true }).count(), 3);
+    assert.equal(await attemptedInvites.getByRole("button").count(), 0);
     if (height < 500) {
-      const lastInvite = page.getByRole("list", { name: "Приглашения", exact: true }).getByRole("listitem").last();
+      const lastInvite = attemptedInvites.getByRole("listitem").last();
       const scroll = (top) => lastInvite.evaluate((node, top) => {
         const scroller = node.closest('[data-slot="drawer-popup"] [data-slot="scroll-area-viewport"]') || document.scrollingElement;
         scroller.scrollTo({ top, behavior: "instant" });
@@ -230,7 +317,8 @@ try {
       assert(await scroll(10_000) > 0);
       assert.deepEqual(await inviteAction(), initialInviteAction);
       const row = await lastInvite.boundingBox();
-      assert(row.y + row.height <= initialInviteAction.y + 1);
+      assert(row.y + row.height <= initialInviteAction.y + 1,
+        `Last invitation ends at ${row.y + row.height}, footer starts at ${initialInviteAction.y}`);
       await scroll(0);
       assert.deepEqual(await inviteAction(), initialInviteAction);
       if (mobile) {
@@ -252,10 +340,30 @@ try {
         assert.deepEqual(await inviteAction(), initialInviteAction);
       }
     }
-    await page.screenshot({ path: `/tmp/rollapp-profile-invites-${width}x${height}.png` });
+    if ((width === 390 && height === 844) || (width === 1440 && height === 900)) {
+      await inviteAttempts.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `/tmp/rollapp-profile-invite-attempts-${width}x${height}.png` });
+    }
+    await inviteAttempts.press("Space");
+    await attemptedInvites.waitFor({ state: "hidden" });
     await back.click();
     await menu.waitFor();
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Инвайты", undefined, { polling: 50 });
+    if ((width === 390 && height === 400) || (width === 1440 && height === 900)) {
+      await page.evaluate(() => { window.holdInviteHistory = true; window.emptyInviteHistory = true; });
+      await invites.click();
+      await inviteHistory.getByRole("status").filter({ hasText: "Загружаем историю" }).waitFor();
+      await inviteEmail.fill("still-a-draft@example.com");
+      await page.evaluate(() => window.finishInviteHistory());
+      await inviteHistory.getByRole("alert").filter({ hasText: "История приглашений временно недоступна" }).waitFor();
+      const retryHistory = inviteFooter.getByRole("button", { name: "Обновить историю" });
+      assert.deepEqual(await retryHistory.evaluate(node => [node.offsetWidth, node.offsetHeight]), [48, 48]);
+      await retryHistory.click();
+      await inviteHistory.getByText("Приглашений пока нет.").waitFor();
+      assert.equal(await inviteEmail.inputValue(), "still-a-draft@example.com");
+      await back.click();
+      await menu.waitFor();
+    }
     await button("OpenRouter").click();
     const apiKey = page.locator("#settings-openrouter-key");
     await apiKey.fill("fixture-draft");
