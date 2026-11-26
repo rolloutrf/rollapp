@@ -20,13 +20,13 @@ test("existing production startup verifies document/auth columns in a read-only 
   const {calls,options}=fixture();assert.equal(await initializeRuntimeDatabase(options),"verify");
   assert.equal(calls[0],"SET TRANSACTION READ ONLY");
   assert(calls.slice(1).every(sql=>sql.startsWith("SELECT ")));
-  for(const table of ["wish_group_fundraisers","wish_group_contributions","stories","users","sessions","identity_content","career_content","planning_tasks","planning_notes","health_tracker_entries","health_medications","wishlist_business_pages","wishlist_business_items","wishlist_business_offers"])assert(calls.some(sql=>sql.includes(`FROM ${table} LIMIT 0`)));
+  for(const table of ["wish_participants","wish_group_fundraisers","wish_group_contributions","stories","users","sessions","identity_content","career_content","planning_tasks","planning_notes","health_tracker_entries","health_medications","wishlist_business_pages","wishlist_business_items","wishlist_business_offers"])assert(calls.some(sql=>sql.includes(`FROM ${table} LIMIT 0`)));
   assert(calls.includes("SELECT wishlist_links FROM users LIMIT 0"));
   for(const table of ["account_invites","membership_receipts"])assert(calls.some(sql=>sql.includes(`FROM ${table} LIMIT 0`)));
   assert(!calls.includes("MIGRATE"));
 });
 test("a missing production document table is an error and cannot fall back to migration or demo data",async()=>{
-  for (const unavailable of ["identity_content", "planning_notes", "health_tracker_entries", "expected_result", "actual_result", "health_medications"]) {
+  for (const unavailable of ["identity_content", "wish_participants", "planning_notes", "health_tracker_entries", "expected_result", "actual_result", "health_medications"]) {
     const {calls,options}=fixture({unavailable});await assert.rejects(initializeRuntimeDatabase(options),/Existing schema unavailable/);assert(!calls.includes("MIGRATE"));
   }
 });

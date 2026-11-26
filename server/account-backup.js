@@ -28,6 +28,7 @@ const sources = [
     "health_lab_content", "health_tracker_entries", "reward_need_entries", "messenger_reads",
   ].map((table) => [table, owned]),
   ["wishlists", owned, pick("id", "user_id", "title", "description", "privacy", "occasion_date", "color", "created_at", "space")],
+  ["wish_participants", `(${owned} OR ${ownedWish})`, pick("wish_id", "user_id", "created_at")],
   ["wish_groups", ownedList],
   ["wishlist_wishes", `${ownedList} AND ${ownedWish}`],
   ["wish_group_members", `${ownedList} AND ${ownedWish}

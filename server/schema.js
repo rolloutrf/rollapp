@@ -6,6 +6,7 @@ import { isReservedProfileUsername } from "./profile-paths.js";
 import { hashPassword } from "./security.js";
 import { isMemoryDatabase, query, transaction } from "./db.js";
 import { backfillWishGroupSpaces } from "./wish-groups.js";
+import { wishParticipantsSchema } from "./wish-participants.js";
 import { externalCatalogBrandsSchema } from "./external-catalog-brands.js";
 import { rollsSchema } from "./rolls.js";
 import { businessMarketplaceSchema } from "./business-marketplace.js";
@@ -234,6 +235,8 @@ const schema = `
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT '';
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS source_wish_id TEXT REFERENCES wishes(id) ON DELETE SET NULL;
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS catalog_item_key TEXT;
+
+  ${wishParticipantsSchema}
 
   CREATE TABLE IF NOT EXISTS external_catalog_items (
     source TEXT NOT NULL,

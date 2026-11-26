@@ -32,6 +32,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT user_id,contact_id,source_order FROM contact_overrides LIMIT 0");
     await client.query("SELECT user_id,content_json FROM health_lab_content LIMIT 0");
     await client.query("SELECT id,user_id,source_path,file_sha256,size_bytes FROM private_files LIMIT 0");
+    await client.query("SELECT wish_id,user_id,created_at FROM wish_participants LIMIT 0");
     await client.query("SELECT key,value_text FROM application_settings LIMIT 0");
     await client.query("SELECT business_user_id,space,title,description,published FROM wishlist_business_pages LIMIT 0");
     await client.query("SELECT id,business_user_id,space,title,description,brand,image_url,action_url,price,active FROM wishlist_business_items LIMIT 0");

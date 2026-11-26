@@ -779,7 +779,7 @@ assert(/role="group"/.test(wishActionsTag) && /aria-label="Действия с �
 assert(!/(?:border-t|bg-muted\/50|p-4|rounded-b-xl|-mx-4|-mb-4)/.test(wishActionsTag), "WishDetailsModal action group must not restore footer chrome");
 assert(
   primaryWishDetailsDialog.indexOf("wish-buy-action") < primaryWishDetailsDialog.indexOf("{screen && !marketplacePrimary && renderActions()}")
-    && primaryWishDetailsDialog.indexOf("{screen && !marketplacePrimary && renderActions()}") < primaryWishDetailsDialog.indexOf("{!owner && <Alert"),
+    && primaryWishDetailsDialog.indexOf("{screen && !marketplacePrimary && renderActions()}") < primaryWishDetailsDialog.indexOf("{!owner && !sharedBy && <Alert"),
   "WishDetailsModal page actions must follow the buy action and precede the guest notice",
 );
 assert(!/<Modal\b/.test(primaryWishDetailsDialog), "WishDetailsModal must not wrap its primary detail view in the legacy Modal adapter");
