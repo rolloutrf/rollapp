@@ -22,7 +22,7 @@ import { DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, Drawer, Dra
 import { useIsMobile } from "@/hooks/use-mobile";
 import { applyRetailerPreviewFallback } from "../wishlist/wish-preview.jsx";
 import { APP_WISH_CATALOG_PATH } from "../shell/app-routing.js";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { api } from "../runtime/api.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAsync } from "../shell/use-async.jsx";
@@ -32,7 +32,8 @@ import { LoadingScreen, EmptyState } from "../shell/page-feedback.jsx";
 import { wishlistSpace } from "@/modules/wishlist/wishlist-business.jsx";
 import { isBrandCatalogSearch } from "../../../shared/modules/catalog-marketplace/catalog-links.js";
 import { BusinessCatalogList } from "@/modules/catalog-marketplace/catalog-brands.jsx";
-import { PlaceListingsList } from "@/modules/catalog-marketplace/place-listings.jsx";
+import { PlaceListingsList, PlaceListingDetailsPage, usePlaceListings } from "@/modules/catalog-marketplace/place-listings.jsx";
+import { BusinessCatalogContext } from "@/modules/catalog-marketplace/catalog-brands.jsx";
 import { withWishReward } from "../loyalty/wish-reward.jsx";
 import { scheduleDocumentScrollUnlock } from "../shell/document-scroll.jsx";
 
@@ -266,12 +267,25 @@ export function CatalogItemPage() {
   </ContentPage>;
 }
 
+function BrandsCatalogSection() {
+  const context = useContext(BusinessCatalogContext);
+  const space = context?.space || null;
+  const listings = usePlaceListings(space);
+  const placesLoaded = listings.result && listings.result.space === space && !listings.result.error;
+  const showPlacesOnly = placesLoaded && listings.result.places.length > 0;
+  return <>
+    {!showPlacesOnly && <BusinessCatalogList />}
+    <PlaceListingsList listings={listings} />
+  </>;
+}
+
 export function WishCatalogPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const search = new URLSearchParams(location.search);
   const source = isBrandCatalogSearch(location.search) ? "brands" : "community";
   const selectedBrand = source === "brands" ? search.get("brand") || "" : "";
+  const selectedPlace = source === "brands" && !selectedBrand ? search.get("place") || "" : "";
   const selectedSpace = wishlistSpace(location.search);
   useEffect(() => {
     const search = new URLSearchParams(location.search);
@@ -280,12 +294,14 @@ export function WishCatalogPage() {
     navigate({ pathname: location.pathname, search: `?${search}` }, { replace: true });
   }, [location.pathname, location.search, navigate]);
 
-  if (source === "brands" && !selectedBrand) return (
-    <div className="app-page app-page--collection wish-catalog-page page-stack">
-      <BusinessCatalogList />
-      <PlaceListingsList />
-    </div>
-  );
+  if (source === "brands" && !selectedBrand) {
+    if (selectedPlace) return <PlaceListingDetailsPage space={selectedSpace} slug={selectedPlace} />;
+    return (
+      <div className="app-page app-page--collection wish-catalog-page page-stack">
+        <BrandsCatalogSection />
+      </div>
+    );
+  }
   return <CatalogItemFeed source={source} selectedSpace={selectedSpace} selectedBrand={selectedBrand} />;
 }
 

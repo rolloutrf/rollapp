@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { BusinessCatalogList, BusinessCatalogProvider } from "@/modules/catalog-marketplace/catalog-brands.jsx";
-import { PlaceListingsList } from "@/modules/catalog-marketplace/place-listings.jsx";
+import { PlaceListingDetailsPage, PlaceListingsList } from "@/modules/catalog-marketplace/place-listings.jsx";
 import { api } from "@/modules/runtime/api.js";
 import "../../src/styles.css";
 import "../../src/index.css";
@@ -54,14 +54,17 @@ api.post = ((originalPost) => async (path, body) => {
 })(api.post);
 
 function Fixture() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const placeSlug = new URLSearchParams(search).get("place") || "";
   return <div className="app-layout app-layout--dark">
     <main className="app-main">
       <section className="app-page app-page--collection page-stack">
-        <BusinessCatalogProvider {...(query.has("sphere") ? { sphere: "career" } : { space: "products" })}>
-          <BusinessCatalogList />
-          {!query.has("sphere") && <PlaceListingsList />}
-        </BusinessCatalogProvider>
+        {placeSlug
+          ? <PlaceListingDetailsPage space="products" slug={placeSlug} />
+          : <BusinessCatalogProvider {...(query.has("sphere") ? { sphere: "career" } : { space: "products" })}>
+            <BusinessCatalogList />
+            {!query.has("sphere") && <PlaceListingsList />}
+          </BusinessCatalogProvider>}
         <output hidden data-location>{pathname}</output>
       </section>
     </main>

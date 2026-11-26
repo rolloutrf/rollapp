@@ -89,9 +89,9 @@ try {
       await placesGrid.waitFor();
       const placeCards = placesGrid.getByRole("listitem");
       assert.equal(await placeCards.count(), 3);
-      assert.equal(await placeCards.last().getByRole("button").count(), 0);
-      assert.match(await placeCards.first().getByRole("button").textContent(), /Жду на Роллапп \(7\)/);
-      assert.match(await placeCards.nth(1).getByRole("button").textContent(), /Ждёте на Роллапп/);
+      assert.equal(await placeCards.last().getByRole("button", { name: /Роллапп/ }).count(), 0);
+      assert.match(await placeCards.first().getByRole("button", { name: "Жду на Роллапп · ХОНГ" }).textContent(), /Жду на Роллапп \(7\)/);
+      assert.match(await placeCards.nth(1).getByRole("button", { name: "Ждёте на Роллапп · AF Brew" }).textContent(), /Ждёте на Роллапп/);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       if (width === 1024) {
         const waitButton = placeCards.first().getByRole("button", { name: /Жду на Роллапп · ХОНГ/ });
@@ -116,6 +116,10 @@ try {
         await completePlaceWait();
         await waitButton.waitFor();
         assert.deepEqual(await page.evaluate(() => window.waitCalls), [true, true, false]);
+        await placeCards.first().getByRole("button", { name: "Открыть карточку места ХОНГ" }).click();
+        await page.getByText("Лапшичная в контейнере «Третьего кластера».").waitFor();
+        await page.getByRole("button", { name: /Назад/ }).click();
+        await placesGrid.waitFor();
       }
     }
     const completeFollow = () => page.evaluate(() => {
