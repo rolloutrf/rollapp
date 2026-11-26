@@ -1,6 +1,6 @@
 import { BriefcaseBusiness, Fingerprint, Gift, GraduationCap, HeartPulse, Coins, Columns3, ContactRound } from "lucide-react";
 import { APP_HOME } from "./home-path.jsx";
-import { APP_STORE_PATH, APP_ASSISTANT_PATH } from "./app-routing.js";
+import { APP_STORE_PATH, APP_ASSISTANT_PATH, APP_ORDERS_PATH } from "./app-routing.js";
 import { IDENTITY_TABS, CAREER_TABS, EDUCATION_TABS, HEALTH_TABS } from "../../../shared/modules/shell/sphere-tabs.js";
 import { SPACES } from "../categories/wish-spaces.jsx";
 import { publicSpacePath } from "../../../shared/modules/profile/profile-links.js";
@@ -27,7 +27,7 @@ export function activeServiceFromPath(pathname) {
   if (pathname.startsWith("/app/rolls")) return "rolls";
   if (pathname === "/app/planning") return "planning";
   if (pathname.startsWith("/app/business")) return "business-access";
-  if (pathname.startsWith("/app/wishes") || pathname === APP_STORE_PATH) return "wishlist";
+  if (pathname.startsWith("/app/wishes") || pathname === APP_STORE_PATH || pathname === APP_ORDERS_PATH) return "wishlist";
   if (pathname.startsWith("/s/")) return "wishlist";
   if (isFriendsDirectoryPath(pathname)) return "wishlist";
   if (pathname.startsWith("/app/spheres/contacts")) return "career";
