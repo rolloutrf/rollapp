@@ -209,7 +209,14 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
   };
   const leaveSettingsFor = (path) => exitSettings(() => {
     onClose();
-    navigate(path, path === APP_ORDERS_PATH ? { state: { ordersFromProfile: true } } : undefined);
+    if (path !== APP_ORDERS_PATH) {
+      navigate(path);
+      return;
+    }
+    // Keep the current Wishlist space: orders open over the store page and must
+    // not switch the section the profile was showing.
+    const tab = new URLSearchParams(location.search).get("tab");
+    navigate(tab ? `${path}?${new URLSearchParams({ tab })}` : path, { state: { ordersFromProfile: true } });
   });
   const submit = async (event) => {
     event.preventDefault();

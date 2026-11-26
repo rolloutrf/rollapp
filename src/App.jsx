@@ -131,7 +131,9 @@ function WishlistHomeRoute() {
 function WishlistStoreRoute({ ordersOpen = false }) {
   const { search } = useLocation();
   const { user } = useSession();
-  const space = ordersOpen ? "products" : wishlistSpace(search);
+  // Orders open as a drawer over the same store page: keep the Wishlist space
+  // from the URL so opening «Заказы» from a profile section does not switch it.
+  const space = wishlistSpace(search);
   return <StorePage key={`${user.id}:${space}`} user={user} selectedSpace={space} ordersOpen={ordersOpen} />;
 }
 
