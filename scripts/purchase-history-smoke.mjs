@@ -38,6 +38,27 @@ async function checkJournal(page, viewport, surface) {
   const wallet = page.getByRole("tabpanel", { name: "Кошелёк", exact: true });
   const balance = wallet.getByRole("region", { name: "Баланс роллов" });
   await balance.waitFor();
+  await balance.locator("[data-rolls-balance] strong").waitFor();
+  assert.match((await balance.locator("[data-rolls-balance]").textContent()).trim(), /^[\d\s]+$/u);
+  assert.equal(await balance.getByText("Доступно", { exact: true }).count(), 0);
+  const transferAction = balance.getByRole("button", { name: "Отправить роллы", exact: true });
+  assert.equal((await transferAction.textContent()).trim(), "");
+  assert(await transferAction.evaluate(button => {
+    const bounds = node => node.getBoundingClientRect();
+    const center = ({ left, width }) => left + width / 2;
+    const summary = button.closest(".finance-balance");
+    const amount = bounds(summary.querySelector("[data-rolls-balance] strong"));
+    const control = bounds(button);
+    const glyph = bounds(button.querySelector("svg.lucide-arrow-up-right"));
+    const style = getComputedStyle(button);
+    const axis = center(bounds(summary));
+    return button.closest("[data-control-bar]") && control.width === 48 && control.height === 48
+      && glyph.width === 20 && glyph.height === 20
+      && [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius]
+        .every(radius => radius === "24px")
+      && Math.abs(center(amount) - axis) < 1 && Math.abs(center(control) - axis) < 1
+      && control.top >= amount.bottom;
+  }), `Centered wallet balance and transfer arrow at ${surface} ${viewport.width}px`);
   assert.deepEqual(await tabs.getByRole("tab").allTextContents(), ["Кошелёк", "Покупки"]);
   assert.equal(await wallet.getByRole("link", { name: "Заказы и продажи" }).count(), 0);
   if (surface === "wallet") {
@@ -83,6 +104,21 @@ async function checkJournal(page, viewport, surface) {
   } else {
     assert.equal(await receipt.locator("xpath=ancestor::*[contains(@class,'app-fullscreen-dialog')]").count(), 1);
   }
+  const fields = receipt.locator("dl");
+  assert.deepEqual(await fields.locator("dt").allTextContents(), [
+    "Номер", "Операция", "Статус", "Дата и время · Москва", "Движение", "Отправитель",
+  ]);
+  assert(await fields.evaluate(list => {
+    const { left, right } = list.getBoundingClientRect();
+    let previousBottom = list.getBoundingClientRect().top;
+    for (const row of list.children) {
+      const box = row.getBoundingClientRect();
+      if (Math.abs(box.left - left) > 1 || Math.abs(box.right - right) > 1
+        || box.top < previousBottom - 1 || row.scrollWidth > row.clientWidth + 1) return false;
+      previousBottom = box.bottom;
+    }
+    return true;
+  }), `Receipt fields occupy consecutive full-width rows at ${surface} ${viewport.width}px`);
   await receipt.getByRole("button", { name: "Назад", exact: true }).click();
   await receipt.waitFor({ state: "hidden" });
   await walletReceipt.waitFor();

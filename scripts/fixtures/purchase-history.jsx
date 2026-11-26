@@ -67,7 +67,7 @@ api.get = async (path) => {
     return { transfer: window.transferStatusOverride ?? (key === state.attempts[0]?.idempotencyKey ? state.transfer : null) };
   }
   if (path === "/rolls/receipts/transfer/transfer-wallet") return { receipt: {
-    id: "transfer-wallet", kind: "transfer", status: "recorded", amount: "28", direction: "incoming",
+    id: "a12b3456-7890-4abc-8def-1234567890ab", kind: "transfer", status: "recorded", amount: "28", direction: "incoming",
     createdAt: "2026-11-15T22:30:00Z", participant: { name: "Мария", username: "maria" },
   } };
   if (path === "/rolls/receipts/refund/refund%3Ainvoice") {

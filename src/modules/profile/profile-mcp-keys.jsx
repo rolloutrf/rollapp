@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { codexKeychainCommand, codexMacConfig, rollappMcpUrl } from "../../../shared/modules/profile/mcp-setup.js";
 
 const scopeLabels = { read: "Только чтение", write: "Чтение и запись" };
 const expiryFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" });
@@ -19,29 +20,66 @@ const codexCommands = [
   "read -rs ROLLAPP_MCP_TOKEN",
   "export ROLLAPP_MCP_TOKEN",
   "codex mcp add rollapp \\",
-  `  --url ${new URL(serverUrl).href} \\`,
+  `  --url ${rollappMcpUrl} \\`,
   "  --bearer-token-env-var ROLLAPP_MCP_TOKEN",
   "codex",
 ].join("\n");
 
 function McpSetupGuide() {
+  const [configCopyStatus, setConfigCopyStatus] = useState("");
+
+  async function copyMacConfig() {
+    try {
+      await navigator.clipboard.writeText(codexMacConfig);
+      setConfigCopyStatus("Конфигурация скопирована");
+    } catch {
+      setConfigCopyStatus("Выделите и скопируйте конфигурацию из блока.");
+    }
+  }
+
   return <>
     <section aria-labelledby="mcp-setup-heading" className="typeset typeset-rollapp" data-typeset-group>
       <h3 id="mcp-setup-heading">Как подключить</h3>
       <ol>
         <li>Нажмите «Создать ключ» и скопируйте его. Полный ключ показывается только при создании и действует 30 дней. Не отправляйте его в чат.</li>
-        <li>Добавьте в MCP-клиенте сервер <strong>Streamable HTTP</strong>. Укажите адрес <code className="wrap-anywhere">{serverUrl}</code> и передайте ключ как <strong>Bearer token</strong>.</li>
-        <li>Чтобы проверить подключение, попросите ассистента: «Покажи мои списки To Do в Роллаппе».</li>
+        <li>Для Codex выберите свою версию ниже. В других клиентах добавьте сервер <strong>Streamable HTTP</strong> по адресу <code className="wrap-anywhere">{serverUrl}</code> с ключом в поле <strong>Bearer token</strong>.</li>
+        <li>Откройте новый чат после подключения и попросите ассистента показать списки To Do в Роллаппе.</li>
       </ol>
     </section>
     <Accordion>
+      <AccordionItem value="codex-mac">
+        <AccordionTrigger headerAs="h4" className="min-h-12 items-center gap-2 text-rollapp-body! hover:no-underline">
+          Codex на Mac
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="typeset typeset-rollapp" data-typeset-group>
+            <ol>
+              <li>
+                В Терминале выполните команду и вставьте ключ в скрытый запрос пароля. Подтвердите ввод, если macOS попросит повторить его.
+                <pre className="whitespace-pre-wrap wrap-anywhere"><code>{codexKeychainCommand}</code></pre>
+              </li>
+              <li>
+                Откройте <code>~/.codex/config.toml</code> и добавьте блок ниже. Если раздел <code>[mcp_servers.rollapp]</code> уже есть, замените существующий блок Rollapp.
+                <pre className="whitespace-pre-wrap wrap-anywhere"><code>{codexMacConfig}</code></pre>
+                <div data-not-typeset className="grid gap-2">
+                  <Button type="button" variant="outline" className="min-h-12 w-fit max-w-full rounded-full" onClick={copyMacConfig}>
+                    Скопировать конфигурацию
+                  </Button>
+                  {configCopyStatus && <p role="status">{configCopyStatus}</p>}
+                </div>
+              </li>
+              <li>Полностью закройте Codex через ⌘Q и откройте заново. Если macOS запросит доступ к записи Rollapp MCP в Связке ключей, разрешите её чтение.</li>
+            </ol>
+          </div>
+        </AccordionContent>
+      </AccordionItem>
       <AccordionItem value="codex">
         <AccordionTrigger headerAs="h4" className="min-h-12 items-center gap-2 text-rollapp-body! hover:no-underline">
           Codex в терминале
         </AccordionTrigger>
         <AccordionContent>
           <div className="typeset typeset-rollapp" data-typeset-group>
-            <p>В терминале macOS или Linux с установленным Codex CLI выполните первую строку. Вставьте ключ и нажмите Enter: ввод скрыт. Затем выполните остальные строки в том же окне.</p>
+            <p>Для текущего сеанса CLI выполните первую строку отдельно. Вставьте ключ и нажмите Enter. Затем выполните остальные строки и запустите Codex в этом же терминале.</p>
             <pre className="whitespace-pre-wrap wrap-anywhere"><code>{codexCommands}</code></pre>
             <p><a href="https://developers.openai.com/codex/mcp/#connect-an-existing-mcp-server" target="_blank" rel="noreferrer">Инструкция Codex в OpenAI Docs</a></p>
           </div>

@@ -490,7 +490,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
         <Accordion className="min-w-0 rounded-xl border bg-card px-3">
           <AccordionItem value="ozon-tab-import">
             <AccordionTrigger headerAs="h3" className="min-h-(--layout-control-size) items-center gap-2 px-1 text-rollapp-body! hover:no-underline">
-              Импорт из открытого списка Ozon
+              Открытый список Ozon
             </AccordionTrigger>
             <AccordionContent className="px-1 pb-4">
               <OzonWishlistImport disabled={Boolean(busy)} busy={importingWishlist === "ozon-tab"} importItems={importOzonTab} status={ozonTabImportStatus} />

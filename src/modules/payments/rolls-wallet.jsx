@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Coins, Search } from "lucide-react";
+import { ArrowUpRight, Coins, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/modules/runtime/api.js";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -378,18 +378,19 @@ export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
             </AlertDescription></Alert>}
 
             <FinanceBalance wallet={wallet} loading={loading} actions={<>
-              {wallet?.features?.starsPurchases && !pendingTopup && <PageActionButton ref={topupOpener} type="button"
-                aria-label="Пополнить баланс" onClick={() => setTopupView(true)} disabled={busy}>
-                Пополнить
-              </PageActionButton>}
-              <PageActionButton ref={transferOpener} type="button" variant={wallet?.features?.starsPurchases && !pendingTopup ? "outline" : "default"}
+              <Button ref={transferOpener} type="button" size="icon" data-control-icon=""
+                variant={wallet?.features?.starsPurchases && !pendingTopup ? "outline" : "default"}
                 aria-label="Отправить роллы" onClick={() => {
                   walletScrollArea.current?.focus({ preventScroll: true });
                   setTransferError("");
                   setTransferView(true);
                 }} disabled={!wallet || busy || Boolean(pending)}>
-                Отправить
-              </PageActionButton>
+                <ArrowUpRight aria-hidden="true" />
+              </Button>
+              {wallet?.features?.starsPurchases && !pendingTopup && <PageActionButton ref={topupOpener} type="button"
+                aria-label="Пополнить баланс" onClick={() => setTopupView(true)} disabled={busy}>
+                Пополнить
+              </PageActionButton>}
             </>} />
 
             {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>

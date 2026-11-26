@@ -205,6 +205,96 @@ try {
     }
     await browserDisclosure.click();
     await importBrowser.waitFor({ state: 'hidden' });
+    const ozonDisclosure = wishlist.getByRole('button', { name: 'Открытый список Ozon', exact: true });
+    const pasteCards = wishlist.getByRole('textbox', { name: 'Скопированные карточки', exact: true });
+    const readClipboard = wishlist.getByRole('button', { name: 'Импортировать из буфера', exact: true });
+    const bookmarkDisclosure = wishlist.getByRole('button', { name: 'Закладка для копирования', exact: true });
+    const bookmark = wishlist.getByRole('link', { name: 'Скопировать список Ozon', exact: true });
+    assert.equal(await ozonDisclosure.getAttribute('aria-expanded'), 'false');
+    const captureOzon = (width === 390 && height === 844) || width === 1440;
+    if (captureOzon) await ozonDisclosure.click();
+    else await ozonDisclosure.press('Enter');
+    await pasteCards.waitFor();
+    await pasteCards.evaluate(async input => {
+      const panel = input.closest('[data-slot="accordion-content"]');
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await Promise.allSettled(panel.getAnimations({ subtree: true }).map(animation => animation.finished));
+    });
+    await pasteCards.scrollIntoViewIfNeeded();
+    assert.equal(await bookmarkDisclosure.getAttribute('aria-expanded'), 'false');
+    assert.equal(await bookmark.isVisible(), false);
+    const pasteBox = await pasteCards.boundingBox();
+    const clipboardBox = await readClipboard.boundingBox();
+    for (const box of [pasteBox, clipboardBox]) assert(box.x >= 0 && box.x + box.width <= width && box.height >= 48);
+    assert.deepEqual(await readClipboard.evaluate(element => {
+      const { paddingInlineStart, paddingInlineEnd } = getComputedStyle(element);
+      return [paddingInlineStart, paddingInlineEnd];
+    }), ['24px', '24px']);
+    if (width === 320) assert(clipboardBox.y >= pasteBox.y + pasteBox.height + 7);
+    if (width === 1440) assert(Math.abs(clipboardBox.y - pasteBox.y) < 1);
+    if (captureOzon) {
+      await page.evaluate(() => document.fonts.ready);
+      await bookmarkDisclosure.evaluate(toggle => toggle.scrollIntoView({ block: 'center', behavior: 'instant' }));
+      await page.screenshot({ path: `/tmp/rollapp-profile-ozon-import-${width}.png` });
+    }
+    if (width === 320 || width === 1440 || height === 400) {
+      const before = await page.evaluate(() => window.browserWishlistImports.length);
+      const item = { url: 'https://www.ozon.ru/product/smoke-123456789/', title: 'Карточка Ozon', imageUrl: '' };
+      const html = `<a href="${item.url}">${item.title}</a>`;
+      await page.evaluate(html => {
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+          async read() {
+            if (window.rejectOzonClipboard) throw new Error('Clipboard permission denied');
+            return [new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }) })];
+          },
+          async writeText(value) { window.copiedOzonBookmark = value; },
+        } });
+      }, html);
+      await readClipboard.click();
+      const importsCompleted = count => page.waitForFunction(length => window.browserWishlistImports.length === length, before + count);
+      const imported = wishlist.getByText('Добавлено в «Товары»: 1. Уже было в Rollapp: 0.', { exact: true });
+      await importsCompleted(1);
+      await imported.waitFor();
+      await page.evaluate(() => { window.rejectOzonClipboard = true; });
+      await readClipboard.click();
+      await wishlist.getByText('Вставьте карточки в поле «Скопированные карточки».', { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => window.browserWishlistImports.length), before + 1);
+      await pasteCards.focus();
+      await pasteCards.evaluate((input, html) => {
+        const clipboardData = new DataTransfer();
+        clipboardData.setData('text/html', html);
+        input.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }));
+      }, html);
+      await importsCompleted(2);
+      await imported.waitFor();
+      await bookmarkDisclosure.press('Enter');
+      await bookmark.waitFor();
+      if (height === 400) {
+        await bookmark.evaluate(link => link.scrollIntoView({ block: 'center', behavior: 'instant' }));
+        const link = await bookmark.boundingBox();
+        assert(link.y >= 0 && link.y + link.height <= (await save.boundingBox()).y);
+      }
+      const address = await bookmark.getAttribute('href');
+      assert(address.startsWith('javascript:'));
+      assert.deepEqual(await bookmark.evaluate(link => {
+        const transfer = new DataTransfer();
+        link.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+        return [transfer.getData('text/uri-list'), transfer.getData('text/plain')];
+      }), [address, address]);
+      await bookmark.press('Enter');
+      await wishlist.getByText(/^Адрес скопирован/).waitFor();
+      assert.equal(await page.evaluate(() => window.copiedOzonBookmark), address);
+      await page.evaluate(item => {
+        navigator.clipboard.readText = async () => 'ROLLAPP_OZON_WISHLIST_V1\n' + JSON.stringify([item]);
+      }, item);
+      await readClipboard.click();
+      await importsCompleted(3);
+      await imported.waitFor();
+      assert.deepEqual(await page.evaluate(start => window.browserWishlistImports.slice(start), before),
+        Array.from({ length: 3 }, () => ({ ownerId: 'fixture', items: [item] })));
+    }
+    await ozonDisclosure.press('Enter');
+    await pasteCards.waitFor({ state: 'hidden' });
     assert(await save.isDisabled());
     assert(await save.evaluate(button => button.form?.id === 'profile-wishlists-form'));
     await inputs[1].fill('https://ozon.ru.example/t/test');

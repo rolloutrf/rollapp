@@ -79,7 +79,7 @@ function ReceiptContent({ intent, titleId, titleRef, onClose }) {
           </AlertDescription>
         </Alert> : !receipt ? <p role="status" className="flex items-center gap-2 text-muted-foreground"><Spinner />Загружаем квитанцию…</p> : <>
           <p className="wrap-anywhere text-4xl leading-10 font-semibold tabular-nums">{formatRolls(BigInt(receipt.amount))}</p>
-          <dl className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2">
+          <dl className="grid min-w-0 gap-4">
             {rollReceiptFields(receipt).map(([label, value]) => <div key={label} className="grid min-w-0 content-start gap-1">
               <dt className="text-xs text-muted-foreground">{label}</dt>
               <dd className={`min-w-0 wrap-anywhere${label === "Номер" || label === "Номер заказа" ? " tabular-nums" : ""}`}>{value}</dd>
