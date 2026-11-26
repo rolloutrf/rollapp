@@ -5,7 +5,6 @@ export const modules = [
   ["04", "Категории", "categories--spaces", "/app/wishes"],
   ["05", "Карточка", "card--interactive", "/app/wishes"],
   ["06", "Доставка", "delivery--results", "/app/store"],
-  ["07", "2FA", "two-factor--status"],
   ["08", "Платежи", "payments--balance", "/app/rolls"],
   ["09", "Чекаут", "checkout--delivery", "/app/store"],
   ["10", "История операций", "history--entries", "/app/orders"],

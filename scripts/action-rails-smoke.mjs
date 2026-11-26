@@ -62,7 +62,7 @@ try{
       idle:{wishlist:style(tile('.list-tabs','false')),day:style(tile('[data-day-tile-comparison]','false'))},
       selected:{wishlist:style(wishlist),day:style(day)},
       wishlistPaint:expectedPaint(wishlist,'--list-tile-selected-surface','--list-tile-selected-ink','inherit'),
-      dayPaint:expectedPaint(day,'--primary','--primary-foreground','var(--muted-foreground)'),
+      dayPaint:expectedPaint(day,'--primary','--primary-foreground','color-mix(in oklch, var(--primary-foreground) 72%, transparent)'),
       wishlistGlow:getComputedStyle(wishlist,'::before').backgroundImage,
       dayGlow:getComputedStyle(day,'::before').backgroundImage,
      };

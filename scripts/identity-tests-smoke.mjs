@@ -22,7 +22,7 @@ try {
     assert.equal(await page.getByRole('button', { name: /^(Настроить список|Загрузить|Удалить все)$/ }).count(), 0, 'Retired page action buttons must stay absent');
     assert.equal(await page.locator('a[href*="/identity/business/"]').count(), 0, 'Identity reports have no marketplace action');
     const settings = title => page.getByRole('button', { name: `Настройки теста «${title}»`, exact: true });
-    const tile = title => page.getByRole('button', { name: title, exact: true });
+    const tile = title => page.locator('[data-list-tile]').filter({ has: page.getByText(title, { exact: true }) });
     const add = page.locator('[data-add-fab] button[aria-label="Добавить тест"]');
     await settings('Gallup').waitFor();
     await add.waitFor();
@@ -45,7 +45,7 @@ try {
     await settings('Hogan').click();
     const hoganInput = page.getByLabel('Загрузить PDF для Hogan', { exact: true });
     await hoganInput.waitFor();
-    assert.equal(await page.locator('[data-list-tile][aria-pressed="true"]').getAttribute('aria-label'), 'Gallup');
+    assert.equal(await page.locator('[data-list-tile][aria-pressed="true"] [data-slot="list-tile-label"]').textContent(), 'Gallup');
     await closeSettings.click();
     await hoganInput.waitFor({ state: 'hidden' });
     await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Настройки теста «Hogan»');

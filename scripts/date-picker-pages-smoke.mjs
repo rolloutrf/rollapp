@@ -87,7 +87,7 @@ try {
       await open(); await calendar.waitFor();
       await page.getByRole("button", { name: "Очистить дату", exact: true }).click();
       await page.waitForURL((url) => !url.searchParams.has("date") && !url.searchParams.has("formScreen"));
-      await page.getByRole("button", { name: "Выбрать дату: не выбрана", exact: true }).click();
+      await page.getByRole("button", { name: "Выбрать дату: Выберите дату", exact: true }).click();
       await calendar.waitFor();
       assert.equal(await page.getByRole("button", { name: "Очистить дату", exact: true }).count(), 0);
       if (width < 768) {
@@ -98,7 +98,7 @@ try {
         const title = screen.getByRole("textbox", { name: "Название", exact: true });
         await title.fill("Черновик задачи");
         const parentUrl = page.url();
-        const date = screen.getByRole("button", { name: "Дата задачи: не выбрана", exact: true });
+        const date = screen.getByRole("button", { name: "Дата задачи: Выберите дату", exact: true });
         await date.click();
         await screen.getByRole("heading", { name: "Дата задачи", exact: true }).waitFor();
         await page.goBack(); await page.waitForURL(parentUrl);

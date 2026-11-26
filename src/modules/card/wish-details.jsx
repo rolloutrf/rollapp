@@ -60,7 +60,9 @@ import { WishDeleteAlert } from "../wishlist/wish-delete-alert.jsx";
 import { MediaNotesPanel } from "../wishlist/media-notes.jsx";
 import { ScreenNavigation } from "../shell/screen-navigation.jsx";
 
-export function WishDetailsModal({ wish, screen = false, owner = false, profile, shareToken = "", lists = [], giftSuggestion = null, onChanged, onEdit, onCreateList, onClose }) {
+const EMPTY_LISTS = Object.freeze([]);
+
+export function WishDetailsModal({ wish, screen = false, owner = false, profile, shareToken = "", lists = EMPTY_LISTS, giftSuggestion = null, onChanged, onEdit, onCreateList, onClose }) {
   const isMobile = useIsMobile();
   const sharedBy = wish.sharedBy;
   const resolvedSpace = wishSpaceId(wish, lists);

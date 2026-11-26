@@ -34,12 +34,13 @@ export function RollsHistory({ transactions, hasMore, loading, loadingMore, busy
         const expanded = openId === entryKey;
         return <li key={entryKey} className="grid min-w-0 gap-2 py-2" data-rolls-transaction={item.kind}>
           <Button variant="ghost" className="h-auto w-full items-start justify-start gap-3 rounded-xl px-0 py-2 text-start font-normal whitespace-normal"
-            type="button" aria-label={`Квитанция · ${title}`} aria-expanded={expanded} aria-controls={expanded ? panelId : undefined}
+            type="button" aria-description="Открыть квитанцию" aria-expanded={expanded} aria-controls={expanded ? panelId : undefined}
             onClick={() => setOpenId(expanded ? null : entryKey)}>
-            <span className={`flex size-12 shrink-0 items-center justify-center rounded-full ${incoming ? "bg-amber-400/10 text-amber-300" : "bg-muted text-muted-foreground"}`}><Icon className="size-5" aria-hidden="true" /></span>
+            <span className="sr-only">Квитанция · </span>
+            <span className={`flex size-12 shrink-0 items-center justify-center rounded-full ${incoming ? "bg-amber-400/10 text-amber-800 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}><Icon className="size-5" aria-hidden="true" /></span>
             <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
               <span className="min-w-0 wrap-anywhere">{title}</span>
-              <span className={`flex items-start justify-end gap-1 text-right tabular-nums ${incoming ? "text-amber-300" : "text-foreground"}`}>
+              <span className={`flex items-start justify-end gap-1 text-right tabular-nums ${incoming ? "text-amber-800 dark:text-amber-300" : "text-foreground"}`}>
                 {incoming ? "+" : "−"}{formatRolls(item.amount)}
                 <ChevronDown className={`mt-1 size-5 text-muted-foreground ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
               </span>

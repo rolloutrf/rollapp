@@ -544,11 +544,6 @@ export function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = nu
             <div
               className={`wish-editor__image aspect-[4/3] h-auto min-h-0 rounded-lg ${formPreviewImageUrl ? "has-image" : "is-empty"} ${imageDropActive ? "is-dragging" : ""}`}
               aria-busy={imageUploading || undefined}
-              role="button"
-              tabIndex={imageUploading ? -1 : 0}
-              aria-label={formPreviewImageUrl ? "Сменить фотографию желания" : "Добавить фотографию желания"}
-              onClick={() => { if (!imageUploading) imageFileRef.current?.click(); }}
-              onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !imageUploading) { event.preventDefault(); imageFileRef.current?.click(); } }}
               onDragEnter={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
               onDragOver={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
               onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setImageDropActive(false); }}
@@ -558,6 +553,10 @@ export function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = nu
                 uploadImage(event.dataTransfer.files?.[0]);
               }}
             >
+              <ShadcnButton type="button" variant="ghost" className="absolute inset-0 z-10 h-full w-full rounded-[inherit] p-0 hover:bg-transparent dark:hover:bg-transparent"
+                disabled={imageUploading} aria-label={formPreviewImageUrl ? "Сменить фотографию желания" : imageUploading ? "Загружаем изображение…" : "Добавить изображение"}
+                aria-describedby={formPreviewImageUrl ? undefined : fieldId("image-help")}
+                onClick={() => imageFileRef.current?.click()} />
               {formPreviewImageUrl
                 ? <img src={formPreviewImageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, form.url)} />
                 : <Empty className="wish-editor__image-empty h-full gap-3 rounded-[inherit] border bg-muted/30 p-4 transition-colors max-[380px]:gap-2 max-[380px]:p-3">
@@ -567,17 +566,18 @@ export function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = nu
                     <EmptyDescription id={fieldId("image-help")}>JPG, PNG или WEBP · до 8 МБ</EmptyDescription>
                   </EmptyHeader>
                 </Empty>}
-              <Input
-                ref={imageFileRef}
-                className="sr-only !size-px"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                aria-label="Загрузить фотографию желания"
-                aria-invalid={Boolean(imageError) || undefined}
-                aria-describedby={`${fieldId("image-help")}${imageError ? ` ${fieldId("image-error")}` : ""}`}
-                onChange={(event) => uploadImage(event.target.files?.[0])}
-              />
             </div>
+            <Input
+              ref={imageFileRef}
+              className="sr-only !size-px"
+              type="file"
+              tabIndex={-1}
+              accept="image/jpeg,image/png,image/webp"
+              aria-label="Загрузить фотографию желания"
+              aria-invalid={Boolean(imageError) || undefined}
+              aria-describedby={[!formPreviewImageUrl && fieldId("image-help"), imageError && fieldId("image-error")].filter(Boolean).join(" ") || undefined}
+              onChange={(event) => uploadImage(event.target.files?.[0])}
+            />
             {imageError && <FieldError id={fieldId("image-error")}>{imageError}</FieldError>}
             {browserRetailer && <p className="text-sm leading-relaxed text-muted-foreground">Фото из «{browserRetailer.label}» загружается автоматически через помощник обычного браузера.</p>}
           </section>

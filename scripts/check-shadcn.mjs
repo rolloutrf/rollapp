@@ -317,10 +317,10 @@ assert.deepEqual(tokenBlock(":root"), {
   "--secondary": "oklch(0.97 0 0)",
   "--secondary-foreground": "oklch(0.205 0 0)",
   "--muted": "oklch(0.97 0 0)",
-  "--muted-foreground": "oklch(0.556 0 0)",
+  "--muted-foreground": "oklch(0.5 0 0)",
   "--accent": "oklch(0.97 0 0)",
   "--accent-foreground": "oklch(0.205 0 0)",
-  "--destructive": "oklch(0.577 0.245 27.325)",
+  "--destructive": "oklch(0.51 0.21 27.325)",
   "--border": "oklch(0.922 0 0)",
   "--input": "oklch(0.922 0 0)",
   "--ring": "oklch(0.708 0 0)",
@@ -338,7 +338,7 @@ assert.deepEqual(tokenBlock(":root"), {
   "--sidebar-accent-foreground": "oklch(0.205 0 0)",
   "--sidebar-border": "oklch(0.922 0 0)",
   "--sidebar-ring": "oklch(0.708 0 0)",
-}, "The light tokens must exactly match the official neutral preset");
+}, "Keep the neutral preset with the documented contrast-safe Rollapp text tokens");
 
 assert.deepEqual(tokenBlock(".dark"), {
   "--background": "oklch(0.145 0 0)",

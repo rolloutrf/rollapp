@@ -5,6 +5,7 @@ import {
   moveWishWithinSubset,
   reorderScopeWishIds,
   resolveWishHoverMode,
+  wishGroupingDistance,
   wishRectOverlapRatio,
 } from "./wish-order.js";
 
@@ -108,4 +109,14 @@ test("wishRectOverlapRatio detects a card visibly covering its neighbour", () =>
   assert.equal(wishRectOverlapRatio(dragged, target), 0.4);
   assert.equal(wishRectOverlapRatio(dragged, { left: 400, right: 600, top: 100, bottom: 300 }), 0);
   assert.equal(wishRectOverlapRatio(null, target), 0);
+});
+
+test("grouping approach measures inward progress independently from edge jitter", () => {
+  const rect = { left: 100, right: 300, top: 50, bottom: 250, width: 200, height: 200 };
+  assert.deepEqual([101, 110, 125, 140, 200].map(x => wishGroupingDistance(rect, x, 150)), [39, 30, 15, 0, 0]);
+  assert.equal(wishGroupingDistance(rect, 110, 149), wishGroupingDistance(rect, 110, 150));
+  assert.equal(wishGroupingDistance(rect, 290, 150), 30);
+  assert.equal(wishGroupingDistance(rect, 200, 60), 30);
+  assert.equal(wishGroupingDistance(rect, 200, 240), 30);
+  assert.equal(wishGroupingDistance(null, 200, 150), Infinity);
 });

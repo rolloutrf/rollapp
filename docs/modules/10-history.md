@@ -33,3 +33,6 @@
 [Контент ленты](../../src/modules/history/rolls-history.jsx) · [Заказы](../../src/modules/history/orders-drawer.jsx) · [Чтение операций](../../server/modules/history/wallet-history.js) · [Чтение заказов](../../server/modules/history/order-history.js)
 
 [Чтение квитанций](../../server/modules/history/roll-receipts.js) · [Квитанция в ленте](../../src/modules/history/roll-receipt.jsx)
+
+
+**Читаемость.** Строка квитанции сохраняет в доступном имени видимые название, сумму и время. Входящие суммы используют тёмный amber на светлом фоне и светлый amber в тёмной теме. Проверяйте обе темы, раскрытие квитанции и `test:purchase-history`.

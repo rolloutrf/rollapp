@@ -37,7 +37,7 @@ function ListTile({ id, title, displayTitle = title, count, detail, privateList,
       data-list-tile
       value={id}
       data-wish-list-tile={sortable ? id : undefined}
-      aria-label={label}
+      aria-label={detail == null ? label : accessibleName}
       title={detail == null ? undefined : title}
       aria-keyshortcuts={sortable ? "Alt+ArrowLeft Alt+ArrowRight" : undefined}
     >

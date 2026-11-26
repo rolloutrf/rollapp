@@ -85,7 +85,13 @@ export function applyBlockType(editor, id, { separateHistory = true } = {}) {
   if (["bulletList", "orderedList", "taskList"].includes(id) && editor.isActive(id)) return editor.commands.focus();
   if (id === "details") {
     if (editor.state.selection.empty && editor.state.selection.$from.parent.type.name === "detailsSummary") return editor.commands.focus();
-    return editor.chain().focus().command(({tr})=>{const applied=convertSelectedBlocksToToggles(tr);if(!applied)tr.setMeta("preventDispatch",true);return applied;}).run();
+    const tr = editor.state.tr;
+    if (!convertSelectedBlocksToToggles(tr)) return false;
+    // The menu still owns native focus. Restore it before dispatch so an
+    // immediate keypress reads the converted caret, not the document start.
+    editor.view.focus();
+    editor.view.dispatch(tr.scrollIntoView());
+    return true;
   }
   // Insert structural blocks after the selected prose; never replace its text.
   if (id === "horizontalRule" || id === "table" || id === "columns") {

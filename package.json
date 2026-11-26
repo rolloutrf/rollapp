@@ -129,9 +129,10 @@
     "test:product-suggestions": "node scripts/product-suggestions-smoke.mjs",
     "mcp": "node scripts/mcp/server.mjs",
     "mcp:auth": "node scripts/mcp/auth.mjs",
-    "storybook": "storybook dev --host 127.0.0.1 --port 6006 --exact-port --no-open",
-    "build-storybook": "storybook build --disable-telemetry",
-    "test:storybook": "node scripts/storybook-smoke.mjs"
+    "storybook": "storybook dev --config-dir storybook/.storybook --host 127.0.0.1 --port 6006 --exact-port --no-open",
+    "build-storybook": "storybook build --config-dir storybook/.storybook --disable-telemetry",
+    "test:storybook": "node scripts/storybook-smoke.mjs",
+    "test:storybook:a11y": "node scripts/storybook-accessibility.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -193,6 +194,7 @@
     "@storybook/react-vite": "10.6.7",
     "@ton/sandbox": "^0.45.0",
     "@ton/tolk-js": "^1.5.0",
+    "axe-core": "^4.14.0",
     "concurrently": "^9.2.5",
     "fflate": "^0.8.3",
     "shadcn": "^4.22.1",

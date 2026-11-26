@@ -26,11 +26,11 @@ const readPasswordResetToken = () => {
   return (new URLSearchParams(fragment).get("token") || "").trim();
 };
 
-function YandexIdButton({ href, disabled, accessibleName = "Войти с помощью Яндекс ID", label = "Войти с Яндекс ID" }) {
+function YandexIdButton({ href, disabled, label = "Войти с Яндекс ID" }) {
   const Component = href ? "a" : "button";
   const action = href ? { href } : { type: "submit", disabled };
   return (
-    <Component className="yandex-id-button" aria-label={accessibleName} {...action}>
+    <Component className="yandex-id-button" {...action}>
       <svg className="yandex-id-button__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <circle cx="12" cy="12" r="12" fill="#fc3f1d" />
         <path fill="#fff" d="M15.24 16.2h-1.68V8.04h-1.2c-1.637 0-2.52.818-2.52 2.045 0 1.39.597 2.047 1.843 2.87l1.017.676-2.903 4.57H7.92l2.676-3.913C9.08 13.18 8.16 12.11 8.16 10.016c0-2.24 1.554-3.696 4.306-3.696h2.774v9.88Z" />
@@ -463,7 +463,7 @@ export function RegistrationForm({ invite, email }) {
               <AlertDescription>{authErrorCode === "YANDEX_CANCELLED" ? "Попробуйте зарегистрироваться ещё раз." : yandexError.description}</AlertDescription>
             </Alert>
           )}
-          <YandexIdButton disabled={loading} label="Создать с Яндекс ID" accessibleName="Зарегистрироваться с Яндекс ID" />
+          <YandexIdButton disabled={loading} label="Создать с Яндекс ID" />
           <p className="auth-switch">Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></p>
         </form>
       </div>

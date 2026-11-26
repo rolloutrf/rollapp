@@ -113,7 +113,7 @@
 .schedule-mini__grid, .schedule-mini__week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .schedule-mini__week { grid-column: 1 / -1; padding-block: 4px; text-align: center; font-size: var(--text-xs); line-height: var(--text-xs--line-height); color: var(--muted-foreground); }
 .schedule-mini__day { position: relative; justify-self: center; width: min(32px, 100%); min-inline-size: 0; min-block-size: 24px; height: 28px; padding: 0; font-size: var(--text-xs); line-height: var(--text-xs--line-height); border-radius: var(--radius-sm); }
-.schedule-mini__day[data-outside] { color: var(--muted-foreground); opacity: .5; }
+.schedule-mini__day[data-outside] { color: var(--muted-foreground); }
 .schedule-mini__day[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--ring); background: var(--accent); }
 .schedule-mini__day[data-today] { background: var(--primary); color: var(--primary-foreground); }
 .schedule-mini__day[data-has-events]::after { content: ""; position: absolute; bottom: 1px; width: 3px; height: 3px; border-radius: 50%; background: currentColor; }

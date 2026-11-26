@@ -97,6 +97,7 @@ export async function checkTextBasicBlocks(browser, origin) {
       await editor.press("Enter");
       await editor.pressSequentially("> Вложенный");
       assert.equal(await editor.locator('[data-type="details"]').count(), 2, "A toggle can be created inside a toggle");
+      assert.equal(await editor.locator('[data-type="details"] [data-type="details"]').count(), 1, "Immediate typing after conversion must remain inside the converted toggle");
       await editor.press("Enter");
       await editor.pressSequentially("Внутри вложенного");
       const saved=await editor.evaluate(el => el.editor.getMarkdown());

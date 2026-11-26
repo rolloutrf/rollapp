@@ -117,6 +117,8 @@ async function floatingControls(page, label) {
   if (add) assert.notEqual(add.background, planner.background, `${label}: creation should retain the accent`);
 }
 async function paintedHeight(button, label) {
+  // Closing a native form restores the source after its fields unmount.
+  await button.waitFor({ state: "visible" });
   const box = await button.boundingBox();
   assert.equal(box.height, 48, `${label}: accent control box differs from 48px`);
   // Fixed navigation is already visible. Locator screenshots scroll it first,

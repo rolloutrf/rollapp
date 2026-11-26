@@ -110,7 +110,7 @@ try {
       await field.waitFor({ state: 'hidden' });
       console.log(`PASS ${width}×${height}: company suggestions on create/edit, unloaded contact pages, keyboard and free text`);
     }
-    const profileButton = page.getByRole('button', { name: 'Редактировать профиль Тестовый Пользователь', exact: true });
+    const profileButton = page.getByRole('button', { name: 'Редактировать профиль Тестовый Пользователь', exact: false });
     assert.equal(await page.locator('[data-persistent-profile]').getByRole('button', { name: /QR-код/ }).count(), 0);
     const menu = page.getByRole('navigation', { name: 'Разделы профиля' });
     const cardButton = menu.getByRole('button', { name: 'Визитка и QR-код', exact: true });

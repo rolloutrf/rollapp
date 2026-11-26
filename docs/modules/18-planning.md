@@ -15,3 +15,6 @@
 [Пространство и TaskEditor](../../src/modules/planning/planning-space.jsx) · [Селектор](../../src/modules/planning/planning-space-switcher.jsx) · [Связанные объекты](../../src/modules/planning/planning-related-items.js) · [Маршруты](../../server/modules/planning/planning.js)
 
 [Заметки](../../src/modules/planning/planning-notes.jsx) · [Группы](../../server/modules/planning/note-groups.js) · [Календари устройств](../../server/modules/calendar/calendar-device.js)
+
+
+**Доступные подписи.** Общий выбор даты связывает название поля с фактически видимым значением, включая пользовательский формат и пустое состояние. Селектор пространства включает его текущий заголовок. Проверяйте клавиатуру, открытие/Back и сохранение даты в полном `test:dates` и `test:todo`.

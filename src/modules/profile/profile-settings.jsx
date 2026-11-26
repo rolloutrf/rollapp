@@ -3,7 +3,7 @@ import { EXTERNAL_WISHLIST_PROVIDERS, EXTERNAL_WISHLIST_URL_MAX_LENGTH, external
 import { platformLink } from "../../applications/location.js";
 import { localDateKey } from "../../../shared/modules/planning/planning.js";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
-import { Avatar } from "@/modules/profile/profile-avatar.jsx";
+import { Avatar, avatarInitials } from "@/modules/profile/profile-avatar.jsx";
 import { ProfileMoodSettings } from "@/modules/profile/profile-mood-settings.jsx";
 import { ContactCardContent } from "@/modules/contacts/contact-card-dialog.jsx";
 import { PageActionButton } from "@/components/page-action-button";
@@ -359,7 +359,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
         variant="ghost"
         size="icon"
         className="size-36 self-center cursor-pointer rounded-full border-0 p-0 hover:bg-transparent dark:hover:bg-transparent"
-        aria-label="Изменить фото профиля"
+        aria-label={`Изменить фото профиля · ${avatarInitials(user)}`}
         aria-busy={imageUploading || undefined}
         disabled={busy}
         onClick={() => imageFileRef.current?.click()}

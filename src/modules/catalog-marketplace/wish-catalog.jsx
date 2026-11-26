@@ -149,8 +149,8 @@ export function CatalogWishDetailsContent({ item, wishlistDisabled = false, wish
   const description = String(item.description || "").trim();
   const marketplaceItem = catalogMarketplaceItem(item);
   const wishlistLabel = item.addedByMe
-    ? `Убрать «${item.title}» из вишлиста`
-    : `Добавить «${item.title}» в вишлист`;
+    ? `Убрать из вишлиста «${item.title}»`
+    : `Добавить в вишлист «${item.title}»`;
 
   const ActionBar = screen ? ContentPageActions : DrawerFooter;
   const actions = (
@@ -164,7 +164,7 @@ export function CatalogWishDetailsContent({ item, wishlistDisabled = false, wish
               type="button"
               className="h-12 min-w-0 flex-1"
               disabled={wishlistDisabled}
-              aria-label={wishlistLabel}
+              aria-label={wishlistPending ? `${item.addedByMe ? "Удаляем…" : "Добавляем…"} ${item.title}` : wishlistLabel}
               aria-pressed={Boolean(item.addedByMe)}
               aria-busy={wishlistPending || undefined}
               onClick={() => onToggleWishlist(item)}
