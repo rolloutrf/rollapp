@@ -8,7 +8,9 @@ import { writeAccountBackup } from "../../account-backup.js";
 
 const api = "https://cloud-api.yandex.net/v1/disk/";
 const statusLifetime = 60 * 60 * 1000;
-const transferTimeoutMs = 8 * 60_000;
+// Large accounts can produce 100+ MB archives. Yandex's upload endpoint may
+// need well over eight minutes to accept the full stream on the production VM.
+const transferTimeoutMs = 30 * 60_000;
 const confirmationTimeoutMs = 5 * 60_000;
 // Leave room for OAuth, notes and releasing the lease after confirmation.
 export const YANDEX_BACKUP_SYNC_LEASE_MS = transferTimeoutMs + confirmationTimeoutMs + 4 * 60_000;

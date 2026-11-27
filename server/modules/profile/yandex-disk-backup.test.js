@@ -2,10 +2,18 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { gunzipSync } from "node:zlib";
-import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup.js";
+import {
+  createYandexBackupJobs,
+  uploadYandexBackup,
+  YANDEX_BACKUP_SYNC_LEASE_MS,
+} from "./yandex-disk-backup.js";
 
 const uploader = "https://uploader1.disk.yandex.net/upload?key=signed";
 const token = "oauth-token";
+
+test("scheduled backups reserve enough time for large account uploads and confirmation", () => {
+  assert.equal(YANDEX_BACKUP_SYNC_LEASE_MS, 39 * 60_000);
+});
 
 test("saves a complete gzip snapshot under a unique root ROLLAPP path and keeps OAuth off the signed PUT", async () => {
   const sample = '{"id":"owner","name":"Пользователь"}';
