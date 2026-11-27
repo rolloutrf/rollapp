@@ -21,7 +21,7 @@ const reminderInput = z.object({
 const newReminderInput = reminderInput.extend({ id: z.uuid(), timeZone: timeZoneInput });
 const readInput = z.object({ ids: z.array(z.string().regex(/^[1-9][0-9]{0,18}$/)
   .refine(id => id.length < 19 || id <= '9223372036854775807')).min(1).max(30) }).strict();
-const inboxQuery = `SELECT id::text, kind, title, scheduled_at AS "scheduledAt",
+const inboxQuery = `SELECT id::text, kind, source_id LIKE 'friend-map:%' AS "nearbyFriend", title, scheduled_at AS "scheduledAt",
     to_char(local_day, 'YYYY-MM-DD') AS "localDay", to_char(local_time, 'HH24:MI') AS "localTime", read_at IS NOT NULL AS read
   FROM user_notifications WHERE user_id=$1 AND (kind <> 'medication' OR $2::boolean)
   ORDER BY scheduled_at DESC, id DESC LIMIT 30`;

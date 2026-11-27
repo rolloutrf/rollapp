@@ -1,6 +1,7 @@
 import { Avatar } from "@/modules/profile/profile-avatar.jsx";
 import { StoryAvatar } from "@/modules/profile/story-avatar.jsx";
 import { useLocation } from "react-router-dom";
+import { FriendLocationReporter } from "@/modules/map/friend-location-reporter.jsx";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { useProfileEditor } from "../profile/profile-editor.jsx";
 import { AppBrandSpacer } from "./app-chrome.jsx";
@@ -55,6 +56,7 @@ export function AppShell({ children, friendsContext = false, collectionChrome = 
     || (wishesRoute && user?.accountType === "personal" ? { sphere: "wishlist", section: wishlistSpace(location.search) } : null);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
+      {user && <FriendLocationReporter key={user.id} userId={user.id} />}
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}

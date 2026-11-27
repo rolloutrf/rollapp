@@ -1,0 +1,102 @@
+.friend-map-page {
+  display: grid;
+  gap: var(--layout-page-gap);
+  min-width: 0;
+}
+
+.friend-map-settings {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+}
+
+.friend-map-setting {
+  display: flex;
+  min-height: var(--layout-control-size);
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.friend-map-setting__copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.friend-map-canvas {
+  position: relative;
+  min-height: 26rem;
+  height: min(66vh, 46rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--muted);
+}
+
+.friend-map-canvas iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.friend-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  line-height: 1rem;
+}
+
+.friend-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.friend-map-legend i {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: #f05f4f;
+}
+
+.friend-map-legend .friend-map-legend__friend { background: #5967f2; }
+.friend-map-legend .friend-map-legend__self { background: #43bd83; }
+
+.friend-map-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.friend-map-item {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+}
+
+.friend-map-item[data-selected] {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 35%, transparent);
+}
+
+@media (max-width: 640px) {
+  .friend-map-canvas {
+    min-height: 22rem;
+    height: 58vh;
+    border-radius: 1rem;
+  }
+}

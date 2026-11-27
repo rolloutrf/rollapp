@@ -1,4 +1,4 @@
-import { CircleUserRound, UserPlus, Users, LoaderCircle, MoreHorizontal, Search, Star, X } from "lucide-react";
+import { CircleUserRound, UserPlus, Users, LoaderCircle, MapPinned, MoreHorizontal, Search, Star, X } from "lucide-react";
 import { Avatar } from "@/modules/profile/profile-avatar.jsx";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
@@ -11,6 +11,7 @@ import { publicProfilePath } from "../../../shared/modules/profile/profile-links
 import { useAsync } from "../shell/use-async.jsx";
 import { useToast } from "../shell/toast.jsx";
 import { EmptyState, Button, LoadingScreen } from "../shell/page-feedback.jsx";
+import { FriendMapPage } from "../map/friend-map.jsx";
 
 const friendSections = {
   subscriptions: {
@@ -35,6 +36,12 @@ const friendSections = {
     emptyText: "Попробуйте изменить имя или адрес профиля.",
     scope: "discover",
   },
+  map: {
+    label: "Карта",
+    icon: MapPinned,
+    emptyTitle: "На карте пока пусто",
+    emptyText: "Добавьте избранные места или включите геопозицию.",
+  },
 };
 
 export function FriendsPage() {
@@ -48,7 +55,9 @@ export function FriendsPage() {
   const EmptyIcon = config?.icon || Users;
   const scope = config?.scope || section;
   const { data, loading, error, reload } = useAsync(
-    () => api.get(`/people?scope=${encodeURIComponent(scope || "subscriptions")}&search=${encodeURIComponent(search)}`),
+    () => section === "map"
+      ? Promise.resolve({ people: [] })
+      : api.get(`/people?scope=${encodeURIComponent(scope || "subscriptions")}&search=${encodeURIComponent(search)}`),
     [scope, search],
   );
 
@@ -91,7 +100,7 @@ export function FriendsPage() {
               </ToggleGroupItem>;
             })}
           </ToggleGroup>
-          {showSearch && <InputGroup className="friends-search">
+          {section === "map" ? <FriendMapPage /> : <>{showSearch && <InputGroup className="friends-search">
             <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
             <InputGroupInput
               className="h-full rounded-full py-0 font-semibold"
@@ -140,7 +149,7 @@ export function FriendsPage() {
             </ul>
           ) : (
             <EmptyState icon={EmptyIcon} title={config.emptyTitle} text={config.emptyText} />
-          )}
+          )}</>}
         </section>
       </div>
     </div>

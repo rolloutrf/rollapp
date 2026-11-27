@@ -23,6 +23,7 @@ import { businessCategorySchema } from "./modules/catalog-marketplace/business-a
 
 import { wishGroupFundraisingSchema } from "./wish-group-fundraising-schema.js";
 import { inviteSchema } from "./modules/auth/invites.js";
+import { friendMapSchema } from "./modules/map/friend-map-schema.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
@@ -64,6 +65,7 @@ const schema = `
   ${businessCategorySchema};
   ${wishlistBusinessSchema}
   ${placeListingsSchema}
+  ${friendMapSchema}
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
     ON users(phone_hash) WHERE phone_hash IS NOT NULL;
 

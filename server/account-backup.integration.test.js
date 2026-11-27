@@ -59,6 +59,20 @@ test("Yandex Disk snapshots scope wishes, appointments, announcements, invites a
           OVERRIDING SYSTEM VALUE VALUES (-1,$1,'custom',$3,'Owner notice','2030-01-01T05:45:00Z','2030-01-01','08:45'),
                                          (-2,$2,'custom',$3,'Other notice','2030-01-01T08:45:00Z','2030-01-01','08:45')`, [owner, participant, reminder]);
       }
+      const { rows: [{ friendMap }] } = await client.query(
+        "SELECT to_regclass('friend_map_preferences') IS NOT NULL AS \"friendMap\"",
+      );
+      if (friendMap) {
+        await client.query(`INSERT INTO friend_map_preferences (user_id,share_location,nearby_notifications)
+          VALUES ($1,true,true),($2,true,false)`, [owner, participant]);
+        await client.query(`INSERT INTO friend_map_locations
+          (user_id,longitude,latitude,accuracy_meters,observed_at,expires_at)
+          VALUES ($1,30.3,59.9,10,statement_timestamp(),statement_timestamp()+interval '10 minutes'),
+                 ($2,30.31,59.91,20,statement_timestamp(),statement_timestamp()+interval '10 minutes')`, [owner, participant]);
+        await client.query(`INSERT INTO friend_map_proximity
+          (user_id,friend_id,nearby,last_distance_meters,last_entered_at)
+          VALUES ($1,$2,true,900,statement_timestamp())`, [owner, participant]);
+      }
 
       const snapshot = async (userId) => {
         const chunks = [];
@@ -117,6 +131,19 @@ test("Yandex Disk snapshots scope wishes, appointments, announcements, invites a
         assert(!Object.hasOwn(ownerSnapshot.notification_reminders[0], "updated_at"));
         for (const table of ["notification_preferences", "notification_reminders", "user_notifications"]) {
           assert.deepEqual(outsiderSnapshot[table], []);
+        }
+      }
+      if (friendMap) {
+        assert.deepEqual(ownerSnapshot.friend_map_preferences, [{
+          user_id: owner, share_location: true, nearby_notifications: true,
+        }]);
+        assert.deepEqual(memberSnapshot.friend_map_preferences, [{
+          user_id: participant, share_location: true, nearby_notifications: false,
+        }]);
+        assert.deepEqual(outsiderSnapshot.friend_map_preferences, []);
+        for (const snapshotTables of [ownerSnapshot, memberSnapshot, outsiderSnapshot]) {
+          assert.equal(Object.hasOwn(snapshotTables, "friend_map_locations"), false);
+          assert.equal(Object.hasOwn(snapshotTables, "friend_map_proximity"), false);
         }
       }
     } finally {

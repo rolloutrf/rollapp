@@ -108,8 +108,11 @@ export default defineConfig({
   build: {
     outDir: "dist",
     rollupOptions: {
-      input: Object.fromEntries(["index", ...Object.keys(SPHERE_APPLICATIONS)]
-        .map(id => [id, path.resolve(import.meta.dirname, `${id}.html`)])),
+      input: {
+        ...Object.fromEntries(["index", ...Object.keys(SPHERE_APPLICATIONS)]
+          .map(id => [id, path.resolve(import.meta.dirname, `${id}.html`)])),
+        "map-frame": path.resolve(import.meta.dirname, "map-frame.html"),
+      },
     },
     sourcemap: true,
   },

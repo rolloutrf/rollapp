@@ -86,7 +86,8 @@ test("real deployment template renders exact SHA without changing other content"
     .replaceAll("__YANDEX_DISK_BACKUP_ENABLED__", "false")
     .replaceAll("__ROLLAPP_YANDEX_DISK_PROFILE_ENABLED__", "false")
     .replaceAll("__YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID__", "")
-    .replaceAll("__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__", ""));
+    .replaceAll("__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__", "")
+    .replaceAll("__YC_YANDEX_MAPS_LOCKBOX_SECRET_ID__", ""));
   const withBackup = renderDeploymentCompose(template, { ...config, yandexDiskBackupEnabled: true });
   assert.equal(withBackup, rendered.replace('YANDEX_DISK_BACKUP_ENABLED: "false"', 'YANDEX_DISK_BACKUP_ENABLED: "true"'));
   const withDiskProfile = renderDeploymentCompose(template, { ...config, yandexDiskProfileEnabled: true });
@@ -101,6 +102,10 @@ test("real deployment template renders exact SHA without changing other content"
   assert.equal(withEve, rendered.replaceAll('YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: ""',
     'YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: "eve-secret-test"'));
   assert.throws(() => renderDeploymentCompose(template, { ...config, eveNotificationSecretId: 'injected"\nkey' }), /Invalid deployment/);
+  const withMaps = renderDeploymentCompose(template, { ...config, yandexMapsSecretId: "maps-secret-test" });
+  assert.equal(withMaps, rendered.replace('YC_YANDEX_MAPS_LOCKBOX_SECRET_ID: ""',
+    'YC_YANDEX_MAPS_LOCKBOX_SECRET_ID: "maps-secret-test"'));
+  assert.throws(() => renderDeploymentCompose(template, { ...config, yandexMapsSecretId: 'injected"\nkey' }), /Invalid deployment/);
   assert.throws(() => renderDeploymentCompose("no placeholders", config));
 });
 
@@ -135,6 +140,7 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
   assert.match(workflow, /expected_marketplace=.*ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED.*deploy\/docker-compose\.template\.yml/);
   assert.match(workflow, /--argjson marketplace "\$expected_marketplace"/);
   assert.match(workflow, /\.capabilities\.marketplaceSettlements == \$marketplace/);
+  assert.match(workflow, /\.capabilities\.friendMap == true/);
   assert.match(workflow, /mcp_status=.*PUBLIC_URL.*\/mcp.*\n\s+if \[ "\$mcp_status" != "401" \]; then/);
   assert(workflow.indexOf("Rollapp is healthy at") < workflow.indexOf("mcp_status="));
   assert.match(workflow, /keeping the running service available/);

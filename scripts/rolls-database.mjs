@@ -1,6 +1,8 @@
 import "dotenv/config";
 import dotenv from "dotenv";
 import { loadLockboxValue } from "../server/modules/runtime/lockbox.js";
+import { createProductionDatabaseEnvironment, startTunnel } from "./production-db-tunnel.mjs";
+import { productionConnectionMode } from "./production-dev-config.mjs";
 
 export async function productionRollsDatabase() {
   dotenv.config({ path: ".env.local", override: false, quiet: true });
@@ -8,6 +10,11 @@ export async function productionRollsDatabase() {
   process.env.DEMO_MODE = "false";
   if (!process.env.PGPASSWORD && !process.env.DATABASE_URL && process.env.YC_LOCKBOX_SECRET_ID) {
     process.env.PGPASSWORD = await loadLockboxValue(process.env.YC_LOCKBOX_SECRET_ID, process.env.YC_LOCKBOX_SECRET_KEY || "postgresql_password");
+  }
+  if (productionConnectionMode(process.env) === "tunnel") {
+    const tunnel = await startTunnel();
+    if (!tunnel.ready) throw new Error("Production PostgreSQL недоступен через SSH-туннель.");
+    Object.assign(process.env, createProductionDatabaseEnvironment(process.env, tunnel.config));
   }
   const db = await import("../server/db.js");
   if (db.isMemoryDatabase) throw new Error("Для роллов необходима настроенная production-база.");

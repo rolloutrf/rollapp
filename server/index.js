@@ -11,6 +11,9 @@ import { registerMessengerRoutes } from "./messenger.js";
 import { registerAssistantWishlistSortRoute } from "./modules/assistant/assistant-wishlist-sort.js";
 import { registerMessengerAssistantRoute } from "./modules/assistant/messenger-assistant.js";
 import { registerNotificationRoutes } from "./modules/notifications/notifications.js";
+import { registerFriendMapRoutes } from "./modules/map/friend-map.js";
+import { friendMapSchemaAvailable } from "./modules/map/friend-map-schema.js";
+import { mapFrameContentSecurityPolicy } from "./modules/map/map-frame-csp.js";
 
 import { registerStoryRoutes } from "./stories.js";
 import { DiskNotesError, getYandexDiskConfig } from "./modules/runtime/yandex-disk.js";
@@ -155,9 +158,11 @@ const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 const notificationToken = process.env.ROLLAPP_EVE_NOTIFICATION_TOKEN;
+const notificationsConfigured = Boolean(notificationToken?.length >= 32);
 const { id: applicationId, sphere: sphereApplication } = applicationRuntime(process.env);
 let profileMoodAvailable = false;
 let diskSyncAvailable = false;
+let friendMapAvailable = false;
 let diskSyncWorker;
 const wakeDiskSync = () => diskSyncWorker?.wake();
 const moodColumns = () => profileMoodAvailable ? ",u.account_type,u.mood_level,u.mood_public" : "";
@@ -714,6 +719,12 @@ registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerProfileMoodRoutes(app, { requireAuth, transaction, asyncRoute, available: () => profileMoodAvailable });
 registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential: resolveOpenRouterApiKey });
 const notificationWorkerHealthy = registerNotificationRoutes(app, { requireAuth, asyncRoute, query, transaction, secret: notificationToken });
+registerFriendMapRoutes(app, {
+  requireAuth, asyncRoute, query, transaction,
+  available: () => friendMapAvailable,
+  mapsApiKey: process.env.ROLLAPP_YANDEX_MAPS_API_KEY || "",
+  notificationsEnabled: () => notificationsConfigured,
+});
 registerAssistantWishlistSortRoute(app, { requireAuth, asyncRoute, transaction });
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
@@ -1714,8 +1725,9 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
     service: sphereApplication ? `rollapp-${applicationId}` : "rollapp",
     version: process.env.APP_VERSION || "development",
     capabilities: {
-      notifications: Boolean(notificationToken),
+      notifications: notificationsConfigured,
       notificationsWorker: notificationWorkerHealthy(),
+      friendMap: friendMapAvailable && Boolean(process.env.ROLLAPP_YANDEX_MAPS_API_KEY),
       marketplaceDirect: true,
       marketplaceSettlements: process.env.ROLLAPP_MARKETPLACE_SETTLEMENTS_ENABLED === "true",
       marketplaceAi: sharedAiConfigured(),
@@ -3278,6 +3290,10 @@ for (const prefix of sphereApplication ? [] : ["u", "users"]) {
 if (isProduction) {
   const distPath = path.resolve(__dirname, "../dist");
   const entry = sphereApplication ? `${applicationId}.html` : "index.html";
+  app.get("/map-frame.html", (_req, res) => res
+    .set("Content-Security-Policy", mapFrameContentSecurityPolicy)
+    .set("Cache-Control", "no-cache")
+    .sendFile(path.join(distPath, "map-frame.html")));
   app.get(/^\/[^/]+\.html$/i, (_req, res) => res.status(404).end());
   if (!sphereApplication) registerAndroidAssetLinks(app, distPath);
   app.use(express.static(distPath, { maxAge: "1y", immutable: true, index: false, redirect: false }));
@@ -3329,6 +3345,9 @@ diskSyncAvailable = !isMemoryDatabase && getYandexDiskConfig().enabled && await 
 profileMoodAvailable = databaseInitialization !== "verify" || await verifyProfileMoodAvailability(transaction, {
   required: isProduction,
   onMissing: () => console.warn("Profile mood is unavailable: the production journal schema has not been installed."),
+});
+friendMapAvailable = databaseInitialization !== "verify" || await friendMapSchemaAvailable(transaction, {
+  onMissing: () => console.warn("Friend map is unavailable: its additive schema has not been installed."),
 });
 const runtimeSettings = await query("SELECT value_text FROM application_settings WHERE key=$1", ["telegram_payment_support_url"]);
 if (!process.env.TELEGRAM_PAYMENT_SUPPORT_URL && runtimeSettings.rowCount) process.env.TELEGRAM_PAYMENT_SUPPORT_URL = runtimeSettings.rows[0].value_text;

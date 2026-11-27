@@ -59,6 +59,8 @@ const sources = [
   ["messenger_messages", `EXISTS (SELECT 1 FROM messenger_conversations c WHERE c.id=t.conversation_id
     AND ${conversationParticipant})`, strip("client_id")],
   ["business_marketplace_items", "t.business_user_id=$1"],
+  // place_listings is a platform-owned public catalog, so its descriptions are
+  // deliberately excluded; the account-owned place_waitlist rows are exported above.
   ["wishlist_business_pages", "t.business_user_id=$1"],
   ["wishlist_business_items", "t.business_user_id=$1"],
   ["wishlist_business_offers", "t.buyer_user_id=$1"],
@@ -91,7 +93,10 @@ async function accountBackupSources(client) {
     to_regclass('roll_marketplace_order_events') IS NOT NULL AS marketplace_events,
     to_regclass('notification_preferences') IS NOT NULL AS notification_preferences,
     to_regclass('notification_reminders') IS NOT NULL AS notification_reminders,
-    to_regclass('user_notifications') IS NOT NULL AS user_notifications`);
+    to_regclass('user_notifications') IS NOT NULL AS user_notifications,
+    to_regclass('friend_map_preferences') IS NOT NULL AS friend_map_preferences,
+    to_regclass('friend_map_locations') IS NOT NULL AS friend_map_locations,
+    to_regclass('friend_map_proximity') IS NOT NULL AS friend_map_proximity`);
   if (schema.marketplace_orders !== schema.marketplace_events) throw new Error("Incomplete marketplace settlement schema");
   const notificationTables = [schema.notification_preferences, schema.notification_reminders, schema.user_notifications];
   if (notificationTables.some(Boolean) && !notificationTables.every(Boolean)) throw new Error("Incomplete notification schema");
@@ -99,6 +104,14 @@ async function accountBackupSources(client) {
     ["notification_preferences", owned, pick("user_id", "time_zone", "medication_reminders", "daily_overview")],
     ["notification_reminders", owned, pick("id", "user_id", "title", "start_on", "remind_at", "repeats_daily")],
     ["user_notifications", owned, pick("id", "user_id", "kind", "title", "scheduled_at", "local_day", "local_time", "read_at")],
+  ] : [];
+  const friendMapTables = [schema.friend_map_preferences, schema.friend_map_locations, schema.friend_map_proximity];
+  if (friendMapTables.some(Boolean) && !friendMapTables.every(Boolean)) throw new Error("Incomplete friend map schema");
+  // Export durable consent settings. Exact live coordinates expire after ten
+  // minutes and proximity rows are operational deduplication state, so neither
+  // belongs in a long-lived account archive.
+  const friendMap = friendMapTables.every(Boolean) ? [
+    ["friend_map_preferences", owned, pick("user_id", "share_location", "nearby_notifications")],
   ] : [];
   const settlements = schema.marketplace_orders ? [
     ["roll_marketplace_orders", "(t.buyer_id=$1 OR t.seller_id=$1)",
@@ -120,6 +133,7 @@ async function accountBackupSources(client) {
     ...bookings,
     ...settlements,
     ...notifications,
+    ...friendMap,
     ...(schema.announcements_ready ? [["profile_announcements", "t.owner_id=$1", pick("id", "owner_id", "title", "body", "created_at")]] : []),
     ...remaining,
   ];

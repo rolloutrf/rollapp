@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, CalendarDays, CheckCheck, Pill } from 'lucide-react';
+import { Bell, CalendarDays, CheckCheck, MapPin, Pill } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { MessageDrawer, MessageDrawerHeading } from '@/components/messenger';
 import { Button } from '@/components/ui/button';
@@ -153,9 +153,10 @@ export function NotificationDrawer({ open, onOpenChange, canAccessHealth }) {
 function NotificationRow({ notice, onSelect }) {
   const medication = notice.kind === 'medication';
   const custom = notice.kind === 'custom';
-  const Icon = custom ? Bell : medication ? Pill : CalendarDays;
+  const nearbyFriend = custom && notice.nearbyFriend === true;
+  const Icon = nearbyFriend ? MapPin : custom ? Bell : medication ? Pill : CalendarDays;
   const title = custom ? notice.title : medication ? 'Напоминание о приёме препаратов' : 'Утренний обзор';
-  const destination = medication ? '/app/spheres/health?tab=medications' : `/app/planning?tab=todo&date=${notice.localDay}`;
+  const destination = nearbyFriend ? '/app/friends/map' : medication ? '/app/spheres/health?tab=medications' : `/app/planning?tab=todo&date=${notice.localDay}`;
   const className = 'flex min-h-12 items-start gap-3 rounded-xl border p-3';
   const content = <>
       <Icon className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -168,7 +169,7 @@ function NotificationRow({ notice, onSelect }) {
       </span>
       {!notice.read && <span className="mt-2 size-2 shrink-0 rounded-full bg-primary"><span className="sr-only">Непрочитанное</span></span>}
   </>;
-  return <li className="min-w-0">{custom ? <div className={className}>{content}</div> :
+  return <li className="min-w-0">{custom && !nearbyFriend ? <div className={className}>{content}</div> :
     <Link to={destination} onClick={onSelect} className={`${className} hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring`}>{content}</Link>}
   </li>;
 }

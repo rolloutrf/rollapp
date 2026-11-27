@@ -80,6 +80,16 @@ async function loadYandexDiskOauthSecrets() {
   process.env.YANDEX_DISK_OAUTH_CLIENT_SECRET ||= await loadLockboxValue(secretId, "client_secret");
 }
 
+async function loadYandexMapsApiKey() {
+  const secretId = process.env.YC_YANDEX_MAPS_LOCKBOX_SECRET_ID;
+  if (!secretId || process.env.ROLLAPP_YANDEX_MAPS_API_KEY) return;
+  process.env.ROLLAPP_YANDEX_MAPS_API_KEY = await loadLockboxValue(
+    secretId,
+    process.env.YC_YANDEX_MAPS_API_KEY_KEY || "api_key",
+  );
+  console.log("Runtime Yandex Maps API key loaded from Yandex Lockbox");
+}
+
 async function loadOpenRouterLockboxSecret() {
   const secretId = process.env.YC_OPENROUTER_LOCKBOX_SECRET_ID;
   if (!secretId || process.env.OPENROUTER_API_KEY) return;
@@ -125,6 +135,7 @@ await loadPhoneAuthLockboxSecret();
 await loadTelegramLockboxSecrets();
 await loadYandexOauthSecrets();
 await loadYandexDiskOauthSecrets();
+await loadYandexMapsApiKey();
 await loadOpenRouterLockboxSecret();
 await loadOpenRouterProxyLockboxSecret();
 await loadUserCredentialsLockboxSecret();

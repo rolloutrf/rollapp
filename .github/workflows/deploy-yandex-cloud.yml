@@ -325,6 +325,7 @@ jobs:
           YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID }}
           ROLLAPP_YANDEX_DISK_PROFILE_ENABLED: ${{ vars.ROLLAPP_YANDEX_DISK_PROFILE_ENABLED }}
           YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: ${{ vars.YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID }}
+          YC_YANDEX_MAPS_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_MAPS_LOCKBOX_SECRET_ID }}
         run: node scripts/deploy-vm-metadata.mjs
 
       - name: Verify production health
@@ -351,7 +352,7 @@ jobs:
             for attempt in $(seq 1 "$max_attempts"); do
               health="$(read_health)"
               if jq -e --arg expected "$GITHUB_SHA" --argjson marketplace "$expected_marketplace" \
-                '.ok == true and .service == "rollapp" and .version == $expected and .capabilities.marketplaceSettlements == $marketplace and .capabilities.notifications == true and .capabilities.notificationsWorker == true' \
+                '.ok == true and .service == "rollapp" and .version == $expected and .capabilities.marketplaceSettlements == $marketplace and .capabilities.notifications == true and .capabilities.notificationsWorker == true and .capabilities.friendMap == true' \
                 <<<"$health" >/dev/null 2>&1; then
                 return 0
               fi
@@ -374,7 +375,7 @@ jobs:
               exit 1
             elif jq -e --arg expected "$GITHUB_SHA" \
               '.ok == true and .service == "rollapp" and .version == $expected' <<<"$current_health" >/dev/null 2>&1; then
-              echo "Production is healthy at the expected SHA but protected checkout or Eve notifications did not pass verification; keeping the service running" >&2
+              echo "Production is healthy at the expected SHA but protected checkout, Eve notifications, or friend map did not pass verification; keeping the service running" >&2
               exit 1
             else
               echo "Production became unhealthy while deploying; refusing an automatic restart: ${current_health}" >&2

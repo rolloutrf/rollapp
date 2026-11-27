@@ -8,7 +8,7 @@ const validId = value => typeof value === "string" && /^[a-zA-Z0-9-]{1,50}$/.tes
 
 function validate(config) {
   if (![config.vmId, config.folderId, config.runtimeSaId].every(validId)
-    || [config.yandexDiskNotesSecretId, config.eveNotificationSecretId].some(id => id && !validId(id))
+    || [config.yandexDiskNotesSecretId, config.eveNotificationSecretId, config.yandexMapsSecretId].some(id => id && !validId(id))
     || !/^[a-f0-9]{40}$/.test(config.version || "")
     || !/^cr\.yandex\/[a-z0-9]+\/[a-z0-9/_.-]+:[a-f0-9]{40}$/.test(config.image || "")
     || !config.image.endsWith(`:${config.version}`)
@@ -24,7 +24,8 @@ export function renderDeploymentCompose(template, config) {
     .replaceAll('__YANDEX_DISK_BACKUP_ENABLED__', String(config.yandexDiskBackupEnabled === true))
     .replaceAll('__ROLLAPP_YANDEX_DISK_PROFILE_ENABLED__', String(config.yandexDiskProfileEnabled === true))
     .replaceAll('__YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID__', config.yandexDiskNotesSecretId || '')
-    .replaceAll('__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__', config.eveNotificationSecretId || '');
+    .replaceAll('__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__', config.eveNotificationSecretId || '')
+    .replaceAll('__YC_YANDEX_MAPS_LOCKBOX_SECRET_ID__', config.yandexMapsSecretId || '');
 }
 
 function verifyInstance(instance, config) {
@@ -95,6 +96,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       yandexDiskNotesSecretId: process.env.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID,
       yandexDiskProfileEnabled: process.env.ROLLAPP_YANDEX_DISK_PROFILE_ENABLED === "true",
       eveNotificationSecretId: process.env.YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID,
+      yandexMapsSecretId: process.env.YC_YANDEX_MAPS_LOCKBOX_SECRET_ID,
     };
     const checkOnly = process.argv.includes("--check-only");
     if (!checkOnly && !config.eveNotificationSecretId) throw new Error("Eve notification Lockbox secret ID is missing");
