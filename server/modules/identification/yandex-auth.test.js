@@ -115,6 +115,15 @@ test("only an explicit account link asks for optional Disk consent", () => {
   assert.equal(new URL(login.authorizationUrl).searchParams.get("optional_scope"), "login:avatar");
 });
 
+test("unified Yandex sign-in requests its private app-folder in the same authorization", () => {
+  const authorization = createYandexAuthorization({ ...config, diskAutoConnect: true });
+  const params = new URL(authorization.authorizationUrl).searchParams;
+  assert.equal(params.get("scope"), "login:info login:email cloud_api:disk.app_folder");
+  assert.equal(params.get("optional_scope"), "login:avatar");
+  assert.equal(params.has("force_confirm"), false);
+  assert.equal(authorization.attempt.purpose, "login");
+});
+
 test("token exchange sends Basic client auth and PKCE without leaking redirect URI", async () => {
   let request;
   const accessToken = await exchangeYandexCode(config, {

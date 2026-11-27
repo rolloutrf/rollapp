@@ -74,6 +74,7 @@ async function loadYandexOauthSecrets() {
 }
 
 async function loadYandexDiskOauthSecrets() {
+  if (process.env.YANDEX_DISK_AUTO_CONNECT === "true") return;
   const secretId = process.env.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID;
   if (!secretId) return;
   process.env.YANDEX_DISK_OAUTH_CLIENT_ID ||= await loadLockboxValue(secretId, "client_id");

@@ -64,6 +64,7 @@ export function getYandexAuthConfig(env = process.env) {
   return {
     enabled: Boolean(clientId && clientSecret && redirectUri),
     diskBackupEnabled: env.YANDEX_DISK_BACKUP_ENABLED === "true",
+    diskAutoConnect: env.YANDEX_DISK_AUTO_CONNECT === "true",
     clientId,
     clientSecret,
     redirectUri,
@@ -104,7 +105,9 @@ export function createYandexAuthorization(config, { nextPath, linkUserId = null,
   authorizationUrl.searchParams.set("response_type", "code");
   authorizationUrl.searchParams.set("client_id", config.clientId);
   authorizationUrl.searchParams.set("redirect_uri", config.redirectUri);
-  authorizationUrl.searchParams.set("scope", config.scope ?? "login:info login:email");
+  authorizationUrl.searchParams.set("scope", config.scope ?? (config.diskAutoConnect
+    ? "login:info login:email cloud_api:disk.app_folder"
+    : "login:info login:email"));
   const requestsBackup = Boolean(linkUserId && config.diskBackupEnabled);
   const optionalScope = config.optionalScope ?? (requestsBackup
     ? "login:avatar cloud_api:disk.read cloud_api:disk.write"

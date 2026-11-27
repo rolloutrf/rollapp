@@ -26,17 +26,31 @@ export const missingNotes = () => new DiskNotesError(
 );
 
 export function getYandexDiskConfig(env = process.env) {
+  const unified = env.YANDEX_DISK_AUTO_CONNECT === "true";
+  let redirectUri = String(env.YANDEX_DISK_OAUTH_REDIRECT_URI || "").trim();
+  if (!redirectUri && unified) {
+    const authRedirect = getYandexAuthConfig(env).redirectUri;
+    const fallbackOrigin = String(env.PUBLIC_APP_URL || String(env.APP_ORIGIN || "").split(",")[0] || "").trim();
+    try {
+      const origin = authRedirect ? new URL(authRedirect).origin : new URL(fallbackOrigin).origin;
+      redirectUri = new URL("/api/private-notes/connection/callback", `${origin}/`).toString();
+    }
+    catch { redirectUri = ""; }
+  }
   const config = getYandexAuthConfig({
     NODE_ENV: env.NODE_ENV,
-    YANDEX_OAUTH_CLIENT_ID: env.YANDEX_DISK_OAUTH_CLIENT_ID,
-    YANDEX_OAUTH_CLIENT_SECRET: env.YANDEX_DISK_OAUTH_CLIENT_SECRET,
-    YANDEX_OAUTH_REDIRECT_URI: env.YANDEX_DISK_OAUTH_REDIRECT_URI,
+    YANDEX_OAUTH_CLIENT_ID: unified ? env.YANDEX_OAUTH_CLIENT_ID : env.YANDEX_DISK_OAUTH_CLIENT_ID,
+    YANDEX_OAUTH_CLIENT_SECRET: unified ? env.YANDEX_OAUTH_CLIENT_SECRET : env.YANDEX_DISK_OAUTH_CLIENT_SECRET,
+    YANDEX_OAUTH_REDIRECT_URI: redirectUri,
+    YANDEX_OAUTH_TEST_AUTHORIZE_URL: env.YANDEX_OAUTH_TEST_AUTHORIZE_URL,
+    YANDEX_OAUTH_TEST_TOKEN_URL: env.YANDEX_OAUTH_TEST_TOKEN_URL,
+    YANDEX_OAUTH_TEST_USER_INFO_URL: env.YANDEX_OAUTH_TEST_USER_INFO_URL,
   });
   const redirect = config.redirectUri ? new URL(config.redirectUri) : null;
   return {
     ...config,
+    autoConnect: unified,
     enabled: config.enabled && userCredentialsConfigured(env) &&
-      config.clientId !== env.YANDEX_OAUTH_CLIENT_ID?.trim() &&
       redirect?.pathname === "/api/private-notes/connection/callback" && !redirect.search,
     scope: SCOPE,
     optionalScope: "",

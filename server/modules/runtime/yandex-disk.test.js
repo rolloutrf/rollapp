@@ -23,6 +23,23 @@ test("Disk OAuth requires its own callback, least-privilege scope and account co
   assert.equal(getYandexDiskConfig({ ...env, YANDEX_DISK_OAUTH_REDIRECT_URI: "https://example.com/api/auth/yandex/callback" }).enabled, false);
 });
 
+test("one Yandex application can own sign-in and the Disk app-folder", () => {
+  const config = getYandexDiskConfig({
+    NODE_ENV: "production",
+    PUBLIC_APP_URL: "https://wrong.example.com",
+    YANDEX_OAUTH_CLIENT_ID: "rollapp-client",
+    YANDEX_OAUTH_CLIENT_SECRET: "rollapp-secret",
+    YANDEX_OAUTH_REDIRECT_URI: "https://example.com/api/auth/yandex/callback",
+    YANDEX_DISK_AUTO_CONNECT: "true",
+    USER_CREDENTIALS_SECRET: "a".repeat(32),
+  });
+  assert.equal(config.enabled, true);
+  assert.equal(config.autoConnect, true);
+  assert.equal(config.clientId, "rollapp-client");
+  assert.equal(config.redirectUri, "https://example.com/api/private-notes/connection/callback");
+  assert.equal(config.scope, "cloud_api:disk.app_folder");
+});
+
 test("a note is written create-only and acknowledged after an exact read-back without forwarding the token", async () => {
   const markdown = "\ufeff# Запись\n\nТекст с пробелом.  \n";
   const path = "app:/rollapp-notes-fixture/note.md";

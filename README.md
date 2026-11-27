@@ -256,7 +256,10 @@ For local development, register a separate application with
 derived from `PUBLIC_APP_URL` unless `YANDEX_OAUTH_REDIRECT_URI` is set. In
 production, store `client_id` and `client_secret` in Yandex Lockbox and set
 `YC_YANDEX_OAUTH_LOCKBOX_SECRET_ID`. The runtime reads those values without
-putting the client secret in the compose file.
+putting the client secret in the compose file. With
+`YANDEX_DISK_AUTO_CONNECT=true`, that same Rollapp application also requests
+`cloud_api:disk.app_folder` and connects the user's private app folder during
+sign-in; a second Yandex OAuth application is not used.
 
 ### Backups to Yandex Disk
 

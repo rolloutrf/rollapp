@@ -16,7 +16,8 @@ import { friendMapSchemaAvailable } from "./modules/map/friend-map-schema.js";
 import { mapFrameContentSecurityPolicy } from "./modules/map/map-frame-csp.js";
 
 import { registerStoryRoutes } from "./stories.js";
-import { DiskNotesError, getYandexDiskConfig } from "./modules/runtime/yandex-disk.js";
+import { createYandexDiskClient, DiskNotesError, getYandexDiskConfig } from "./modules/runtime/yandex-disk.js";
+import { connectYandexDiskOnLogin } from "./modules/runtime/yandex-disk-login.js";
 import { createDiskProfileStorage, editableProfile, patchEditableProfile, profileDiskConflict, profileDiskEnabled } from "./modules/profile/yandex-disk-profile.js";
 import { registerYandexDiskNotesRoutes } from "./modules/planning/yandex-disk-notes-routes.js";
 import { registerYandexDiskSyncRoutes, startYandexDiskSync, verifyYandexDiskSyncSchema } from "./modules/runtime/yandex-disk-sync.js";
@@ -1482,6 +1483,7 @@ app.get("/api/auth/yandex/config", (_req, res) => {
   res.set("Cache-Control", "no-store");
   const config = getYandexAuthConfig();
   res.json({ enabled: config.enabled, legacySignInEnabled,
+    diskAutoConnect: config.enabled && config.diskAutoConnect && diskSyncAvailable && getYandexDiskConfig().enabled,
     diskBackupEnabled: !diskSyncAvailable && config.enabled && config.diskBackupEnabled && !isMemoryDatabase,
     ...(diskSyncAvailable && { diskSyncEnabled: true }),
     ...(!diskSyncAvailable && profileDiskEnabled() && getYandexDiskConfig().enabled && !isMemoryDatabase && { diskProfileEnabled: true }),
@@ -1520,7 +1522,14 @@ const startYandexLogin = asyncRoute(async (req, res) => {
     return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
   }
   await cleanupExpiredAuthData();
-  const authorization = createYandexAuthorization({ ...config, diskBackupEnabled: !diskSyncAvailable && config.diskBackupEnabled && !isMemoryDatabase }, {
+  const diskConfig = getYandexDiskConfig();
+  const diskAutoConnect = config.diskAutoConnect && diskSyncAvailable && diskConfig.enabled
+    && diskConfig.clientId === config.clientId;
+  const authorization = createYandexAuthorization({
+    ...config,
+    diskAutoConnect,
+    diskBackupEnabled: !diskSyncAvailable && config.diskBackupEnabled && !isMemoryDatabase,
+  }, {
     nextPath,
     signingUp,
     linkUserId: wantsLink ? req.user.id : null,
@@ -1599,7 +1608,14 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   if (account && !account.success) return res.redirect(303, authErrorRedirect("YANDEX_STATE_INVALID"));
   const code = typeof req.query.code === "string" ? req.query.code : "";
   try {
-    const accessToken = await exchangeYandexCode(config, { code, verifier: attempt.code_verifier });
+    const diskConfig = getYandexDiskConfig();
+    const diskAutoConnect = config.diskAutoConnect && diskSyncAvailable && diskConfig.enabled
+      && diskConfig.clientId === config.clientId;
+    const diskTokens = diskAutoConnect
+      ? await createYandexDiskClient(diskConfig).exchange(code, attempt.code_verifier)
+      : null;
+    const accessToken = diskTokens?.accessToken
+      || await exchangeYandexCode(config, { code, verifier: attempt.code_verifier });
     const yandexUser = await fetchYandexProfile(config, accessToken);
     const wantsBackup = attempt.purpose === "link-backup";
     const purpose = wantsBackup ? "link" : attempt.purpose;
@@ -1620,6 +1636,14 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
     }
     if (result.kind === "link-session-missing") {
       return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
+    }
+    if (diskTokens) {
+      await transaction((client) => connectYandexDiskOnLogin(client, {
+        userId: result.user.id,
+        config: diskConfig,
+        tokens: diskTokens,
+      }));
+      wakeDiskSync();
     }
     await setAuthenticatedSession(req, res, result.session, result.user.id, { addAccount: addingAccount });
     if (purpose === "link") {

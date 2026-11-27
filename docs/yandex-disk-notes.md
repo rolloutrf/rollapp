@@ -34,24 +34,21 @@ PostgreSQL хранит идентификаторы подключения, з�
 
 ## Включение
 
-1. Зарегистрировать отдельное OAuth-приложение для пользователей. Запросить
-   только `cloud_api:disk.app_folder` и зарегистрировать точный адрес
-   `https://xn--80avakiab.xn--p1ai/api/private-notes/connection/callback`
-   для production. Для изолированной локальной проверки использовать
-   `http://127.0.0.1:5172/api/private-notes/connection/callback` и отдельное
-   OAuth-приложение. Папки и подключения разделены по OAuth client ID.
-   Сохранять действующий client ID после запуска пилота.
+1. В основном OAuth-приложении `Rollapp` запросить `login:info`,
+   `login:email` и `cloud_api:disk.app_folder`. Зарегистрировать оба точных
+   production callback: `/api/auth/yandex/callback` и
+   `/api/private-notes/connection/callback` на основном домене. Для локальной
+   проверки добавить те же пути на `http://127.0.0.1:5172`. Второе
+   OAuth-приложение не создавать.
 2. С отдельно подтверждённым изменением схемы применить
    [SQL для пилота](../scripts/sql/yandex-disk-notes.sql) к проверенной целевой
    базе. Настройка и запуск с `ROLLAPP_DATABASE_INITIALIZATION=verify`
    проверяют таблицу чтением. Обычный релиз схему не меняет.
-3. Задать `YANDEX_DISK_OAUTH_REDIRECT_URI` и добавить `client_id` и
-   `client_secret` в секрет Lockbox для runtime. Передать его идентификатор
-   в переменную репозитория `YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID`.
-   CI передаст идентификатор в Compose и проверит `capabilities.privateNotes`
-   после выпуска. Для локальной проверки можно
-   задать `YANDEX_DISK_OAUTH_CLIENT_ID` и `YANDEX_DISK_OAUTH_CLIENT_SECRET`
-   через защищённое окружение. Для токенов пользователей используется
+3. Включить `YANDEX_DISK_AUTO_CONNECT=true` у основного OAuth-приложения
+   `Rollapp`. Оно использует единый `YANDEX_OAUTH_CLIENT_ID` и
+   `YANDEX_OAUTH_CLIENT_SECRET` для входа и доступа только к своей папке
+   (`cloud_api:disk.app_folder`). Отдельное OAuth-приложение и отдельный
+   Lockbox для Диска не требуются. Для токенов пользователей используется
    действующий `USER_CREDENTIALS_SECRET`.
 4. До широкого включения проверить на выделенном аккаунте настоящий OAuth,
    права на папку, сохранение и чтение на втором устройстве, конкурентную

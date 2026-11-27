@@ -22,7 +22,7 @@ export async function enableDiskSync(client, userId, clientId, { reconnect = fal
   await client.query(`
     INSERT INTO yandex_disk_sync (user_id,oauth_client_id) VALUES ($1,$2)
     ON CONFLICT (user_id,oauth_client_id) DO UPDATE SET enabled=true, next_at=CURRENT_TIMESTAMP, last_error=NULL
-    WHERE NOT yandex_disk_sync.enabled OR ($3 AND yandex_disk_sync.last_error='reconnect')
+    WHERE NOT yandex_disk_sync.enabled OR ($3 AND yandex_disk_sync.last_error IS NOT NULL)
   `, [userId, clientId, reconnect]);
 }
 

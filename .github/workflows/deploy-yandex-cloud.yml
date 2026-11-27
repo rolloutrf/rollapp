@@ -321,8 +321,6 @@ jobs:
         timeout-minutes: 4
         env:
           IMAGE_SHA: ${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
-          YANDEX_DISK_BACKUP_ENABLED: ${{ vars.YANDEX_DISK_BACKUP_ENABLED }}
-          YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID }}
           ROLLAPP_YANDEX_DISK_PROFILE_ENABLED: ${{ vars.ROLLAPP_YANDEX_DISK_PROFILE_ENABLED }}
           YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: ${{ vars.YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID }}
           YC_YANDEX_MAPS_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_MAPS_LOCKBOX_SECRET_ID }}
@@ -330,8 +328,6 @@ jobs:
 
       - name: Verify production health
         env:
-          YANDEX_DISK_BACKUP_ENABLED: ${{ vars.YANDEX_DISK_BACKUP_ENABLED }}
-          YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID }}
           ROLLAPP_YANDEX_DISK_PROFILE_ENABLED: ${{ vars.ROLLAPP_YANDEX_DISK_PROFILE_ENABLED }}
         run: |
           set -euo pipefail
@@ -394,14 +390,10 @@ jobs:
             echo "Unauthenticated MCP endpoint returned ${mcp_status}, expected 401" >&2
             exit 1
           fi
-          if [ "$YANDEX_DISK_BACKUP_ENABLED" = "true" ]; then
-            curl -fsS --max-time 10 "${PUBLIC_URL}/api/auth/yandex/config" |
-              jq -e '.enabled == true and (.diskBackupEnabled == true or .diskSyncEnabled == true)' >/dev/null
-          fi
+          curl -fsS --max-time 10 "${PUBLIC_URL}/api/auth/yandex/config" |
+            jq -e '.enabled == true and .diskAutoConnect == true and .diskSyncEnabled == true' >/dev/null
           health="$(read_health)"
-          if [ -n "$YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID" ]; then
-            jq -e '.capabilities.privateNotes == true' <<<"$health" >/dev/null
-          fi
+          jq -e '.capabilities.privateNotes == true' <<<"$health" >/dev/null
           if [ "$ROLLAPP_YANDEX_DISK_PROFILE_ENABLED" = "true" ]; then
             jq -e '.capabilities.diskProfile == true' <<<"$health" >/dev/null
           fi
