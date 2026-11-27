@@ -94,16 +94,21 @@ async function accountBackupSources(client) {
     to_regclass('notification_preferences') IS NOT NULL AS notification_preferences,
     to_regclass('notification_reminders') IS NOT NULL AS notification_reminders,
     to_regclass('user_notifications') IS NOT NULL AS user_notifications,
+    to_regclass('notification_push_subscriptions') IS NOT NULL AS notification_push_subscriptions,
+    to_regclass('notification_delivery_outbox') IS NOT NULL AS notification_delivery_outbox,
     to_regclass('friend_map_preferences') IS NOT NULL AS friend_map_preferences,
     to_regclass('friend_map_locations') IS NOT NULL AS friend_map_locations,
     to_regclass('friend_map_proximity') IS NOT NULL AS friend_map_proximity`);
   if (schema.marketplace_orders !== schema.marketplace_events) throw new Error("Incomplete marketplace settlement schema");
-  const notificationTables = [schema.notification_preferences, schema.notification_reminders, schema.user_notifications];
+  const notificationTables = [schema.notification_preferences, schema.notification_reminders, schema.user_notifications,
+    schema.notification_push_subscriptions, schema.notification_delivery_outbox];
   if (notificationTables.some(Boolean) && !notificationTables.every(Boolean)) throw new Error("Incomplete notification schema");
+  // Push endpoints/keys are device credentials. The delivery outbox is
+  // operational retry/lease state. Neither belongs in an account archive.
   const notifications = notificationTables.every(Boolean) ? [
-    ["notification_preferences", owned, pick("user_id", "time_zone", "medication_reminders", "daily_overview")],
+    ["notification_preferences", owned, pick("user_id", "time_zone", "medication_reminders", "daily_overview", "booking_email", "booking_push")],
     ["notification_reminders", owned, pick("id", "user_id", "title", "start_on", "remind_at", "repeats_daily")],
-    ["user_notifications", owned, pick("id", "user_id", "kind", "title", "scheduled_at", "local_day", "local_time", "read_at")],
+    ["user_notifications", owned, pick("id", "user_id", "kind", "title", "action_path", "scheduled_at", "local_day", "local_time", "read_at")],
   ] : [];
   const friendMapTables = [schema.friend_map_preferences, schema.friend_map_locations, schema.friend_map_proximity];
   if (friendMapTables.some(Boolean) && !friendMapTables.every(Boolean)) throw new Error("Incomplete friend map schema");
@@ -125,7 +130,7 @@ async function accountBackupSources(client) {
     ["profile_session_slots", `(t.owner_id=$1 OR EXISTS (SELECT 1 FROM profile_session_bookings b
       WHERE b.slot_id=t.id AND b.guest_id=$1))`, pick("id", "owner_id", "starts_at", "ends_at", "title")],
     ["profile_session_bookings", `(t.guest_id=$1 OR EXISTS (SELECT 1 FROM profile_session_slots s
-      WHERE s.id=t.slot_id AND s.owner_id=$1))`, pick("id", "slot_id", "guest_id")],
+      WHERE s.id=t.slot_id AND s.owner_id=$1))`, pick("id", "slot_id", "guest_id", "status", "created_at", "responded_at")],
   ] : [];
   return [
     schema.mood_ready ? [userSource[0], userSource[1], `${userSource[2]} || ${pick("mood_level", "mood_public")}`] : userSource,

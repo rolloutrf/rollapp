@@ -72,6 +72,7 @@ export function PublicProfileHero({
         {!shared && <ProfilePublicationLinks activeSection={publication}
           toSection={section => `${publicPublicationPath(profile, section)}?${tab}`}
           state={{ publicationListId }}
+          manageCalendar={isOwner && business}
           onlySections={activeSpace === "products" ? null : ["calendar"]} />}
       </ControlBar>
     </section>

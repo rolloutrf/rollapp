@@ -126,6 +126,24 @@ function providerMessageId(payload, fallback) {
     || fallback;
 }
 
+function notificationPayload({ to, actionUrl, requestId }) {
+  const recipient = String(to || "").trim();
+  const deliveryRequestId = String(requestId || "").trim();
+  let parsedActionUrl;
+  try {
+    parsedActionUrl = new URL(String(actionUrl || ""));
+  } catch {
+    throw new EmailDeliveryError("Notification action URL is invalid");
+  }
+  if (!recipient || /[\r\n]/.test(recipient) || !deliveryRequestId || /[\r\n]/.test(deliveryRequestId)) {
+    throw new EmailDeliveryError("Notification email metadata is invalid");
+  }
+  if (!new Set(["http:", "https:"]).has(parsedActionUrl.protocol)) {
+    throw new EmailDeliveryError("Notification action URL must use HTTP or HTTPS");
+  }
+  return { to: recipient, actionUrl: parsedActionUrl.toString(), requestId: deliveryRequestId };
+}
+
 async function sendViaYandex(payload, { env, fetchImpl, message = passwordResetMessage(payload.resetUrl) }) {
   const from = String(env.EMAIL_FROM || "").trim();
   if (!from || /[\r\n]/.test(from)) {
@@ -214,6 +232,32 @@ export async function sendAccountInviteEmail({ to, inviteUrl, requestId }, optio
   }
   if (config.provider !== "yandex") throw new EmailDeliveryError("Email delivery is disabled");
   return sendViaYandex({ to, requestId }, { env, fetchImpl: options.fetchImpl || fetch, message });
+}
+
+export async function sendNotificationEmail({ to, actionUrl, requestId, subject, text }, options = {}) {
+  const env = options.env || process.env;
+  const config = getEmailConfig(env);
+  const payload = notificationPayload({ to, actionUrl, requestId });
+  const safeUrl = escapeHtml(payload.actionUrl);
+  const safeText = String(text || "").trim();
+  const message = {
+    subject: String(subject || "Оповещение Rollapp").trim().slice(0, 160),
+    text: `${safeText}\n\nОткрыть в Rollapp: ${payload.actionUrl}`,
+    html: `<p>${escapeHtml(safeText)}</p><p><a href="${safeUrl}">Открыть в Rollapp</a></p>`,
+  };
+  if (config.provider === "console") {
+    console.info(`[email:console] ${message.subject} for ${payload.to}: ${payload.actionUrl} (request ${payload.requestId})`);
+    return { providerMessageId: `console-${payload.requestId}` };
+  }
+  if (config.provider === "test") {
+    const outboxPath = String(env.EMAIL_TEST_OUTBOX_PATH || "").trim();
+    if (outboxPath) {
+      await appendFile(outboxPath, `${JSON.stringify({ type: "notification", ...payload, subject: message.subject, text: safeText })}\n`, "utf8");
+    }
+    return { providerMessageId: `test-${payload.requestId}` };
+  }
+  if (config.provider !== "yandex") throw new EmailDeliveryError("Email delivery is disabled");
+  return sendViaYandex(payload, { env, fetchImpl: options.fetchImpl || fetch, message });
 }
 
 export function resetEmailTokenCacheForTests() {

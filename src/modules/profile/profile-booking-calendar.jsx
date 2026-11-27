@@ -154,12 +154,15 @@ function StatusList({ slots, owner, format, busy, onRemove }) {
   return <div className="grid gap-2">
     {slots.map(slot => {
       const day = format.date(format.key(slot.startsAt));
-      const action = slot.bookingId ? "Отменить запись" : "Убрать слот";
+      const pending = slot.bookingId && slot.bookingStatus === "pending";
+      const action = slot.bookingId ? pending ? "Отменить запрос" : "Отменить запись" : "Убрать слот";
       return <Card key={slot.id} className="booking-status-row rollapp-body">
         <div className="grid min-w-0 gap-1 wrap-anywhere">
           <div data-typography="caption" className="text-muted-foreground first-letter:uppercase">{day} · {timeRange(slot, format)}</div>
           <h3 className="font-semibold">{slot.title}</h3>
-          {slot.bookingId && <p className="text-muted-foreground">{owner ? `Записался участник: ${slot.guestName}` : "Вы записаны"}</p>}
+          {slot.bookingId && <p className="text-muted-foreground">{owner
+            ? pending ? `Запрос от участника: ${slot.guestName}` : `Записался участник: ${slot.guestName}`
+            : pending ? "Запрос отправлен, ждёт подтверждения" : "Запись подтверждена"}</p>}
         </div>
         <PageActionButton type="button" variant="destructive" disabled={busy} aria-label={`${action}: ${slot.title}, ${day}, ${format.time(slot.startsAt)}`} onClick={() => onRemove(slot)}>
           {action}
@@ -208,7 +211,10 @@ function BookingPicker({ type, profile, user, loginPath, zone, setZone, format, 
       duration={booked ? durationOf(booked) : type?.duration} slot={showingDetails || showingSuccess ? meeting : null} format={format} zone={zone} />
     {showingSuccess ? <section className="booking-panel" aria-labelledby="booking-complete">
       <CircleCheck className="size-8" aria-hidden="true" />
-      <h3 id="booking-complete" ref={stepHeading} tabIndex={-1} className="text-2xl font-semibold" role="status">Вы записаны на сессию</h3>
+      <h3 id="booking-complete" ref={stepHeading} tabIndex={-1} className="text-2xl font-semibold" role="status">
+        {booked.bookingStatus === "pending" ? "Запрос отправлен" : "Вы записаны на сессию"}
+      </h3>
+      {booked.bookingStatus === "pending" && <p className="text-muted-foreground">Организатор подтвердит или отклонит запись. Ответ появится в оповещениях.</p>}
       <div><PageActionButton type="button" variant="outline" onClick={onBack}>К календарю</PageActionButton></div>
     </section> : showingDetails ? <section className="booking-panel" aria-labelledby="booking-details">
       <ControlBar className="flex">
@@ -222,7 +228,7 @@ function BookingPicker({ type, profile, user, loginPath, zone, setZone, format, 
       </dl>}
       <div>
         {preview ? <p className="text-muted-foreground">Предпросмотр страницы записи</p> : user
-          ? <PageActionButton type="button" disabled={busy} onClick={() => onBook(slot)}>{busy ? "Записываем…" : "Подтвердить запись"}</PageActionButton>
+          ? <PageActionButton type="button" disabled={busy} onClick={() => onBook(slot)}>{busy ? "Отправляем…" : "Отправить запрос"}</PageActionButton>
           : <PageActionButton nativeButton={false} role="link" render={<Link to={loginPath(slot.id, zone)} />}>Войти для записи</PageActionButton>}
       </div>
     </section> : <>
@@ -487,9 +493,9 @@ function HostSlotEditor({ slots, busy, onSave, onClose }) {
   </Card>;
 }
 
-export function ProfileBookingCalendar({ profile, slots, owner, user, busy, notice, loginPath, sharePath, onRemove, onPublish, onBook, clearNotice, booked }) {
+export function ProfileBookingCalendar({ profile, slots, owner, user, busy, notice, loginPath, sharePath, onRemove, onPublish, onBook, clearNotice, booked, previewOnly = false }) {
   const [editing, setEditing] = useState(false);
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(previewOnly);
   const [copied, setCopied] = useState(null);
   const [typeId, setTypeId] = useState(null);
   const { search } = useLocation();

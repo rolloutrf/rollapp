@@ -112,7 +112,15 @@ test("Yandex Disk snapshots scope wishes, appointments, announcements, invites a
       if (publications) {
         assert.deepEqual(ownerSnapshot.profile_session_slots.map(({ id }) => id).sort(), [slot, unbooked].sort());
         assert.deepEqual(memberSnapshot.profile_session_slots.map(({ id }) => id), [slot]);
-        assert.deepEqual(memberSnapshot.profile_session_bookings, [{ id: booking, slot_id: slot, guest_id: participant }]);
+        assert.equal(memberSnapshot.profile_session_bookings.length, 1);
+        assert.deepEqual({
+          id: memberSnapshot.profile_session_bookings[0].id,
+          slot_id: memberSnapshot.profile_session_bookings[0].slot_id,
+          guest_id: memberSnapshot.profile_session_bookings[0].guest_id,
+          status: memberSnapshot.profile_session_bookings[0].status,
+          responded_at: memberSnapshot.profile_session_bookings[0].responded_at,
+        }, { id: booking, slot_id: slot, guest_id: participant, status: "confirmed", responded_at: null });
+        assert(Number.isFinite(Date.parse(memberSnapshot.profile_session_bookings[0].created_at)));
         assert.deepEqual(ownerSnapshot.profile_session_bookings, memberSnapshot.profile_session_bookings);
         assert.deepEqual(outsiderSnapshot.profile_session_slots, []);
         assert.deepEqual(outsiderSnapshot.profile_session_bookings, []);

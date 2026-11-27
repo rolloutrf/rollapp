@@ -75,7 +75,7 @@ try {
     const availableDay = page.locator(".booking-day-available button").first();
     const time = label => page.getByRole("button", { name: `Выбрать время ${label}`, exact: true });
     const next = page.getByRole("button", { name: "Далее", exact: true });
-    const confirm = page.getByRole("button", { name: "Подтвердить запись", exact: true });
+    const confirm = page.getByRole("button", { name: "Отправить запрос", exact: true });
     const book = async () => {
       await availableDay.click();
       await time("12:00").click();
@@ -109,7 +109,7 @@ try {
     await geometry();
 
     await open("calendar", "visitor");
-    await page.getByText("Вы записаны", { exact: true }).waitFor();
+    await page.getByText("Запись подтверждена", { exact: true }).waitFor();
     await page.getByRole("button", { name: /Отменить запись: Встреча/ }).click();
     await page.getByRole("alertdialog").getByRole("heading", { name: "Отменить запись?" }).waitFor();
     await page.getByRole("alertdialog").getByRole("button", { name: "Назад" }).click();
@@ -118,11 +118,11 @@ try {
     assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     await screenshot("details");
     await confirm.click();
-    await page.getByRole("status").getByText("Вы записаны на сессию").waitFor();
+    await page.getByRole("status").getByText("Запрос отправлен").waitFor();
     await screenshot("confirmed");
-    await page.getByRole("button", { name: /Отменить запись: Первая встреча/ }).click();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Отменить запись" }).click();
-    await page.getByRole("status").getByText("Запись отменена").waitFor();
+    await page.getByRole("button", { name: /Отменить запрос: Первая встреча/ }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Отменить запрос" }).click();
+    await page.getByRole("status").getByText("Запрос отменён").waitFor();
     await page.evaluate(() => { window.publicationTransport.conflictNextBooking = true; });
     await book();
     await confirm.click();
@@ -136,51 +136,9 @@ try {
     await geometry();
 
     await open("calendar", "owner");
-    await page.getByText("Записался участник: Светлана").waitFor();
-    await page.getByRole("button", { name: "Предпросмотр", exact: true }).click();
-    await book();
-    await page.getByText("Предпросмотр страницы записи").waitFor();
-    assert.equal(await confirm.count(), 0);
+    await page.waitForURL(`${origin}/app/planning?tab=calendar&space=booking`);
+    assert.equal(await page.locator("[data-host-slot-editor]").count(), 0, "Owner stayed in the retired slot editor");
     assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
-    await page.getByRole("button", { name: "К управлению слотами", exact: true }).click();
-    await page.getByRole("button", { name: "Добавить слот" }).click();
-    const editorSlot = page.locator("[data-host-slot-editor]");
-    const month = editorSlot.getByRole("grid");
-    assert(await next.isDisabled());
-    let times;
-    if (width >= 1024) {
-      const week = editorSlot.locator("[data-booking-host-week]");
-      await week.getByRole("button", { name: "Следующая неделя" }).click();
-      times = week.locator("section").first();
-    } else {
-      if (width >= 768) await editorSlot.getByText("Выбрать другую дату или время", { exact: true }).click();
-      await month.getByRole("button").filter({ visible: true }).last().click();
-      times = editorSlot.getByRole("region", { name: "Время начала" });
-    }
-    await times.getByRole("button", { name: "09:00", exact: true }).click();
-    await times.getByRole("button", { name: "09:30", exact: true }).click();
-    await geometry();
-    await screenshot("host");
-    await next.click();
-    await page.getByLabel("Название сессии").fill("Планирование");
-    const publishSlots = page.getByRole("button", { name: "Опубликовать", exact: true });
-    await page.evaluate(() => { window.publicationTransport.loseNextSlotResponse = true; });
-    await publishSlots.click();
-    await page.getByRole("alert").getByText("Ответ сервера потерян").waitFor();
-    assert.equal(await page.getByLabel("Название сессии").inputValue(), "Планирование");
-    await publishSlots.click();
-    await page.getByRole("status").getByText("Слоты опубликованы").waitFor();
-    assert.equal(await page.getByRole("heading", { name: "Планирование", exact: true }).count(), 2);
-    const [firstWrite, retry] = await page.evaluate(() => window.publicationTransport.calls);
-    assert.deepEqual(firstWrite, retry);
-    assert.deepEqual(firstWrite.slice(0, 2), ["POST", "/profile/host/calendar"]);
-    const [{ id, title, duration, startsAt }, secondSlot] = firstWrite[2].slots;
-    assert.match(id, /^[0-9a-f-]{36}$/);
-    assert.equal(title, "Планирование");
-    assert.equal(duration, 30);
-    assert.match(startsAt, /T06:00:00.000Z$/);
-    assert.match(secondSlot.startsAt, /T06:30:00.000Z$/);
-    await geometry();
 
     await open("announcements", "owner");
     await page.getByRole("heading", { name: "Открыта запись на ноябрь" }).waitFor();

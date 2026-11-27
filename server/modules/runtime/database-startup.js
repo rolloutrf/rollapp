@@ -5,6 +5,7 @@ import { verifyAccountBackupSchema } from "../../account-backup.js";
 import { profileDiskEnabled } from "../profile/yandex-disk-profile.js";
 import { verifyNoteGroupsSql } from "../planning/note-groups.js";
 import { verifyNotificationSchema } from "../notifications/notification-schema.js";
+import { verifyProfilePublicationsSchema } from "../profile/profile-publications.js";
 
 // Development reconnects to an existing production database. A reconnect must
 // never run the normal schema/data migration and reservation cleanup routine.
@@ -33,6 +34,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     // LIMIT 0 validates the real schema without reading profile/document data.
     await client.query("SELECT account_type,business_category,seller_space FROM users LIMIT 0");
     await client.query("SELECT username,user_id FROM profile_username_aliases LIMIT 0");
+    await verifyProfilePublicationsSchema(client);
     await client.query("SELECT user_id,contact_ids,description,expected_result,actual_result,due_on,start_time FROM planning_tasks LIMIT 0");
     await client.query("SELECT token_hash,user_id,expires_at FROM sessions LIMIT 0");
     await client.query("SELECT member_number,can_invite FROM users LIMIT 0");

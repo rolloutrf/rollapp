@@ -20,10 +20,12 @@ try {
       const { rows: [schema] } = await client.query(`SELECT
         to_regclass('notification_preferences')::text AS preferences,
         to_regclass('notification_reminders')::text AS reminders,
-        to_regclass('user_notifications')::text AS notifications`);
+        to_regclass('user_notifications')::text AS notifications,
+        to_regclass('notification_push_subscriptions')::text AS push_subscriptions,
+        to_regclass('notification_delivery_outbox')::text AS delivery_outbox`);
       await client.query(`SELECT user_id, status, updated_at, start_on, end_on, frequency, schedule_times_json
         FROM health_medications LIMIT 0`);
-      if (schema.preferences && schema.reminders && schema.notifications) {
+      if (schema.preferences && schema.reminders && schema.notifications && schema.push_subscriptions && schema.delivery_outbox) {
         await verifyNotificationSchema(client);
       } else {
         const existingColumns = `notification_preferences AS (

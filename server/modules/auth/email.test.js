@@ -8,6 +8,7 @@ import {
   getEmailConfig,
   resetEmailTokenCacheForTests,
   sendAccountInviteEmail,
+  sendNotificationEmail,
   sendPasswordResetEmail,
 } from "./email.js";
 
@@ -85,6 +86,27 @@ test("account invitations use the configured email provider and reject unsafe UR
   await sendAccountInviteEmail({ to: "person@example.com", inviteUrl: "https://rollapp.example/register?invite=opaque", requestId: "invite-1" }, { env });
   assert.equal(JSON.parse((await readFile(outboxPath, "utf8")).trim()).type, "account-invite");
   await assert.rejects(sendAccountInviteEmail({ to: "person@example.com", inviteUrl: "javascript:alert(1)", requestId: "invite-2" }, { env }), EmailDeliveryError);
+});
+
+test("booking notification email keeps the action on a safe absolute URL", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "rollapp-notification-email-test-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const outboxPath = path.join(directory, "outbox.jsonl");
+  const env = { EMAIL_PROVIDER: "test", NODE_ENV: "test", EMAIL_TEST_OUTBOX_PATH: outboxPath };
+  const result = await sendNotificationEmail({
+    to: "host@example.com", actionUrl: "https://rollapp.example/app/planning?tab=calendar&space=booking",
+    requestId: "delivery-1", subject: "Новый запрос", text: "Анна хочет записаться",
+  }, { env });
+  assert.deepEqual(result, { providerMessageId: "test-delivery-1" });
+  const saved = JSON.parse((await readFile(outboxPath, "utf8")).trim());
+  assert.deepEqual(saved, {
+    type: "notification", to: "host@example.com",
+    actionUrl: "https://rollapp.example/app/planning?tab=calendar&space=booking",
+    requestId: "delivery-1", subject: "Новый запрос", text: "Анна хочет записаться",
+  });
+  await assert.rejects(sendNotificationEmail({
+    to: "host@example.com", actionUrl: "javascript:alert(1)", requestId: "delivery-2",
+  }, { env }), EmailDeliveryError);
 });
 
 test("test provider writes one JSON line to the explicit outbox", async (t) => {

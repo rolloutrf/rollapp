@@ -47,7 +47,8 @@ test("profile publications and booking ownership on production PostgreSQL", {
     registerProfilePublicationRoutes(app, { requireAuth, query, transaction: callback => callback(client), asyncRoute });
     app.use((error, _req, res, _next) => res.status(error instanceof ZodError ? 400 : 500).json({ error: error.code ?? error.message }));
     server = await new Promise(resolve => { const instance = app.listen(0, "127.0.0.1", () => resolve(instance)); });
-    const base = `http://127.0.0.1:${server.address().port}/api/profile`;
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const base = `${origin}/api/profile`;
     const request = async (method, path, viewer, body, owner = host) => {
       const response = await fetch(`${base}/${owner.username}${path}`, {
         method,
@@ -60,6 +61,15 @@ test("profile publications and booking ownership on production PostgreSQL", {
         cache: response.headers.get("cache-control"),
         data: await response.json().catch(() => null),
       };
+    };
+    const respond = async (bookingId, viewer, decision) => {
+      const response = await fetch(`${origin}/api/profile-bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(viewer && { "X-Publication-Test-Token": viewer.token }) },
+        body: JSON.stringify({ decision }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      return { status: response.status, data: await response.json().catch(() => null) };
     };
     const calendar = "/calendar";
     const board = "/announcements";
@@ -81,6 +91,8 @@ test("profile publications and booking ownership on production PostgreSQL", {
       startsAt: slot.startsAt,
       endsAt: new Date(starts_at.getTime() + 60 * 60_000).toISOString(),
       bookingId: null,
+      bookingStatus: null,
+      requestedAt: null,
       bookedByMe: false,
     }]);
     assert.deepEqual((await request("GET", calendar, null, undefined, guest)).data.slots, []);
@@ -89,6 +101,7 @@ test("profile publications and booking ownership on production PostgreSQL", {
     assert.equal(booking.status, 200, JSON.stringify(booking.data));
     const bookingId = booking.data.bookingId;
     assert.ok(bookingId);
+    assert.equal(booking.data.bookingStatus, "pending");
     assert.equal((await request("POST", `${slotPath}/book`, guest)).data.bookingId, bookingId);
     assert.equal((await request("POST", `${slotPath}/book`, other)).status, 409);
     assert.equal((await request("DELETE", slotPath, host)).status, 409);
@@ -96,8 +109,13 @@ test("profile publications and booking ownership on production PostgreSQL", {
     assert.deepEqual((await request("GET", calendar, other)).data.slots, []);
     const mySlot = (await request("GET", calendar, guest)).data.slots[0];
     assert.equal(mySlot.bookedByMe, true);
+    assert.equal(mySlot.bookingStatus, "pending");
     assert.equal(mySlot.guestName, undefined);
     assert.equal((await request("GET", calendar, host)).data.slots[0].guestName, "Guest");
+    assert.equal((await respond(bookingId, other, "confirm")).status, 403);
+    assert.deepEqual((await respond(bookingId, host, "confirm")).data, { bookingId, bookingStatus: "confirmed" });
+    assert.equal((await respond(bookingId, host, "confirm")).data.bookingStatus, "confirmed");
+    assert.equal((await request("GET", calendar, guest)).data.slots[0].bookingStatus, "confirmed");
 
     const bookingPath = `${slotPath}/bookings/${bookingId}`;
     await request("DELETE", bookingPath, other);
@@ -107,7 +125,8 @@ test("profile publications and booking ownership on production PostgreSQL", {
     assert.ok(bookedAgain && bookedAgain !== bookingId);
     await request("DELETE", bookingPath, host);
     assert.equal((await request("GET", calendar, other)).data.slots[0].bookingId, bookedAgain);
-    assert.equal((await request("DELETE", `${slotPath}/bookings/${bookedAgain}`, host)).status, 200);
+    assert.equal((await respond(bookedAgain, host, "decline")).data.bookingStatus, "declined");
+    assert.equal((await request("GET", calendar)).data.slots[0].bookingId, null);
     assert.equal((await request("DELETE", slotPath, host)).status, 200);
     assert.deepEqual((await request("GET", calendar)).data.slots, []);
 

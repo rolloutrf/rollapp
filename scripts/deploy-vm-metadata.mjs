@@ -22,6 +22,7 @@ export function renderDeploymentCompose(template, config) {
   if (!template.includes('__IMAGE__') || !template.includes('__VERSION__')) throw new Error("Deployment template is missing immutable image/version placeholders");
   return template.replaceAll('__IMAGE__', config.image).replaceAll('__VERSION__', config.version)
     .replaceAll('__ROLLAPP_YANDEX_DISK_PROFILE_ENABLED__', String(config.yandexDiskProfileEnabled === true))
+    .replaceAll('__ROLLAPP_WEB_PUSH_ENABLED__', String(config.webPushEnabled === true))
     .replaceAll('__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__', config.eveNotificationSecretId || '')
     .replaceAll('__YC_YANDEX_MAPS_LOCKBOX_SECRET_ID__', config.yandexMapsSecretId || '');
 }
@@ -92,6 +93,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     const config = { vmId: process.env.YC_VM_ID, folderId: process.env.YC_FOLDER_ID, runtimeSaId: process.env.YC_RUNTIME_SA_ID, token: process.env.YC_IAM_TOKEN, image: process.env.IMAGE_SHA, version: process.env.GITHUB_SHA,
       yandexDiskProfileEnabled: process.env.ROLLAPP_YANDEX_DISK_PROFILE_ENABLED === "true",
+      webPushEnabled: process.env.ROLLAPP_WEB_PUSH_ENABLED === "true",
       eveNotificationSecretId: process.env.YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID,
       yandexMapsSecretId: process.env.YC_YANDEX_MAPS_LOCKBOX_SECRET_ID,
     };

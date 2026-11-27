@@ -11,17 +11,17 @@ export function PublicBookingPage() {
   const { username } = useParams();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
-  return <ProfilePublicationsPage key={`${username}:${user?.id || ""}`} section="calendar" username={username} user={user} />;
+  return <ProfilePublicationsPage key={`${username}:${user?.id || ""}`} section="calendar" username={username} user={user} bookingView />;
 }
 
-export function ProfilePublicationsPage({ section, username, user, returnTo, showIntro }) {
+export function ProfilePublicationsPage({ section, username, user, returnTo, showIntro, bookingView = false }) {
   const location = useLocation();
   const endpoint = `/profile/${encodeURIComponent(username)}/${section}`;
   const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
   if (data && publicProfileAddress(data.profile) !== username && !returnTo) {
     return <Navigate to={renamedProfileLocation(location, username, data.profile)} replace />;
   }
-  const page = <ProfilePublications {...{ section, endpoint, username, user, data, loading, error, reload, returnTo, showIntro }} />;
+  const page = <ProfilePublications {...{ section, endpoint, username, user, data, loading, error, reload, returnTo, showIntro, bookingView }} />;
   if (returnTo) return page;
   return user
     ? <AppShell friendsContext={!data?.isOwner} collectionChrome>{page}</AppShell>

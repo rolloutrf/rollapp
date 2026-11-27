@@ -61,6 +61,10 @@ test("enabled production startup checks rewards read-only and never migrates mis
       calls.push(sql);
       if (missingOffers && sql.includes("reward_need_offers")) throw new Error("missing offers");
       if (sql.includes("to_regclass('roll_marketplace_orders')")) return { rows: [{ orders: false, events: false }] };
+      if (sql.includes("profile_session_bookings_active_slot")) return { rows: [{
+        indisunique: true, indisvalid: true, indisready: true, indislive: true,
+        indexdef: "CREATE UNIQUE INDEX profile_session_bookings_active_slot ON profile_session_bookings (slot_id) WHERE status IN ('pending','confirmed')",
+      }], rowCount: 1 };
       return { rows: [] };
     } }) };
   await initializeRuntimeDatabase(options);

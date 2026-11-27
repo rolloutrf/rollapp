@@ -84,10 +84,13 @@ test("real deployment template renders exact SHA without changing other content"
   const rendered = renderDeploymentCompose(template, config);
   assert.equal(rendered, template.replaceAll("__IMAGE__", config.image).replaceAll("__VERSION__", version)
     .replaceAll("__ROLLAPP_YANDEX_DISK_PROFILE_ENABLED__", "false")
+    .replaceAll("__ROLLAPP_WEB_PUSH_ENABLED__", "false")
     .replaceAll("__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__", "")
     .replaceAll("__YC_YANDEX_MAPS_LOCKBOX_SECRET_ID__", ""));
   const withDiskProfile = renderDeploymentCompose(template, { ...config, yandexDiskProfileEnabled: true });
   assert.equal(withDiskProfile, rendered.replace('ROLLAPP_YANDEX_DISK_PROFILE_ENABLED: "false"', 'ROLLAPP_YANDEX_DISK_PROFILE_ENABLED: "true"'));
+  const withPush = renderDeploymentCompose(template, { ...config, webPushEnabled: true });
+  assert.equal(withPush, rendered.replace('ROLLAPP_WEB_PUSH_ENABLED: "false"', 'ROLLAPP_WEB_PUSH_ENABLED: "true"'));
   assert.match(rendered, /^      YANDEX_DISK_AUTO_CONNECT: "true"$/m);
   const withEve = renderDeploymentCompose(template, { ...config, eveNotificationSecretId: "eve-secret-test" });
   assert.equal(withEve, rendered.replaceAll('YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: ""',

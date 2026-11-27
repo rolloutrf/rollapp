@@ -69,6 +69,7 @@ import { createRollappMcpHttp } from "./modules/runtime/mcp-http.js";
 import { registerNotesRoutes } from "./modules/planning/notes.js";
 import { registerCalendarDeviceRoutes } from "./modules/calendar/calendar-device.js";
 import { registerProfilePublicationRoutes } from "./modules/profile/profile-publications.js";
+import { notificationDeliveryConfig, queueBookingNotification } from "./modules/notifications/notification-delivery.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./modules/auth/email.js";
 import { sendAccountInviteEmail } from "./modules/auth/email.js";
 import {
@@ -160,6 +161,7 @@ const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 const notificationToken = process.env.ROLLAPP_EVE_NOTIFICATION_TOKEN;
 const notificationsConfigured = Boolean(notificationToken?.length >= 32);
+const notificationDelivery = notificationDeliveryConfig();
 const { id: applicationId, sphere: sphereApplication } = applicationRuntime(process.env);
 let profileMoodAvailable = false;
 let diskSyncAvailable = false;
@@ -719,7 +721,9 @@ registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerProfileMoodRoutes(app, { requireAuth, transaction, asyncRoute, available: () => profileMoodAvailable });
 registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential: resolveOpenRouterApiKey });
-const notificationWorkerHealthy = registerNotificationRoutes(app, { requireAuth, asyncRoute, query, transaction, secret: notificationToken });
+const notificationWorkerHealthy = registerNotificationRoutes(app, {
+  requireAuth, asyncRoute, query, transaction, secret: notificationToken, deliveryConfig: notificationDelivery,
+});
 registerFriendMapRoutes(app, {
   requireAuth, asyncRoute, query, transaction,
   available: () => friendMapAvailable,
@@ -730,7 +734,18 @@ registerAssistantWishlistSortRoute(app, { requireAuth, asyncRoute, transaction }
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });
-registerProfilePublicationRoutes(app, { requireAuth, query, transaction, asyncRoute });
+registerProfilePublicationRoutes(app, {
+  requireAuth, query, transaction, asyncRoute,
+  notifyBooking: notificationsConfigured
+    ? (client, event) => queueBookingNotification(client, event, notificationDelivery)
+    : async () => {},
+  markBookingRequestRead: notificationsConfigured
+    ? (client, userId, bookingId) => client.query(
+      "UPDATE user_notifications SET read_at=COALESCE(read_at,statement_timestamp()) WHERE user_id=$1 AND kind='booking_request' AND source_id=$2",
+      [userId, bookingId],
+    )
+    : async () => {},
+});
 registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit, query, transaction,
   syncAvailable: () => diskSyncAvailable, wakeSync: wakeDiskSync, cookieDomain: domainCookies?.domain,
 });

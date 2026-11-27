@@ -21,6 +21,10 @@ function fixture({ username = "someone", unavailable = "", marketplace = false, 
       calls.push(sql);
       if (unavailable && sql.includes(unavailable)) throw new Error("Existing schema unavailable");
       if (sql.includes("to_regclass('roll_marketplace_orders')")) return { rows: [{ orders: marketplace, events: marketplaceEvents }] };
+      if (sql.includes("profile_session_bookings_active_slot")) return { rows: [{
+        indisunique: true, indisvalid: true, indisready: true, indislive: true,
+        indexdef: "CREATE UNIQUE INDEX profile_session_bookings_active_slot ON profile_session_bookings (slot_id) WHERE status IN ('pending','confirmed')",
+      }], rowCount: 1 };
       if (sql.includes("FROM pg_index i")) return { rows: indexes };
       return {rows:sql==="SELECT username FROM users"?[{username}]:[]};
     }}),
@@ -81,7 +85,7 @@ test("protected checkout verifies its separately installed schema in read-only m
     if (marketplace) {
       assert.equal(await initializeRuntimeDatabase(options), "verify");
       assert(calls.some((sql) => sql.includes("JOIN roll_marketplace_order_events")));
-      const indexCheck = calls.find((sql) => sql.includes("FROM pg_index i"));
+      const indexCheck = calls.find((sql) => sql.includes("indimmediate AND i.indisvalid"));
       assert.match(indexCheck, /indimmediate AND i.indisvalid AND i.indisready AND i.indislive/);
     } else await assert.rejects(initializeRuntimeDatabase(options), /Marketplace settlement schema is not installed/);
     assert.equal(calls[0], "SET TRANSACTION READ ONLY");

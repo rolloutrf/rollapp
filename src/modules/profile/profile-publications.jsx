@@ -2,7 +2,7 @@ import { EmptyState } from "@/modules/shell/page-feedback.jsx";
 import { AddFab } from "@/components/add-fab";
 import { useId, useRef, useState } from "react";
 import { CalendarDays, Megaphone, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
 import { ProfileBookingCalendar } from "@/modules/profile/profile-booking-calendar.jsx";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { api } from "@/modules/runtime/api.js";
 import { publicProfilePath, publicBookingPath } from "../../../shared/modules/profile/profile-links.js";
+import { BOOKING_CALENDAR_PATH } from "../../../shared/modules/calendar/booking-calendar.js";
 
 const sections = {
   calendar: { title: "Календарь", icon: CalendarDays },
@@ -23,10 +24,10 @@ const sections = {
 };
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "full" });
 
-export function ProfilePublicationLinks({ activeSection, toSection, state, onlySections = null }) {
+export function ProfilePublicationLinks({ activeSection, toSection, state, onlySections = null, manageCalendar = false }) {
   const visible = Object.entries(sections).filter(([section]) => !onlySections || onlySections.includes(section));
   return visible.map(([section, { title, icon: Icon }]) => (
-    <Link key={section} to={toSection(section)} state={state}
+    <Link key={section} to={manageCalendar && section === "calendar" ? BOOKING_CALENDAR_PATH : toSection(section)} state={state}
       className={buttonVariants({ variant: activeSection === section ? "default" : "outline", size: "icon" })}
       data-control-icon aria-label={title} aria-current={activeSection === section ? "page" : undefined} title={title}>
       <Icon aria-hidden="true" />
@@ -104,7 +105,7 @@ function Announcements({ announcements, owner, busy, onEdit, onRemove }) {
   </div>;
 }
 
-export function ProfilePublications({ section, endpoint, username, user, data, loading, error, reload, returnTo, showIntro = true }) {
+export function ProfilePublications({ section, endpoint, username, user, data, loading, error, reload, returnTo, showIntro = true, bookingView = false }) {
   const calendar = section === "calendar";
   const collectionWidth = calendar || Boolean(returnTo);
   const intro = showIntro && (calendar || !returnTo);
@@ -165,7 +166,14 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
     if (!calendar) {
       setConfirmation({ title: "Удалить объявление?", description: "Оно исчезнет с вашей доски.", action: "Удалить", path: `${endpoint}/${item.id}`, message: "Объявление удалено" });
     } else if (item.bookingId) {
-      setConfirmation({ title: "Отменить запись?", description: "Слот снова станет доступен для записи.", action: "Отменить запись", path: `${endpoint}/${item.id}/bookings/${item.bookingId}`, message: "Запись отменена", slotId: item.id });
+      const pendingRequest = item.bookingStatus === "pending";
+      setConfirmation({
+        title: pendingRequest ? "Отменить запрос?" : "Отменить запись?",
+        description: "Слот снова станет доступен для записи.",
+        action: pendingRequest ? "Отменить запрос" : "Отменить запись",
+        path: `${endpoint}/${item.id}/bookings/${item.bookingId}`,
+        message: pendingRequest ? "Запрос отменён" : "Запись отменена", slotId: item.id,
+      });
     } else {
       setConfirmation({ title: "Убрать слот?", description: "Это время исчезнет из календаря записи.", action: "Убрать слот", path: `${endpoint}/${item.id}`, message: "Слот удалён" });
     }
@@ -191,9 +199,12 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
         <p role="alert">{error.message}</p>
         <div className="not-typeset"><PageActionButton type="button" variant="outline" onClick={refresh}>Повторить</PageActionButton></div>
       </div>}
-      {data && (calendar
-        ? <ProfileBookingCalendar profile={profile} slots={data.slots} owner={owner} user={user} busy={pending}
+      {data && (calendar && owner && !bookingView && !returnTo
+        ? <Navigate to={BOOKING_CALENDAR_PATH} replace />
+        : calendar
+        ? <ProfileBookingCalendar profile={profile} slots={data.slots} owner={false} user={user} busy={pending}
           notice={notice} loginPath={loginPath} sharePath={sharePath} onRemove={askToRemove} booked={booked}
+          previewOnly={bookingView && Boolean(data.isOwner)}
           clearNotice={() => setNotice(null)}
           onPublish={(slots, onSaved) => mutate(
             () => api.post(endpoint, { slots }),
@@ -203,7 +214,7 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
           onBook={slot => mutate(
             () => api.post(`${endpoint}/${slot.id}/book`, {}),
             null,
-            ({ bookingId }) => setBooked({ ...slot, bookingId, bookedByMe: true }),
+            ({ bookingId, bookingStatus }) => setBooked({ ...slot, bookingId, bookingStatus, bookedByMe: true }),
           )} />
         : <>
           {notice && (!notice.error || !form?.open) &&

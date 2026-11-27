@@ -537,12 +537,26 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
 }
 
 async function checkNotifications(page, width, height) {
-  let preferences = { timeZone: 'Europe/Moscow', medicationReminders: false, dailyOverview: false };
+  let preferences = {
+    timeZone: 'Europe/Moscow', medicationReminders: false, dailyOverview: false, bookingEmail: true, bookingPush: false,
+  };
+  const delivery = { emailEnabled: true, pushEnabled: false, pushPublicKey: '', hasPushSubscription: false };
   let reminders = [];
+  let bookingDecision = null;
   const notices = [{
     id: '1', kind: 'medication', scheduledAt: '2026-11-19T05:00:00Z',
     localDay: '2026-11-19', localTime: '08:00', read: false,
+  }, {
+    id: '3', kind: 'booking_request', bookingId: 'booking-request', bookingStatus: 'pending',
+    title: 'Новый запрос на встречу: Консультация', actionPath: '/app/planning?tab=calendar&space=booking&booking=booking-request',
+    scheduledAt: '2026-11-19T06:00:00Z', localDay: '2026-11-19', localTime: '09:00', read: false,
   }];
+  await page.route('**/api/profile-bookings/booking-request', async route => {
+    bookingDecision = route.request().postDataJSON()?.decision;
+    notices[1].bookingStatus = bookingDecision === 'confirm' ? 'confirmed' : 'declined';
+    notices[1].read = true;
+    return route.fulfill({ json: { bookingId: 'booking-request', bookingStatus: notices[1].bookingStatus } });
+  });
   await page.route('**/api/notifications**', async route => {
     const request = route.request();
     const { pathname } = new URL(request.url());
@@ -569,7 +583,7 @@ async function checkNotifications(page, width, height) {
       });
       return route.fulfill({ status: request.method() === 'POST' ? 201 : 200, json: { reminder } });
     }
-    return route.fulfill({ json: { notifications: notices, preferences, reminders } });
+    return route.fulfill({ json: { notifications: notices, preferences, reminders, delivery } });
   });
   await page.goto(`${smokeOrigin(server)}/app/wishes?notificationFixture=1`, { waitUntil: 'networkidle', timeout: 120_000 });
   const unreadBell = page.getByRole('button', { name: 'Оповещения, есть непрочитанные', exact: true });
@@ -588,8 +602,12 @@ async function checkNotifications(page, width, height) {
   }
   await unreadBell.click();
   const dialog = page.getByRole('dialog', { name: 'Оповещения', exact: true });
-  const reminder = dialog.getByRole('switch', { name: /Напоминать о приёме препаратов/ });
-  await reminder.waitFor();
+  const inboxTab = dialog.getByRole('tab', { name: /^Входящие/ });
+  const remindersTab = dialog.getByRole('tab', { name: 'Активные', exact: true });
+  const settingsTab = dialog.getByRole('tab', { name: 'Настройки', exact: true });
+  await inboxTab.waitFor();
+  assert.equal(await inboxTab.getAttribute('data-active'), '');
+  await dialog.getByText('Здесь появляются сработавшие напоминания и события из Rollapp.', { exact: true }).waitFor();
   await dialog.evaluate(async node => Promise.allSettled(node.getAnimations().map(animation => animation.finished)));
   const bounds = await dialog.boundingBox();
   assert.equal(bounds.width, width < 768 ? width : 576);
@@ -599,16 +617,20 @@ async function checkNotifications(page, width, height) {
     return { width: body.clientWidth, scrollWidth: body.scrollWidth };
   });
   assert.equal(overflow.scrollWidth, overflow.width, 'Notification content must not scroll horizontally');
-  const footer = dialog.locator('[data-slot="drawer-footer"]');
-  const create = footer.getByRole('button', { name: 'Новое напоминание', exact: true });
-  const mark = footer.getByRole('button', { name: 'Отметить все прочитанными', exact: true });
-  const [createBox, markBox] = await Promise.all([create.boundingBox(), mark.boundingBox()]);
-  assert.equal(createBox.height, 48);
-  assert.equal(markBox.width, 48);
-  assert.equal(markBox.height, 48);
-  assert(createBox.x + createBox.width <= markBox.x || createBox.y + createBox.height <= markBox.y,
-    'The notification footer actions must fit side by side or wrap without overlap');
+  const bookingNotice = dialog.getByRole('listitem').filter({ hasText: 'Новый запрос на встречу: Консультация' });
+  await bookingNotice.getByRole('button', { name: 'Подтвердить', exact: true }).click();
+  await bookingNotice.getByText('Запрос подтверждён', { exact: true }).waitFor();
+  assert.equal(bookingDecision, 'confirm');
+  let footer = dialog.locator('[data-slot="drawer-footer"]');
+  const mark = footer.getByRole('button', { name: 'Прочитать всё', exact: true });
+  assert.equal((await mark.boundingBox()).height, 48);
   assert.equal(await footer.evaluate(node => getComputedStyle(node).backgroundColor), 'rgba(0, 0, 0, 0)');
+  await remindersTab.click();
+  await dialog.getByRole('heading', { name: 'Активные напоминания', exact: true }).waitFor();
+  await dialog.getByText('Нет активных напоминаний', { exact: true }).waitFor();
+  footer = dialog.locator('[data-slot="drawer-footer"]');
+  const create = footer.getByRole('button', { name: 'Добавить напоминание', exact: true });
+  assert.equal((await create.boundingBox()).height, 48);
   await create.click();
   const subject = page.getByRole('textbox', { name: 'О чём напомнить', exact: true });
   await subject.fill('Полить цветы');
@@ -664,19 +686,25 @@ async function checkNotifications(page, width, height) {
   await dialog.waitFor();
   await edited.waitFor({ state: 'detached' });
   assert.equal(reminders.length, 0);
+  await dialog.getByText('Нет активных напоминаний', { exact: true }).waitFor();
+  await inboxTab.click();
   await dialog.getByText('Полить цветы', { exact: true }).waitFor();
+  await settingsTab.click();
+  const reminder = dialog.getByRole('switch', { name: /Приём препаратов/ });
+  await reminder.waitFor();
   await reminder.click();
   await page.waitForFunction(() => {
     const toggle = document.querySelector('[role="switch"]');
     return toggle?.getAttribute('aria-checked') === 'true' && !toggle.disabled;
   });
   assert.equal(preferences.medicationReminders, true);
+  await inboxTab.click();
   const notice = dialog.getByRole('link', { name: /Напоминание о приёме препаратов/ });
   await notice.waitFor();
   if ((width === 390 || width === 1440) && height === 844) {
     await page.screenshot({ path: `/tmp/rollapp-notifications-${width}-${height}.png` });
   }
-  await dialog.getByRole('button', { name: 'Отметить все прочитанными' }).click();
+  await dialog.getByRole('button', { name: 'Прочитать всё', exact: true }).click();
   await notice.getByText('Непрочитанное').waitFor({ state: 'detached' });
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });

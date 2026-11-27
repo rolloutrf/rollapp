@@ -16,6 +16,9 @@ services:
       # Ordinary releases only verify the existing schema; migrations are explicit.
       ROLLAPP_DATABASE_INITIALIZATION: "verify"
       YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: "__YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID__"
+      # Enable after the same Lockbox contains web_push_public_key,
+      # web_push_private_key and web_push_subject.
+      ROLLAPP_WEB_PUSH_ENABLED: "__ROLLAPP_WEB_PUSH_ENABLED__"
       YC_YANDEX_MAPS_LOCKBOX_SECRET_ID: "__YC_YANDEX_MAPS_LOCKBOX_SECRET_ID__"
       YC_YANDEX_MAPS_API_KEY_KEY: "api_key"
       # Additive need-rewards migration is applied separately before rollout.

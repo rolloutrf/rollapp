@@ -322,6 +322,7 @@ jobs:
         env:
           IMAGE_SHA: ${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
           ROLLAPP_YANDEX_DISK_PROFILE_ENABLED: ${{ vars.ROLLAPP_YANDEX_DISK_PROFILE_ENABLED }}
+          ROLLAPP_WEB_PUSH_ENABLED: ${{ vars.ROLLAPP_WEB_PUSH_ENABLED }}
           YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID: ${{ vars.YC_EVE_NOTIFICATION_LOCKBOX_SECRET_ID }}
           YC_YANDEX_MAPS_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_MAPS_LOCKBOX_SECRET_ID }}
         run: node scripts/deploy-vm-metadata.mjs

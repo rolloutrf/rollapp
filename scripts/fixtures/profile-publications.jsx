@@ -26,7 +26,7 @@ const date = future.toISOString().slice(0, 10);
 const baseSlot = { startsAt: `${date}T09:00:00Z`, endsAt: `${date}T10:00:00Z` };
 const open = { ...baseSlot, id: "open", title: "Первая встреча" };
 const booked = {
-  startsAt: `${date}T10:00:00Z`, endsAt: `${date}T11:00:00Z`, id: "booked", bookingId: "booking", title: "Встреча по итогам недели",
+  startsAt: `${date}T10:00:00Z`, endsAt: `${date}T11:00:00Z`, id: "booked", bookingId: "booking", bookingStatus: "confirmed", title: "Встреча по итогам недели",
   bookedByMe: !owner, ...(owner && { guestName: "Светлана" }),
 };
 const announcement = {
@@ -92,9 +92,9 @@ api.post = async (path, body) => {
     snapshot = {
       ...snapshot,
       slots: snapshot.slots.map(slot => slot.id === "open"
-        ? { ...slot, bookingId: "open-booking", bookedByMe: true } : slot),
+        ? { ...slot, bookingId: "open-booking", bookingStatus: "pending", bookedByMe: true } : slot),
     };
-    return { bookingId: "open-booking" };
+    return { bookingId: "open-booking", bookingStatus: "pending" };
   }
   if (owner && path === endpoint && section === "calendar") {
     const newSlots = body.slots.filter(slot => !snapshot.slots.some(saved => saved.id === slot.id)).map(slot => ({

@@ -57,6 +57,19 @@
 .schedule-event[data-calendar-dragging] { opacity: .35; }
 .schedule-event { -webkit-user-drag: none; }
 .schedule-event-wrap[style] > .schedule-event { overflow: clip; }
+.schedule-event-wrap[data-booking-slot] > .schedule-event {
+  cursor: pointer;
+  border-color: color-mix(in oklch, var(--primary) 45%, var(--border));
+  background: color-mix(in oklch, var(--primary) 16%, var(--card));
+}
+.schedule-event-wrap[data-booking-slot][data-booked] > .schedule-event {
+  border-color: color-mix(in oklch, var(--primary) 75%, var(--border));
+  background: color-mix(in oklch, var(--primary) 28%, var(--card));
+}
+.schedule-event-wrap[data-booking-status="pending"] > .schedule-event {
+  border-style: dashed;
+  border-color: var(--ring);
+}
 .schedule-event__content { display: flex; min-width: 0; max-width: 100%; flex-direction: column; gap: 2px; position: sticky; top: 8px; }
 .schedule-timegrid--week .schedule-event__content { top: 56px; }
 .schedule-event--compact .schedule-event__content { position: static; flex-direction: row; align-items: center; gap: 6px; }
@@ -187,6 +200,11 @@
 }
 
 .schedule-toolbar { padding-block-start: var(--layout-screen-top); }
+
+.schedule[data-calendar-mode="booking"] .schedule-slot:hover,
+.schedule[data-calendar-mode="booking"] .schedule-slot:focus-visible {
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+}
 
 /* Short appointments retain their actual duration and a readable title. */
 .schedule-event-wrap[data-compact] > .schedule-event { height: 100%; min-block-size: 0; padding: 2px 28px 2px 6px; }

@@ -43,6 +43,7 @@ export function WishlistSectionNavigation({ user }) {
     <ProfileSectionNavigation label="Разделы Вишлиста" links={links} className="wishlist-section-navigation">
       {isOwner && user.username && <ProfilePublicationLinks activeSection={publication}
         toSection={section => wishlistPublicationPath(space, section)}
+        manageCalendar={user.accountType === "business"}
         onlySections={marketplaceSpace ? null : ["calendar"]} />}
     </ProfileSectionNavigation>
   );

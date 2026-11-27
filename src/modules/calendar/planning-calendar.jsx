@@ -28,8 +28,8 @@ function CalendarTaskButton({ task, children, className, onMove, ...props }) {
   const { onEdit, busy, startDrag, endDrag } = useContext(CalendarActions);
   const [open, setOpen] = useState(false);
   const interaction = {
-    draggable: !task.external && !onMove && !busy && !task.recurrence,
-    onPointerDown: onMove && !task.external ? (event) => onMove(event, task) : undefined,
+    draggable: !task.external && !task.bookingSlot && !onMove && !busy && !task.recurrence,
+    onPointerDown: onMove && !task.external && !task.bookingSlot ? (event) => onMove(event, task) : undefined,
     onDragStart: (event) => startDrag(event, task),
     onDragEnd: endDrag,
   };
@@ -45,22 +45,24 @@ function CalendarTaskButton({ task, children, className, onMove, ...props }) {
   return <Button variant="ghost" className={className} {...props} {...interaction} onClick={() => { if (!busy) onEdit(task); }}>{children}</Button>;
 }
 function EventButton({ task, compact = false, style, onResize, onMove }) {
-  return <div className="schedule-event-wrap" style={style} data-calendar-event={task.id} data-compact={compact || undefined}>
+  return <div className="schedule-event-wrap" style={style} data-calendar-event={task.id} data-compact={compact || undefined}
+    data-booking-slot={task.bookingSlot || undefined} data-booked={task.bookingId ? true : undefined}
+    data-booking-status={task.bookingStatus || undefined}>
     <CalendarTaskButton task={task} onMove={onMove} className={`schedule-event ${compact ? "schedule-event--compact" : ""}`} data-completed={task.completed || undefined} aria-description={taskTimeLabel(task)}>
       <span className="schedule-event__content">{compact && task.startTime && <span className="schedule-event__start">{task.startTime}</span>}{" "}<span className="schedule-event__title">{task.title}</span>{" "}{!compact && <span className="schedule-caption schedule-event__time">{taskTimeLabel(task)}</span>}{task.relatedItems?.length > 0 && <span className="schedule-caption schedule-event__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</span>
     </CalendarTaskButton>
-    {onResize && !task.external && !task.recurrence && <Button variant="ghost" className="schedule-resize" aria-label={`Изменить длительность: ${task.title}`} onPointerDown={(event) => onResize(event, task)} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (["ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); onResize(event, task, event.key === "ArrowUp" ? -15 : 15); } }}><span /></Button>}
+    {onResize && !task.external && !task.bookingSlot && !task.recurrence && <Button variant="ghost" className="schedule-resize" aria-label={`Изменить длительность: ${task.title}`} onPointerDown={(event) => onResize(event, task)} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (["ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); onResize(event, task, event.key === "ArrowUp" ? -15 : 15); } }}><span /></Button>}
   </div>;
 }
 
 function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
   return <section className="planning-agenda schedule-agenda" aria-label={`Задачи на ${label(date)}`}>
     {heading && <header className="schedule-agenda__header"><h3 className="text-lg font-semibold">{label(date, { weekday: "long", day: "numeric", month: "long" })}</h3></header>}
-    {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><CalendarTaskButton task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}</span>{task.relatedItems?.length > 0 && <span className="schedule-caption">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</CalendarTaskButton><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
+    {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><CalendarTaskButton task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{task.bookingSlot ? (task.bookingId ? task.bookingStatus === "pending" ? `Запрос на запись${task.guestName ? `: ${task.guestName}` : ""}` : `Забронирован${task.guestName ? `: ${task.guestName}` : ""}` : "Доступен для бронирования") : columns.find((column) => column.id === task.columnId)?.title}</span>{task.relatedItems?.length > 0 && <span className="schedule-caption">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</CalendarTaskButton><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
   </section>;
 }
 
-function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
+function Timeline({ dates, selected, today, tasks, onSelect, onCreate, booking = false }) {
   const { saveSchedule, dropTask, allowDrop, busy, cancelInteractionRef, sourceTasks } = useContext(CalendarActions);
   const scroll = useRef(null);
   const { preview, beginMove, beginRange, beginResize, guardClick, resetClick } = useCalendarGesture({ scroll, sourceTasks, scopeKey: dates.join(), busy, onCreate, saveSchedule, cancelInteractionRef });
@@ -101,7 +103,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
       <div className="schedule-timegrid__body">
         <div className="schedule-hour-labels" aria-hidden="true">{Array.from({ length: 24 }, (_, hour) => <span key={hour} className="schedule-caption" style={{ top: hour * 96 }}>{minutesTime(hour * 60)}</span>)}</div>
         {dates.map((date) => <div className="schedule-time-column" key={date} data-date={date} role="group" aria-label={label(date)} data-weekend={[0, 6].includes(dateFromKey(date).getDay()) || undefined} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, minuteAt(event, event.currentTarget))}>
-          {Array.from({ length: 48 }, (_, slot) => <Button variant="ghost" key={slot} className="schedule-slot" aria-label={`Добавить задачу ${label(date)}, ${minutesTime(slot * 30)}`} onPointerDown={(event) => beginRange(event, date)} onClick={(event) => { if (busy) return; onCreate({ dueOn: date, startTime: minutesTime(slot * 30), durationMinutes: slot === 47 ? 30 : 60 }); }} />)}
+          {Array.from({ length: 48 }, (_, slot) => <Button variant="ghost" key={slot} className="schedule-slot" aria-label={`${booking ? "Добавить слот" : "Добавить задачу"} ${label(date)}, ${minutesTime(slot * 30)}`} onPointerDown={(event) => beginRange(event, date)} onClick={(event) => { if (busy) return; onCreate({ dueOn: date, startTime: minutesTime(slot * 30), durationMinutes: slot === 47 ? 30 : 60 }); }} />)}
           {layoutCalendarEvents(rendered.filter((task) => task.dueOn === date)).map(({ task, start, end, lane, lanes }) => <EventButton key={task.id} task={task} compact={end - start < 60} onResize={beginResize} onMove={beginMove} style={{ position: "absolute", top: start * 1.6, height: (end - start) * 1.6 - 2, left: `calc(${lane / lanes * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }} />)}
           {preview && preview.kind !== "resize" && preview.date === date && <div className="schedule-range" data-calendar-preview={preview.kind} aria-live="polite" style={{ top: timeMinutes(preview.startTime) * 1.6, height: preview.durationMinutes * 1.6 }}><span className={preview.kind === "move" ? "sr-only" : undefined}>{preview.task && <strong>{preview.task.title} · </strong>}{taskTimeLabel(preview)}</span></div>}
           {date === today && <div role="img" className="schedule-now" style={{ top: (now.getHours() * 60 + now.getMinutes()) * 1.6 }} aria-label={`Сейчас ${minutesTime(now.getHours() * 60 + now.getMinutes())}`} />}
@@ -110,7 +112,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     </div><ScrollBar orientation="horizontal" />
   </ScrollArea>;
 }
-export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave, spaceId = "main", subscriptionTransport, deviceSync = false, createSpace }) {
+export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave, spaceId = "main", subscriptionTransport, deviceSync = false, createSpace, booking = false, toolbarActions = null }) {
   const tasks = sourceTasks;
   // Display slots are projections. Editing must always start from stored data.
   const editTask = (task) => onEdit(sourceTasks.find((item) => item.id === (task.sourceId || task.id)) || task);
@@ -130,7 +132,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const endDrag = () => { dragOwner.current = null; };
   const startDrag = (event, task) => {
     const source = sourceTasks.find(item => item.id === task.id);
-    if (saving.current || task.recurrence || !source) { event.preventDefault(); return false; }
+    if (saving.current || task.recurrence || task.bookingSlot || !source) { event.preventDefault(); return false; }
     dragOwner.current = source;
     event.dataTransfer.setData("application/x-rollapp-calendar", task.id);
     event.dataTransfer.effectAllowed = "move";
@@ -154,7 +156,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const saveSchedule = async (task, patch) => {
     const original = sourceTasks.find((item) => item.id === task.id);
     const payload = { startTime: task.startTime, durationMinutes: task.durationMinutes, ...patch };
-    if (saving.current || !original || Object.entries(payload).every(([key, value]) => value === original[key])) return;
+    if (saving.current || !original || original.bookingSlot || Object.entries(payload).every(([key, value]) => value === original[key])) return;
     saving.current = true; setBusy(true);
     try {
       await onSave(task.id, payload, { quiet: true });
@@ -190,7 +192,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const periodLabel = label(selected, view === "day" ? { day: "numeric", month: "long" } : { month: "long" });
   const title = view === "year" ? selected.slice(0, 4) : <><strong className="font-semibold">{periodLabel[0].toLocaleUpperCase("ru") + periodLabel.slice(1)}</strong> {selected.slice(0, 4)} г.</>;
   const agendaProps = { columns, onEdit: editTask, onCreate };
-  const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <EmptyState icon={CalendarDays} title="В этом месяце планов нет." text="Задачи и события с датой появятся в этом списке." />}</div>;
+  const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <EmptyState icon={CalendarDays} title={booking ? "В этом месяце нет слотов." : "В этом месяце планов нет."} text={booking ? "Откройте день или неделю и отметьте доступное время." : "Задачи и события с датой появятся в этом списке."} />}</div>;
   const keyboard = (event) => {
     if (event.target.closest('input, textarea, [contenteditable="true"], [data-slot="popover-content"], [data-calendar-sync]') || !(event.metaKey || event.ctrlKey)) return;
     if (["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); navigate(shiftCalendarDate(selected, view, event.key === "ArrowLeft" ? -1 : 1)); }
@@ -199,16 +201,16 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     if (mode) { event.preventDefault(); navigate(selected, mode.id); }
   };
   const navigation = <div className="schedule-navigation"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-description="Перейти к сегодняшней дате" title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="sr-only">Сегодня. Выбрано: </span><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}<span className="schedule-current-date__weekday">, {label(selected, { weekday: "short" })}</span></span></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
-  return <CalendarActions.Provider value={{ onEdit: editTask, onCreate, columns, busy, saveSchedule, dropTask, allowDrop, startDrag, endDrag, cancelInteractionRef, sourceTasks }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
+  return <CalendarActions.Provider value={{ onEdit: editTask, onCreate, columns, busy, saveSchedule, dropTask, allowDrop, startDrag, endDrag, cancelInteractionRef, sourceTasks }}><div className="schedule" aria-busy={busy} data-view={view} data-calendar-mode={booking ? "booking" : "planning"} onKeyDown={keyboard}>
     <AddFab disabled={busy} actions={[
-      { label: "Новая задача в календаре", onSelect: () => onCreate({ dueOn: selected }) },
+      { label: booking ? "Разметить слот" : "Новая задача в календаре", onSelect: () => booking ? navigate(selected, "day") : onCreate({ dueOn: selected }) },
       createSpace,
     ]} />
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <ControlBar className="schedule-toolbar">
         {navigation}
         <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
-        <div className="schedule-window-actions"><CalendarSyncButton spaceId={spaceId} transport={subscriptionTransport} onUpdate={deviceCalendar.refresh} /></div>
+        <div className="schedule-window-actions">{toolbarActions}{!booking && <CalendarSyncButton spaceId={spaceId} transport={subscriptionTransport} onUpdate={deviceCalendar.refresh} />}</div>
       </ControlBar>
       {deviceCalendar.error && <p role="status" className="schedule-caption px-4">Не удалось обновить события устройства: {deviceCalendar.error} <Button variant="outline" onClick={deviceCalendar.refresh}>Повторить</Button></p>}
       <div className="schedule-layout">
@@ -218,7 +220,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
             const key = localDateKey(date); const events = visible.filter((task) => task.dueOn === key);
             return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onClick={(event) => { if (!event.target.closest("button, a, [role='button']")) navigate(key, "day"); }} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}. ${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key, "day")}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}<span className="schedule-month__indicator" aria-hidden="true" data-has-events={events.length > 0 || undefined} /></span></Button></div>;
           })}</div></div>{mobile && <Agenda date={selected} tasks={dayTasks} {...agendaProps} heading={false} />}</TabsContent>
-          {['day', 'week'].map((mode) => <TabsContent key={mode} value={mode} className="schedule-timeline-panel">{view === mode && <Timeline dates={mode === 'week' ? calendarWeek(selected) : [selected]} selected={selected} today={today} tasks={visible} onSelect={navigate} onCreate={onCreate} />}</TabsContent>)}
+          {['day', 'week'].map((mode) => <TabsContent key={mode} value={mode} className="schedule-timeline-panel">{view === mode && <Timeline dates={mode === 'week' ? calendarWeek(selected) : [selected]} selected={selected} today={today} tasks={visible} onSelect={navigate} onCreate={onCreate} booking={booking} />}</TabsContent>)}
           <TabsContent value="year" className="schedule-year-panel"><div className="schedule-year">{Array.from({ length: 12 }, (_, index) => <MiniMonth key={index} month={`${selected.slice(0, 4)}-${String(index + 1).padStart(2, "0")}-01`} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, "day")} onOpenMonth={(date) => navigate(date, "month")} />)}</div></TabsContent>
           <TabsContent value="list" className="schedule-list-panel">{listContent}</TabsContent>
         </div>

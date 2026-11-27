@@ -18,11 +18,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { PlanningCalendar } from "@/modules/calendar/planning-calendar.jsx";
+import { BookingPlanningCalendar } from "@/modules/calendar/booking-planning-calendar.jsx";
 import { PlanningDailyTodo } from "@/modules/daily-todo/planning-daily-todo.jsx";
 import { RelatedChoiceCard } from "@/modules/planning/planning-related-card.jsx";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { planningNotePath } from "../../../shared/modules/assistant/assistant-note-tasks.js";
 import { scheduleError } from "../../../shared/modules/calendar/planning-calendar.js";
+import { BOOKING_CALENDAR_ID } from "../../../shared/modules/calendar/booking-calendar.js";
 import { RECURRENCE_OPTIONS, recurrenceError } from "../../../shared/modules/planning/planning-recurrence.js";
 import { PlanningKanban } from "@/modules/kanban/planning-kanban.jsx";
 import { PlanningNotes } from "@/modules/planning/planning-notes.jsx";
@@ -187,6 +189,7 @@ export function PlanningSpace() {
   const spaceId = search.get("space") || "main";
   if (activeTab === "notes") return <PlanningNotes />;
   if (activeTab === "kanban" && spaceId === "main") return <PlanningBoardStart />;
+  if (activeTab === "calendar" && spaceId === BOOKING_CALENDAR_ID) return <BookingPlanningCalendar />;
   return <PlanningSpaceContent key={spaceId} spaceId={spaceId} activeTab={activeTab} />;
 }
 

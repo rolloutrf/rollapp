@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { findProfileForAddress, profileAddress } from "./profile-addresses.js";
+import { BOOKING_CALENDAR_PATH } from "../../../shared/modules/calendar/booking-calendar.js";
 
 export const profilePublicationsSchema = `
   CREATE TABLE IF NOT EXISTS profile_session_slots (
@@ -13,9 +14,25 @@ export const profilePublicationsSchema = `
   CREATE INDEX IF NOT EXISTS profile_session_slots_owner_start ON profile_session_slots(owner_id, starts_at);
   CREATE TABLE IF NOT EXISTS profile_session_bookings (
     id UUID PRIMARY KEY,
-    slot_id UUID NOT NULL UNIQUE REFERENCES profile_session_slots(id) ON DELETE CASCADE,
-    guest_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+    slot_id UUID NOT NULL REFERENCES profile_session_slots(id) ON DELETE CASCADE,
+    guest_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(16) NOT NULL DEFAULT 'confirmed' CHECK (status IN ('pending','confirmed','declined','cancelled')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+    responded_at TIMESTAMPTZ
   );
+  ALTER TABLE profile_session_bookings ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'confirmed';
+  ALTER TABLE profile_session_bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp();
+  ALTER TABLE profile_session_bookings ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;
+  DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='profile_session_bookings'::regclass
+      AND conname='profile_session_bookings_status_check') THEN
+      ALTER TABLE profile_session_bookings ADD CONSTRAINT profile_session_bookings_status_check
+        CHECK (status IN ('pending','confirmed','declined','cancelled'));
+    END IF;
+  END $$;
+  ALTER TABLE profile_session_bookings DROP CONSTRAINT IF EXISTS profile_session_bookings_slot_id_key;
+  CREATE UNIQUE INDEX IF NOT EXISTS profile_session_bookings_active_slot
+    ON profile_session_bookings(slot_id) WHERE status IN ('pending','confirmed');
   CREATE TABLE IF NOT EXISTS profile_announcements (
     id UUID PRIMARY KEY,
     owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -26,6 +43,23 @@ export const profilePublicationsSchema = `
   CREATE INDEX IF NOT EXISTS profile_announcements_owner_created ON profile_announcements(owner_id, created_at DESC);
 `;
 
+export async function verifyProfilePublicationsSchema(client) {
+  await client.query("SELECT id,owner_id,starts_at,ends_at,title FROM profile_session_slots LIMIT 0");
+  await client.query("SELECT id,slot_id,guest_id,status,created_at,responded_at FROM profile_session_bookings LIMIT 0");
+  await client.query("SELECT id,owner_id,title,body,created_at FROM profile_announcements LIMIT 0");
+  const { rows: [activeSlotIndex] } = await client.query(
+    `SELECT i.indisunique,i.indisvalid,i.indisready,i.indislive,pg_get_indexdef(i.indexrelid) AS indexdef
+     FROM pg_index i JOIN pg_class idx ON idx.oid=i.indexrelid JOIN pg_class table_ref ON table_ref.oid=i.indrelid
+     WHERE idx.relname='profile_session_bookings_active_slot'
+       AND table_ref.oid='profile_session_bookings'::regclass`,
+  );
+  if (!activeSlotIndex?.indisunique || !activeSlotIndex.indisvalid || !activeSlotIndex.indisready || !activeSlotIndex.indislive
+    || !/\(slot_id\)/.test(activeSlotIndex.indexdef || "")
+    || !/pending/.test(activeSlotIndex.indexdef || "") || !/confirmed/.test(activeSlotIndex.indexdef || "")) {
+    throw new Error("Profile booking active-slot index is missing or invalid");
+  }
+}
+
 const title = z.string().trim().min(1).max(160);
 const id = z.uuid();
 const slotInput = z.object({
@@ -35,6 +69,7 @@ const announcement = z.object({ title, body: z.string().trim().min(1).max(4000) 
 const slotUnavailable = "Это время больше недоступно. Выберите другой слот.";
 const maxPublications = 200;
 const slotBatchInput = z.object({ slots: z.array(slotInput).min(1).max(maxPublications) }).strict();
+const bookingResponseInput = z.object({ decision: z.enum(["confirm", "decline"]) }).strict();
 
 class PublicationError extends Error {
   constructor(status, message) {
@@ -52,12 +87,16 @@ export function publicSessionSlot(row, { viewerId, isOwner }) {
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     bookingId: row.booking_id,
+    bookingStatus: row.booking_status ?? null,
+    requestedAt: row.booking_created_at ?? null,
     bookedByMe,
     ...(isOwner && row.booking_id ? { guestName: row.guest_name } : {}),
   };
 }
 
-export function registerProfilePublicationRoutes(app, { requireAuth, query, transaction, asyncRoute }) {
+export function registerProfilePublicationRoutes(app, {
+  requireAuth, query, transaction, asyncRoute, notifyBooking = async () => {}, markBookingRequestRead = async () => {},
+}) {
   const section = "/api/profile/:username";
   const calendar = `${section}/calendar`;
   const board = `${section}/announcements`;
@@ -91,9 +130,10 @@ export function registerProfilePublicationRoutes(app, { requireAuth, query, tran
     const { owner, viewerId, isOwner } = access;
     const { rows } = await query(
       `SELECT s.id,s.title,s.starts_at,s.ends_at,b.id AS booking_id,b.guest_id,
+              b.status AS booking_status,b.created_at AS booking_created_at,
               CASE WHEN $3 THEN u.name END AS guest_name
        FROM profile_session_slots s
-       LEFT JOIN profile_session_bookings b ON b.slot_id=s.id
+       LEFT JOIN profile_session_bookings b ON b.slot_id=s.id AND b.status IN ('pending','confirmed')
        LEFT JOIN users u ON u.id=b.guest_id
        WHERE s.owner_id=$1 AND s.starts_at>clock_timestamp()
          AND (b.id IS NULL OR b.guest_id=$2 OR $3)
@@ -160,23 +200,75 @@ export function registerProfilePublicationRoutes(app, { requireAuth, query, tran
   app.post(`${calendar}/:slotId/book`, requireAuth, route(async (req, res, { owner, viewerId, isOwner }) => {
     if (isOwner) throw new PublicationError(403, "На свой слот записаться нельзя");
     const slotId = id.parse(req.params.slotId);
-    const bookingId = await transaction(async client => {
-      await lockSlot(client, owner.id, slotId);
+    const booking = await transaction(async client => {
+      const slot = (await client.query(
+        "SELECT id,title,starts_at FROM profile_session_slots WHERE owner_id=$1 AND id=$2 AND starts_at>clock_timestamp() FOR UPDATE",
+        [owner.id, slotId],
+      )).rows[0];
+      if (!slot) throw new PublicationError(409, slotUnavailable);
       const { rows: [booking] } = await client.query(
-        "SELECT id,guest_id FROM profile_session_bookings WHERE slot_id=$1", [slotId],
+        "SELECT id,guest_id,status FROM profile_session_bookings WHERE slot_id=$1 AND status IN ('pending','confirmed')", [slotId],
       );
-      if (booking?.guest_id === viewerId) return booking.id;
+      if (booking?.guest_id === viewerId) return { id: booking.id, status: booking.status };
       if (booking) throw new PublicationError(409, slotUnavailable);
       const key = randomUUID();
       const result = await client.query(
-        `INSERT INTO profile_session_bookings (id,slot_id,guest_id)
-         SELECT $1,id,$3 FROM profile_session_slots WHERE id=$2 AND starts_at>clock_timestamp()`,
+        `INSERT INTO profile_session_bookings (id,slot_id,guest_id,status)
+         SELECT $1,id,$3,'pending' FROM profile_session_slots WHERE id=$2 AND starts_at>clock_timestamp()`,
         [key, slotId, viewerId],
       );
       if (!result.rowCount) throw new PublicationError(409, slotUnavailable);
-      return key;
+      const { rows: [guest] } = await client.query("SELECT name FROM users WHERE id=$1", [viewerId]);
+      await notifyBooking(client, {
+        kind: "booking_request", recipientId: owner.id, bookingId: key, slotTitle: slot.title,
+        actorName: guest?.name, startsAt: slot.starts_at,
+        actionPath: `${BOOKING_CALENDAR_PATH}&booking=${encodeURIComponent(key)}`,
+      });
+      return { id: key, status: "pending" };
     });
-    res.json({ bookingId });
+    res.json({ bookingId: booking.id, bookingStatus: booking.status });
+  }));
+
+  app.patch("/api/profile-bookings/:bookingId", requireAuth, asyncRoute(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    try {
+      const bookingId = id.parse(req.params.bookingId);
+      const { decision } = bookingResponseInput.parse(req.body);
+      const bookingStatus = await transaction(async client => {
+        const { rows: [booking] } = await client.query(
+          `SELECT b.id,b.status,b.guest_id,s.id AS slot_id,s.owner_id,s.title,s.starts_at,
+                  guest.name AS guest_name,owner.name AS owner_name,owner.username AS owner_username,
+                  s.starts_at>clock_timestamp() AS upcoming
+           FROM profile_session_bookings b
+           JOIN profile_session_slots s ON s.id=b.slot_id
+           JOIN users guest ON guest.id=b.guest_id JOIN users owner ON owner.id=s.owner_id
+           WHERE b.id=$1 FOR UPDATE OF b,s`,
+          [bookingId],
+        );
+        if (!booking) throw new PublicationError(404, "Запрос на встречу не найден");
+        if (booking.owner_id !== req.user.id) throw new PublicationError(403, "Ответить на запрос может только владелец слота");
+        if (!booking.upcoming) throw new PublicationError(409, "Время этой встречи уже прошло");
+        const next = decision === "confirm" ? "confirmed" : "declined";
+        if (booking.status === next) return next;
+        if (booking.status !== "pending") throw new PublicationError(409, "На этот запрос уже ответили");
+        await client.query(
+          "UPDATE profile_session_bookings SET status=$2,responded_at=statement_timestamp() WHERE id=$1",
+          [bookingId, next],
+        );
+        await markBookingRequestRead(client, req.user.id, bookingId);
+        await notifyBooking(client, {
+          kind: next === "confirmed" ? "booking_confirmed" : "booking_declined",
+          recipientId: booking.guest_id, bookingId, slotTitle: booking.title, actorName: booking.owner_name,
+          startsAt: booking.starts_at,
+          actionPath: `/${encodeURIComponent(booking.owner_username)}/calendar/book?slot=${encodeURIComponent(booking.slot_id)}`,
+        });
+        return next;
+      });
+      res.json({ bookingId, bookingStatus });
+    } catch (error) {
+      if (error instanceof PublicationError) return res.status(error.status).json({ error: error.message });
+      throw error;
+    }
   }));
 
   app.delete(`${calendar}/:slotId/bookings/:bookingId`, requireAuth, route(async (req, res, { owner, viewerId, isOwner }) => {
@@ -184,10 +276,26 @@ export function registerProfilePublicationRoutes(app, { requireAuth, query, tran
     const bookingId = id.parse(req.params.bookingId);
     await transaction(async client => {
       await lockSlot(client, owner.id, slotId);
-      await client.query(
-        "DELETE FROM profile_session_bookings WHERE id=$1 AND slot_id=$2 AND (guest_id=$3 OR $4)",
-        [bookingId, slotId, viewerId, isOwner],
+      const { rows: [booking] } = await client.query(
+        `SELECT b.id,b.guest_id,b.status,s.title,s.starts_at,guest.name AS guest_name
+         FROM profile_session_bookings b JOIN profile_session_slots s ON s.id=b.slot_id
+         JOIN users guest ON guest.id=b.guest_id
+         WHERE b.id=$1 AND b.slot_id=$2 AND b.status IN ('pending','confirmed') FOR UPDATE OF b`,
+        [bookingId, slotId],
       );
+      if (!booking || (!isOwner && booking.guest_id !== viewerId)) return;
+      await client.query(
+        "UPDATE profile_session_bookings SET status='cancelled',responded_at=statement_timestamp() WHERE id=$1",
+        [bookingId],
+      );
+      const actorName = isOwner ? owner.name : booking.guest_name;
+      await notifyBooking(client, {
+        kind: "booking_cancelled", recipientId: isOwner ? booking.guest_id : owner.id,
+        bookingId, slotTitle: booking.title, actorName, startsAt: booking.starts_at,
+        actionPath: isOwner
+          ? `/${encodeURIComponent(owner.username)}/calendar/book?slot=${encodeURIComponent(slotId)}`
+          : `${BOOKING_CALENDAR_PATH}&booking=${encodeURIComponent(bookingId)}`,
+      });
     });
     res.json({ ok: true });
   }));
@@ -198,7 +306,7 @@ export function registerProfilePublicationRoutes(app, { requireAuth, query, tran
       await lockSlot(client, owner.id, slotId);
       const result = await client.query(
         `DELETE FROM profile_session_slots s WHERE s.id=$1
-         AND NOT EXISTS (SELECT 1 FROM profile_session_bookings WHERE slot_id=s.id)`,
+         AND NOT EXISTS (SELECT 1 FROM profile_session_bookings WHERE slot_id=s.id AND status IN ('pending','confirmed'))`,
         [slotId],
       );
       if (!result.rowCount) throw new PublicationError(409, "На это время уже записались. Сначала отмените запись.");
