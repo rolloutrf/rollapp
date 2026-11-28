@@ -447,9 +447,6 @@ async function checkPersistentBusinessProfile(width, height) {
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
       await page.screenshot({ path: `/tmp/rollapp-business-profile-clients-${width}.png` });
     }
-    await open("Календарь");
-    await page.getByRole("article", { name: "Календарь" }).waitFor();
-    await verify("Календарь");
     await open("Доска объявлений");
     await announcement.waitFor();
     await verify("Доска объявлений");
@@ -462,6 +459,12 @@ async function checkPersistentBusinessProfile(width, height) {
     await page.goForward();
     await item.waitFor();
     await verify("Витрина");
+    await open("Календарь");
+    await page.getByRole("heading", { name: "Календарь для бронирования", exact: true }).waitFor();
+    const calendarUrl = new URL(page.url());
+    assert.equal(calendarUrl.pathname, "/app/planning");
+    assert.equal(calendarUrl.searchParams.get("tab"), "calendar");
+    assert.equal(calendarUrl.searchParams.get("space"), "booking");
     assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
     assert.deepEqual(errors, []);
     await original.dispose();
