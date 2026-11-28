@@ -4,6 +4,18 @@ import { getEmailConfig, sendNotificationEmail } from "../auth/email.js";
 
 const bookingKinds = new Set(["booking_request", "booking_confirmed", "booking_declined", "booking_cancelled"]);
 
+export function browserPushEndpoint(value) {
+  if (typeof value !== "string" || value.length > 2048) return null;
+  const url = URL.parse(value);
+  if (!url || url.protocol !== "https:" || url.username || url.password || url.port || url.hash || url.pathname === "/") return null;
+  const host = url.hostname;
+  const supported = (host === "fcm.googleapis.com" && url.pathname.startsWith("/fcm/send/"))
+    || (host === "android.googleapis.com" && url.pathname.startsWith("/gcm/send/"))
+    || host === "updates.push.services.mozilla.com" || host === "push.services.mozilla.com"
+    || host.endsWith(".push.apple.com") || host.endsWith(".notify.windows.com") || host.endsWith(".wns.windows.com");
+  return supported ? url.href : null;
+}
+
 function appOrigin(environment) {
   try {
     const origin = new URL(String(environment.PUBLIC_APP_URL || ""));
@@ -151,8 +163,10 @@ async function sendPushDelivery(query, delivery, config, sendNotification) {
   });
   let delivered = 0;
   for (const subscription of subscriptions) {
+    const endpoint = browserPushEndpoint(subscription.endpoint);
+    if (!endpoint) continue;
     try {
-      await sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, message);
+      await sendNotification({ endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, message, { timeout: 10_000 });
       delivered += 1;
     } catch (error) {
       if ([404, 410].includes(error?.statusCode)) {

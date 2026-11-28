@@ -540,7 +540,33 @@ async function checkNotifications(page, width, height) {
   let preferences = {
     timeZone: 'Europe/Moscow', medicationReminders: false, dailyOverview: false, bookingEmail: true, bookingPush: false,
   };
-  const delivery = { emailEnabled: true, pushEnabled: false, pushPublicKey: '', hasPushSubscription: false };
+  const checkPush = width === 390 && height === 844;
+  const endpoint = 'https://fcm.googleapis.com/fcm/send/test';
+  const keys = { p256dh: 'A'.repeat(64), auth: 'B'.repeat(16) };
+  const delivery = { emailEnabled: true, pushEnabled: checkPush, pushPublicKey: checkPush ? 'AQ' : '' };
+  let deviceSubscribed = false;
+  const pushCalls = [];
+  if (checkPush) await page.addInitScript(({ endpoint, keys }) => {
+    let subscription = null;
+    const manager = {
+      async subscribe({ userVisibleOnly, applicationServerKey }) {
+        if (!navigator.userActivation.isActive || !userVisibleOnly || applicationServerKey[0] !== 1) {
+          throw new Error('Push subscription must use the toggle gesture and the public server key');
+        }
+        subscription = {
+          endpoint,
+          toJSON: () => ({ endpoint, keys }),
+          async unsubscribe() { subscription = null; return true; },
+        };
+        return subscription;
+      },
+      async getSubscription() { return subscription; },
+    };
+    const registration = { active: true, pushManager: manager };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: { register: async () => registration },
+    });
+  }, { endpoint, keys });
   let reminders = [];
   let bookingDecision = null;
   const notices = [{
@@ -563,6 +589,16 @@ async function checkNotifications(page, width, height) {
     if (pathname.endsWith('/preferences')) {
       preferences = route.request().postDataJSON();
       return route.fulfill({ json: { preferences } });
+    }
+    if (pathname.endsWith('/push-subscriptions')) {
+      const method = request.method();
+      pushCalls.push([method, request.postDataJSON()]);
+      deviceSubscribed = method === 'POST';
+      return method === 'POST' ? route.fulfill({ status: 201, json: { ok: true } }) : route.fulfill({ status: 204 });
+    }
+    if (pathname.endsWith('/push-subscriptions/status')) {
+      assert.deepEqual(request.postDataJSON(), { endpoint });
+      return route.fulfill({ json: { subscribed: deviceSubscribed } });
     }
     if (pathname.endsWith('/read')) {
       assert.deepEqual(route.request().postDataJSON(), { ids: ['1'] });
@@ -698,6 +734,19 @@ async function checkNotifications(page, width, height) {
     return toggle?.getAttribute('aria-checked') === 'true' && !toggle.disabled;
   });
   assert.equal(preferences.medicationReminders, true);
+  if (checkPush) {
+    const push = dialog.getByRole('switch', { name: /^Push/ });
+    await push.click();
+    await dialog.getByRole('switch', { name: /^Push/, checked: true }).waitFor();
+    assert.equal(preferences.bookingPush, true);
+    await inboxTab.click();
+    await settingsTab.click();
+    await dialog.getByRole('switch', { name: /^Push/, checked: true }).waitFor();
+    await push.click();
+    await dialog.getByRole('switch', { name: /^Push/, checked: false }).waitFor();
+    assert.equal(preferences.bookingPush, true);
+    assert.deepEqual(pushCalls, [['POST', { endpoint, keys }], ['DELETE', { endpoint }]]);
+  }
   await inboxTab.click();
   const notice = dialog.getByRole('link', { name: /Напоминание о приёме препаратов/ });
   await notice.waitFor();

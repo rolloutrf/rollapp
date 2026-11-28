@@ -65,7 +65,7 @@ export const api = {
   get: (path, { signal } = {}) => request(path, { signal }),
   post: (path, body, { signal } = {}) => request(path, { method: "POST", body: JSON.stringify(body), signal }),
   patch: (path, body, { signal } = {}) => request(path, { method: "PATCH", body: JSON.stringify(body), signal }),
-  delete: (path) => request(path, { method: "DELETE" }),
+  delete: (path, body) => request(path, { method: "DELETE", ...(body !== undefined && { body: JSON.stringify(body) }) }),
   uploadStory: (file) => request("/stories", { method: "POST", headers: { "Content-Type": file.type.split(";")[0] }, body: file }),
   uploadImage: (file, { signal } = {}) => request("/uploads/images", {
     method: "POST",

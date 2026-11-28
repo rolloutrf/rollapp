@@ -58,7 +58,7 @@ test('notification reads and read markers use the authenticated account', async 
   assert.equal((await call('get /api/notifications')).status, 401);
   assert.deepEqual((await call('get /api/notifications', { user })).body, {
     notifications: [], preferences: null, reminders: [],
-    delivery: { emailEnabled: false, pushEnabled: false, pushPublicKey: '', hasPushSubscription: false },
+    delivery: { emailEnabled: false, pushEnabled: false, pushPublicKey: '' },
   });
   assert.deepEqual(queries.map(query => query.args), [['reader', true], ['reader'], ['reader']]);
   assert.equal((await call('post /api/notifications/read', { user, body: { ids: ['invalid'] } })).status, 400);
@@ -105,13 +105,21 @@ test('push subscriptions are scoped to the authenticated account and never expos
   assert.equal(inbox.body.delivery.pushPublicKey, 'public-vapid-key');
   assert.doesNotMatch(JSON.stringify(inbox.body), /private-vapid-key/);
   const body = {
-    endpoint: 'https://push.example/subscription',
+    endpoint: 'https://fcm.googleapis.com/fcm/send/test',
     keys: { p256dh: 'A'.repeat(64), auth: 'B'.repeat(16) },
   };
   assert.equal((await call('post /api/notifications/push-subscriptions', { body })).status, 401);
+  const existingQueries = queries.length;
+  const unsupported = { ...body, endpoint: 'https://push.example/subscription' };
+  assert.equal((await call('post /api/notifications/push-subscriptions', { user, body: unsupported })).status, 400);
+  assert.equal(queries.length, existingQueries);
   assert.equal((await call('post /api/notifications/push-subscriptions', { user, body })).status, 201);
   assert(queries.some(({ sql, args }) => sql.includes('INSERT INTO notification_push_subscriptions')
     && args[1] === user.id && args[0] === body.endpoint));
+  const status = 'post /api/notifications/push-subscriptions/status';
+  assert.equal((await call(status, { body: { endpoint: body.endpoint } })).status, 401);
+  assert.deepEqual((await call(status, { user, body: { endpoint: body.endpoint } })).body, { subscribed: false });
+  assert.deepEqual(queries.at(-1).args, [body.endpoint, user.id]);
   assert.equal((await call('delete /api/notifications/push-subscriptions', { user, body: { endpoint: body.endpoint } })).status, 204);
   assert(queries.some(({ sql, args }) => sql.startsWith('DELETE FROM notification_push_subscriptions WHERE endpoint')
     && args[1] === user.id));

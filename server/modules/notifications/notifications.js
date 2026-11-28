@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { dueNotifications } from './notification-schema.js';
 import { readAssistantPlanningContext } from '../assistant/messenger-assistant.js';
-import { deliverNotificationOutbox, notificationDeliveryConfig } from './notification-delivery.js';
+import { browserPushEndpoint, deliverNotificationOutbox, notificationDeliveryConfig } from './notification-delivery.js';
 
 const timeZoneInput = z.string().min(1).max(100).refine(value => {
   try { new Intl.DateTimeFormat('ru-RU', { timeZone: value }); return true; }
@@ -24,14 +24,20 @@ const reminderInput = z.object({
 const newReminderInput = reminderInput.extend({ id: z.uuid(), timeZone: timeZoneInput });
 const readInput = z.object({ ids: z.array(z.string().regex(/^[1-9][0-9]{0,18}$/)
   .refine(id => id.length < 19 || id <= '9223372036854775807')).min(1).max(30) }).strict();
+const pushEndpointInput = z.string().transform((value, context) => {
+  const endpoint = browserPushEndpoint(value);
+  if (endpoint) return endpoint;
+  context.addIssue({ code: 'custom', message: 'Неподдерживаемый push-сервис' });
+  return z.NEVER;
+});
 const pushSubscriptionInput = z.object({
-  endpoint: z.url().max(2048).refine(value => value.startsWith('https://')),
+  endpoint: pushEndpointInput,
   keys: z.object({
     p256dh: z.string().min(40).max(256).regex(/^[A-Za-z0-9_-]+={0,2}$/),
     auth: z.string().min(8).max(128).regex(/^[A-Za-z0-9_-]+={0,2}$/),
   }).strict(),
 }).strict();
-const pushSubscriptionDelete = z.object({ endpoint: pushSubscriptionInput.shape.endpoint }).strict();
+const pushDeviceInput = z.object({ endpoint: pushEndpointInput }).strict();
 const inboxQuery = `SELECT n.id::text,n.kind,n.source_id LIKE 'friend-map:%' AS "nearbyFriend",n.title,
     n.action_path AS "actionPath",n.scheduled_at AS "scheduledAt",b.status AS "bookingStatus",
     CASE WHEN n.kind='booking_request' THEN n.source_id END AS "bookingId",
@@ -72,12 +78,9 @@ export function registerNotificationRoutes(app, {
   }
 
   app.get(base, requireAuth, privateInbox, asyncRoute(async (req, res) => {
-    const [inbox, preferences, reminders, pushSubscription] = await Promise.all([
+    const [inbox, preferences, reminders] = await Promise.all([
       query(inboxQuery, [req.user.id, req.user.can_discover_spheres === true]), query(preferencesQuery, [req.user.id]),
       query(`SELECT ${reminderFields} ${activeReminders} ORDER BY r.start_on, r.remind_at, r.id LIMIT 50`, [req.user.id]),
-      deliveryConfig.pushEnabled
-        ? query('SELECT 1 FROM notification_push_subscriptions WHERE user_id=$1 LIMIT 1', [req.user.id])
-        : Promise.resolve({ rowCount: 0 }),
     ]);
     const settings = preferences.rows[0] ?? null;
     const latestOverview = inbox.rows.find(notice => notice.kind === 'daily_overview');
@@ -95,7 +98,6 @@ export function registerNotificationRoutes(app, {
         emailEnabled: deliveryConfig.emailEnabled,
         pushEnabled: deliveryConfig.pushEnabled,
         pushPublicKey: deliveryConfig.pushPublicKey,
-        hasPushSubscription: Boolean(pushSubscription.rowCount),
       },
     });
   }));
@@ -144,8 +146,16 @@ export function registerNotificationRoutes(app, {
     res.status(201).json({ ok: true });
   }));
 
+  app.post(`${base}/push-subscriptions/status`, requireAuth, privateInbox, asyncRoute(async (req, res) => {
+    const parsed = pushDeviceInput.safeParse(req.body);
+    if (!parsed.success || !deliveryConfig.pushEnabled) return res.json({ subscribed: false });
+    const { rowCount } = await query('SELECT 1 FROM notification_push_subscriptions WHERE endpoint=$1 AND user_id=$2',
+      [parsed.data.endpoint, req.user.id]);
+    return res.json({ subscribed: Boolean(rowCount) });
+  }));
+
   app.delete(`${base}/push-subscriptions`, requireAuth, privateInbox, asyncRoute(async (req, res) => {
-    const parsed = pushSubscriptionDelete.safeParse(req.body);
+    const parsed = pushDeviceInput.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Push-подписка недоступна' });
     await query('DELETE FROM notification_push_subscriptions WHERE endpoint=$1 AND user_id=$2', [parsed.data.endpoint, req.user.id]);
     res.status(204).end();

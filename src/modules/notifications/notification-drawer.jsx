@@ -30,6 +30,8 @@ export function NotificationDrawer({ open, onOpenChange, canAccessHealth }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
+  const [pushRegistration, setPushRegistration] = useState(null);
+  const [devicePushEnabled, setDevicePushEnabled] = useState(false);
   const notifications = inbox?.notifications ?? [];
   const unread = notifications.filter(notice => !notice.read);
   const preferences = inbox?.preferences ?? {
@@ -38,6 +40,8 @@ export function NotificationDrawer({ open, onOpenChange, canAccessHealth }) {
   };
   const reminders = inbox?.reminders ?? [];
   const delivery = inbox?.delivery ?? {};
+  const pushAvailable = Boolean(delivery.pushEnabled && delivery.pushPublicKey && 'serviceWorker' in navigator
+    && 'PushManager' in window && 'Notification' in window);
 
   function editReminder(reminder) {
     setSection('reminders');
@@ -69,6 +73,28 @@ export function NotificationDrawer({ open, onOpenChange, canAccessHealth }) {
     };
   }, [open, busy, reload]);
 
+  useEffect(() => {
+    if (!open || section !== 'settings' || !pushAvailable) return;
+    let current = true;
+    setPushRegistration(null);
+    async function preparePush() {
+      try {
+        const registered = await navigator.serviceWorker.register('/rollapp-notifications-sw.js', { scope: '/' });
+        const ready = registered.active ? registered : await navigator.serviceWorker.ready;
+        const subscription = await ready.pushManager.getSubscription();
+        const status = subscription ? await api.post(`${path}/push-subscriptions/status`, { endpoint: subscription.endpoint }) : null;
+        if (current) {
+          setDevicePushEnabled(status?.subscribed === true);
+          setPushRegistration(ready);
+        }
+      } catch {
+        if (current) setError('Не удалось подготовить push-оповещения');
+      }
+    }
+    void preparePush();
+    return () => { current = false; };
+  }, [open, section, pushAvailable]);
+
   async function savePreference(key, value) {
     setBusy(true);
     setError('');
@@ -85,35 +111,32 @@ export function NotificationDrawer({ open, onOpenChange, canAccessHealth }) {
     setBusy(true);
     setError('');
     try {
-      if (!delivery.pushEnabled || !delivery.pushPublicKey || !('serviceWorker' in navigator)
-        || !('PushManager' in window) || !('Notification' in window)) {
+      if (!pushAvailable || !pushRegistration) {
         throw new Error('Push-оповещения не поддерживаются на этом устройстве');
       }
-      const registration = await navigator.serviceWorker.register('/rollapp-notifications-sw.js', { scope: '/' });
+      const manager = pushRegistration.pushManager;
       if (value) {
-        const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-        if (permission !== 'granted') throw new Error('Разрешите push-оповещения в настройках браузера');
-        const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({
+        if (Notification.permission === 'denied') throw new Error('Разрешите push-оповещения в настройках браузера');
+        // Calling subscribe directly in the toggle gesture lets the browser request permission.
+        const subscription = await manager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: applicationServerKey(delivery.pushPublicKey),
         });
         const serialized = subscription.toJSON();
         await api.post(`${path}/push-subscriptions`, { endpoint: serialized.endpoint, keys: serialized.keys });
-      } else {
-        const subscription = await registration.pushManager.getSubscription();
-        if (subscription) {
-          await api.delete(`${path}/push-subscriptions`, { endpoint: subscription.endpoint });
-          await subscription.unsubscribe();
+        if (!preferences.bookingPush) {
+          const data = await api.patch(`${path}/preferences`, {
+            ...preferences, medicationReminders: canAccessHealth && preferences.medicationReminders, bookingPush: true,
+          });
+          setInbox(current => ({ ...current, preferences: data.preferences }));
         }
+        setDevicePushEnabled(true);
+      } else {
+        const subscription = await manager.getSubscription();
+        if (subscription) await api.delete(`${path}/push-subscriptions`, { endpoint: subscription.endpoint });
+        setDevicePushEnabled(false);
+        if (subscription) await subscription.unsubscribe();
       }
-      const data = await api.patch(`${path}/preferences`, {
-        ...preferences, medicationReminders: canAccessHealth && preferences.medicationReminders, bookingPush: value,
-      });
-      setInbox(current => ({
-        ...current,
-        preferences: data.preferences,
-        delivery: { ...current.delivery, hasPushSubscription: value },
-      }));
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
@@ -239,8 +262,8 @@ export function NotificationDrawer({ open, onOpenChange, canAccessHealth }) {
                     <span className="flex items-center gap-2"><Smartphone className="size-4" aria-hidden="true" />Push</span>
                     <small className="text-xs text-muted-foreground">Системное оповещение на этом устройстве.</small>
                   </span>
-                  <Switch checked={delivery.pushEnabled && delivery.hasPushSubscription && preferences.bookingPush}
-                    disabled={busy || !delivery.pushEnabled} onCheckedChange={value => void savePushPreference(value)} />
+                  <Switch checked={pushAvailable && devicePushEnabled && preferences.bookingPush}
+                    disabled={busy || !pushAvailable || !pushRegistration} onCheckedChange={value => void savePushPreference(value)} />
                 </label>
               </section>
               <p className="text-xs text-muted-foreground">Время рассчитывается по часовому поясу {preferences.timeZone}.</p>

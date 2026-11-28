@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import webPush from "web-push";
-import { deliverNotificationOutbox, notificationDeliveryConfig, queueBookingNotification } from "./notification-delivery.js";
+import { browserPushEndpoint, deliverNotificationOutbox, notificationDeliveryConfig, queueBookingNotification } from "./notification-delivery.js";
+
+test("browser push uses HTTPS endpoints from the supported delivery services", () => {
+  for (const endpoint of [
+    "https://fcm.googleapis.com/fcm/send/test", "https://updates.push.services.mozilla.com/wpush/v2/test",
+    "https://web.push.apple.com/test", "https://wns2-par02p.notify.windows.com/test",
+  ]) assert.equal(browserPushEndpoint(endpoint), endpoint);
+  for (const endpoint of [
+    "https://push.example/subscription", "http://fcm.googleapis.com/fcm/send/test",
+    "https://web.push.apple.com:9443/test", "https://fcm.googleapis.com/token",
+  ]) assert.equal(browserPushEndpoint(endpoint), null);
+});
 
 test("booking delivery capabilities fail closed and expose only the public VAPID key", () => {
   assert.deepEqual(notificationDeliveryConfig({}), {
@@ -68,9 +79,10 @@ test("the delivery worker leases and sends a queued push before marking it sent"
     return { rows: [delivery] };
   } });
   const query = async (sql, args) => {
-    if (sql.includes("FROM notification_push_subscriptions")) return { rows: [{
-      endpoint: "https://push.example/subscription", p256dh: "A".repeat(64), auth: "B".repeat(16),
-    }] };
+    if (sql.includes("FROM notification_push_subscriptions")) return { rows: [
+      { endpoint: "https://push.example/subscription", p256dh: "A".repeat(64), auth: "B".repeat(16) },
+      { endpoint: "https://fcm.googleapis.com/fcm/send/test", p256dh: "A".repeat(64), auth: "B".repeat(16) },
+    ] };
     updates.push({ sql, args });
     return { rows: [] };
   };
@@ -84,7 +96,8 @@ test("the delivery worker leases and sends a queued push before marking it sent"
     sendNotification: async (subscription, message) => sent.push({ subscription, message: JSON.parse(message) }),
   });
   assert.equal(count, 1);
-  assert.equal(sent[0].subscription.endpoint, "https://push.example/subscription");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].subscription.endpoint, "https://fcm.googleapis.com/fcm/send/test");
   assert.equal(sent[0].message.url, "https://rollapp.example/app/planning?tab=calendar&space=booking&booking=request");
   assert.match(updates[0].sql, /status='sent'/);
   assert.equal(updates[0].args[0], delivery.id);
