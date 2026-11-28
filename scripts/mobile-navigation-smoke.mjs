@@ -28,7 +28,9 @@ async function checkFriendsToggle(page, width) {
  const subscriptions = group.getByRole('button', { name: 'Подписки', exact: true });
  const pressed = group.locator('[aria-pressed="true"]');
  await find.waitFor();
- assert.equal(await group.getByRole('button').count(), 3);
+ assert.deepEqual(await group.getByRole('button').allTextContents(), [
+  'Подписки', 'Подписчики', 'Найти друзей', 'Карта',
+ ]);
  assert.equal(await pressed.innerText(), 'Найти друзей');
  await page.evaluate(() => document.fonts.ready);
  const rail = await group.boundingBox();

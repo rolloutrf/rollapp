@@ -142,7 +142,7 @@ export function PlaceListingDetailsPage({ space, slug }) {
 export function PlaceListingsList({ listings } = {}) {
   const context = useContext(BusinessCatalogContext);
   const space = context?.space || null;
-  const own = usePlaceListings(space);
+  const own = usePlaceListings(listings ? null : space);
   const { result, retry } = listings || own;
   if (!space || !result || result.space !== space) return null;
   if (result.error) return <div className="flex justify-center">
