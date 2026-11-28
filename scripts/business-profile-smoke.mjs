@@ -545,8 +545,10 @@ try {
         const profileHeading = page.getByRole("heading", { level: 1 });
         assert.equal(await profileHeading.textContent(), "Мастерская подарков и хорошего настроения");
         const hero = page.locator(".public-collection-page__hero");
+        const bio = hero.getByText("Делаем подарки для особых случаев.", { exact: true });
+        await bio.waitFor();
         assert.equal(await hero.getByText("Бизнес-аккаунт", { exact: true }).count(), 0);
-        assert.equal(await hero.getByText("Делаем подарки для особых случаев.", { exact: true }).count(), 1);
+        assert.equal(await bio.count(), 1);
         assert.equal(await page.getByText("Делаем подарки для особых случаев.", { exact: true }).count(), 1);
         assert.equal(await page.getByText(/Старое (название|описание) витрины/).count(), 0);
         assert.equal(await page.getByText("В этом списке пока пусто", { exact: true }).count(), 0);
