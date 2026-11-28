@@ -66,17 +66,21 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith('/src/modules/runtime/api.js')) {
-      const start = source.indexOf('  uploadImage: ');
-      const end = source.indexOf('  resolveContactAvatar:', start);
-      assert(start >= 0 && end > start, 'Cannot locate the image upload method in the API fixture');
-      source=source.slice(0,start)+`  uploadImage: async (file, { signal } = {}) => {
-        if (!window.inlineImageFixture) return request('/uploads/images',{method:'POST',headers:{'Content-Type':file.type},body:file,signal});
-        const fixture=window.inlineImageFixture;fixture.uploads.push({name:file.name,type:file.type,size:file.size});
-        if(fixture.slow)await new Promise(resolve=>fixture.pending.push(resolve));
-        if(fixture.fail)throw new Error('Не удалось загрузить изображение. Повторите попытку.');
-        return{id:'00000000-0000-4000-8000-'+String(fixture.uploads.length).padStart(12,'0'),imageUrl:'/__inline-image.png'};
-      },\n`+source.slice(end);
-      return source.replace('delete: (path) => request(path, { method: "DELETE" }),',`delete: path => {if(window.inlineImageFixture&&path.startsWith('/uploads/images/')){window.inlineImageFixture.releases.push(path);return Promise.resolve({ok:true});}return request(path,{method:'DELETE'});},`);
+      return `${source}
+const { uploadImage: originalUploadImage, delete: originalDelete } = api;
+api.uploadImage = async (file, options) => {
+  const fixture = window.inlineImageFixture;
+  if (!fixture) return originalUploadImage(file, options);
+  fixture.uploads.push({ name: file.name, type: file.type, size: file.size });
+  if (fixture.slow) await new Promise(resolve => fixture.pending.push(resolve));
+  if (fixture.fail) throw new Error('Не удалось загрузить изображение. Повторите попытку.');
+  return { id: '00000000-0000-4000-8000-' + String(fixture.uploads.length).padStart(12, '0'), imageUrl: '/__inline-image.png' };
+};
+api.delete = (path, ...args) => {
+  if (!window.inlineImageFixture || !path.startsWith('/uploads/images/')) return originalDelete(path, ...args);
+  window.inlineImageFixture.releases.push(path);
+  return Promise.resolve({ ok: true });
+};`;
     }
 
     if (id.endsWith("/src/App.jsx?text-chrome")) return `${source}\nexport { GlobalAppChrome } from \"./modules/shell/app-chrome.jsx\";\nexport { SessionContext } from \"./modules/auth/session.jsx\";\nexport { ToastContext } from \"./modules/shell/toast.jsx\";\nexport { CollectionNavigationContext } from \"./modules/categories/collection-navigation.jsx\";\nexport { TabbedSpherePage } from \"./modules/shell/sphere-page.jsx\";\nexport { IDENTITY_TABS };`;
