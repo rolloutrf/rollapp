@@ -468,18 +468,21 @@ async function cleanAuthenticatedUser(row) {
   if (!row) return null;
   const moodLevel = profileMoodAvailable && row.account_type !== "business" ? row.mood_level ?? null : null;
   const profileSlug = await profileAddress(query, row.id);
-  const notificationCapability = notificationToken?.length >= 32 ? { notificationsEnabled: true } : {};
+  const featureCapabilities = {
+    ...(notificationsConfigured && { notificationsEnabled: true }),
+    ...(friendMapAvailable && { friendMapLocationEnabled: true }),
+  };
   const waitlistCapability = canViewTelegramWaitlist(row) ? { canViewTelegramWaitlist: true } : {};
   const hasCapabilities = ["has_yandex", "can_discover_spheres"]
     .every((property) => Object.prototype.hasOwnProperty.call(row, property));
-  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug, ...notificationCapability, ...waitlistCapability };
+  if (hasCapabilities) return { ...cleanUser(row), moodLevel, profileSlug, ...featureCapabilities, ...waitlistCapability };
   const capabilities = await query(
     `SELECT
        EXISTS(SELECT 1 FROM yandex_identities WHERE user_id=$1) AS has_yandex,
        EXISTS(SELECT 1 FROM default_follow_targets WHERE user_id=$1) AS can_discover_spheres`,
     [row.id],
   );
-  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug, ...notificationCapability, ...waitlistCapability };
+  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel, profileSlug, ...featureCapabilities, ...waitlistCapability };
 }
 
 function mapList(row) {

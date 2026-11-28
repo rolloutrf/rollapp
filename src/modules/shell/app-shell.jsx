@@ -56,7 +56,7 @@ export function AppShell({ children, friendsContext = false, collectionChrome = 
     || (wishesRoute && user?.accountType === "personal" ? { sphere: "wishlist", section: wishlistSpace(location.search) } : null);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
-      {user && <FriendLocationReporter key={user.id} userId={user.id} />}
+      {user?.friendMapLocationEnabled && <FriendLocationReporter key={user.id} userId={user.id} />}
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}

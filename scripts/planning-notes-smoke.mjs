@@ -17,7 +17,7 @@ async function checkGroups(browser, origin, width, height, errors) {
  page.setDefaultTimeout(60_000);
  page.setDefaultNavigationTimeout(60_000);
  page.on('pageerror',error=>errors.push(error.message));
- await page.route('**/api/**',route=>{errors.push('Unexpected API');return route.abort();});
+ await page.route('**/api/**',route=>{errors.push(`Unexpected API: ${route.request().method()} ${new URL(route.request().url()).pathname}`);return route.abort();});
  try {
   await page.goto(`${origin}/app/planning?tab=notes&grouping=1`,{waitUntil:'domcontentloaded'});
   const note = title => page.getByRole('link',{name:title,exact:true});
@@ -134,7 +134,7 @@ async function checkGroups(browser, origin, width, height, errors) {
 try{for(const [width,height] of sizes){
  const page=await browser.newPage({viewport:{width,height}}),errors=[];
  page.setDefaultTimeout(60_000);page.setDefaultNavigationTimeout(60_000);
- page.on('pageerror',error=>errors.push(error.message));await page.route('**/api/**',route=>{errors.push('Unexpected API');return route.abort();});
+ page.on('pageerror',error=>errors.push(error.message));await page.route('**/api/**',route=>{errors.push(`Unexpected API: ${route.request().method()} ${new URL(route.request().url()).pathname}`);return route.abort();});
  await page.goto(`${origin}/app/planning?tab=notes`,{waitUntil:"domcontentloaded"});
  await page.getByRole('link',{name:'Мысли и идеи',exact:true}).waitFor();
  await page.evaluate(()=>document.fonts.ready);
