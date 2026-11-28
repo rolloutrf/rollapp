@@ -92,7 +92,10 @@ async function checkRolloutStore(width, height) {
     const ordersDrawer = page.getByRole("dialog", { name: "Заказы", exact: true });
     await page.getByRole("button", { name: /^Редактировать профиль/ }).click();
     await page.getByRole("navigation", { name: "Разделы профиля" }).getByRole("button", { name: "Заказы", exact: true }).click();
-    await page.waitForURL(smokeOrigin(server) + APP_ORDERS_PATH);
+    const ordersUrl = new URL(APP_ORDERS_PATH, smokeOrigin(server));
+    const storeTab = new URL(storeUrl).searchParams.get("tab");
+    if (storeTab) ordersUrl.searchParams.set("tab", storeTab);
+    await page.waitForURL(ordersUrl.href);
     await ordersDrawer.getByText("Заказов пока нет", { exact: true }).waitFor();
     await page.goBack();
     await page.waitForURL(storeUrl);
