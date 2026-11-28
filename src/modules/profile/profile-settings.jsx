@@ -4,11 +4,12 @@ import { platformLink } from "../../applications/location.js";
 import { localDateKey } from "../../../shared/modules/planning/planning.js";
 import { PlanningDatePicker } from "@/modules/planning/planning-date-picker.jsx";
 import { Avatar, avatarInitials } from "@/modules/profile/profile-avatar.jsx";
+import { ProfilePortrait } from "./profile-portrait.jsx";
 import { MemberNumberBoard } from "./member-number-board.jsx";
 import { ProfileMoodSettings } from "@/modules/profile/profile-mood-settings.jsx";
 import { ContactCardContent } from "@/modules/contacts/contact-card-dialog.jsx";
 import { PageActionButton } from "@/components/page-action-button";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -60,7 +61,7 @@ import { useLogout } from "../auth/session.jsx";
 
 const BROWSER_WISHLIST_PROVIDERS = EXTERNAL_WISHLIST_PROVIDERS.filter(({ browserFavoritesUrl }) => browserFavoritesUrl);
 
-export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUpdated, onWishlistsImported, finalFocus, diskSyncCallback }) {
+export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUpdated, onWishlistsImported, finalFocus, diskSyncCallback, openingPortraitTop }) {
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
@@ -105,6 +106,30 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
   const sectionTrigger = useRef(null);
   const sectionHeading = useRef(null);
   const scrollArea = useRef(null);
+  const pendingPortraitTop = useRef(openingPortraitTop);
+  const attachScrollArea = useCallback((node) => {
+    scrollArea.current = node;
+    if (!node || !isMobile || pendingPortraitTop.current == null) return;
+    // The native form enters its own history entry and resets document scroll
+    // before the next paint. Align the portrait once that page is visible.
+    const frame = requestAnimationFrame(() => {
+      const page = node.closest("[data-mobile-form-page]:not([hidden])");
+      const portrait = node.querySelector(".wishes-page__hero-avatar");
+      if (!page || !portrait) return;
+      const top = window.scrollY + portrait.getBoundingClientRect().top - pendingPortraitTop.current;
+      pendingPortraitTop.current = null;
+      if (top > document.scrollingElement.scrollHeight - document.documentElement.clientHeight) {
+        // A tall phone may have less than one viewport of menu rows.
+        page.style.transitionProperty = "none";
+        page.style.minHeight = `calc(var(--app-visual-height, 100dvh) + ${top}px)`;
+      }
+      window.scrollTo({ top: Math.max(0, top), behavior: "instant" });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      scrollArea.current = null;
+    };
+  }, [isMobile]);
   const sections = [
     { id: "accounts", title: "Аккаунты" },
     { id: "personal", title: "Персональная информация" },
@@ -360,21 +385,20 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
       </ShadcnButton>
     </DrawerFooter>
   );
-  const menu = <div className="flex flex-col gap-4 px-4 pt-4 pb-1">
-    <div className="flex flex-col gap-2" role="group" aria-label="Фото профиля">
+  const menu = <div className="profile-settings-menu flex flex-col gap-4 px-4 pt-4 pb-1">
+    <div className="wishes-page__identity" role="group" aria-label="Фото профиля">
       <ShadcnButton
         type="button"
         variant="ghost"
-        size="icon"
-        className="size-36 self-center cursor-pointer rounded-full border-0 p-0 hover:bg-transparent dark:hover:bg-transparent"
+        className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0"
         aria-label={`Изменить фото профиля · ${avatarInitials(user)}`}
         aria-busy={imageUploading || undefined}
         disabled={busy}
         onClick={() => imageFileRef.current?.click()}
       >
-        <Avatar user={user} size="xl" className="!size-full" aria-hidden="true" />
+        <ProfilePortrait user={user} />
       </ShadcnButton>
-      <p className="w-full text-center font-semibold wrap-anywhere">{user.name}</p>
+      <h2 className="profile-display-name">{user.name}</h2>
       <Input ref={imageFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => uploadAvatar(event.target.files?.[0])} />
       {imageError && <FieldError>{imageError}</FieldError>}
     </div>
@@ -659,7 +683,7 @@ export function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onPr
           {isMobile ? <DrawerTitle>Настройки профиля</DrawerTitle> : <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>}
           <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
         </DrawerHeader>}
-        <ScrollArea ref={scrollArea} hidden={sectionOwnsScroll} className="mx-auto min-h-0 w-full max-w-full flex-1">
+        <ScrollArea ref={attachScrollArea} hidden={sectionOwnsScroll} className="mx-auto min-h-0 w-full max-w-full flex-1">
           <div hidden={Boolean(desktopSection)}>{menu}</div>
           {desktopSection && !sectionOwnsScroll && sectionBody}
         </ScrollArea>

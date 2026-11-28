@@ -30,7 +30,7 @@ export function PersistentProfileHero({ user, wishlistChrome = false, sectionNav
           </ShadcnButton> : <ProfilePortrait user={profile} />}
         </div>
         <div className="wishes-page__hero-copy">
-          <h1 id="persistent-profile-name">{profile.name}</h1>
+          <h1 className="profile-display-name" id="persistent-profile-name">{profile.name}</h1>
           {(wishlistChrome || wishlistPage) && editable && <AppFriendsLink memberNumber={profile.memberNumber} />}
           {sectionNavigation}
         </div>

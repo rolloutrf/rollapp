@@ -40,7 +40,7 @@ export function PublicProfileHero({
           <ProfilePortrait user={profile} />
         </Button> : <ProfilePortrait user={profile} />}
         <div className="wishes-page__hero-copy">
-          <h1 id="public-profile-name">{profile.name}</h1>
+          <h1 className="profile-display-name" id="public-profile-name">{profile.name}</h1>
           {isOwner && <AppFriendsLink memberNumber={profile.memberNumber} />}
           {business && profile.bio?.trim() && (
             <div className="typeset typeset-rollapp max-w-full">
